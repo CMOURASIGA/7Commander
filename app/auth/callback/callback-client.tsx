@@ -5,6 +5,13 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import { setClientAuthToken } from "@/lib/client-auth";
 
+function readHashParams() {
+  const hash = window.location.hash.startsWith("#")
+    ? window.location.hash.slice(1)
+    : window.location.hash;
+  return new URLSearchParams(hash);
+}
+
 export function AuthCallbackClient() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -25,6 +32,25 @@ export function AuthCallbackClient() {
         if (exchanged.error) {
           setMessage("Falha ao validar login Google.");
           return;
+        }
+      } else {
+        const hashParams = readHashParams();
+        const accessToken = hashParams.get("access_token")?.trim() ?? "";
+        const refreshToken = hashParams.get("refresh_token")?.trim() ?? "";
+
+        if (accessToken && refreshToken) {
+          const restored = await client.auth.setSession({
+            access_token: accessToken,
+            refresh_token: refreshToken,
+          });
+          if (restored.error) {
+            setMessage("Falha ao restaurar a sessao autenticada.");
+            return;
+          }
+          window.history.replaceState(null, "", window.location.pathname + window.location.search);
+        } else if (accessToken) {
+          setClientAuthToken(accessToken, null);
+          window.history.replaceState(null, "", window.location.pathname + window.location.search);
         }
       }
 

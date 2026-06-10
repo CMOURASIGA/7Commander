@@ -1,12 +1,25 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { BrandLockup } from "@/components/brand/brand-lockup";
 import { useKairosAuth } from "@/components/auth/kairos-auth-provider";
 
 export default function LoginPage() {
   const auth = useKairosAuth();
+  const router = useRouter();
   const [error, setError] = useState<string | null>(null);
+  const [nextPath, setNextPath] = useState("/");
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    setNextPath(params.get("next")?.trim() || "/");
+  }, []);
+
+  useEffect(() => {
+    if (auth.loading || !auth.user) return;
+    router.replace(nextPath);
+  }, [auth.loading, auth.user, nextPath, router]);
 
   return (
     <section className="mx-auto max-w-xl rounded-[1.8rem] border border-(--border) bg-(--bg-surface) p-8 shadow-[var(--shadow-card)]">
@@ -30,7 +43,7 @@ export default function LoginPage() {
             void (async () => {
               setError(null);
               try {
-                await auth.signInWithGoogle();
+                await auth.signInWithGoogle(nextPath);
               } catch (err) {
                 setError(err instanceof Error ? err.message : "Falha ao iniciar login Google.");
               }

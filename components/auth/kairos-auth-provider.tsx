@@ -9,7 +9,7 @@ type KairosAuthState = {
   loading: boolean;
   required: boolean;
   user: User | null;
-  signInWithGoogle: () => Promise<void>;
+  signInWithGoogle: (nextPath?: string) => Promise<void>;
   signOut: () => Promise<void>;
 };
 
@@ -93,13 +93,16 @@ export function KairosAuthProvider({ required, children }: ProviderProps) {
       loading,
       required,
       user,
-      signInWithGoogle: async () => {
+      signInWithGoogle: async (nextPath?: string) => {
         const client = getSupabaseBrowserClient();
         if (!client) throw new Error("Cliente Supabase indisponivel no navegador.");
-        const redirectTo = `${window.location.origin}/auth/callback`;
+        const redirectUrl = new URL("/auth/callback", window.location.origin);
+        if (nextPath?.trim()) {
+          redirectUrl.searchParams.set("next", nextPath.trim());
+        }
         const result = await client.auth.signInWithOAuth({
           provider: "google",
-          options: { redirectTo },
+          options: { redirectTo: redirectUrl.toString() },
         });
         if (result.error) {
           throw new Error(result.error.message || "Falha ao iniciar login Google.");
