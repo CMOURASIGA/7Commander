@@ -2,7 +2,8 @@
 
 import Link from "next/link";
 import { KeyboardEvent, useEffect, useMemo, useRef, useState } from "react";
-import { getClientAuthEmail, getClientAuthHeaders } from "@/lib/client-auth";
+import { getClientAuthHeaders } from "@/lib/client-auth";
+import { useKairosAuth } from "@/components/auth/kairos-auth-provider";
 import { BRAND_NAME } from "@/lib/brand";
 import { VoiceGlyph } from "@/components/icons/voice-icons";
 import { SectionLabel, StatusPill } from "@/components/ui/workspace-primitives";
@@ -59,7 +60,7 @@ function getStateLabels(state: VoiceState) {
     return { label: "Escutando...", sub: "Fale agora — modo contínuo ativo" };
   }
   if (voiceUiState === "processing") {
-    return { label: "Processando...", sub: "Aguarde a resposta da IA" };
+    return { label: "Processando...", sub: "Aguarde a resposta do Kairos" };
   }
   if (voiceUiState === "paused") {
     return { label: "Pausado", sub: "Clique no orbe para retomar" };
@@ -80,6 +81,7 @@ function addSessionEvent(setter: React.Dispatch<React.SetStateAction<string[]>>,
 }
 
 export default function VoiceRoomPage() {
+  const auth = useKairosAuth();
   const [voiceState, setVoiceState] = useState<VoiceState>("inativo");
   const [error, setError] = useState<string | null>(null);
   const [conversationId] = useState<string>(createConversationId);
@@ -115,8 +117,11 @@ export default function VoiceRoomPage() {
     month: "short",
     year: "numeric",
   }).format(new Date());
-  const userEmail = getClientAuthEmail();
+  const canLoadWorkspace = !auth.loading && (!auth.required || Boolean(auth.user));
+  const userEmail = auth.user?.email ?? null;
   const userInitials = formatUserInitials(userEmail);
+  const activeProjectLabel = activeProject?.name ?? "Nenhum projeto ativo";
+  const activeProjectStatusLabel = activeProject?.status ?? "sem projeto selecionado";
 
   useEffect(() => {
     busyRef.current = isBusy;
@@ -152,6 +157,8 @@ export default function VoiceRoomPage() {
   }
 
   useEffect(() => {
+    if (!canLoadWorkspace) return;
+
     void reloadProjects();
     return () => {
       if (audioRef.current) {
@@ -168,7 +175,7 @@ export default function VoiceRoomPage() {
         streamRef.current.getTracks().forEach((track) => track.stop());
       }
     };
-  }, []);
+  }, [canLoadWorkspace]);
 
   function clearVoiceCaptureResources() {
     if (silenceFrameRef.current) {
@@ -445,28 +452,53 @@ export default function VoiceRoomPage() {
     <section className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_220px]">
       <div className="workspace-card min-h-[calc(100vh-128px)] overflow-hidden">
         <div className="flex min-h-[calc(100vh-128px)] flex-col">
-          <header className="flex h-14 items-center justify-between border-b border-(--border) px-5">
-            <div>
-              <p className="text-[10px] font-black uppercase tracking-[0.2em] text-(--accent)">{BRAND_NAME}</p>
-              <h2 className="text-[15px] font-medium text-(--text-primary)">Voice Room</h2>
-            </div>
-            <div className="flex flex-wrap items-center gap-2">
-              <select
-                value={activeProjectId ?? ""}
-                onChange={(event) => void handleActivateProject(event.target.value)}
-                className="workspace-select max-w-56 rounded-full px-3 py-1.5 text-[12px]"
-              >
-                <option value="">Sem projeto</option>
-                {projects.map((project) => (
-                  <option key={project.id} value={project.id}>
-                    {project.name}
-                  </option>
-                ))}
-              </select>
-              <StatusPill tone="success">
-                <span className="h-1.5 w-1.5 rounded-full bg-(--success)" />
-                Centro online
-              </StatusPill>
+          <header className="border-b border-(--border) px-5 py-4">
+            <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+              <div className="min-w-0">
+                <p className="text-[10px] font-black uppercase tracking-[0.2em] text-(--accent)">{BRAND_NAME}</p>
+                <div className="mt-1 flex flex-wrap items-center gap-2">
+                  <h2 className="text-[15px] font-medium text-(--text-primary)">Voice Room</h2>
+                  <StatusPill tone="success">
+                    <span className="h-1.5 w-1.5 rounded-full bg-(--success)" />
+                    Centro online
+                  </StatusPill>
+                </div>
+                <p className="mt-2 max-w-xl text-[12px] text-(--text-secondary)">
+                  Escolha o projeto que deve guiar o contexto desta conversa.
+                </p>
+              </div>
+
+              <div className="w-full max-w-[480px] rounded-[1rem] border border-(--border) bg-(--bg-muted) p-3">
+                <p className="text-[10px] font-black uppercase tracking-[0.16em] text-(--text-tertiary)">
+                  Projeto em foco
+                </p>
+                <select
+                  value={activeProjectId ?? ""}
+                  onChange={(event) => void handleActivateProject(event.target.value)}
+                  className="workspace-select mt-2 min-w-0 rounded-xl bg-white pr-10 text-[13px]"
+                >
+                  <option value="">Sem projeto</option>
+                  {projects.map((project) => (
+                    <option key={project.id} value={project.id}>
+                      {project.name}
+                    </option>
+                  ))}
+                </select>
+                <div className="mt-2 flex items-center justify-between gap-3 text-[11px]">
+                  <p
+                    className="min-w-0 truncate font-medium text-(--text-primary)"
+                    title={activeProjectLabel}
+                  >
+                    {activeProjectLabel}
+                  </p>
+                  <span className="shrink-0 text-(--text-tertiary)">
+                    {projects.length} projetos
+                  </span>
+                </div>
+                <p className="mt-1 text-[11px] text-(--text-secondary)">
+                  Status: {activeProjectStatusLabel}
+                </p>
+              </div>
             </div>
           </header>
 

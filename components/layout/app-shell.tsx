@@ -14,7 +14,30 @@ export function AppShell({ children }: AppShellProps) {
   const pathname = usePathname();
   const canBypassAuth =
     pathname === "/login" || pathname.startsWith("/auth/callback");
+  const mustWaitForAuth = auth.required && auth.loading && !canBypassAuth;
   const mustBlock = auth.required && !auth.loading && !auth.user && !canBypassAuth;
+
+  if (mustWaitForAuth) {
+    return (
+      <div className="min-h-screen bg-(--bg-page) md:flex">
+        <Sidebar />
+        <div className="flex min-h-screen flex-1 flex-col">
+          <Header />
+          <main className="flex-1 p-5 md:p-7">
+            <section className="rounded-[1.6rem] border border-(--border) bg-(--bg-surface) p-6 shadow-[var(--shadow-card)]">
+              <p className="text-[10px] font-black uppercase tracking-[0.24em] text-(--accent)">
+                Autenticacao
+              </p>
+              <h2 className="mt-2 text-xl font-semibold text-(--text-primary)">Validando sessao</h2>
+              <p className="mt-2 text-sm text-(--text-secondary)">
+                Aguarde enquanto o Kairos confirma o acesso antes de carregar o workspace.
+              </p>
+            </section>
+          </main>
+        </div>
+      </div>
+    );
+  }
 
   if (mustBlock) {
     return (

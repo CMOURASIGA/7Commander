@@ -8,12 +8,13 @@ import { BrandLockup } from "@/components/brand/brand-lockup";
 const NAV_ITEMS = [
   { section: "Principal", href: "/", label: "Inicio" },
   { section: "Principal", href: "/voice", label: "Voice Room" },
-  { section: "Principal", href: "/chat", label: "Dashboard IA" },
+  { section: "Principal", href: "/chat", label: "Dashboard Kairos" },
   { section: "Principal", href: "/daily", label: "Daily" },
   { section: "Dados", href: "/clients", label: "Clientes" },
   { section: "Dados", href: "/projects", label: "Projetos" },
   { section: "Dados", href: "/activities", label: "Atividades" },
   { section: "Dados", href: "/memory", label: "Memoria" },
+  { section: "Sistema", href: "/help", label: "Ajuda" },
   { section: "Sistema", href: "/settings", label: "Configuracoes" },
 ];
 

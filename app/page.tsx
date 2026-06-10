@@ -2,7 +2,8 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { getClientAuthEmail, getClientAuthHeaders } from "@/lib/client-auth";
+import { getClientAuthHeaders } from "@/lib/client-auth";
+import { useKairosAuth } from "@/components/auth/kairos-auth-provider";
 
 type ActiveProject = {
   id: string;
@@ -87,12 +88,14 @@ function DashboardIcon({ label }: { label: string }) {
 }
 
 export default function HomePage() {
+  const auth = useKairosAuth();
   const [project, setProject] = useState<ActiveProject | null>(null);
   const [projects, setProjects] = useState<ProjectSummary[]>([]);
   const [board, setBoard] = useState<TaskBoard | null>(null);
   const [risks, setRisks] = useState<RiskItem[]>([]);
   const [knowledge, setKnowledge] = useState<KnowledgeItem[]>([]);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
+  const canLoadWorkspace = !auth.loading && (!auth.required || Boolean(auth.user));
 
   const counters = useMemo(() => {
     const totalProjects = projects.length;
@@ -110,6 +113,8 @@ export default function HomePage() {
   }, [projects]);
 
   useEffect(() => {
+    if (!canLoadWorkspace) return;
+
     async function bootstrap() {
       setStatusMessage(null);
       try {
@@ -166,9 +171,9 @@ export default function HomePage() {
     }
 
     void bootstrap();
-  }, []);
+  }, [canLoadWorkspace]);
 
-  const userName = formatDisplayName(getClientAuthEmail());
+  const userName = formatDisplayName(auth.user?.email ?? null);
   const subtitle = `${counters.activeProjects} projetos ativos e ${counters.riskyProjects} em risco agora.`;
 
   return (
@@ -207,7 +212,7 @@ export default function HomePage() {
           <div>
             <p className="text-[13px] font-medium text-(--accent-strong)">Voice Room disponível</p>
             <p className="text-[12px] text-(--brand-ink)">
-              Converse com a IA sobre o projeto ativo em tempo real.
+              Converse com o Kairos sobre o projeto ativo em tempo real.
             </p>
           </div>
         </div>

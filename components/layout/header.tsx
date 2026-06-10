@@ -7,12 +7,13 @@ import { useKairosAuth } from "@/components/auth/kairos-auth-provider";
 const PAGE_TITLES: Record<string, string> = {
   "/": "Inicio",
   "/voice": "Voice Room",
-  "/chat": "Dashboard IA",
+  "/chat": "Dashboard Kairos",
   "/daily": "Daily",
   "/clients": "Clientes",
   "/projects": "Projetos",
   "/activities": "Atividades",
   "/memory": "Memoria",
+  "/help": "Ajuda",
   "/settings": "Configuracoes",
   "/login": "Acesso",
 };

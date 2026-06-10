@@ -18,7 +18,7 @@ export async function POST(request: NextRequest) {
 
     const supabase = getSupabaseServerClient();
     if (!supabase) {
-      return NextResponse.json({ error: "Supabase indisponivel." }, { status: 500 });
+      return NextResponse.json({ data: { synced: false, reason: "supabase_unavailable" } });
     }
 
     const payload = await request.json().catch(() => ({}));
@@ -42,7 +42,13 @@ export async function POST(request: NextRequest) {
       .single();
 
     if (upserted.error || !upserted.data) {
-      throw new Error(upserted.error?.message || "Falha ao sincronizar perfil.");
+      console.error("[/api/auth/profile] sync skipped", upserted.error);
+      return NextResponse.json({
+        data: {
+          synced: false,
+          reason: "profile_sync_failed",
+        },
+      });
     }
 
     return NextResponse.json({
@@ -53,6 +59,11 @@ export async function POST(request: NextRequest) {
     });
   } catch (error) {
     console.error("[/api/auth/profile] POST error", error);
-    return NextResponse.json({ error: "Erro ao sincronizar perfil." }, { status: 500 });
+    return NextResponse.json({
+      data: {
+        synced: false,
+        reason: "unexpected_error",
+      },
+    });
   }
 }
