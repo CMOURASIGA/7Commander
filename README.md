@@ -1,6 +1,6 @@
-# Kairos
+﻿# 7C Commander
 
-Sistema cognitivo operacional pessoal com memoria contextual compartilhada.
+Workspace operacional com memória contextual compartilhada.
 
 ## Stack
 
