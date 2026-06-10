@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Relatório de Backlog & Plano 30-60-90</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="./base.css">
+</head>
+<body>
+  <button class="print-btn" onclick="window.print()">Imprimir / Exportar PDF</button>
+  <div class="doc">
+    <header>
+      <div class="brand">
+        <img src="https://i.imgur.com/GUOMwkI.png" alt="Logo" onerror="this.style.display='none'; this.parentElement.insertAdjacentHTML('beforeend','<span class=`pill`>PM Commander OS</span>');">
+        <div class="brand-title">
+          <div class="meta">PM Commander OS · Projeto Exemplo</div>
+          <h1>Relatório de Backlog & Plano 30-60-90</h1>
+        </div>
+      </div>
+      <div class="meta" id="report-date"></div>
+    </header>
+    <div class="doc-body" id="root"></div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  <script>
+    const data = {
+      resumo: 'Backlog priorizado e plano de execução com foco em valor e risco.',
+      contexto: 'Migração do portal para arquitetura modular. Stakeholders: PM, Engenharia, UX.',
+      backlog: [
+        { id: 'US-01', epico: 'Catálogo', historia: 'Como usuário, quero filtrar produtos por categoria', criterios: 'Filtro por categoria; manter seleção na paginação', valor: '↑ conversão', prioridade: 'Alta' },
+        { id: 'US-02', epico: 'Checkout', historia: 'Como cliente, quero salvar múltiplos endereços', criterios: 'CRUD endereços; validação CEP', valor: '↓ abandono', prioridade: 'Média' },
+      ],
+      plano: [
+        { periodo: '0-30 dias', metas: 'Fundação técnica; fluxo de catálogo', entregaveis: 'Setup CI/CD; filtros; cache' },
+        { periodo: '31-60 dias', metas: 'Checkout e pagamentos', entregaveis: 'Endereços; meios de pagamento; antifraude' },
+        { periodo: '61-90 dias', metas: 'Stabilize & observabilidade', entregaveis: 'Dashboards; alertas; otimização' },
+      ],
+      riscos: [
+        { id: 'R1', risco: 'Dependência do gateway X', prob: 'Alta', impacto: 'Alta', score: 9, mitigacao: 'Plano B com gateway Y' },
+        { id: 'R2', risco: 'Equipe reduzida em abril', prob: 'Média', impacto: 'Média', score: 5, mitigacao: 'Priorizar entregas críticas antes' },
+      ],
+      acoes: [
+        'Validar com finanças a troca do gateway',
+        'Bloquear duas sprints para estabilização',
+        'Alinhar com UX a priorização de telas críticas',
+      ],
+      proximosPassos: [
+        'Kickoff técnico do módulo de catálogo',
+        'Mock de integrações críticas',
+        'Revisar planos de rollback',
+      ],
+    };
+
+    const root = document.getElementById('root');
+    document.getElementById('report-date').innerText = new Date().toLocaleDateString('pt-BR');
+
+    const badgeClass = (prioridade) => {
+      if (prioridade === 'Alta') return 'badge badge-alta';
+      if (prioridade === 'Média' || prioridade === 'Media') return 'badge badge-media';
+      return 'badge badge-baixa';
+    };
+
+    const riskBadge = (score) => {
+      if (score >= 7) return 'badge badge-alta';
+      if (score >= 4) return 'badge badge-media';
+      return 'badge badge-baixa';
+    };
+
+    const sections = [];
+
+    const section = (title, content) => {
+      if (!content) return '';
+      return `<section class="doc-section"><h2>${title}</h2><div class="doc-content">${content}</div></section>`;
+    };
+
+    sections.push(section('Resumo Executivo', marked.parse(data.resumo)));
+    sections.push(section('Contexto', marked.parse(data.contexto)));
+
+    if (data.backlog?.length) {
+      const rows = data.backlog.map(item => `
+        <tr>
+          <td>${item.id}</td>
+          <td>${item.epico}</td>
+          <td>${marked.parseInline(item.historia)}</td>
+          <td>${marked.parseInline(item.criterios)}</td>
+          <td>${item.valor}</td>
+          <td><span class="${badgeClass(item.prioridade)}">${item.prioridade}</span></td>
+        </tr>
+      `).join('');
+      const table = `
+        <div class="table-wrapper">
+          <table>
+            <thead>
+              <tr>
+                <th>ID</th><th>Épico</th><th>User Story</th><th>Critérios de Aceite</th><th>Valor</th><th>Prioridade</th>
+              </tr>
+            </thead>
+            <tbody>${rows}</tbody>
+          </table>
+        </div>`;
+      sections.push(section('Backlog (INVEST)', table));
+    }
+
+    if (data.plano?.length) {
+      const rows = data.plano.map(item => `
+        <tr>
+          <td>${item.periodo}</td>
+          <td>${marked.parseInline(item.metas)}</td>
+          <td>${marked.parseInline(item.entregaveis)}</td>
+        </tr>`).join('');
+      const table = `
+        <div class="table-wrapper">
+          <table>
+            <thead><tr><th>Período</th><th>Metas</th><th>Entregáveis</th></tr></thead>
+            <tbody>${rows}</tbody>
+          </table>
+        </div>`;
+      sections.push(section('Plano 30-60-90', table));
+    }
+
+    if (data.riscos?.length) {
+      const rows = data.riscos.map(item => `
+        <tr>
+          <td>${item.id}</td>
+          <td>${item.risco}</td>
+          <td><span class="${riskBadge(item.score)}">${item.prob}</span></td>
+          <td><span class="${riskBadge(item.score)}">${item.impacto}</span></td>
+          <td><span class="${riskBadge(item.score)}">${item.score}</span></td>
+          <td>${item.mitigacao}</td>
+        </tr>`).join('');
+      const table = `
+        <div class="table-wrapper">
+          <table>
+            <thead><tr><th>ID</th><th>Risco</th><th>Prob.</th><th>Impacto</th><th>Score</th><th>Mitigação</th></tr></thead>
+            <tbody>${rows}</tbody>
+          </table>
+        </div>`;
+      sections.push(section('Riscos e Mitigações', table));
+    }
+
+    if (data.acoes?.length) {
+      sections.push(section('Ações Recomendadas', `<ul class="list actions-list">${data.acoes.map(a => `<li>${marked.parseInline(a)}</li>`).join('')}</ul>`));
+    }
+
+    if (data.proximosPassos?.length) {
+      sections.push(section('Próximos Passos', `<ul class="list actions-list">${data.proximosPassos.map(a => `<li>${marked.parseInline(a)}</li>`).join('')}</ul>`));
+    }
+
+    root.innerHTML = sections.join('');
+  </script>
+</body>
+</html>

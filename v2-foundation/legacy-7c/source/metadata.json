@@ -1,0 +1,8 @@
+{
+  "name": "7C Commander",
+  "description": "Plataforma de gestao de projetos orientada por cliente, projeto, agentes e artefatos com versionamento.",
+  "requestFramePermissions": [
+    "camera",
+    "microphone"
+  ]
+}

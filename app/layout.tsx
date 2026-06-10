@@ -1,10 +1,13 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import { AppShell } from "@/components/layout/app-shell";
+import { KairosAuthProvider } from "@/components/auth/kairos-auth-provider";
+import { isAuthRequired } from "@/lib/env";
+import { BRAND_DESCRIPTION, BRAND_NAME } from "@/lib/brand";
 
 export const metadata: Metadata = {
-  title: "Kairos",
-  description: "Sistema cognitivo operacional pessoal",
+  title: BRAND_NAME,
+  description: BRAND_DESCRIPTION,
 };
 
 export default function RootLayout({
@@ -12,10 +15,14 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const authRequired = isAuthRequired();
+
   return (
     <html lang="pt-BR">
       <body>
-        <AppShell>{children}</AppShell>
+        <KairosAuthProvider required={authRequired}>
+          <AppShell>{children}</AppShell>
+        </KairosAuthProvider>
       </body>
     </html>
   );

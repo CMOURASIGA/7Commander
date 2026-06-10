@@ -4,6 +4,8 @@ import { validateServerEnv } from "@/lib/env";
 import { getOpenAIClient } from "@/lib/openai";
 import { listGoogleCalendarEvents } from "@/services/integrations/google-calendar-service";
 import { listAzureDevOpsWorkItems } from "@/services/integrations/azure-devops-service";
+import { getUserTaskOperationalSnapshot } from "@/services/task-board-service";
+import { listOpenRisksByUser } from "@/services/risk-service";
 
 type DailySnapshot = {
   summary: string;
@@ -111,9 +113,10 @@ async function buildAzureDevOpsContext(): Promise<{ pendings: string[]; summaryN
 function buildRuleBasedSnapshot(params: {
   memories: Awaited<ReturnType<typeof listMemories>>;
   decisions: Awaited<ReturnType<typeof listDecisions>>;
+  openRisks: Awaited<ReturnType<typeof listOpenRisksByUser>>;
   missingEnvKeys: string[];
 }): DailySnapshot {
-  const { memories, decisions, missingEnvKeys } = params;
+  const { memories, decisions, openRisks, missingEnvKeys } = params;
   const openDecisions = decisions.filter(
     (item) => item.status === "aberta" || item.status === "em_andamento",
   );
@@ -149,7 +152,10 @@ function buildRuleBasedSnapshot(params: {
     .filter((item) => /\brisco\b|\bbloqueio\b|\bdependenc/i.test(item.content))
     .slice(0, 2)
     .map((item) => `Sinal de risco em memoria (${item.priority}): ${trimText(item.content, 90)}`);
-  const risks = [...risksFromEnv, ...risksFromContext, defaultDaily.risks[1]].slice(0, 3);
+  const risksFromRegistry = openRisks
+    .slice(0, 2)
+    .map((item) => `Risco ativo: ${trimText(item.title, 90)} (${item.status})`);
+  const risks = [...risksFromRegistry, ...risksFromEnv, ...risksFromContext, defaultDaily.risks[1]].slice(0, 3);
 
   const suggestions = [
     openDecisions[0]
@@ -265,11 +271,13 @@ async function enhanceSnapshotWithAI(params: {
 export async function getDailySnapshot(userId: string): Promise<DailySnapshot> {
   const memories = (await listMemories(userId)).slice(0, 8);
   const decisions = (await listDecisions(userId)).slice(0, 8);
+  const openRisks = (await listOpenRisksByUser(userId)).slice(0, 8);
+  const taskSnapshot = await getUserTaskOperationalSnapshot(userId);
   const missingEnvKeys = validateServerEnv();
   const calendarContext = await buildCalendarAgendaContext();
   const azureContext = await buildAzureDevOpsContext();
 
-  if (!memories.length && !decisions.length) {
+  if (!memories.length && !decisions.length && !openRisks.length) {
     if (!calendarContext.hasEvents) return defaultDaily;
     return {
       ...defaultDaily,
@@ -278,7 +286,7 @@ export async function getDailySnapshot(userId: string): Promise<DailySnapshot> {
     };
   }
 
-  const baseSnapshot = buildRuleBasedSnapshot({ memories, decisions, missingEnvKeys });
+  const baseSnapshot = buildRuleBasedSnapshot({ memories, decisions, openRisks, missingEnvKeys });
   const agendaWithCalendar = calendarContext.agendaItems.length
     ? [...calendarContext.agendaItems, ...baseSnapshot.agenda].slice(0, 3)
     : baseSnapshot.agenda;
@@ -302,8 +310,22 @@ export async function getDailySnapshot(userId: string): Promise<DailySnapshot> {
     pendings: pendingsWithAzure,
   };
 
+  const pendingFromTasks = taskSnapshot.openTitles.map((title) => `Kanban aberto: ${trimText(title, 90)}`);
+  const summaryWithTasks = `${snapshotWithCalendar.summary} Kanban: TO DO ${taskSnapshot.todo}, DOING ${taskSnapshot.doing}, DONE ${taskSnapshot.done}.`;
+  const withTasks: DailySnapshot = {
+    ...snapshotWithCalendar,
+    summary: summaryWithTasks,
+    pendings: [...pendingFromTasks, ...snapshotWithCalendar.pendings].slice(0, 3),
+    suggestions: [
+      taskSnapshot.doing > 0
+        ? "Concluir ao menos um card em DOING hoje."
+        : "Puxar um card de TO DO para DOING para iniciar execucao.",
+      ...snapshotWithCalendar.suggestions,
+    ].slice(0, 3),
+  };
+
   return enhanceSnapshotWithAI({
-    baseSnapshot: snapshotWithCalendar,
+    baseSnapshot: withTasks,
     memories,
     decisions,
     missingEnvKeys,

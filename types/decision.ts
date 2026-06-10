@@ -9,6 +9,19 @@ export type Decision = {
   impact: string;
   status: DecisionStatus;
   projectId: string | null;
+  conversationId: string | null;
+  artifactId: string | null;
+  createdAt: string;
+};
+
+export type DecisionStatusHistoryItem = {
+  id: string;
+  decisionId: string;
+  userId: string;
+  previousStatus: DecisionStatus | null;
+  newStatus: DecisionStatus;
+  source: string;
+  note: string;
   createdAt: string;
 };
 
@@ -20,4 +33,8 @@ export type CreateDecisionInput = {
   impact?: string;
   status?: DecisionStatus;
   projectId?: string | null;
+  conversationId?: string | null;
+  artifactId?: string | null;
+  source?: string;
+  note?: string;
 };

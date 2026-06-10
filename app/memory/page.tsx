@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { MemoryPriority, MemoryRecord } from "@/types/memory";
+import { PageIntro, SectionLabel, StatusPill, SurfaceCard } from "@/components/ui/workspace-primitives";
 
 const PRIORITIES: MemoryPriority[] = ["P0", "P1", "P2", "P3", "P4"];
 
@@ -141,14 +142,28 @@ export default function MemoryPage() {
 
   return (
     <section className="space-y-3">
-      <div className="flex items-center justify-between">
-        <h2 className="text-xl font-semibold text-(--text-primary)">Memoria</h2>
-        <div className="flex gap-2">
+      <PageIntro
+        eyebrow="7C Commander"
+        title="Memória operacional"
+        description="Governança do contexto persistido, priorização automática e compressão de histórico para manter respostas úteis e rastreáveis."
+        aside={
+          <>
+            <StatusPill tone="accent">{memories.length} registros</StatusPill>
+            <StatusPill tone="success">{memories.filter((item) => item.priority === "P0").length} críticos</StatusPill>
+          </>
+        }
+      />
+
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div>
+          <p className="workspace-section-label">Ações de manutenção</p>
+        </div>
+        <div className="flex flex-wrap gap-2">
           <button
             type="button"
             onClick={() => void runPriorityMaintenance()}
             disabled={prioritizing}
-            className="rounded-lg border border-(--border) bg-(--bg-surface) px-3 py-1 text-xs font-medium text-(--text-primary) disabled:opacity-50"
+            className="workspace-button-secondary"
           >
             {prioritizing ? "Priorizando..." : "Priorizar automatico"}
           </button>
@@ -156,55 +171,54 @@ export default function MemoryPage() {
             type="button"
             onClick={() => void runCompression(true)}
             disabled={compressing}
-            className="rounded-lg border border-(--border) bg-(--bg-surface) px-3 py-1 text-xs font-medium text-(--text-primary) disabled:opacity-50"
+            className="workspace-button-secondary"
           >
             {compressing ? "Comprimindo..." : "Comprimir agora"}
           </button>
           <button
             type="button"
             onClick={() => void loadMemories()}
-            className="rounded-lg border border-(--border) bg-(--bg-surface) px-3 py-1 text-xs font-medium text-(--text-primary)"
+            className="workspace-button-primary"
           >
             Atualizar
           </button>
         </div>
       </div>
 
-      <p className="text-sm text-(--text-secondary)">
-        Governanca de memoria: editar, priorizar, fixar e marcar obsoleta.
-      </p>
-
       {compressionInfo ? (
-        <p className="rounded-lg bg-(--bg-muted) px-3 py-2 text-xs text-(--text-secondary)">{compressionInfo}</p>
+        <p className="workspace-card-muted px-3 py-2 text-xs text-(--text-secondary)">{compressionInfo}</p>
       ) : null}
 
       {priorityInfo ? (
-        <p className="rounded-lg bg-(--bg-muted) px-3 py-2 text-xs text-(--text-secondary)">{priorityInfo}</p>
+        <p className="workspace-card-muted px-3 py-2 text-xs text-(--text-secondary)">{priorityInfo}</p>
       ) : null}
 
       {loading ? (
-        <div className="rounded-xl border border-(--border) bg-(--bg-surface) p-4 text-sm text-(--text-secondary)">
+        <div className="workspace-card p-4 text-sm text-(--text-secondary)">
           Carregando memorias...
         </div>
       ) : memories.length === 0 ? (
-        <div className="rounded-xl border border-(--border) bg-(--bg-surface) p-4 text-sm text-(--text-secondary)">
+        <div className="workspace-empty-state text-sm">
           Nenhuma memoria registrada ainda.
         </div>
       ) : (
         <div className="space-y-3">
           {memories.map((memory) => (
-            <article key={memory.id} className="rounded-xl border border-(--border) bg-(--bg-surface) p-4">
+            <SurfaceCard key={memory.id}>
               <div className="flex flex-wrap items-center justify-between gap-2">
-                <p className="text-xs text-(--text-secondary)">
-                  {memory.priority} - {memory.type}
-                </p>
+                <div>
+                  <SectionLabel>{memory.type}</SectionLabel>
+                  <p className="mt-1 text-xs text-(--text-secondary)">
+                    Prioridade atual: {memory.priority}
+                  </p>
+                </div>
                 <select
                   value={memory.priority}
                   onChange={(event) =>
                     void patchMemory(memory.id, { priority: event.target.value as MemoryPriority })
                   }
                   disabled={updatingId === memory.id}
-                  className="rounded-md border border-(--border) bg-white px-2 py-1 text-xs text-(--text-primary)"
+                  className="workspace-select max-w-28"
                 >
                   {PRIORITIES.map((priority) => (
                     <option key={priority} value={priority}>
@@ -214,14 +228,14 @@ export default function MemoryPage() {
                 </select>
               </div>
 
-              <p className="mt-2 text-sm text-(--text-primary)">{memory.content}</p>
+              <p className="mt-3 text-sm leading-6 text-(--text-primary)">{memory.content}</p>
 
-              <div className="mt-3 flex flex-wrap gap-2">
+              <div className="mt-4 flex flex-wrap gap-2">
                 <button
                   type="button"
                   onClick={() => void patchMemory(memory.id, { priority: "P0", type: "fixed" })}
                   disabled={updatingId === memory.id}
-                  className="rounded-md border border-(--border) bg-white/70 px-2 py-1 text-[11px] font-medium text-(--text-primary) disabled:opacity-50"
+                  className="workspace-button-secondary px-3 py-2 text-[11px]"
                 >
                   Fixar (P0)
                 </button>
@@ -229,7 +243,7 @@ export default function MemoryPage() {
                   type="button"
                   onClick={() => void sendFeedback(memory.id, "useful")}
                   disabled={updatingId === memory.id}
-                  className="rounded-md border border-(--border) bg-white/70 px-2 py-1 text-[11px] font-medium text-(--text-primary) disabled:opacity-50"
+                  className="workspace-button-secondary px-3 py-2 text-[11px]"
                 >
                   Util
                 </button>
@@ -237,7 +251,7 @@ export default function MemoryPage() {
                   type="button"
                   onClick={() => void sendFeedback(memory.id, "not_useful")}
                   disabled={updatingId === memory.id}
-                  className="rounded-md border border-(--border) bg-white/70 px-2 py-1 text-[11px] font-medium text-(--text-primary) disabled:opacity-50"
+                  className="workspace-button-secondary px-3 py-2 text-[11px]"
                 >
                   Nao util
                 </button>
@@ -245,7 +259,7 @@ export default function MemoryPage() {
                   type="button"
                   onClick={() => void patchMemory(memory.id, { priority: "P4", type: "obsolete" })}
                   disabled={updatingId === memory.id}
-                  className="rounded-md border border-(--border) bg-white/70 px-2 py-1 text-[11px] font-medium text-(--text-primary) disabled:opacity-50"
+                  className="workspace-button-secondary px-3 py-2 text-[11px]"
                 >
                   Marcar obsoleta
                 </button>
@@ -253,12 +267,12 @@ export default function MemoryPage() {
                   type="button"
                   onClick={() => void handleEdit(memory)}
                   disabled={updatingId === memory.id}
-                  className="rounded-md border border-(--border) bg-white/70 px-2 py-1 text-[11px] font-medium text-(--text-primary) disabled:opacity-50"
+                  className="workspace-button-primary px-3 py-2 text-[11px]"
                 >
                   Editar
                 </button>
               </div>
-            </article>
+            </SurfaceCard>
           ))}
         </div>
       )}

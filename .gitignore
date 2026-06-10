@@ -18,8 +18,14 @@ yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 next-start-*.log
+debug.log
+next-dev-validate-*.log
 
 # misc
 .DS_Store
 *.pem
 *.tsbuildinfo
+backup/
+playwright-report/
+test-results/
+.n8nac/

@@ -1,0 +1,258 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum ProjectVisibility {
+  PRIVATE
+  SHARED
+}
+
+enum ProjectRole {
+  OWNER
+  EDITOR
+  VIEWER
+}
+
+enum PermissionLevel {
+  MANAGE
+  EDIT
+  VIEW
+}
+
+enum MembershipStatus {
+  PENDING
+  ACTIVE
+  REVOKED
+}
+
+enum ShareEntityType {
+  PROJECT
+  CLIENT
+  ARTIFACT
+}
+
+enum ShareType {
+  INTERNAL_USER
+  EMAIL_INVITE
+}
+
+enum ShareStatus {
+  ACTIVE
+  REVOKED
+}
+
+enum ArtifactStatus {
+  DRAFT
+  ACTIVE
+  FINAL
+  ARCHIVED
+}
+
+model User {
+  id               String             @id @default(cuid())
+  googleSub        String             @unique
+  email            String             @unique
+  name             String
+  picture          String?
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
+  lastLoginAt      DateTime?
+  credentials      GoogleCredential?
+  driveContext     UserDriveContext?
+  sessions         Session[]
+  ownedClients     Client[]
+  ownedProjects    Project[]
+  projectMemberships ProjectMember[]
+  ownedShares      Share[]            @relation("OwnedShares")
+  receivedShares   Share[]            @relation("ReceivedShares")
+  auditLogs        AuditLog[]
+}
+
+model GoogleCredential {
+  id           String   @id @default(cuid())
+  userId       String   @unique
+  accessToken  String?
+  refreshToken String?
+  expiryDate   DateTime?
+  scope        String?
+  tokenType    String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model UserDriveContext {
+  id                    String   @id @default(cuid())
+  userId                String   @unique
+  rootFolderId          String
+  rootFolderName        String
+  masterSpreadsheetId   String
+  masterSpreadsheetName String
+  controlFolderId       String?
+  clientsFolderId       String?
+  projectsFolderId      String?
+  artifactsFolderId     String?
+  exportsFolderId       String?
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+  user                  User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Session {
+  id               String   @id @default(cuid())
+  userId           String
+  sessionTokenHash String   @unique
+  expiresAt        DateTime
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, expiresAt])
+}
+
+model Client {
+  id          String    @id @default(cuid())
+  ownerUserId String
+  name        String
+  description String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  owner       User      @relation(fields: [ownerUserId], references: [id], onDelete: Cascade)
+  projects    Project[]
+
+  @@index([ownerUserId])
+}
+
+model Project {
+  id                String            @id @default(cuid())
+  clientId          String
+  ownerUserId       String
+  name              String
+  description       String?
+  objective         String
+  methodology       String
+  status            String
+  visibility        ProjectVisibility @default(PRIVATE)
+  startDate         String?
+  endDate           String?
+  responsible       String?
+  health            String?
+  phase             String?
+  nextStep          String?
+  folderId          String?
+  folderUrl         String?
+  stakeholdersJson  Json?
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+  client            Client            @relation(fields: [clientId], references: [id], onDelete: Restrict)
+  owner             User              @relation(fields: [ownerUserId], references: [id], onDelete: Cascade)
+  members           ProjectMember[]
+  shares            Share[]
+  artifacts         Artifact[]
+  auditLogs         AuditLog[]
+
+  @@index([ownerUserId])
+  @@index([clientId])
+}
+
+model ProjectMember {
+  id              String           @id @default(cuid())
+  projectId       String
+  userId          String?
+  email           String
+  role            ProjectRole
+  permissionLevel PermissionLevel
+  invitedBy       String
+  invitedAt       DateTime         @default(now())
+  acceptedAt      DateTime?
+  status          MembershipStatus @default(PENDING)
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+  project         Project          @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  user            User?            @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@unique([projectId, email])
+  @@index([userId])
+  @@index([projectId, status])
+}
+
+model Share {
+  id                String          @id @default(cuid())
+  entityType        ShareEntityType
+  entityId          String
+  projectId         String?
+  ownerUserId       String
+  sharedWithUserId  String?
+  sharedWithEmail   String
+  role              ProjectRole
+  permissionLevel   PermissionLevel
+  shareType         ShareType
+  status            ShareStatus     @default(ACTIVE)
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+  owner             User            @relation("OwnedShares", fields: [ownerUserId], references: [id], onDelete: Cascade)
+  sharedWithUser    User?           @relation("ReceivedShares", fields: [sharedWithUserId], references: [id], onDelete: SetNull)
+  project           Project?        @relation(fields: [projectId], references: [id], onDelete: SetNull)
+
+  @@index([entityType, entityId, status])
+  @@index([sharedWithEmail])
+}
+
+model Artifact {
+  id             String         @id @default(cuid())
+  projectId      String
+  name           String
+  type           String
+  scope          String
+  format         String
+  link           String?
+  driveFileId    String?
+  status         ArtifactStatus @default(DRAFT)
+  currentVersion Int            @default(1)
+  content        String
+  metadataJson   Json?
+  createdBy      String
+  updatedBy      String
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+  project        Project        @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  versions       ArtifactVersion[]
+
+  @@index([projectId, updatedAt])
+}
+
+model ArtifactVersion {
+  id         String   @id @default(cuid())
+  artifactId String
+  version    Int
+  content    String
+  note       String?
+  createdBy  String
+  createdAt  DateTime @default(now())
+  artifact   Artifact @relation(fields: [artifactId], references: [id], onDelete: Cascade)
+
+  @@unique([artifactId, version])
+  @@index([artifactId, createdAt])
+}
+
+model AuditLog {
+  id          String   @id @default(cuid())
+  actorUserId String
+  projectId   String?
+  entityType  String
+  entityId    String
+  action      String
+  summary     String
+  metadataJson Json?
+  createdAt   DateTime @default(now())
+  actor       User     @relation(fields: [actorUserId], references: [id], onDelete: Cascade)
+  project     Project? @relation(fields: [projectId], references: [id], onDelete: SetNull)
+
+  @@index([projectId, createdAt])
+  @@index([actorUserId, createdAt])
+}

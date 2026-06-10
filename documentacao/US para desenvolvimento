@@ -49,6 +49,31 @@ Legenda:
 |---|---|---|
 | VOICE-001 | CONCLUIDA | Endpoint `/api/voice` em OpenAI TTS + botao "Ouvir resposta" implementados, com fallback de erro e arquitetura desacoplada para troca futura de provedor. |
 
+### Status do Redirecionamento Voice-First (documentos novos)
+
+| US Voice-First | Status | Observacao |
+|---|---|---|
+| US-001 | CONCLUIDA | Estrutura base do projeto consolidada em Next.js + TypeScript + pastas de dominio. |
+| US-002 | CONCLUIDA | Conexao Supabase ativa com clients frontend/backend e validacao de ambiente. |
+| US-003 | CONCLUIDA | Tela principal `/voice` criada com estados visuais e controle de sessao. |
+| US-004 | CONCLUIDA | Captura de microfone no navegador via `MediaRecorder`, incluindo controle de inicio/pausa/finalizacao. |
+| US-005 | CONCLUIDA | STT implementado em `/api/voice/transcribe` com OpenAI. |
+| US-006 | CONCLUIDA | TTS implementado em `/api/voice` com reproducao no frontend. |
+| US-007 | CONCLUIDA | `kairos-core` unificado com resposta contextual por memoria/projeto/conhecimento. |
+| US-008 | CONCLUIDA | `project-resolver` implementado com confianca, sugestao e reaproveitamento de contexto. |
+| US-009 | PARCIAL | APIs de projeto (listar/criar/ativar) prontas; faltam evolucoes de UX e historico operacional completo por projeto. |
+| US-010 | CONCLUIDA | Memory Layer funcional com recuperacao contextual e governanca. |
+| US-011 | CONCLUIDA | Knowledge Layer implementado com persistencia e recuperacao por projeto. |
+| US-012 | CONCLUIDA | Embeddings com pgvector ativos para memoria e base de conhecimento. |
+| US-013 | PENDENTE | Ingestao de documentos (PDF/DOCX/TXT/MD) ainda nao implementada fim a fim. |
+| US-014 | CONCLUIDA | Estrutura modular de prompts criada em `/prompts/core` e `/prompts/modules`. |
+| US-015 | CONCLUIDA | Prompt mestre PM AI Partner integrado como nucleo cognitivo do Core. |
+| US-016 | PARCIAL | Fluxo completo voice-first funciona por turno; falta evolucao para conversacao continua/streaming realtime. |
+| US-017 | PARCIAL | Conversas persistem, mas vinculacao automatica total por projeto ainda precisa fechamento funcional completo. |
+| US-018 | CONCLUIDA | Decision engine operacional com registro de contexto e historico. |
+| US-019 | PENDENTE | Gerenciamento de tarefas por voz ainda nao entregue em API/UI operacional. |
+| US-020 | PARCIAL | Tela Daily existe e gera contexto; faltam rotinas totalmente orientadas a projeto no novo fluxo voice-first. |
+
 ---
 
 # FASE 1 – FUNDAÇÃO TÉCNICA

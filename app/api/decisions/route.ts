@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireApiAuth } from "@/lib/api-auth";
 import { createDecision, listDecisions } from "@/services/decision-service";
+import { getProjectAccessRole } from "@/services/project-service";
 import { DecisionStatus } from "@/types/decision";
 
 type DecisionPayload = {
@@ -10,6 +11,8 @@ type DecisionPayload = {
   impact?: string;
   status?: DecisionStatus;
   projectId?: string | null;
+  conversationId?: string | null;
+  artifactId?: string | null;
 };
 
 function validateStatus(status?: string): status is DecisionStatus {
@@ -25,10 +28,23 @@ function validatePayload(payload: DecisionPayload): string | null {
 
 export async function GET(request: NextRequest) {
   try {
-    const auth = requireApiAuth(request);
+    const auth = await requireApiAuth(request);
     if (!auth.ok) return auth.response;
 
-    const decisions = await listDecisions(auth.context.userId);
+    const searchParams = request.nextUrl.searchParams;
+    const projectId = searchParams.get("projectId")?.trim() || null;
+    if (projectId) {
+      const accessRole = await getProjectAccessRole({
+        userId: auth.context.userId,
+        userEmail: auth.context.userEmail,
+        projectId,
+      });
+      if (accessRole === "none") {
+        return NextResponse.json({ error: "Projeto nao encontrado." }, { status: 404 });
+      }
+    }
+
+    const decisions = await listDecisions(auth.context.userId, projectId);
     return NextResponse.json({ data: decisions });
   } catch (error) {
     console.error("[/api/decisions] GET error", error);
@@ -38,13 +54,27 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const auth = requireApiAuth(request);
+    const auth = await requireApiAuth(request);
     if (!auth.ok) return auth.response;
 
     const body = (await request.json()) as DecisionPayload;
     const validationError = validatePayload(body);
     if (validationError) {
       return NextResponse.json({ error: validationError }, { status: 400 });
+    }
+    const projectId = body.projectId?.trim() || null;
+    if (projectId) {
+      const accessRole = await getProjectAccessRole({
+        userId: auth.context.userId,
+        userEmail: auth.context.userEmail,
+        projectId,
+      });
+      if (accessRole === "none") {
+        return NextResponse.json({ error: "Projeto nao encontrado." }, { status: 404 });
+      }
+      if (accessRole === "viewer") {
+        return NextResponse.json({ error: "Sem permissao para criar decisao neste projeto." }, { status: 403 });
+      }
     }
 
     const decision = await createDecision({
@@ -54,7 +84,11 @@ export async function POST(request: NextRequest) {
       reason: body.reason?.trim(),
       impact: body.impact?.trim(),
       status: body.status,
-      projectId: body.projectId,
+      projectId,
+      conversationId: body.conversationId?.trim() || null,
+      artifactId: body.artifactId?.trim() || null,
+      source: "api_decisions",
+      note: "Decisao registrada via API.",
     });
 
     return NextResponse.json({ data: decision }, { status: 201 });

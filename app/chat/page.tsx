@@ -1,9 +1,9 @@
 "use client";
 
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
-import { ChatMessage, ConversationMeta, SpecialistId } from "@/types/chat";
-
-const specialists: SpecialistId[] = ["general", "pm", "study", "translate", "tech", "writer", "research"];
+import { ChatMessage, ConversationMeta } from "@/types/chat";
+import { getClientAuthHeaders } from "@/lib/client-auth";
+import { PageIntro, SectionLabel, StatusPill, SurfaceCard } from "@/components/ui/workspace-primitives";
 
 function createConversationId(): string {
   return typeof crypto !== "undefined" && "randomUUID" in crypto
@@ -13,7 +13,6 @@ function createConversationId(): string {
 
 export default function ChatPage() {
   const [conversationId, setConversationId] = useState<string>(createConversationId);
-  const [selectedSpecialist, setSelectedSpecialist] = useState<SpecialistId>("pm");
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [loadingHistory, setLoadingHistory] = useState(true);
@@ -24,12 +23,15 @@ export default function ChatPage() {
   const [voiceError, setVoiceError] = useState<string | null>(null);
   const [decisionLoadingId, setDecisionLoadingId] = useState<string | null>(null);
   const [decisionSavedIds, setDecisionSavedIds] = useState<Record<string, boolean>>({});
+  const [activeProjectId, setActiveProjectId] = useState<string | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
   const hasMessages = useMemo(() => messages.length > 0, [messages.length]);
 
   async function refreshConversations(selectLatest = false) {
-    const response = await fetch("/api/conversations");
+    const response = await fetch("/api/conversations", {
+      headers: getClientAuthHeaders(),
+    });
     if (!response.ok) return;
 
     const payload = await response.json();
@@ -42,7 +44,9 @@ export default function ChatPage() {
   }
 
   async function loadMessages(targetConversationId: string) {
-    const response = await fetch(`/api/conversations/${targetConversationId}/messages`);
+    const response = await fetch(`/api/conversations/${targetConversationId}/messages`, {
+      headers: getClientAuthHeaders(),
+    });
     if (!response.ok) return;
 
     const payload = await response.json();
@@ -52,6 +56,13 @@ export default function ChatPage() {
   useEffect(() => {
     async function bootstrap() {
       setLoadingHistory(true);
+      const activeProjectResponse = await fetch("/api/projects/active", {
+        headers: getClientAuthHeaders(),
+      });
+      if (activeProjectResponse.ok) {
+        const payload = await activeProjectResponse.json();
+        setActiveProjectId(payload?.data?.id ?? null);
+      }
       await refreshConversations(true);
       setLoadingHistory(false);
     }
@@ -86,7 +97,7 @@ export default function ChatPage() {
       conversationId: activeConversationId,
       role: "user",
       content: value,
-      specialist: selectedSpecialist,
+      specialist: "core",
       createdAt: new Date().toISOString(),
     };
 
@@ -97,11 +108,12 @@ export default function ChatPage() {
     try {
       const response = await fetch("/api/chat", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: getClientAuthHeaders({ "Content-Type": "application/json" }),
         body: JSON.stringify({
           message: value,
           conversationId: activeConversationId,
-          selectedSpecialist,
+          selectedSpecialist: "core",
+          projectId: activeProjectId,
         }),
       });
 
@@ -119,7 +131,7 @@ export default function ChatPage() {
         conversationId: activeConversationId,
         role: "assistant",
         content: error instanceof Error ? error.message : "Erro inesperado.",
-        specialist: "general",
+        specialist: "core",
         createdAt: new Date().toISOString(),
       };
       setMessages((prev) => [...prev, fallback]);
@@ -157,7 +169,7 @@ export default function ChatPage() {
     try {
       const response = await fetch("/api/voice", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: getClientAuthHeaders({ "Content-Type": "application/json" }),
         body: JSON.stringify({
           text: message.content,
         }),
@@ -205,20 +217,22 @@ export default function ChatPage() {
     if (!title) return;
     const context = window.prompt("Contexto operacional da decisao (opcional):", "")?.trim() ?? "";
     const impact = window.prompt("Impacto esperado (opcional):", "")?.trim() ?? "";
-    const projectId = window.prompt("Projeto relacionado (opcional):", "")?.trim() ?? "";
+    const artifactId = window.prompt("Artefato relacionado (opcional):", "")?.trim() ?? "";
 
     setDecisionLoadingId(message.id);
     try {
       const response = await fetch("/api/decisions", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: getClientAuthHeaders({ "Content-Type": "application/json" }),
         body: JSON.stringify({
           title,
           context,
           reason: message.content,
           impact: impact || `Registrada via chat (${message.specialist})`,
           status: "aberta",
-          projectId: projectId || null,
+          projectId: activeProjectId,
+          conversationId,
+          artifactId: artifactId || null,
         }),
       });
 
@@ -237,14 +251,14 @@ export default function ChatPage() {
   }
 
   return (
-    <section className="grid h-[calc(100vh-180px)] gap-3 lg:grid-cols-[280px_1fr]">
-      <aside className="overflow-y-auto rounded-xl border border-(--border) bg-(--bg-surface) p-3">
+    <section className="grid min-h-[calc(100vh-180px)] gap-3 lg:h-[calc(100vh-180px)] lg:grid-cols-[280px_1fr]">
+      <aside className="workspace-card min-h-0 overflow-y-auto p-3">
         <div className="mb-3 flex items-center justify-between">
           <h2 className="text-sm font-semibold text-(--text-primary)">Conversas</h2>
           <button
             type="button"
             onClick={startNewConversation}
-            className="rounded-lg bg-(--accent) px-2 py-1 text-xs font-medium text-white"
+            className="workspace-button-primary px-3 py-2 text-xs"
           >
             Nova
           </button>
@@ -262,7 +276,7 @@ export default function ChatPage() {
                 type="button"
                 onClick={() => setConversationId(item.id)}
                 className={[
-                  "w-full rounded-lg border px-3 py-2 text-left text-xs",
+                  "w-full rounded-xl border px-3 py-2 text-left text-xs",
                   conversationId === item.id
                     ? "border-(--accent) bg-(--accent-soft) text-(--text-primary)"
                     : "border-(--border) bg-(--bg-muted) text-(--text-secondary)",
@@ -276,39 +290,28 @@ export default function ChatPage() {
         )}
       </aside>
 
-      <div className="flex min-h-0 flex-col gap-3">
-        <div className="rounded-xl border border-(--border) bg-(--bg-surface) p-4">
-          <h2 className="text-lg font-semibold text-(--text-primary)">Chat Kairos</h2>
-          <p className="mt-1 text-sm text-(--text-secondary)">
-            Conversa contextual com roteamento de especialista e memoria persistida.
-          </p>
+      <div className="flex min-h-0 flex-col gap-3 overflow-hidden">
+        <PageIntro
+          eyebrow="7C Commander"
+          title="Chat operacional"
+          description="Conversa contextual com memória persistida, contexto do projeto e suporte às decisões operacionais."
+          aside={
+            <>
+              <StatusPill tone="accent">{conversations.length} conversas</StatusPill>
+              <StatusPill tone="success">
+                {activeProjectId ? "Projeto vinculado" : "Sem projeto ativo"}
+              </StatusPill>
+            </>
+          }
+        />
 
-          <div className="mt-3 flex flex-wrap gap-2">
-            {specialists.map((specialist) => (
-              <button
-                key={specialist}
-                type="button"
-                onClick={() => setSelectedSpecialist(specialist)}
-                className={[
-                  "rounded-full px-3 py-1 text-xs font-medium uppercase",
-                  selectedSpecialist === specialist
-                    ? "bg-(--accent) text-white"
-                    : "bg-(--bg-muted) text-(--text-secondary)",
-                ].join(" ")}
-              >
-                {specialist}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        <div className="min-h-0 flex-1 overflow-y-auto rounded-xl border border-(--border) bg-(--bg-surface) p-4">
+        <SurfaceCard className="min-h-0 flex-1 overflow-y-auto p-4">
           {voiceError ? (
             <p className="mb-3 rounded-lg bg-red-50 px-3 py-2 text-xs text-red-700">{voiceError}</p>
           ) : null}
           {!hasMessages ? (
             <p className="text-sm text-(--text-secondary)">
-              Inicie a conversa para ativar o Kairos Core.
+              Inicie a conversa para ativar o nucleo operacional.
             </p>
           ) : (
             <div className="space-y-3">
@@ -316,17 +319,17 @@ export default function ChatPage() {
                 <article
                   key={message.id}
                   className={[
-                    "max-w-[85%] rounded-xl px-3 py-2 text-sm",
+                    "max-w-[85%] rounded-[1.2rem] px-4 py-3 text-sm",
                     message.role === "user"
                       ? "ml-auto bg-(--accent) text-white"
-                      : "bg-(--bg-muted) text-(--text-primary)",
+                      : "border border-(--border) bg-(--bg-muted) text-(--text-primary)",
                   ].join(" ")}
                 >
                   <p>{message.content}</p>
                   <p
                     className={[
                       "mt-1 text-[11px]",
-                      message.role === "user" ? "text-blue-100" : "text-(--text-secondary)",
+                      message.role === "user" ? "text-white/75" : "text-(--text-secondary)",
                     ].join(" ")}
                   >
                     {message.specialist}
@@ -337,7 +340,7 @@ export default function ChatPage() {
                         type="button"
                         onClick={() => handleListen(message)}
                         disabled={voiceLoadingId === message.id}
-                        className="rounded-md border border-(--border) bg-white/70 px-2 py-1 text-[11px] font-medium text-(--text-primary) disabled:opacity-50"
+                        className="workspace-button-secondary px-3 py-2 text-[11px]"
                       >
                         {voiceLoadingId === message.id
                           ? "Gerando audio..."
@@ -346,40 +349,39 @@ export default function ChatPage() {
                             : "Ouvir resposta"}
                       </button>
 
-                      {message.specialist === "pm" ? (
-                        <button
-                          type="button"
-                          onClick={() => handleSaveDecision(message)}
-                          disabled={decisionLoadingId === message.id || decisionSavedIds[message.id]}
-                          className="rounded-md border border-(--border) bg-white/70 px-2 py-1 text-[11px] font-medium text-(--text-primary) disabled:opacity-50"
-                        >
-                          {decisionSavedIds[message.id]
-                            ? "Decisao salva"
-                            : decisionLoadingId === message.id
-                              ? "Salvando..."
-                              : "Salvar decisao"}
-                        </button>
-                      ) : null}
+                      <button
+                        type="button"
+                        onClick={() => handleSaveDecision(message)}
+                        disabled={decisionLoadingId === message.id || decisionSavedIds[message.id]}
+                        className="workspace-button-secondary px-3 py-2 text-[11px]"
+                      >
+                        {decisionSavedIds[message.id]
+                          ? "Decisao salva"
+                          : decisionLoadingId === message.id
+                            ? "Salvando..."
+                            : "Salvar decisao"}
+                      </button>
                     </div>
                   ) : null}
                 </article>
               ))}
             </div>
           )}
-        </div>
+        </SurfaceCard>
 
-        <form onSubmit={handleSubmit} className="rounded-xl border border-(--border) bg-(--bg-surface) p-3">
+        <form onSubmit={handleSubmit} className="workspace-card p-3">
+          <SectionLabel>Entrada</SectionLabel>
           <div className="flex gap-2">
             <input
               value={input}
               onChange={(event) => setInput(event.target.value)}
               placeholder="Escreva sua mensagem..."
-              className="flex-1 rounded-lg border border-(--border) px-3 py-2 text-sm outline-none focus:border-(--accent)"
+              className="workspace-input flex-1"
             />
             <button
               type="submit"
               disabled={loading}
-              className="rounded-lg bg-(--accent) px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
+              className="workspace-button-primary"
             >
               {loading ? "Enviando..." : "Enviar"}
             </button>

@@ -2,50 +2,61 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useKairosAuth } from "@/components/auth/kairos-auth-provider";
+import { BrandLockup } from "@/components/brand/brand-lockup";
 
 const NAV_ITEMS = [
-  { href: "/", label: "Dashboard" },
-  { href: "/chat", label: "Chat" },
-  { href: "/daily", label: "Daily" },
-  { href: "/projects", label: "Projetos" },
-  { href: "/memory", label: "Memoria" },
-  { href: "/settings", label: "Configuracoes" },
+  { section: "Principal", href: "/", label: "Inicio" },
+  { section: "Principal", href: "/voice", label: "Voice Room" },
+  { section: "Principal", href: "/chat", label: "Dashboard IA" },
+  { section: "Principal", href: "/daily", label: "Daily" },
+  { section: "Dados", href: "/clients", label: "Clientes" },
+  { section: "Dados", href: "/projects", label: "Projetos" },
+  { section: "Dados", href: "/activities", label: "Atividades" },
+  { section: "Dados", href: "/memory", label: "Memoria" },
+  { section: "Sistema", href: "/settings", label: "Configuracoes" },
 ];
 
 export function Sidebar() {
   const pathname = usePathname();
+  const auth = useKairosAuth();
+  const userEmail = auth.user?.email ?? "sem e-mail de sessao";
+  const sections = Array.from(new Set(NAV_ITEMS.map((item) => item.section)));
 
   return (
-    <aside className="w-full border-b border-(--border) bg-(--bg-surface) px-4 py-4 md:h-screen md:w-64 md:border-b-0 md:border-r">
-      <div className="mb-6 flex items-center gap-3">
-        <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-(--accent) text-sm font-bold text-white">
-          K
-        </div>
-        <div>
-          <p className="text-sm font-semibold text-(--text-primary)">Kairos</p>
-          <p className="text-xs text-(--text-secondary)">Cognitive Ops</p>
-        </div>
+    <aside className="w-full border-b border-(--border) bg-(--bg-muted) px-3 py-4 md:h-screen md:w-[220px] md:border-b-0 md:border-r md:px-3 md:py-4">
+      <div className="border-b border-(--border) px-1 pb-4">
+        <BrandLockup subtitle="Workspace operacional" description={userEmail} size="sm" />
       </div>
 
-      <nav className="flex flex-wrap gap-2 md:flex-col">
-        {NAV_ITEMS.map((item) => {
-          const isActive =
-            item.href === "/" ? pathname === item.href : pathname.startsWith(item.href);
-          return (
-            <Link
-              key={item.href}
-              href={item.href}
-              className={[
-                "rounded-lg px-3 py-2 text-sm transition-colors",
-                isActive
-                  ? "bg-(--accent) text-white"
-                  : "bg-(--bg-muted) text-(--text-secondary) hover:bg-(--accent-soft)",
-              ].join(" ")}
-            >
-              {item.label}
-            </Link>
-          );
-        })}
+      <nav className="mt-4 flex flex-wrap gap-4 md:flex-col md:gap-5">
+        {sections.map((section) => (
+          <div key={section}>
+            <p className="mb-2 px-2 text-[10px] font-black uppercase tracking-[0.06em] text-(--text-tertiary)">
+              {section}
+            </p>
+            <div className="flex flex-wrap gap-2 md:flex-col">
+              {NAV_ITEMS.filter((item) => item.section === section).map((item) => {
+                const isActive =
+                  item.href === "/" ? pathname === item.href : pathname.startsWith(item.href);
+                return (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    className={[
+                      "rounded-lg px-3 py-[9px] text-sm font-medium transition-colors",
+                      isActive
+                        ? "bg-(--accent-soft) text-(--accent-strong)"
+                        : "text-(--text-secondary) hover:bg-white hover:text-(--text-primary)",
+                    ].join(" ")}
+                  >
+                    {item.label}
+                  </Link>
+                );
+              })}
+            </div>
+          </div>
+        ))}
       </nav>
     </aside>
   );

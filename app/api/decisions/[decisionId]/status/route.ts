@@ -11,6 +11,8 @@ type RouteContext = {
 
 type UpdateStatusPayload = {
   status: DecisionStatus;
+  source?: string;
+  note?: string;
 };
 
 function isValidStatus(status: string): status is DecisionStatus {
@@ -19,7 +21,7 @@ function isValidStatus(status: string): status is DecisionStatus {
 
 export async function PATCH(request: NextRequest, context: RouteContext) {
   try {
-    const auth = requireApiAuth(request);
+    const auth = await requireApiAuth(request);
     if (!auth.ok) return auth.response;
 
     const { decisionId } = await context.params;
@@ -36,6 +38,8 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
       userId: auth.context.userId,
       decisionId,
       status: body.status,
+      source: body.source?.trim() || "api_status",
+      note: body.note?.trim() || "",
     });
 
     if (!updated) {

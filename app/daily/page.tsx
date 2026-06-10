@@ -1,18 +1,23 @@
 import { getDailySnapshot } from "@/services/daily-service";
 import { getDefaultUserId } from "@/lib/user-context";
+import { BRAND_NAME, BRAND_SUBTITLE } from "@/lib/brand";
+import { PageIntro, SectionLabel, SurfaceCard } from "@/components/ui/workspace-primitives";
+
+export const dynamic = "force-dynamic";
 
 function DailySection({ title, items }: { title: string; items: string[] }) {
   return (
-    <article className="rounded-xl border border-(--border) bg-(--bg-surface) p-4">
-      <h3 className="text-sm font-semibold uppercase tracking-wide text-(--text-secondary)">{title}</h3>
+    <SurfaceCard>
+      <SectionLabel>{title}</SectionLabel>
+      <h3 className="mt-2 text-base font-semibold text-(--text-primary)">{title}</h3>
       <ul className="mt-3 space-y-2 text-sm text-(--text-primary)">
         {items.map((item) => (
-          <li key={item} className="rounded-lg bg-(--bg-muted) px-3 py-2">
+          <li key={item} className="workspace-card-muted px-3 py-2">
             {item}
           </li>
         ))}
       </ul>
-    </article>
+    </SurfaceCard>
   );
 }
 
@@ -21,15 +26,17 @@ export default async function DailyPage() {
 
   return (
     <section className="space-y-4">
-      <h2 className="text-xl font-semibold text-(--text-primary)">Kairos Daily</h2>
-      <p className="text-sm text-(--text-secondary)">
-        Resumo operacional diario com prioridades, pendencias, agenda, riscos e perguntas de continuidade.
-      </p>
+      <PageIntro
+        eyebrow={BRAND_NAME}
+        title={`${BRAND_SUBTITLE} diário`}
+        description="Resumo operacional com prioridades, pendências, agenda, riscos e perguntas de continuidade para a rotina do time."
+      />
 
-      <article className="rounded-xl border border-(--border) bg-(--bg-surface) p-4">
-        <h3 className="text-sm font-semibold uppercase tracking-wide text-(--text-secondary)">Resumo do Dia</h3>
-        <p className="mt-3 text-sm text-(--text-primary)">{daily.summary}</p>
-      </article>
+      <SurfaceCard>
+        <SectionLabel>Resumo do dia</SectionLabel>
+        <h3 className="mt-2 text-base font-semibold text-(--text-primary)">Panorama atual</h3>
+        <p className="mt-3 text-sm leading-6 text-(--text-primary)">{daily.summary}</p>
+      </SurfaceCard>
 
       <div className="grid gap-4 lg:grid-cols-2">
         <DailySection title="Prioridades" items={daily.priorities} />

@@ -36,7 +36,10 @@ Use estes valores:
 - `KAIROS_API_KEY` (opcional): se definido, APIs operacionais exigem `x-kairos-api-key` ou `Authorization: Bearer`
 - `OPENAI_TTS_MODEL`: modelo de voz inicial (ex.: `gpt-4o-mini-tts`)
 - `OPENAI_TTS_VOICE`: voz inicial (ex.: `sage`)
+- `OPENAI_STT_MODEL`: modelo de transcricao de audio (ex.: `gpt-4o-mini-transcribe`)
 - `OPENAI_EMBEDDING_MODEL`: modelo para embeddings (ex.: `text-embedding-3-small`)
+- `KAIROS_INGEST_MODEL`: modelo para interpretar upload de arquivos/imagens e estruturar projeto (ex.: `gpt-4.1`)
+- `KAIROS_ENABLE_LOCAL_FALLBACK`: `false` por padrao para evitar persistencia local de fallback (dados mockados)
 - `KAIROS_MEMORY_COMPRESSION_*`: parametros de compressao de memoria (opcionais)
 - `KAIROS_PRIORITY_*`: parametros do sistema automatico de prioridade (opcionais)
 - `KAIROS_DAILY_MODEL`: modelo opcional para enriquecimento automatico do Daily
@@ -66,6 +69,11 @@ Diagnostico via API:
 - `GET /api/integrations/n8n/flows` lista fluxos e historico monitorado de execucoes.
 - `POST /api/integrations/n8n/flows` aciona fluxo n8n por API ou webhook.
 - `GET /api/memories/relevant?q=...` retorna memorias relevantes para uma consulta contextual.
+- `POST /api/voice/transcribe` converte audio em texto (STT) para o fluxo voice-first.
+- `GET/POST /api/projects` lista e cria projetos.
+- `GET/PATCH /api/projects/active` consulta e altera o projeto ativo.
+- `GET/POST /api/knowledge` lista e registra conhecimento explicito por projeto.
+- `POST /api/knowledge/ingest` faz upload de arquivo/imagem/audio, extrai conteudo, salva conhecimento e atualiza campos do projeto ativo.
 
 ## Ativar Supabase no projeto
 
@@ -93,16 +101,21 @@ npm run env:check
 
 - Estrutura inicial de projeto
 - Layout principal com navegacao
-- Tela de Chat com selecao de especialista
+- Tela de Chat em modo Kairos Core unico (módulos cognitivos internos acionados por contexto)
+- Tela principal Voice Room em `/voice` com ciclo de captura->STT->Core->TTS
 - Botao "Ouvir resposta" no Chat (audio sob demanda)
 - Endpoint `/api/chat` com validacao
 - Endpoint `/api/voice` com OpenAI TTS (texto para voz)
+- Endpoint `/api/voice/transcribe` com OpenAI STT (voz para texto)
 - Embeddings OpenAI + busca semantica de memorias (pgvector)
 - Memory Compression Engine com resumo automatico de memorias antigas
 - Priority System com classificacao e descarte automatico
 - Feedback explicito de memoria (util/nao util) para governanca contextual
 - Endpoint dedicado de busca de memorias relevantes para diagnostico contextual
-- Kairos Core inicial com roteamento basico
+- Kairos Core unificado com contexto de memoria, projeto e conhecimento
+- Project Resolver para identificar/reutilizar contexto de projeto ativo
+- Knowledge Layer com persistencia e recuperacao de conhecimento explicito
+- APIs de projetos (`/api/projects`, `/api/projects/active`) e conhecimento (`/api/knowledge`)
 - Memory layer basico em memoria (in-memory)
 - Tela Daily inicial com resumo operacional
 - Camada base de integracoes desacopladas com monitoramento e logs

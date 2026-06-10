@@ -24,5 +24,14 @@
     ]
   },
   "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts"],
-  "exclude": ["node_modules"]
+  "exclude": [
+    "node_modules",
+    "webapp_pmcommandcenter-main",
+    "backup",
+    "v2-foundation",
+    ".next",
+    "out",
+    "dist",
+    "coverage"
+  ]
 }

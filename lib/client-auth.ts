@@ -1,0 +1,62 @@
+"use client";
+
+const STORAGE_API_KEY = "kairos_api_key";
+const STORAGE_USER_ID = "kairos_user_id";
+const STORAGE_ACCESS_TOKEN = "kairos_access_token";
+const STORAGE_AUTH_EMAIL = "kairos_auth_email";
+
+function getLocalStorageValue(key: string): string {
+  if (typeof window === "undefined") return "";
+  return window.localStorage.getItem(key)?.trim() ?? "";
+}
+
+export function getClientAuthHeaders(extra?: HeadersInit): HeadersInit {
+  const headers = new Headers(extra ?? {});
+
+  if (typeof window === "undefined") return headers;
+  const accessToken = getLocalStorageValue(STORAGE_ACCESS_TOKEN);
+  const apiKey = getLocalStorageValue(STORAGE_API_KEY);
+  const userId = getLocalStorageValue(STORAGE_USER_ID);
+
+  if (accessToken && !headers.has("authorization")) {
+    headers.set("authorization", `Bearer ${accessToken}`);
+  }
+
+  if (apiKey && !headers.has("x-kairos-api-key")) {
+    headers.set("x-kairos-api-key", apiKey);
+  }
+
+  if (userId && !headers.has("x-kairos-user-id")) {
+    headers.set("x-kairos-user-id", userId);
+  }
+
+  return headers;
+}
+
+export function setClientAuthToken(accessToken: string, email?: string | null) {
+  if (typeof window === "undefined") return;
+  const normalized = accessToken.trim();
+  if (normalized) {
+    window.localStorage.setItem(STORAGE_ACCESS_TOKEN, normalized);
+  } else {
+    window.localStorage.removeItem(STORAGE_ACCESS_TOKEN);
+  }
+
+  const normalizedEmail = email?.trim().toLowerCase() ?? "";
+  if (normalizedEmail) {
+    window.localStorage.setItem(STORAGE_AUTH_EMAIL, normalizedEmail);
+  } else {
+    window.localStorage.removeItem(STORAGE_AUTH_EMAIL);
+  }
+}
+
+export function clearClientAuthToken() {
+  if (typeof window === "undefined") return;
+  window.localStorage.removeItem(STORAGE_ACCESS_TOKEN);
+  window.localStorage.removeItem(STORAGE_AUTH_EMAIL);
+}
+
+export function getClientAuthEmail(): string | null {
+  const value = getLocalStorageValue(STORAGE_AUTH_EMAIL);
+  return value || null;
+}

@@ -43,9 +43,21 @@ create table if not exists memories (
 );
 
 -- Projetos
+create table if not exists clients (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null,
+  nome text not null,
+  descricao text,
+  contato text,
+  status text not null default 'ativo' check (status in ('ativo', 'inativo')),
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
 create table if not exists projects (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null,
+  client_id uuid references clients(id) on delete set null,
   nome text not null,
   status text not null default 'ativo',
   descricao text,
@@ -62,6 +74,20 @@ create table if not exists decisions (
   impacto text,
   status text not null default 'aberta',
   project_id uuid references projects(id) on delete set null,
+  conversation_id uuid references conversations(id) on delete set null,
+  artifact_id uuid,
+  updated_at timestamptz not null default now(),
+  created_at timestamptz not null default now()
+);
+
+create table if not exists decision_status_history (
+  id uuid primary key default gen_random_uuid(),
+  decision_id uuid not null references decisions(id) on delete cascade,
+  user_id uuid not null,
+  previous_status text check (previous_status in ('aberta', 'em_andamento', 'concluida', 'cancelada')),
+  new_status text not null check (new_status in ('aberta', 'em_andamento', 'concluida', 'cancelada')),
+  source text not null default 'manual',
+  note text,
   created_at timestamptz not null default now()
 );
 
@@ -79,6 +105,10 @@ create table if not exists agent_runs (
 create index if not exists idx_messages_conversation_id on messages(conversation_id);
 create index if not exists idx_memories_user_id on memories(user_id);
 create index if not exists idx_decisions_user_id on decisions(user_id);
+create index if not exists idx_decisions_user_project on decisions(user_id, project_id, created_at desc);
+create index if not exists idx_decision_history_decision on decision_status_history(decision_id, created_at desc);
+create index if not exists idx_clients_user_id on clients(user_id);
+create index if not exists idx_projects_client_id on projects(client_id);
 create index if not exists idx_memories_embedding_hnsw
   on memories using hnsw (embedding vector_cosine_ops);
 

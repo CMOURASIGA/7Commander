@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Comunicado Executivo</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="./base.css">
+</head>
+<body>
+  <button class="print-btn" onclick="window.print()">Imprimir / Exportar PDF</button>
+  <div class="doc">
+    <header>
+      <div class="brand">
+        <img src="https://i.imgur.com/GUOMwkI.png" alt="Logo" onerror="this.style.display='none'; this.parentElement.insertAdjacentHTML('beforeend','<span class=`pill`>PM Commander OS</span>');">
+        <div class="brand-title">
+          <div class="meta">PM Commander OS · Projeto Exemplo</div>
+          <h1>Comunicado Executivo</h1>
+        </div>
+      </div>
+      <div class="meta" id="report-date"></div>
+    </header>
+    <div class="doc-body" id="root"></div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  <script>
+    const data = {
+      tipo: 'Status Update e Alinhamento',
+      publico: ['PM', 'Equipe', 'Patrocinador'],
+      objetivo: 'Alinhar status do sprint atual e próximos passos.',
+      mensagemPrincipal: 'Seguimos on-track para entrega das features críticas, com atenção ao risco do gateway.',
+      versaoCompleta: 'Detalhes de progresso, riscos, ações mitigatórias e plano de comunicação.',
+      versaoResumida: 'On-track; risco gateway; mitigação em andamento.',
+      backlogResumido: [
+        'US-01: Filtro de catálogo',
+        'US-02: Endereços no checkout',
+        'US-03: Integração antifraude',
+      ],
+      plano306090: [
+        { periodo: '0-30 dias', metas: 'Catálogo finalizado', entregaveis: 'Filtros; cache; monitoramento básico' },
+        { periodo: '31-60 dias', metas: 'Checkout e pagamentos', entregaveis: 'Endereços; meios de pagamento' },
+        { periodo: '61-90 dias', metas: 'Observabilidade', entregaveis: 'Dashboards; alertas' },
+      ],
+      riscos: [
+        'Dependência do gateway atual — mitigação: plano B em negociação.',
+        'Equipe reduzida em abril — mitigação: replanejar sprints.',
+      ],
+      acoesRecomendadas: [
+        'Validar timeline com fornecedor do gateway.',
+        'Revisar prioridade das stories do checkout.',
+        'Comunicar stakeholders sobre mitigação.',
+      ],
+      callToAction: [
+        'Aprovar contingência do gateway até sexta.',
+        'Liberar budget para testes de carga.',
+        'Confirmar agenda de revisão quinzenal.',
+      ],
+    };
+
+    const root = document.getElementById('root');
+    document.getElementById('report-date').innerText = new Date().toLocaleDateString('pt-BR');
+
+    const badgeAudience = (tag) => {
+      const map = {
+        'PM': 'badge badge-alta',
+        'Equipe': 'badge badge-media',
+        'Patrocinador': 'badge badge-baixa',
+      };
+      return map[tag] || 'badge badge-media';
+    };
+
+    const section = (title, content) => {
+      if (!content) return '';
+      return `<section class="doc-section"><h2>${title}</h2><div class="doc-content">${content}</div></section>`;
+    };
+
+    const sections = [];
+    sections.push(section('Tipo de Comunicação', `<div class="pill">${data.tipo}</div>`));
+    sections.push(section('Público', data.publico.map(p => `<span class="${badgeAudience(p)}">${p}</span>`).join(' ')));
+    sections.push(section('Objetivo', marked.parse(data.objetivo)));
+    sections.push(section('Mensagem Principal', marked.parse(data.mensagemPrincipal)));
+    sections.push(section('Versão Completa', marked.parse(data.versaoCompleta)));
+    sections.push(section('Versão Resumida', marked.parse(data.versaoResumida)));
+
+    if (data.backlogResumido?.length) {
+      sections.push(section('Backlog Resumido', `<ul class="list actions-list">${data.backlogResumido.map(i => `<li>${marked.parseInline(i)}</li>`).join('')}</ul>`));
+    }
+
+    if (data.plano306090?.length) {
+      const rows = data.plano306090.map(item => `
+        <tr>
+          <td>${item.periodo}</td>
+          <td>${marked.parseInline(item.metas)}</td>
+          <td>${marked.parseInline(item.entregaveis)}</td>
+        </tr>`).join('');
+      const table = `
+        <div class="table-wrapper">
+          <table>
+            <thead><tr><th>Período</th><th>Metas</th><th>Entregáveis</th></tr></thead>
+            <tbody>${rows}</tbody>
+          </table>
+        </div>`;
+      sections.push(section('Plano 30-60-90', table));
+    }
+
+    if (data.riscos?.length) {
+      sections.push(section('Riscos', `<ul class="list actions-list">${data.riscos.map(r => `<li>${marked.parseInline(r)}</li>`).join('')}</ul>`));
+    }
+
+    if (data.acoesRecomendadas?.length) {
+      sections.push(section('Ações Recomendadas', `<ul class="list actions-list">${data.acoesRecomendadas.map(r => `<li>${marked.parseInline(r)}</li>`).join('')}</ul>`));
+    }
+
+    if (data.callToAction?.length) {
+      sections.push(section('Call to Action', `<ul class="list actions-list">${data.callToAction.map(r => `<li>✅ ${marked.parseInline(r)}</li>`).join('')}</ul>`));
+    }
+
+    root.innerHTML = sections.join('');
+  </script>
+</body>
+</html>

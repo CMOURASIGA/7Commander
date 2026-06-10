@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Análise de Riscos e Decisão</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="./base.css">
+</head>
+<body>
+  <button class="print-btn" onclick="window.print()">Imprimir / Exportar PDF</button>
+  <div class="doc">
+    <header>
+      <div class="brand">
+        <img src="https://i.imgur.com/GUOMwkI.png" alt="Logo" onerror="this.style.display='none'; this.parentElement.insertAdjacentHTML('beforeend','<span class=`pill`>PM Commander OS</span>');">
+        <div class="brand-title">
+          <div class="meta">PM Commander OS · Projeto Exemplo</div>
+          <h1>Análise de Riscos e Decisão</h1>
+        </div>
+      </div>
+      <div class="meta" id="report-date"></div>
+    </header>
+    <div class="doc-body" id="root"></div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  <script>
+    const data = {
+      resumo: 'Decisão sobre gateway de pagamento com avaliação de riscos e opções.',
+      contexto: 'Precisamos definir o gateway principal para suportar aumento de volume Q2.',
+      opcoes: [
+        { opcao: 'Gateway A', pros: 'Preço competitivo; SDK maduro', contras: 'Suporte lento', risco: 'Médio', impacto: 'Médio' },
+        { opcao: 'Gateway B', pros: 'Melhor SLA; anti-fraude nativo', contras: 'Custo maior', risco: 'Baixo', impacto: 'Baixo' },
+      ],
+      riscosOcultos: [
+        'Lock-in contratual de 12 meses',
+        'Dependência de feature específica do provedor',
+        'Complexidade de migração futura',
+      ],
+      recomendacao: 'Selecionar Gateway B e manter A como contingência.',
+      naoFazer: 'Não atrasar a escolha esperando feature futura do Gateway A.',
+      riscoNaoDecidir: 'Atraso em rollout de pagamentos e impacto de receita.',
+      proximosPassos: [
+        'Negociar contrato com Gateway B',
+        'Planejar plano de rollback',
+        'Testes de carga em staging',
+      ],
+    };
+
+    const root = document.getElementById('root');
+    document.getElementById('report-date').innerText = new Date().toLocaleDateString('pt-BR');
+
+    const badge = (level) => {
+      const l = (level || '').toLowerCase();
+      if (l.startsWith('alto')) return 'badge badge-alta';
+      if (l.startsWith('médio') || l.startsWith('medio')) return 'badge badge-media';
+      return 'badge badge-baixa';
+    };
+
+    const section = (title, content, extraClass = '') => {
+      if (!content) return '';
+      return `<section class="doc-section ${extraClass}"><h2>${title}</h2><div class="doc-content">${content}</div></section>`;
+    };
+
+    const sections = [];
+    sections.push(section('Resumo Executivo', marked.parse(data.resumo)));
+    sections.push(section('Cenário / Contexto', marked.parse(data.contexto)));
+
+    if (data.opcoes?.length) {
+      const rows = data.opcoes.map((o) => `
+        <tr>
+          <td>${o.opcao}</td>
+          <td>${marked.parseInline(o.pros)}</td>
+          <td>${marked.parseInline(o.contras)}</td>
+          <td><span class="${badge(o.risco)}">${o.risco}</span></td>
+          <td><span class="${badge(o.impacto)}">${o.impacto}</span></td>
+        </tr>`).join('');
+      const table = `
+        <div class="table-wrapper">
+          <table>
+            <thead><tr><th>Opção</th><th>Pros</th><th>Contras</th><th>Risco</th><th>Impacto</th></tr></thead>
+            <tbody>${rows}</tbody>
+          </table>
+        </div>`;
+      sections.push(section('Opções Avaliadas', table));
+    }
+
+    if (data.riscosOcultos?.length) {
+      sections.push(section('Riscos Ocultos', `<ul class="list actions-list">${data.riscosOcultos.map(r => `<li>${marked.parseInline(r)}</li>`).join('')}</ul>`));
+    }
+
+    if (data.recomendacao) {
+      sections.push(section('Recomendação Final', `<div class="card highlight-card">${marked.parse(data.recomendacao)}</div>`));
+    }
+
+    if (data.naoFazer) {
+      sections.push(section('O que NÃO fazer', `<div class="card warning-card">${marked.parse(data.naoFazer)}</div>`));
+    }
+
+    if (data.riscoNaoDecidir) {
+      sections.push(section('Risco de Não Decidir', marked.parse(data.riscoNaoDecidir)));
+    }
+
+    if (data.proximosPassos?.length) {
+      sections.push(section('Próximos Passos', `<ul class="list actions-list">${data.proximosPassos.map(p => `<li>${marked.parseInline(p)}</li>`).join('')}</ul>`));
+    }
+
+    root.innerHTML = sections.join('');
+  </script>
+</body>
+</html>
