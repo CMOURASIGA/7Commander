@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import { setClientAuthToken } from "@/lib/client-auth";
 
@@ -12,9 +12,12 @@ function readHashParams() {
   return new URLSearchParams(hash);
 }
 
+function readSearchParams() {
+  return new URLSearchParams(window.location.search);
+}
+
 export function AuthCallbackClient() {
   const router = useRouter();
-  const searchParams = useSearchParams();
   const [message, setMessage] = useState("Concluindo autenticacao...");
 
   useEffect(() => {
@@ -26,10 +29,11 @@ export function AuthCallbackClient() {
         return;
       }
 
-      const code = searchParams.get("code");
+      const queryParams = readSearchParams();
+      const code = queryParams.get("code");
       if (code) {
-        const exchanged = await client.auth.exchangeCodeForSession(code);
-        if (exchanged.error) {
+        const exchanged = await client.auth.exchangeCodeForSession(code).catch(() => null);
+        if (!exchanged || exchanged.error) {
           setMessage("Falha ao validar login Google.");
           return;
         }
@@ -54,15 +58,15 @@ export function AuthCallbackClient() {
         }
       }
 
-      const { data } = await client.auth.getSession();
-      const token = data.session?.access_token ?? "";
-      const email = data.session?.user?.email ?? null;
+      const sessionResult = await client.auth.getSession().catch(() => null);
+      const token = sessionResult?.data?.session?.access_token ?? "";
+      const email = sessionResult?.data?.session?.user?.email ?? null;
       if (token) {
         setClientAuthToken(token, email);
       }
 
       if (!active) return;
-      const next = searchParams.get("next") || "/";
+      const next = queryParams.get("next") || "/";
       router.replace(next);
     }
 
@@ -70,7 +74,7 @@ export function AuthCallbackClient() {
     return () => {
       active = false;
     };
-  }, [router, searchParams]);
+  }, [router]);
 
   return (
     <section className="rounded-xl border border-(--border) bg-(--bg-surface) p-6 text-sm text-(--text-primary)">

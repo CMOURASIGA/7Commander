@@ -49,10 +49,10 @@ export function KairosAuthProvider({ required, children }: ProviderProps) {
     }
 
     let mounted = true;
-    void client.auth.getSession().then(async ({ data }) => {
+    void client.auth.getSession().then(async (result) => {
       if (!mounted) return;
-      const sessionUser = data.session?.user ?? null;
-      const token = data.session?.access_token ?? "";
+      const sessionUser = result?.data?.session?.user ?? null;
+      const token = result?.data?.session?.access_token ?? "";
       setUser(sessionUser);
       if (sessionUser && token) {
         setClientAuthToken(token, sessionUser.email ?? null);
@@ -62,6 +62,12 @@ export function KairosAuthProvider({ required, children }: ProviderProps) {
         clearClientAuthToken();
         syncedUserIdRef.current = null;
       }
+      setLoading(false);
+    }).catch(() => {
+      if (!mounted) return;
+      clearClientAuthToken();
+      syncedUserIdRef.current = null;
+      setUser(null);
       setLoading(false);
     });
 
@@ -84,7 +90,7 @@ export function KairosAuthProvider({ required, children }: ProviderProps) {
 
     return () => {
       mounted = false;
-      subscription.data.subscription.unsubscribe();
+      subscription?.data?.subscription?.unsubscribe?.();
     };
   }, []);
 
