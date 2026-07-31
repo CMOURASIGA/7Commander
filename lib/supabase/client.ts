@@ -16,7 +16,9 @@ export function getSupabaseBrowserClient() {
         flowType: "pkce",
         autoRefreshToken: true,
         persistSession: true,
-        detectSessionInUrl: true,
+        // The callback page exchanges the OAuth code explicitly. Letting the
+        // client detect it here would consume the PKCE verifier a second time.
+        detectSessionInUrl: false,
       },
     });
   }
