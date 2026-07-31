@@ -7,35 +7,27 @@ type BrandLockupProps = {
   align?: "left" | "center";
   size?: "sm" | "md" | "lg";
   description?: string | null;
+  tone?: "default" | "light";
 };
 
 const sizeMap = {
   sm: {
-    mark: "h-10 w-10 rounded-2xl",
-    code: "text-base",
-    line: "text-[10px]",
+    logo: "h-auto w-[172px]",
     title: "text-sm",
     subtitle: "text-[13px]",
     description: "text-[11px]",
-    gap: "gap-3",
   },
   md: {
-    mark: "h-12 w-12 rounded-[1.1rem]",
-    code: "text-lg",
-    line: "text-[10px]",
+    logo: "h-auto w-[220px]",
     title: "text-base",
     subtitle: "text-xs",
     description: "text-xs",
-    gap: "gap-3.5",
   },
   lg: {
-    mark: "h-16 w-16 rounded-[1.35rem]",
-    code: "text-2xl",
-    line: "text-[11px]",
+    logo: "h-auto w-[280px]",
     title: "text-xl",
     subtitle: "text-sm",
     description: "text-sm",
-    gap: "gap-4",
   },
 } as const;
 
@@ -43,9 +35,7 @@ export function BrandMark({ size = "md" }: { size?: "sm" | "md" | "lg" }) {
   const styles = sizeMap[size];
 
   return (
-    <div className={["overflow-hidden border border-white/50 bg-(--accent) shadow-[var(--shadow-card)]", styles.mark].join(" ")} aria-hidden="true">
-      <img src={BRAND_LOGO_URL} alt="" className="h-full w-full object-cover" />
-    </div>
+    <img src={BRAND_LOGO_URL} alt="Consult Services Tecnologia" className={styles.logo} />
   );
 }
 
@@ -54,21 +44,23 @@ export function BrandLockup({
   align = "left",
   size = "md",
   description = "Clareza operacional em tempo real",
+  tone = "default",
 }: BrandLockupProps) {
   const styles = sizeMap[size];
   const textAlign = align === "center" ? "text-center" : "text-left";
-  const wrapperAlign = align === "center" ? "justify-center" : "justify-start";
+  const wrapperAlign = align === "center" ? "items-center" : "items-start";
+  const isLight = tone === "light";
 
   return (
-    <div className={`flex items-start ${wrapperAlign} ${styles.gap}`}>
+    <div className={`flex flex-col ${wrapperAlign}`}>
       <BrandMark size={size} />
-      <div className={`min-w-0 flex-1 ${textAlign}`}>
-        <p className="text-[10px] font-black uppercase tracking-[0.28em] text-(--accent)">
+      <div className={`mt-3 min-w-0 ${textAlign}`}>
+        <p className={`text-[10px] font-black uppercase tracking-[0.24em] ${isLight ? "text-(--brand-highlight)" : "text-(--accent)"}`}>
           {BRAND_NAME}
         </p>
-        <p className={`mt-1 font-semibold leading-5 text-(--text-primary) ${styles.title}`}>{subtitle}</p>
+        <p className={`mt-1 font-semibold leading-5 ${isLight ? "text-white" : "text-(--text-primary)"} ${styles.title}`}>{subtitle}</p>
         {description ? (
-          <p className={`mt-1 leading-5 text-(--text-secondary) ${styles.description}`}>{description}</p>
+          <p className={`mt-1 leading-5 ${isLight ? "text-white/65" : "text-(--text-secondary)"} ${styles.description}`}>{description}</p>
         ) : null}
       </div>
     </div>
