@@ -193,7 +193,7 @@ export default function HomePage() {
         <div className="mt-4 flex flex-wrap gap-2">
           <Link
             href="/projects"
-            className="rounded-lg bg-(--accent) px-3 py-2 text-[12px] font-medium text-white"
+            className="workspace-button-primary rounded-lg px-3 py-2 text-[12px]"
           >
             Criar projeto
           </Link>
@@ -226,7 +226,7 @@ export default function HomePage() {
         </div>
         <Link
           href="/voice"
-          className="rounded-lg bg-(--accent) px-3 py-2 text-[12px] font-medium text-white"
+          className="workspace-button-primary rounded-lg px-3 py-2 text-[12px]"
         >
           Abrir
         </Link>

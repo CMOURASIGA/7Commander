@@ -1,5 +1,6 @@
 import { validatePublicEnv, validateServerEnv } from "@/lib/env";
 import { AuthClientConfig } from "@/components/settings/auth-client-config";
+import { ClientBrandConfig } from "@/components/settings/client-brand-config";
 import { PageIntro, SectionLabel, SurfaceCard, StatusPill } from "@/components/ui/workspace-primitives";
 
 export default function SettingsPage() {
@@ -26,6 +27,8 @@ export default function SettingsPage() {
           </>
         }
       />
+
+      <ClientBrandConfig />
 
       <SurfaceCard>
         <SectionLabel>Variáveis públicas</SectionLabel>
