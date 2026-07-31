@@ -239,6 +239,14 @@ a {
   line-height: 1.35;
 }
 
+.sidebar-product-owner {
+  margin: 7px 0 0;
+  color: #bfeaff;
+  font-size: 10px;
+  font-weight: 500;
+  line-height: 1.4;
+}
+
 .sidebar-section-label {
   color: #a9dffc;
   font-size: 10px;

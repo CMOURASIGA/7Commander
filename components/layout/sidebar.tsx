@@ -41,7 +41,8 @@ export function Sidebar() {
       </div>
       <div className="sidebar-product relative">
         <p className="sidebar-product-name">{BRAND_NAME}</p>
-        <p className="sidebar-product-subtitle">{clientBrand.clientName === DEFAULT_CLIENT_BRAND.clientName ? BRAND_SUBTITLE : clientBrand.clientName}</p>
+        <p className="sidebar-product-subtitle">{BRAND_SUBTITLE}</p>
+        <p className="sidebar-product-owner">Uma plataforma Consult Services Tecnologia</p>
       </div>
 
       <nav className="relative mt-5 flex flex-wrap gap-4 px-3 pb-5 md:flex-col md:gap-5 md:px-3">
