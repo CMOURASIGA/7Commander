@@ -12,9 +12,9 @@ export default function SettingsPage() {
   return (
     <section className="space-y-4">
       <PageIntro
-        eyebrow="7C Commander"
+        eyebrow="Consult Services · 7Commander"
         title="Configurações operacionais"
-        description="Validação do ambiente, autenticação do operador e parâmetros de voz para manter o workspace consistente entre frontend e backend."
+        description="Acompanhe a disponibilidade dos serviços essenciais do workspace e as preferências de acesso do operador."
         aside={
           <>
             <StatusPill tone={missingPublic.length === 0 ? "success" : "accent"}>
@@ -56,17 +56,11 @@ export default function SettingsPage() {
       </SurfaceCard>
 
       <SurfaceCard>
-        <SectionLabel>Provisionamento</SectionLabel>
-        <h3 className="mt-2 text-base font-semibold text-(--text-primary)">Origem de cada chave</h3>
-        <ul className="mt-2 space-y-1 text-sm text-(--text-secondary)">
-          <li>NEXT_PUBLIC_SUPABASE_URL - Supabase Project Settings &gt; API &gt; Project URL</li>
-          <li>NEXT_PUBLIC_SUPABASE_ANON_KEY - Supabase Project Settings &gt; API &gt; anon public</li>
-          <li>SUPABASE_SERVICE_ROLE_KEY - Supabase Project Settings &gt; API &gt; service_role secret</li>
-          <li>OPENAI_API_KEY - OpenAI Dashboard &gt; API keys</li>
-          <li>OPENAI_TTS_MODEL - modelo de TTS (ex.: gpt-4o-mini-tts)</li>
-          <li>OPENAI_TTS_VOICE - voz de TTS (ex.: sage)</li>
-          <li>OPENAI_EMBEDDING_MODEL - modelo de embedding (ex.: text-embedding-3-small)</li>
-        </ul>
+        <SectionLabel>Administração técnica</SectionLabel>
+        <h3 className="mt-2 text-base font-semibold text-(--text-primary)">Serviços protegidos</h3>
+        <p className="mt-2 text-sm leading-6 text-(--text-secondary)">
+          Chaves de integração e parâmetros internos ficam protegidos no ambiente de hospedagem. Esta área apresenta apenas a situação de cada serviço, sem expor configurações sensíveis ao operador.
+        </p>
       </SurfaceCard>
 
       <SurfaceCard>
