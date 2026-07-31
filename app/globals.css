@@ -233,6 +233,20 @@ a {
   clip-path: inset(0 round 14px);
 }
 
+.sidebar-brand-logo-frame-consult {
+  width: min(100%, 188px);
+  flex-basis: auto;
+  border-radius: 0;
+}
+
+.sidebar-brand-logo-consult {
+  width: 136%;
+  max-width: none;
+  height: 136%;
+  border-radius: 0;
+  clip-path: none;
+}
+
 .sidebar-product {
   border-bottom: 1px solid rgba(255, 255, 255, 0.18);
   padding: 15px 16px 16px;

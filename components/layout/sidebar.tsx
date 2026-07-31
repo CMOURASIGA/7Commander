@@ -25,6 +25,7 @@ export function Sidebar() {
   const auth = useKairosAuth();
   const [clientBrand, setClientBrand] = useState<ClientBrandSettings>(DEFAULT_CLIENT_BRAND);
   const sections = Array.from(new Set(NAV_ITEMS.map((item) => item.section)));
+  const isConsultServicesBrand = clientBrand.logoUrl === DEFAULT_CLIENT_BRAND.logoUrl;
 
   useEffect(() => {
     const refreshBrand = () => setClientBrand(getClientBrandSettings());
@@ -37,8 +38,8 @@ export function Sidebar() {
     <aside className="sidebar-shell relative w-full overflow-hidden border-b border-white/15 md:h-screen md:w-[250px] md:border-b-0 md:border-r">
       <div className="absolute inset-x-0 bottom-0 h-72 bg-[radial-gradient(circle_at_95%_15%,rgba(0,174,239,0.28),transparent_2px),linear-gradient(135deg,transparent_0%,transparent_64%,rgba(0,174,239,0.18)_64%,transparent_65%)] opacity-70" />
       <div className="sidebar-brand-panel relative">
-        <div className="sidebar-brand-logo-frame">
-          <img src={clientBrand.logoUrl || BRAND_LOGO_URL} alt={clientBrand.clientName || "Consult Services Tecnologia"} className="sidebar-brand-logo" />
+        <div className={`sidebar-brand-logo-frame${isConsultServicesBrand ? " sidebar-brand-logo-frame-consult" : ""}`}>
+          <img src={clientBrand.logoUrl || BRAND_LOGO_URL} alt={clientBrand.clientName || "Consult Services Tecnologia"} className={`sidebar-brand-logo${isConsultServicesBrand ? " sidebar-brand-logo-consult" : ""}`} />
         </div>
       </div>
       <div className="sidebar-product relative">
