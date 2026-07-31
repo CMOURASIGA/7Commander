@@ -29,7 +29,35 @@ export function ClientBrandConfig() {
     const file = event.target.files?.[0];
     if (!file) return;
     const reader = new FileReader();
-    reader.onload = () => update("logoUrl", String(reader.result));
+    reader.onload = () => {
+      const logoUrl = String(reader.result);
+      update("logoUrl", logoUrl);
+      const image = new Image();
+      image.onload = () => {
+        const canvas = document.createElement("canvas");
+        canvas.width = canvas.height = 48;
+        const context = canvas.getContext("2d");
+        if (!context) return;
+        context.drawImage(image, 0, 0, 48, 48);
+        const colors = new Map<string, number>();
+        for (let index = 0; index < context.getImageData(0, 0, 48, 48).data.length; index += 4) {
+          const data = context.getImageData(0, 0, 48, 48).data;
+          if (data[index + 3] < 180) continue;
+          const red = Math.round(data[index] / 32) * 32;
+          const green = Math.round(data[index + 1] / 32) * 32;
+          const blue = Math.round(data[index + 2] / 32) * 32;
+          const key = `${red},${green},${blue}`;
+          colors.set(key, (colors.get(key) ?? 0) + 1);
+        }
+        const palette = [...colors.entries()].sort((a, b) => b[1] - a[1]).map(([key]) => key.split(",").map(Number));
+        const hex = (color: number[]) => `#${color.map((value) => value.toString(16).padStart(2, "0")).join("")}`;
+        const primary = palette.find(([red, green, blue]) => Math.max(red, green, blue) - Math.min(red, green, blue) > 70);
+        const highlight = palette.find(([red, green, blue]) => primary && hex([red, green, blue]) !== hex(primary) && Math.max(red, green, blue) - Math.min(red, green, blue) > 70);
+        if (primary) update("primaryColor", hex(primary));
+        if (highlight) update("highlightColor", hex(highlight));
+      };
+      image.src = logoUrl;
+    };
     reader.readAsDataURL(file);
   }
 
@@ -53,7 +81,7 @@ export function ClientBrandConfig() {
       <SectionLabel>White label do cliente</SectionLabel>
       <h3 className="mt-2 text-base font-semibold text-(--text-primary)">Identidade apresentada ao cliente</h3>
       <p className="mt-2 max-w-3xl text-sm leading-6 text-(--text-secondary)">
-        O 7Commander permanece uma plataforma Consult Services. Quando houver contratação white label, defina aqui a marca que será exibida no ambiente do cliente.
+        O 7Commander permanece uma plataforma Consult Services. Ao enviar uma logo, as cores predominantes são sugeridas automaticamente e podem ser ajustadas antes de salvar.
       </p>
       <div className="mt-4 grid gap-4 lg:grid-cols-[180px_1fr]">
         <div className="flex min-h-32 items-center justify-center rounded-xl border border-(--border) bg-white p-4">
