@@ -215,10 +215,11 @@ a {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: min(100%, 132px);
-  height: 84px;
+  width: 96px;
+  height: 96px;
+  flex: 0 0 96px;
   overflow: hidden;
-  border-radius: 18px;
+  border-radius: 14px;
   background: #ffffff;
 }
 
@@ -229,7 +230,7 @@ a {
   object-fit: contain;
   object-position: center;
   border-radius: inherit;
-  clip-path: inset(0 round 18px);
+  clip-path: inset(0 round 14px);
 }
 
 .sidebar-product {
