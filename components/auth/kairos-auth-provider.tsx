@@ -3,6 +3,7 @@
 import { createContext, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { User } from "@supabase/supabase-js";
 import { getClientAuthHeaders, clearClientAuthToken, setClientAuthToken } from "@/lib/client-auth";
+import { getPublicEnv } from "@/lib/env";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 
 type KairosAuthState = {
@@ -102,7 +103,34 @@ export function KairosAuthProvider({ required, children }: ProviderProps) {
       signInWithGoogle: async (nextPath?: string) => {
         const client = getSupabaseBrowserClient();
         if (!client) throw new Error("Cliente Supabase indisponivel no navegador.");
-        const redirectUrl = new URL("/auth/callback", window.location.origin);
+
+        const currentUrl = new URL(window.location.href);
+        const configuredAppUrl = getPublicEnv().NEXT_PUBLIC_APP_URL;
+        let appUrl: URL | null = null;
+
+        try {
+          appUrl = configuredAppUrl ? new URL(configuredAppUrl) : null;
+        } catch {
+          appUrl = null;
+        }
+
+        // Preview deployments use distinct Vercel hosts. PKCE stores its
+        // verifier per host, so OAuth must begin and end on one stable URL.
+        if (
+          appUrl &&
+          currentUrl.hostname.endsWith(".vercel.app") &&
+          currentUrl.origin !== appUrl.origin
+        ) {
+          const canonicalLoginUrl = new URL("/login", appUrl.origin);
+          canonicalLoginUrl.searchParams.set(
+            "next",
+            nextPath?.trim() || `${currentUrl.pathname}${currentUrl.search}`,
+          );
+          window.location.assign(canonicalLoginUrl.toString());
+          return;
+        }
+
+        const redirectUrl = new URL("/auth/callback", appUrl?.origin ?? window.location.origin);
         if (nextPath?.trim()) {
           redirectUrl.searchParams.set("next", nextPath.trim());
         }
