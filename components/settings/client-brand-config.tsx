@@ -13,6 +13,7 @@ import { SectionLabel, SurfaceCard } from "@/components/ui/workspace-primitives"
 export function ClientBrandConfig() {
   const [settings, setSettings] = useState<ClientBrandSettings>(DEFAULT_CLIENT_BRAND);
   const [saved, setSaved] = useState(false);
+  const [selectedFileName, setSelectedFileName] = useState("");
 
   useEffect(() => {
     const stored = getClientBrandSettings();
@@ -28,6 +29,7 @@ export function ClientBrandConfig() {
   function selectLogo(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
     if (!file) return;
+    setSelectedFileName(file.name);
     const reader = new FileReader();
     reader.onload = () => {
       const logoUrl = String(reader.result);
@@ -89,7 +91,14 @@ export function ClientBrandConfig() {
         </div>
         <div className="grid gap-3 sm:grid-cols-2">
           <label className="text-sm font-medium text-(--text-primary)">Nome exibido<input value={settings.clientName} onChange={(event) => update("clientName", event.target.value)} className="workspace-input mt-1" /></label>
-          <label className="text-sm font-medium text-(--text-primary)">Logo do cliente<input type="file" accept="image/*" onChange={selectLogo} className="mt-1 block w-full text-sm text-(--text-secondary)" /></label>
+          <label className="text-sm font-medium text-(--text-primary)">
+            Logo do cliente
+            <span className="mt-2 flex flex-wrap items-center gap-2">
+              <span className="workspace-button-primary cursor-pointer">Escolher arquivo</span>
+              <span className="text-xs font-normal text-(--text-secondary)">{selectedFileName || "Nenhum arquivo selecionado"}</span>
+            </span>
+            <input type="file" accept="image/*" onChange={selectLogo} className="sr-only" />
+          </label>
           <label className="text-sm font-medium text-(--text-primary)">Cor principal<input type="color" value={settings.primaryColor} onChange={(event) => update("primaryColor", event.target.value)} className="mt-2 h-10 w-full cursor-pointer rounded-lg border border-(--border) bg-white p-1" /></label>
           <label className="text-sm font-medium text-(--text-primary)">Cor de destaque<input type="color" value={settings.highlightColor} onChange={(event) => update("highlightColor", event.target.value)} className="mt-2 h-10 w-full cursor-pointer rounded-lg border border-(--border) bg-white p-1" /></label>
         </div>
