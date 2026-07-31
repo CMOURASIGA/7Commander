@@ -25,15 +25,16 @@ export function Sidebar() {
   const sections = Array.from(new Set(NAV_ITEMS.map((item) => item.section)));
 
   return (
-    <aside className="w-full border-b border-(--border) bg-(--bg-muted) px-3 py-4 md:h-screen md:w-[220px] md:border-b-0 md:border-r md:px-3 md:py-4">
-      <div className="border-b border-(--border) px-1 pb-4">
-        <BrandLockup subtitle="Workspace operacional" description={userEmail} size="sm" />
+    <aside className="relative w-full overflow-hidden border-b border-white/15 bg-(--sidebar) px-3 py-4 md:h-screen md:w-[250px] md:border-b-0 md:border-r md:px-4 md:py-5">
+      <div className="absolute inset-x-0 bottom-0 h-72 bg-[radial-gradient(circle_at_95%_15%,rgba(0,174,239,0.28),transparent_2px),linear-gradient(135deg,transparent_0%,transparent_64%,rgba(0,174,239,0.18)_64%,transparent_65%)] opacity-70" />
+      <div className="relative border-b border-white/15 px-1 pb-4">
+        <BrandLockup subtitle="Workspace operacional" description={userEmail} size="sm" tone="light" />
       </div>
 
-      <nav className="mt-4 flex flex-wrap gap-4 md:flex-col md:gap-5">
+      <nav className="relative mt-5 flex flex-wrap gap-4 md:flex-col md:gap-5">
         {sections.map((section) => (
           <div key={section}>
-            <p className="mb-2 px-2 text-[10px] font-black uppercase tracking-[0.06em] text-(--text-tertiary)">
+            <p className="mb-2 px-2 text-[10px] font-black uppercase tracking-[0.1em] text-white/55">
               {section}
             </p>
             <div className="flex flex-wrap gap-2 md:flex-col">
@@ -47,8 +48,8 @@ export function Sidebar() {
                     className={[
                       "rounded-lg px-3 py-[9px] text-sm font-medium transition-colors",
                       isActive
-                        ? "bg-(--accent-soft) text-(--accent-strong)"
-                        : "text-(--text-secondary) hover:bg-white hover:text-(--text-primary)",
+                        ? "bg-(--brand-highlight) text-(--sidebar-deep) shadow-sm"
+                        : "text-white/80 hover:bg-white/10 hover:text-white",
                     ].join(" ")}
                   >
                     {item.label}
