@@ -40,8 +40,8 @@ export function ClientBrandConfig() {
         if (!context) return;
         context.drawImage(image, 0, 0, 48, 48);
         const colors = new Map<string, number>();
-        for (let index = 0; index < context.getImageData(0, 0, 48, 48).data.length; index += 4) {
-          const data = context.getImageData(0, 0, 48, 48).data;
+        const data = context.getImageData(0, 0, 48, 48).data;
+        for (let index = 0; index < data.length; index += 4) {
           if (data[index + 3] < 180) continue;
           const red = Math.round(data[index] / 32) * 32;
           const green = Math.round(data[index + 1] / 32) * 32;
@@ -85,7 +85,7 @@ export function ClientBrandConfig() {
       </p>
       <div className="mt-4 grid gap-4 lg:grid-cols-[180px_1fr]">
         <div className="flex min-h-32 items-center justify-center rounded-xl border border-(--border) bg-white p-4">
-          <img src={settings.logoUrl} alt="Prévia da marca do cliente" className="max-h-24 max-w-full object-contain" />
+          <img src={settings.logoUrl} alt="Prévia da marca do cliente" className="max-h-24 max-w-full rounded-xl object-contain" />
         </div>
         <div className="grid gap-3 sm:grid-cols-2">
           <label className="text-sm font-medium text-(--text-primary)">Nome exibido<input value={settings.clientName} onChange={(event) => update("clientName", event.target.value)} className="workspace-input mt-1" /></label>
