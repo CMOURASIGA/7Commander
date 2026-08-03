@@ -7,13 +7,14 @@ import { MarkdownContent } from "@/components/ui/markdown-content";
 import { PageIntro, SectionLabel, StatusPill, SurfaceCard } from "@/components/ui/workspace-primitives";
 
 type ProjectOption = { id: string; name: string; status: string };
+type KairosProfileSummary = { icebreakers: string[] };
 type SaveKind = "decision" | "risk";
 type SaveDialog = { kind: SaveKind; message: ChatMessage } | null;
 
 function getSuggestedTitle(content: string, kind: SaveKind): string {
   const sectionPattern = kind === "decision"
-    ? /#{1,6}\s*decis(?:a|ã)o\s+(?:sugerida|proposta|para registrar)[\s\S]*?(?=\n#{1,6}\s|$)/i
-    : /#{1,6}\s*risco\s+(?:identificado|sugerido|para registrar)[\s\S]*?(?=\n#{1,6}\s|$)/i;
+    ? /(?:#{1,6}\s*decis(?:a|ã)o\s+(?:sugerida|proposta|para registrar)|decis(?:a|ã)o\s+proposta\s*:)[\s\S]*?(?=\n#{1,6}\s|$)/i
+    : /(?:#{1,6}\s*risco\s+(?:identificado|sugerido|para registrar)|sugest(?:a|ã)o\s+de\s+risco\s+operacional\s*:|riscos?\s+identificados?\s*:)[\s\S]*?(?=\n#{1,6}\s|$)/i;
   const section = content.match(sectionPattern)?.[0] ?? "";
   const titled = section.match(/(?:titulo|título)\s*:\s*([^\n]+)/i)?.[1]?.trim();
   if (titled) return titled.replace(/^[-*]\s*/, "").slice(0, 180);
@@ -24,8 +25,8 @@ function getSuggestedTitle(content: string, kind: SaveKind): string {
 
 function hasSaveSuggestion(content: string, kind: SaveKind): boolean {
   const pattern = kind === "decision"
-    ? /#{1,6}\s*decis(?:a|ã)o\s+(?:sugerida|proposta|para registrar)/i
-    : /#{1,6}\s*risco\s+(?:identificado|sugerido|para registrar)/i;
+    ? /(?:#{1,6}\s*decis(?:a|ã)o\s+(?:sugerida|proposta|para registrar)|decis(?:a|ã)o\s+proposta\s*:)/i
+    : /(?:#{1,6}\s*risco\s+(?:identificado|sugerido|para registrar)|sugest(?:a|ã)o\s+de\s+risco\s+operacional\s*:|riscos?\s+identificados?\s*:)/i;
   return pattern.test(content);
 }
 
@@ -55,6 +56,7 @@ export default function ChatPage() {
   const [riskForm, setRiskForm] = useState({ title: "", impact: "", probability: "", mitigation: "", owner: "" });
   const [activeProjectId, setActiveProjectId] = useState<string | null>(null);
   const [projects, setProjects] = useState<ProjectOption[]>([]);
+  const [icebreakers, setIcebreakers] = useState<string[]>([]);
   const [isNewConversation, setIsNewConversation] = useState(true);
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
@@ -88,9 +90,10 @@ export default function ChatPage() {
   useEffect(() => {
     async function bootstrap() {
       setLoadingHistory(true);
-      const [activeProjectResponse, projectsResponse] = await Promise.all([
+      const [activeProjectResponse, projectsResponse, profileResponse] = await Promise.all([
         fetch("/api/projects/active", { headers: getClientAuthHeaders() }),
         fetch("/api/projects", { headers: getClientAuthHeaders() }),
+        fetch("/api/kairos/profile", { headers: getClientAuthHeaders() }),
       ]);
       if (activeProjectResponse.ok) {
         const payload = await activeProjectResponse.json();
@@ -99,6 +102,10 @@ export default function ChatPage() {
       if (projectsResponse.ok) {
         const payload = await projectsResponse.json();
         setProjects((payload?.data ?? []) as ProjectOption[]);
+      }
+      if (profileResponse.ok) {
+        const payload = await profileResponse.json();
+        setIcebreakers(((payload?.data ?? {}) as KairosProfileSummary).icebreakers ?? []);
       }
       await refreshConversations();
       setLoadingHistory(false);
@@ -425,9 +432,28 @@ export default function ChatPage() {
             <p className="mb-3 rounded-lg bg-red-50 px-3 py-2 text-xs text-red-700">{voiceError}</p>
           ) : null}
           {!hasMessages ? (
-            <p className="text-sm text-(--text-secondary)">
-              Inicie a conversa para ativar o nucleo operacional.
-            </p>
+            <div>
+              <p className="text-sm text-(--text-secondary)">
+                Inicie a conversa para ativar o nucleo operacional.
+              </p>
+              {icebreakers.length ? (
+                <div className="mt-4">
+                  <p className="text-xs font-semibold uppercase tracking-[0.1em] text-(--text-secondary)">Sugestoes para comecar</p>
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    {icebreakers.map((icebreaker) => (
+                      <button
+                        key={icebreaker}
+                        type="button"
+                        onClick={() => setInput(icebreaker)}
+                        className="workspace-button-secondary text-left text-xs"
+                      >
+                        {icebreaker}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
+            </div>
           ) : (
             <div className="space-y-3">
               {messages.map((message) => (
@@ -459,7 +485,13 @@ export default function ChatPage() {
                     {message.specialist}
                   </p>
                   {message.role === "assistant" ? (
-                    <div className="mt-2 flex flex-wrap gap-2">
+                    <div className="mt-3">
+                      {hasSaveSuggestion(message.content, "decision") || hasSaveSuggestion(message.content, "risk") ? (
+                        <p className="mb-2 text-xs font-semibold text-(--accent)">
+                          O que deseja fazer com esta analise?
+                        </p>
+                      ) : null}
+                      <div className="flex flex-wrap gap-2">
                       <button
                         type="button"
                         onClick={() => handleListen(message)}
@@ -493,6 +525,7 @@ export default function ChatPage() {
                           {riskSavedIds[message.id] ? "Risco salvo" : "Registrar risco identificado"}
                         </button>
                       ) : null}
+                      </div>
                     </div>
                   ) : null}
                 </article>

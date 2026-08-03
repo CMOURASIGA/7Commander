@@ -114,6 +114,15 @@ create table if not exists agent_runs (
   created_at timestamptz not null default now()
 );
 
+-- Personalizacao do comportamento do Kairos por operador
+create table if not exists kairos_profiles (
+  user_id uuid primary key,
+  instructions text not null default '',
+  knowledge text not null default '',
+  icebreakers jsonb not null default '[]'::jsonb,
+  updated_at timestamptz not null default now()
+);
+
 create index if not exists idx_messages_conversation_id on messages(conversation_id);
 create index if not exists idx_conversations_user_project on conversations(user_id, project_id, created_at desc);
 create index if not exists idx_memories_user_id on memories(user_id);

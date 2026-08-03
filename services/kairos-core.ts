@@ -4,6 +4,7 @@ import { searchRelevantMemories, saveMemory } from "@/services/memory-service";
 import { loadCapabilityModulesForMessage, loadCorePrompt } from "@/services/capability-modules";
 import { listKnowledge } from "@/services/knowledge-layer";
 import { listDecisions } from "@/services/decision-service";
+import { getKairosProfile } from "@/services/kairos-profile-service";
 import { resolveProjectContext } from "@/services/project-resolver";
 import { createTaskFromKairosCommand, moveTaskFromKairosCommand } from "@/services/task-card-detail-service";
 import { getProjectTaskOperationalSnapshot } from "@/services/task-board-service";
@@ -275,9 +276,11 @@ async function maybeHandleRiskCommand(params: {
     return {
       handled: true,
       answer: [
-        "Sugestao de risco operacional:",
-        "- Dependencia externa sem owner definido pode atrasar entregas.",
-        `Se quiser persistir, confirme com: confirmar risco \"Dependencia externa sem owner definido\" no projeto ${params.projectName ?? "ativo"}.`,
+        "## Risco identificado",
+        "- Titulo: Dependencia externa sem responsavel definido",
+        "- Impacto: Pode atrasar entregas e bloquear validacoes externas.",
+        "- Mitigacao inicial: Definir responsavel, prazo e plano de contingencia.",
+        `O registro pode ser revisado e salvo no projeto ${params.projectName ?? "ativo"}.`,
       ].join("\n"),
     };
   }
@@ -316,7 +319,7 @@ export async function generateKairosResponse(params: GenerateParams): Promise<{
   };
 }> {
   const specialist = params.selectedSpecialist ?? classifyIntent(params.message) ?? DEFAULT_SPECIALIST;
-  const [memoryContext, corePrompt, modules, projectResolution] = await Promise.all([
+  const [memoryContext, corePrompt, modules, projectResolution, kairosProfile] = await Promise.all([
     buildMemoryContext(params.userId, params.message),
     loadCorePrompt(),
     loadCapabilityModulesForMessage(params.message),
@@ -327,6 +330,7 @@ export async function generateKairosResponse(params: GenerateParams): Promise<{
       preferredProjectId: params.projectId ?? null,
       autoCreateOnExplicitRequest: true,
     }),
+    getKairosProfile(params.userId),
   ]);
 
   const knowledgeContext = await buildKnowledgeContext({
@@ -427,6 +431,12 @@ export async function generateKairosResponse(params: GenerateParams): Promise<{
     "Responda em Markdown simples para facilitar a leitura: use titulos curtos (##), listas com '-' e **destaques** quando houver mais de uma informacao relevante. Para perguntas simples, responda de forma curta e conversacional, sem criar secoes artificiais.",
     "Em analises formais ou planejamentos, organize a resposta nas secoes que fizerem sentido: Contexto, Diagnostico, Riscos, Plano e Proximos passos.",
     "Quando identificar uma decisao que o operador possa querer registrar, inclua exatamente a secao '## Decisao sugerida' e uma linha '- Titulo: <titulo claro>'. Quando identificar um risco que possa ser acompanhado, inclua exatamente '## Risco identificado' e uma linha '- Titulo: <titulo claro>'. So use essas secoes quando houver uma sugestao concreta para salvar.",
+    kairosProfile.instructions
+      ? `Instrucoes personalizadas do operador (aplique-as quando nao conflitar com seguranca, contexto ou fatos):\n${kairosProfile.instructions}`
+      : "Sem instrucoes personalizadas adicionais. Use o comportamento padrao do Kairos.",
+    kairosProfile.knowledge
+      ? `Conhecimento adicional informado pelo operador:\n${kairosProfile.knowledge}`
+      : "Sem conhecimento adicional informado pelo operador.",
     `Resolucao de projeto: ${projectResolution.reasoning}`,
     `Confianca da resolucao: ${projectResolution.confidence.toFixed(2)}`,
     projectResolution.action === "suggest_new" && projectResolution.suggestedName
