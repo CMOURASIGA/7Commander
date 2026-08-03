@@ -10,6 +10,60 @@ type ProjectOption = { id: string; name: string; status: string };
 type KairosProfileSummary = { icebreakers: string[] };
 type SaveKind = "decision" | "risk" | "knowledge" | "task";
 type SaveDialog = { kind: SaveKind | "choose"; message: ChatMessage } | null;
+type TaskDraft = { id: string; title: string; description: string; selected: boolean };
+
+function removeMarkdown(value: string): string {
+  return value.replace(/[*_`#]/g, "").replace(/\s+/g, " ").trim();
+}
+
+function getTaskDrafts(content: string): TaskDraft[] {
+  const numberedItems = [...content.matchAll(/^\s*(\d+)[.)]\s+(.+)$/gm)];
+
+  if (numberedItems.length > 1) {
+    return numberedItems.map((item, index) => {
+      const start = (item.index ?? 0) + item[0].length;
+      const end = numberedItems[index + 1]?.index ?? content.length;
+      const description = content.slice(start, end)
+        .replace(/^\s*[-*]\s*/gm, "")
+        .replace(/^\s*#{1,6}\s*/gm, "")
+        .trim();
+
+      return {
+        id: `task-${item[1]}`,
+        title: removeMarkdown(item[2]).replace(/[.:]\s*$/, "") || `Atividade ${item[1]}`,
+        description: removeMarkdown(description),
+        selected: true,
+      };
+    });
+  }
+
+  const boldItems = [...content.matchAll(/^\s*\*\*([^*\n]+)\*\*\s*$/gm)]
+    .filter((item) => !/^(atividades|proximos passos|próximos passos|contexto|diagnostico|diagnóstico)\b/i.test(removeMarkdown(item[1]).replace(/:\s*$/, "")));
+
+  if (boldItems.length > 1) {
+    return boldItems.map((item, index) => {
+      const start = (item.index ?? 0) + item[0].length;
+      const end = boldItems[index + 1]?.index ?? content.length;
+      const description = content.slice(start, end)
+        .replace(/^\s*[-*]\s*/gm, "")
+        .trim();
+
+      return {
+        id: `task-bold-${index + 1}`,
+        title: removeMarkdown(item[1]).replace(/:\s*$/, "") || `Atividade ${index + 1}`,
+        description: removeMarkdown(description),
+        selected: true,
+      };
+    });
+  }
+
+  return [{
+    id: "task-1",
+    title: getSuggestedTitle(content, "task"),
+    description: content,
+    selected: true,
+  }];
+}
 
 function getSuggestedTitle(content: string, kind: SaveKind): string {
   if (kind === "knowledge" || kind === "task") {
@@ -62,7 +116,8 @@ export default function ChatPage() {
   const [decisionForm, setDecisionForm] = useState({ title: "", context: "", impact: "", artifactId: "" });
   const [riskForm, setRiskForm] = useState({ title: "", impact: "", probability: "", mitigation: "", owner: "" });
   const [knowledgeForm, setKnowledgeForm] = useState({ title: "", category: "registro do Kairos", content: "" });
-  const [taskForm, setTaskForm] = useState({ title: "", description: "", columnKey: "todo", priority: "media", dueDate: "" });
+  const [taskForm, setTaskForm] = useState({ columnKey: "todo", priority: "media", dueDate: "" });
+  const [taskDrafts, setTaskDrafts] = useState<TaskDraft[]>([]);
   const [activeProjectId, setActiveProjectId] = useState<string | null>(null);
   const [projects, setProjects] = useState<ProjectOption[]>([]);
   const [icebreakers, setIcebreakers] = useState<string[]>([]);
@@ -285,7 +340,8 @@ export default function ChatPage() {
       if (kind === "knowledge") {
         setKnowledgeForm({ title: getSuggestedTitle(message.content, kind), category: "registro do Kairos", content: message.content });
       } else {
-        setTaskForm({ title: getSuggestedTitle(message.content, kind), description: message.content, columnKey: "todo", priority: "media", dueDate: "" });
+        setTaskDrafts(getTaskDrafts(message.content));
+        setTaskForm({ columnKey: "todo", priority: "media", dueDate: "" });
       }
     }
     setSaveDialog({ kind, message });
@@ -404,27 +460,30 @@ export default function ChatPage() {
 
   async function handleSaveTask() {
     if (!saveDialog || saveDialog.kind !== "task" || !activeProjectId) return;
-    if (!taskForm.title.trim()) {
-      setSaveError("Informe o titulo da atividade.");
+    const selectedTasks = taskDrafts.filter((task) => task.selected && task.title.trim());
+    if (selectedTasks.length === 0) {
+      setSaveError("Selecione ao menos uma atividade com titulo.");
       return;
     }
 
     setTaskLoadingId(saveDialog.message.id);
     setSaveError(null);
     try {
-      const response = await fetch(`/api/projects/${activeProjectId}/tasks`, {
-        method: "POST",
-        headers: getClientAuthHeaders({ "Content-Type": "application/json" }),
-        body: JSON.stringify({
-          title: taskForm.title.trim(),
-          description: taskForm.description.trim(),
-          columnKey: taskForm.columnKey,
-          priority: taskForm.priority,
-          dueDate: taskForm.dueDate || null,
-        }),
-      });
-      const payload = await response.json();
-      if (!response.ok) throw new Error(payload?.error || "Erro ao criar atividade no Kanban.");
+      for (const task of selectedTasks) {
+        const response = await fetch(`/api/projects/${activeProjectId}/tasks`, {
+          method: "POST",
+          headers: getClientAuthHeaders({ "Content-Type": "application/json" }),
+          body: JSON.stringify({
+            title: task.title.trim(),
+            description: task.description.trim(),
+            columnKey: taskForm.columnKey,
+            priority: taskForm.priority,
+            dueDate: taskForm.dueDate || null,
+          }),
+        });
+        const payload = await response.json();
+        if (!response.ok) throw new Error(payload?.error || "Erro ao criar atividade no Kanban.");
+      }
 
       setSaveDialog(null);
     } catch (error) {
@@ -648,7 +707,7 @@ export default function ChatPage() {
 
       {saveDialog ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/45 p-4" role="presentation">
-          <div role="dialog" aria-modal="true" aria-labelledby="save-dialog-title" className="workspace-card w-full max-w-2xl p-5 shadow-2xl">
+          <div role="dialog" aria-modal="true" aria-labelledby="save-dialog-title" className="workspace-card w-full max-w-3xl p-6 shadow-2xl">
             <div className="flex items-start justify-between gap-4">
               <div>
                 <p className="text-xs font-semibold uppercase tracking-[0.12em] text-(--accent)">Registro no projeto</p>
@@ -671,23 +730,38 @@ export default function ChatPage() {
             </div>
 
             {saveDialog.kind === "choose" ? (
-              <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-                <button type="button" onClick={() => openSaveDialog("decision", saveDialog.message)} className="workspace-button-secondary p-4 text-left">
-                  <span className="block text-sm font-semibold">Decisao</span>
-                  <span className="mt-1 block text-xs text-(--text-secondary)">Registre uma escolha, justificativa e impacto.</span>
-                </button>
-                <button type="button" onClick={() => openSaveDialog("risk", saveDialog.message)} className="workspace-button-secondary p-4 text-left">
-                  <span className="block text-sm font-semibold">Risco</span>
-                  <span className="mt-1 block text-xs text-(--text-secondary)">Acompanhe impacto, probabilidade e mitigacao.</span>
-                </button>
-                <button type="button" onClick={() => openSaveDialog("knowledge", saveDialog.message)} className="workspace-button-secondary p-4 text-left">
-                  <span className="block text-sm font-semibold">Conhecimento</span>
-                  <span className="mt-1 block text-xs text-(--text-secondary)">Guarde a resposta como referencia do projeto.</span>
-                </button>
-                <button type="button" onClick={() => openSaveDialog("task", saveDialog.message)} className="workspace-button-secondary p-4 text-left">
-                  <span className="block text-sm font-semibold">Atividade no Kanban</span>
-                  <span className="mt-1 block text-xs text-(--text-secondary)">Crie um card para executar e acompanhar no quadro.</span>
-                </button>
+              <div className="mt-6">
+                <p className="text-sm font-medium text-(--text-primary)">Como deseja usar esta resposta?</p>
+                <div className="mt-3 grid gap-3 md:grid-cols-2">
+                  <button type="button" onClick={() => openSaveDialog("decision", saveDialog.message)} className="group flex min-h-36 items-start gap-4 rounded-2xl border border-(--border) bg-white p-5 text-left transition hover:border-(--accent) hover:bg-(--accent-ghost)">
+                    <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-(--accent-soft) text-sm font-bold text-(--accent)">D</span>
+                    <span className="block">
+                      <span className="block text-base font-semibold text-(--text-primary)">Decisao</span>
+                      <span className="mt-1 block text-sm leading-5 text-(--text-secondary)">Formalize uma escolha, sua justificativa e o impacto esperado.</span>
+                    </span>
+                  </button>
+                  <button type="button" onClick={() => openSaveDialog("risk", saveDialog.message)} className="group flex min-h-36 items-start gap-4 rounded-2xl border border-(--border) bg-white p-5 text-left transition hover:border-(--accent) hover:bg-(--accent-ghost)">
+                    <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-amber-50 text-sm font-bold text-amber-700">R</span>
+                    <span className="block">
+                      <span className="block text-base font-semibold text-(--text-primary)">Risco</span>
+                      <span className="mt-1 block text-sm leading-5 text-(--text-secondary)">Registre impacto, probabilidade, responsavel e plano de mitigacao.</span>
+                    </span>
+                  </button>
+                  <button type="button" onClick={() => openSaveDialog("knowledge", saveDialog.message)} className="group flex min-h-36 items-start gap-4 rounded-2xl border border-(--border) bg-white p-5 text-left transition hover:border-(--accent) hover:bg-(--accent-ghost)">
+                    <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-50 text-sm font-bold text-emerald-700">C</span>
+                    <span className="block">
+                      <span className="block text-base font-semibold text-(--text-primary)">Conhecimento</span>
+                      <span className="mt-1 block text-sm leading-5 text-(--text-secondary)">Guarde esta resposta como referencia e contexto permanente do projeto.</span>
+                    </span>
+                  </button>
+                  <button type="button" onClick={() => openSaveDialog("task", saveDialog.message)} className="group flex min-h-36 items-start gap-4 rounded-2xl border border-(--border) bg-white p-5 text-left transition hover:border-(--accent) hover:bg-(--accent-ghost)">
+                    <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-sky-50 text-sm font-bold text-sky-700">K</span>
+                    <span className="block">
+                      <span className="block text-base font-semibold text-(--text-primary)">Atividade no Kanban</span>
+                      <span className="mt-1 block text-sm leading-5 text-(--text-secondary)">Crie um card para executar e acompanhar o trabalho no quadro.</span>
+                    </span>
+                  </button>
+                </div>
               </div>
             ) : saveDialog.kind === "decision" ? (
               <div className="mt-5 grid gap-3 sm:grid-cols-2">
@@ -735,10 +809,24 @@ export default function ChatPage() {
                 </label>
               </div>
             ) : (
-              <div className="mt-5 grid gap-3 sm:grid-cols-2">
-                <label className="sm:col-span-2 text-xs font-medium text-(--text-primary)">Titulo da atividade
-                  <input value={taskForm.title} onChange={(event) => setTaskForm((prev) => ({ ...prev, title: event.target.value }))} className="workspace-input mt-1 w-full" />
-                </label>
+              <div className="mt-5 space-y-4">
+                <div className="rounded-xl border border-(--border) bg-(--accent-ghost) px-4 py-3">
+                  <p className="text-sm font-semibold text-(--text-primary)">{taskDrafts.length} {taskDrafts.length === 1 ? "atividade identificada" : "atividades identificadas"}</p>
+                  <p className="mt-1 text-xs text-(--text-secondary)">Selecione e ajuste os cards que devem ser criados no Kanban.</p>
+                </div>
+                <div className="max-h-72 space-y-3 overflow-y-auto pr-1">
+                  {taskDrafts.map((task, index) => (
+                    <div key={task.id} className="rounded-xl border border-(--border) bg-white p-3">
+                      <label className="flex items-center gap-2 text-sm font-semibold text-(--text-primary)">
+                        <input type="checkbox" checked={task.selected} onChange={(event) => setTaskDrafts((prev) => prev.map((item) => item.id === task.id ? { ...item, selected: event.target.checked } : item))} />
+                        Atividade {index + 1}
+                      </label>
+                      <input value={task.title} disabled={!task.selected} onChange={(event) => setTaskDrafts((prev) => prev.map((item) => item.id === task.id ? { ...item, title: event.target.value } : item))} className="workspace-input mt-2 w-full" aria-label={`Titulo da atividade ${index + 1}`} />
+                      <textarea value={task.description} disabled={!task.selected} onChange={(event) => setTaskDrafts((prev) => prev.map((item) => item.id === task.id ? { ...item, description: event.target.value } : item))} className="workspace-input mt-2 min-h-20 w-full" aria-label={`Descricao da atividade ${index + 1}`} />
+                    </div>
+                  ))}
+                </div>
+                <div className="grid gap-3 sm:grid-cols-2">
                 <label className="text-xs font-medium text-(--text-primary)">Coluna do Kanban
                   <select value={taskForm.columnKey} onChange={(event) => setTaskForm((prev) => ({ ...prev, columnKey: event.target.value }))} className="workspace-select mt-1 w-full">
                     <option value="todo">TO DO</option>
@@ -757,9 +845,7 @@ export default function ChatPage() {
                 <label className="text-xs font-medium text-(--text-primary)">Data limite (opcional)
                   <input type="date" value={taskForm.dueDate} onChange={(event) => setTaskForm((prev) => ({ ...prev, dueDate: event.target.value }))} className="workspace-input mt-1 w-full" />
                 </label>
-                <label className="sm:col-span-2 text-xs font-medium text-(--text-primary)">Descricao
-                  <textarea value={taskForm.description} onChange={(event) => setTaskForm((prev) => ({ ...prev, description: event.target.value }))} className="workspace-input mt-1 min-h-36 w-full" />
-                </label>
+                </div>
               </div>
             )}
 
