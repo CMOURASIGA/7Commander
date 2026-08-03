@@ -8,10 +8,14 @@ import { PageIntro, SectionLabel, StatusPill, SurfaceCard } from "@/components/u
 
 type ProjectOption = { id: string; name: string; status: string };
 type KairosProfileSummary = { icebreakers: string[] };
-type SaveKind = "decision" | "risk";
-type SaveDialog = { kind: SaveKind; message: ChatMessage } | null;
+type SaveKind = "decision" | "risk" | "knowledge";
+type SaveDialog = { kind: SaveKind | "choose"; message: ChatMessage } | null;
 
 function getSuggestedTitle(content: string, kind: SaveKind): string {
+  if (kind === "knowledge") {
+    return content.replace(/[#*_`]/g, "").replace(/\s+/g, " ").trim().slice(0, 180) || "Registro do Kairos";
+  }
+
   const sectionPattern = kind === "decision"
     ? /(?:#{1,6}\s*decis(?:a|ã)o\s+(?:sugerida|proposta|para registrar)|decis(?:a|ã)o\s+proposta\s*:)[\s\S]*?(?=\n#{1,6}\s|$)/i
     : /(?:#{1,6}\s*risco\s+(?:identificado|sugerido|para registrar)|sugest(?:a|ã)o\s+de\s+risco\s+operacional\s*:|riscos?\s+identificados?\s*:)[\s\S]*?(?=\n#{1,6}\s|$)/i;
@@ -50,10 +54,13 @@ export default function ChatPage() {
   const [decisionSavedIds, setDecisionSavedIds] = useState<Record<string, boolean>>({});
   const [riskLoadingId, setRiskLoadingId] = useState<string | null>(null);
   const [riskSavedIds, setRiskSavedIds] = useState<Record<string, boolean>>({});
+  const [knowledgeLoadingId, setKnowledgeLoadingId] = useState<string | null>(null);
+  const [knowledgeSavedIds, setKnowledgeSavedIds] = useState<Record<string, boolean>>({});
   const [saveDialog, setSaveDialog] = useState<SaveDialog>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [decisionForm, setDecisionForm] = useState({ title: "", context: "", impact: "", artifactId: "" });
   const [riskForm, setRiskForm] = useState({ title: "", impact: "", probability: "", mitigation: "", owner: "" });
+  const [knowledgeForm, setKnowledgeForm] = useState({ title: "", category: "registro do Kairos", content: "" });
   const [activeProjectId, setActiveProjectId] = useState<string | null>(null);
   const [projects, setProjects] = useState<ProjectOption[]>([]);
   const [icebreakers, setIcebreakers] = useState<string[]>([]);
@@ -270,10 +277,17 @@ export default function ChatPage() {
     setSaveError(null);
     if (kind === "decision") {
       setDecisionForm({ title: getSuggestedTitle(message.content, kind), context: "", impact: "", artifactId: "" });
-    } else {
+    } else if (kind === "risk") {
       setRiskForm({ title: getSuggestedTitle(message.content, kind), impact: "", probability: "", mitigation: "", owner: "" });
+    } else {
+      setKnowledgeForm({ title: getSuggestedTitle(message.content, kind), category: "registro do Kairos", content: message.content });
     }
     setSaveDialog({ kind, message });
+  }
+
+  function openDirectionPicker(message: ChatMessage) {
+    setSaveError(null);
+    setSaveDialog({ kind: "choose", message });
   }
 
   async function handleSaveDecision() {
@@ -346,6 +360,39 @@ export default function ChatPage() {
       setSaveError(error instanceof Error ? error.message : "Falha ao salvar risco.");
     } finally {
       setRiskLoadingId(null);
+    }
+  }
+
+  async function handleSaveKnowledge() {
+    if (!saveDialog || saveDialog.kind !== "knowledge" || !activeProjectId) return;
+    if (!knowledgeForm.title.trim() || !knowledgeForm.content.trim()) {
+      setSaveError("Informe um titulo e o conteudo para guardar.");
+      return;
+    }
+
+    setKnowledgeLoadingId(saveDialog.message.id);
+    setSaveError(null);
+    try {
+      const response = await fetch("/api/knowledge", {
+        method: "POST",
+        headers: getClientAuthHeaders({ "Content-Type": "application/json" }),
+        body: JSON.stringify({
+          title: knowledgeForm.title.trim(),
+          category: knowledgeForm.category.trim() || "registro do Kairos",
+          content: knowledgeForm.content.trim(),
+          source: "chat_kairos",
+          projectId: activeProjectId,
+        }),
+      });
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload?.error || "Erro ao guardar conhecimento.");
+
+      setKnowledgeSavedIds((prev) => ({ ...prev, [saveDialog.message.id]: true }));
+      setSaveDialog(null);
+    } catch (error) {
+      setSaveError(error instanceof Error ? error.message : "Falha ao guardar conhecimento.");
+    } finally {
+      setKnowledgeLoadingId(null);
     }
   }
 
@@ -504,6 +551,13 @@ export default function ChatPage() {
                             ? "Parar audio"
                             : "Ouvir resposta"}
                       </button>
+                      <button
+                        type="button"
+                        onClick={() => openDirectionPicker(message)}
+                        className="workspace-button-primary px-3 py-2 text-[11px]"
+                      >
+                        Direcionar resposta
+                      </button>
 
                       {hasSaveSuggestion(message.content, "decision") ? (
                         <button
@@ -561,7 +615,13 @@ export default function ChatPage() {
               <div>
                 <p className="text-xs font-semibold uppercase tracking-[0.12em] text-(--accent)">Registro no projeto</p>
                 <h2 id="save-dialog-title" className="mt-1 text-lg font-semibold text-(--text-primary)">
-                  {saveDialog.kind === "decision" ? "Registrar decisao sugerida" : "Registrar risco identificado"}
+                  {saveDialog.kind === "choose"
+                    ? "Direcionar resposta do Kairos"
+                    : saveDialog.kind === "decision"
+                      ? "Registrar decisao"
+                      : saveDialog.kind === "risk"
+                        ? "Registrar risco"
+                        : "Guardar como conhecimento"}
                 </h2>
                 <p className="mt-1 text-sm text-(--text-secondary)">
                   Revise e complete as informacoes antes de salvar em {selectedProject?.name ?? "este projeto"}.
@@ -570,7 +630,22 @@ export default function ChatPage() {
               <button type="button" onClick={() => setSaveDialog(null)} className="workspace-button-secondary px-3 py-2 text-xs">Fechar</button>
             </div>
 
-            {saveDialog.kind === "decision" ? (
+            {saveDialog.kind === "choose" ? (
+              <div className="mt-5 grid gap-3 sm:grid-cols-3">
+                <button type="button" onClick={() => openSaveDialog("decision", saveDialog.message)} className="workspace-button-secondary p-4 text-left">
+                  <span className="block text-sm font-semibold">Decisao</span>
+                  <span className="mt-1 block text-xs text-(--text-secondary)">Registre uma escolha, justificativa e impacto.</span>
+                </button>
+                <button type="button" onClick={() => openSaveDialog("risk", saveDialog.message)} className="workspace-button-secondary p-4 text-left">
+                  <span className="block text-sm font-semibold">Risco</span>
+                  <span className="mt-1 block text-xs text-(--text-secondary)">Acompanhe impacto, probabilidade e mitigacao.</span>
+                </button>
+                <button type="button" onClick={() => openSaveDialog("knowledge", saveDialog.message)} className="workspace-button-secondary p-4 text-left">
+                  <span className="block text-sm font-semibold">Conhecimento</span>
+                  <span className="mt-1 block text-xs text-(--text-secondary)">Guarde a resposta como referencia do projeto.</span>
+                </button>
+              </div>
+            ) : saveDialog.kind === "decision" ? (
               <div className="mt-5 grid gap-3 sm:grid-cols-2">
                 <label className="sm:col-span-2 text-xs font-medium text-(--text-primary)">Titulo da decisao
                   <input value={decisionForm.title} onChange={(event) => setDecisionForm((prev) => ({ ...prev, title: event.target.value }))} className="workspace-input mt-1 w-full" />
@@ -585,7 +660,7 @@ export default function ChatPage() {
                   <input value={decisionForm.artifactId} onChange={(event) => setDecisionForm((prev) => ({ ...prev, artifactId: event.target.value }))} className="workspace-input mt-1 w-full" />
                 </label>
               </div>
-            ) : (
+            ) : saveDialog.kind === "risk" ? (
               <div className="mt-5 grid gap-3 sm:grid-cols-2">
                 <label className="sm:col-span-2 text-xs font-medium text-(--text-primary)">Titulo do risco
                   <input value={riskForm.title} onChange={(event) => setRiskForm((prev) => ({ ...prev, title: event.target.value }))} className="workspace-input mt-1 w-full" />
@@ -603,20 +678,32 @@ export default function ChatPage() {
                   <input value={riskForm.mitigation} onChange={(event) => setRiskForm((prev) => ({ ...prev, mitigation: event.target.value }))} className="workspace-input mt-1 w-full" />
                 </label>
               </div>
+            ) : (
+              <div className="mt-5 grid gap-3">
+                <label className="text-xs font-medium text-(--text-primary)">Titulo do conhecimento
+                  <input value={knowledgeForm.title} onChange={(event) => setKnowledgeForm((prev) => ({ ...prev, title: event.target.value }))} className="workspace-input mt-1 w-full" />
+                </label>
+                <label className="text-xs font-medium text-(--text-primary)">Categoria
+                  <input value={knowledgeForm.category} onChange={(event) => setKnowledgeForm((prev) => ({ ...prev, category: event.target.value }))} className="workspace-input mt-1 w-full" />
+                </label>
+                <label className="text-xs font-medium text-(--text-primary)">Conteudo que sera guardado
+                  <textarea value={knowledgeForm.content} onChange={(event) => setKnowledgeForm((prev) => ({ ...prev, content: event.target.value }))} className="workspace-input mt-1 min-h-48 w-full" />
+                </label>
+              </div>
             )}
 
             {saveError ? <p className="mt-4 rounded-lg bg-red-50 px-3 py-2 text-xs text-red-700">{saveError}</p> : null}
-            <div className="mt-5 flex justify-end gap-2">
+            {saveDialog.kind !== "choose" ? <div className="mt-5 flex justify-end gap-2">
               <button type="button" onClick={() => setSaveDialog(null)} className="workspace-button-secondary px-4 py-2 text-sm">Cancelar</button>
               <button
                 type="button"
-                onClick={() => void (saveDialog.kind === "decision" ? handleSaveDecision() : handleSaveRisk())}
-                disabled={decisionLoadingId === saveDialog.message.id || riskLoadingId === saveDialog.message.id}
+                onClick={() => void (saveDialog.kind === "decision" ? handleSaveDecision() : saveDialog.kind === "risk" ? handleSaveRisk() : handleSaveKnowledge())}
+                disabled={decisionLoadingId === saveDialog.message.id || riskLoadingId === saveDialog.message.id || knowledgeLoadingId === saveDialog.message.id}
                 className="workspace-button-primary px-4 py-2 text-sm"
               >
-                {decisionLoadingId === saveDialog.message.id || riskLoadingId === saveDialog.message.id ? "Salvando..." : "Confirmar e salvar"}
+                {decisionLoadingId === saveDialog.message.id || riskLoadingId === saveDialog.message.id || knowledgeLoadingId === saveDialog.message.id ? "Salvando..." : "Confirmar e salvar"}
               </button>
-            </div>
+            </div> : null}
           </div>
         </div>
       ) : null}
