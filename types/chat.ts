@@ -14,6 +14,8 @@ export type ConversationMeta = {
   id: string;
   title: string;
   createdAt: string;
+  projectId: string | null;
+  projectName: string | null;
 };
 
 export type ChatPayload = {

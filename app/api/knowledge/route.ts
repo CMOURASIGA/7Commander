@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireApiAuth } from "@/lib/api-auth";
-import { listKnowledge, saveKnowledge } from "@/services/knowledge-layer";
+import { deleteKnowledge, listKnowledge, saveKnowledge } from "@/services/knowledge-layer";
 
 type CreateKnowledgePayload = {
   title: string;
@@ -54,3 +54,17 @@ export async function POST(request: NextRequest) {
   }
 }
 
+export async function DELETE(request: NextRequest) {
+  try {
+    const auth = await requireApiAuth(request);
+    if (!auth.ok) return auth.response;
+    const knowledgeId = new URL(request.url).searchParams.get("id")?.trim();
+    if (!knowledgeId) return NextResponse.json({ error: "Identificador do conhecimento obrigatorio." }, { status: 400 });
+    const deleted = await deleteKnowledge({ userId: auth.context.userId, knowledgeId });
+    if (!deleted) return NextResponse.json({ error: "Documento nao encontrado ou sem permissao." }, { status: 404 });
+    return NextResponse.json({ data: { id: knowledgeId } });
+  } catch (error) {
+    console.error("[/api/knowledge] DELETE error", error);
+    return NextResponse.json({ error: "Erro ao excluir documento." }, { status: 500 });
+  }
+}

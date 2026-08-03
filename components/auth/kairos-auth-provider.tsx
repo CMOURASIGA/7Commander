@@ -102,6 +102,9 @@ export function KairosAuthProvider({ required, children }: ProviderProps) {
       signInWithGoogle: async (nextPath?: string) => {
         const client = getSupabaseBrowserClient();
         if (!client) throw new Error("Cliente Supabase indisponivel no navegador.");
+
+        // The OAuth round-trip must stay on the same host that started it.
+        // This keeps Vercel Preview deployments independent from production.
         const redirectUrl = new URL("/auth/callback", window.location.origin);
         if (nextPath?.trim()) {
           redirectUrl.searchParams.set("next", nextPath.trim());

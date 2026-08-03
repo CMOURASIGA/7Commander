@@ -17,6 +17,7 @@ create table if not exists profiles (
 create table if not exists conversations (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null,
+  project_id uuid,
   titulo text not null default 'Nova conversa',
   created_at timestamptz not null default now()
 );
@@ -64,6 +65,17 @@ create table if not exists projects (
   created_at timestamptz not null default now()
 );
 
+do $$
+begin
+  if not exists (
+    select 1 from pg_constraint where conname = 'conversations_project_id_fkey'
+  ) then
+    alter table conversations
+      add constraint conversations_project_id_fkey
+      foreign key (project_id) references projects(id) on delete restrict;
+  end if;
+end $$;
+
 -- Decisoes
 create table if not exists decisions (
   id uuid primary key default gen_random_uuid(),
@@ -103,6 +115,7 @@ create table if not exists agent_runs (
 );
 
 create index if not exists idx_messages_conversation_id on messages(conversation_id);
+create index if not exists idx_conversations_user_project on conversations(user_id, project_id, created_at desc);
 create index if not exists idx_memories_user_id on memories(user_id);
 create index if not exists idx_decisions_user_id on decisions(user_id);
 create index if not exists idx_decisions_user_project on decisions(user_id, project_id, created_at desc);

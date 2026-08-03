@@ -1,6 +1,6 @@
 import { getSupabaseServerClient } from "@/lib/supabase/server";
 import { generateTextEmbedding, toVectorLiteral } from "@/services/embedding-service";
-import { listMemories, saveMemory } from "@/services/memory-service";
+import { deleteMemory, listMemories, saveMemory } from "@/services/memory-service";
 import { KnowledgeRecord } from "@/types/knowledge";
 
 const knowledgeStore = new Map<string, KnowledgeRecord[]>();
@@ -323,4 +323,54 @@ export async function listKnowledge(userId: string, projectId?: string | null): 
 
   const local = ALLOW_LOCAL_FALLBACK ? knowledgeStore.get(userId) ?? [] : [];
   return projectId ? local.filter((item) => item.projectId === projectId) : local;
+}
+
+export async function deleteKnowledge(params: { userId: string; knowledgeId: string }): Promise<boolean> {
+  const supabase = getSupabaseServerClient();
+  let lastError: string | null = null;
+
+  if (supabase) {
+    try {
+      const baseRow = await supabase
+        .from("knowledge_base")
+        .select("id")
+        .eq("id", params.knowledgeId)
+        .eq("user_id", params.userId)
+        .single();
+
+      if (!baseRow.error && baseRow.data?.id) {
+        const chunkIdsResult = await supabase
+          .from("knowledge_chunks")
+          .select("id")
+          .eq("knowledge_id", params.knowledgeId)
+          .eq("user_id", params.userId);
+        const chunkIds = (chunkIdsResult.data ?? []).map((item) => item.id).filter((item): item is string => Boolean(item));
+
+        if (chunkIds.length > 0) {
+          await supabase.from("knowledge_embeddings").delete().eq("user_id", params.userId).in("chunk_id", chunkIds);
+          await supabase.from("knowledge_chunks").delete().eq("user_id", params.userId).in("id", chunkIds);
+        }
+
+        const deleted = await supabase.from("knowledge_base").delete().eq("id", params.knowledgeId).eq("user_id", params.userId);
+        if (!deleted.error) return true;
+        lastError = deleted.error.message;
+      } else if (baseRow.error) {
+        lastError = baseRow.error.message;
+        if (isKnowledgeSchemaMissing(baseRow.error.message)) {
+          return deleteMemory({ userId: params.userId, memoryId: params.knowledgeId });
+        }
+      }
+    } catch {
+      // Local fallback below.
+    }
+  }
+  if (ALLOW_LOCAL_FALLBACK) {
+    const current = knowledgeStore.get(params.userId) ?? [];
+    const next = current.filter((item) => item.id !== params.knowledgeId);
+    knowledgeStore.set(params.userId, next);
+    return next.length !== current.length;
+  }
+
+  if (lastError && !isKnowledgeSchemaMissing(lastError)) throw new Error(lastError);
+  return false;
 }

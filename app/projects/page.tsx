@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { Decision, DecisionStatus } from "@/types/decision";
 import { getClientAuthHeaders } from "@/lib/client-auth";
+import { MarkdownContent } from "@/components/ui/markdown-content";
 import { PageIntro, SectionLabel, StatusPill } from "@/components/ui/workspace-primitives";
 
 const STATUS_LABELS: Record<DecisionStatus, string> = {
@@ -73,6 +74,32 @@ type RiskItem = {
   createdAt: string;
 };
 
+function KnowledgeContent({ content }: { content: string }) {
+  if (content.trim()) {
+    return <MarkdownContent content={content} className="mt-2" />;
+  }
+
+  const lines = content.split(/\r?\n/);
+  return (
+    <div className="mt-2 space-y-2 text-xs leading-5 text-(--text-primary)">
+      {lines.map((line, index) => {
+        const value = line.trim();
+        if (!value) return <div key={`space-${index}`} className="h-1" />;
+        if (/^#{1,6}\s+/.test(value)) {
+          return <p key={index} className="font-semibold text-(--accent-strong)">{value.replace(/^#{1,6}\s+/, "")}</p>;
+        }
+        if (/^[-*+]\s+/.test(value)) {
+          return <p key={index} className="pl-4 before:mr-2 before:content-['•']">{value.replace(/^[-*+]\s+/, "")}</p>;
+        }
+        if (/^\d+[.)]\s+/.test(value)) {
+          return <p key={index} className="pl-4">{value}</p>;
+        }
+        return <p key={index}>{value}</p>;
+      })}
+    </div>
+  );
+}
+
 export default function ProjectsPage() {
   const [projects, setProjects] = useState<ProjectSummary[]>([]);
   const [clients, setClients] = useState<ClientSummary[]>([]);
@@ -102,6 +129,7 @@ export default function ProjectsPage() {
   const [ingestStatus, setIngestStatus] = useState<string | null>(null);
   const [knowledgeItems, setKnowledgeItems] = useState<KnowledgeItem[]>([]);
   const [knowledgeLoading, setKnowledgeLoading] = useState(false);
+  const [deletingKnowledgeId, setDeletingKnowledgeId] = useState<string | null>(null);
   const [risks, setRisks] = useState<RiskItem[]>([]);
   const [risksLoading, setRisksLoading] = useState(false);
   const [riskForm, setRiskForm] = useState({
@@ -507,6 +535,19 @@ export default function ProjectsPage() {
     }
   }
 
+  async function handleDeleteKnowledge(item: KnowledgeItem) {
+    if (!activeProjectId || deletingKnowledgeId || !window.confirm(`Excluir "${item.title}"? Depois você poderá enviar o arquivo original novamente.`)) return;
+    setDeletingKnowledgeId(item.id);
+    try {
+      const response = await fetch(`/api/knowledge?id=${encodeURIComponent(item.id)}`, { method: "DELETE", headers: getClientAuthHeaders() });
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload?.error || "Falha ao excluir documento.");
+      await loadKnowledge(activeProjectId);
+    } finally {
+      setDeletingKnowledgeId(null);
+    }
+  }
+
   async function handleCreateRisk() {
     if (!activeProjectId || !riskForm.title.trim() || savingRisk) return;
     setSavingRisk(true);
@@ -669,6 +710,13 @@ export default function ProjectsPage() {
             {creatingProject ? "Criando..." : "Criar projeto"}
           </button>
         </div>
+        {selectedProject ? (
+          <div className="mt-3 flex flex-wrap items-center gap-2 rounded-lg border border-(--border) bg-(--bg-muted) px-3 py-2 text-xs">
+            <span className="font-semibold text-(--text-primary)">Projeto em edição: {selectedProject.name}</span>
+            <span className="text-(--text-secondary)">Cliente: {selectedProject.clientName ?? "Não vinculado"}</span>
+            <a href="#detalhes-projeto" className="ml-auto text-(--accent) underline">Editar vínculo e detalhes</a>
+          </div>
+        ) : null}
         <div className="workspace-card-muted mt-4 space-y-2 p-3">
           <SectionLabel>Ingestão de documento/imagem</SectionLabel>
           <p className="text-xs text-(--text-secondary)">
@@ -829,13 +877,21 @@ export default function ProjectsPage() {
             <div className="space-y-2">
               {knowledgeItems.map((item) => (
                 <article key={item.id} className="rounded-lg border border-(--border) bg-white p-3">
-                  <p className="text-xs font-semibold text-(--text-primary)">{item.title}</p>
+                  <div className="flex items-start justify-between gap-3">
+                    <p className="text-xs font-semibold text-(--text-primary)">{item.title}</p>
+                    <button type="button" onClick={() => void handleDeleteKnowledge(item)} disabled={deletingKnowledgeId === item.id} className="workspace-button-danger px-3 py-2 text-[11px]">
+                      {deletingKnowledgeId === item.id ? "Excluindo..." : "Excluir documento"}
+                    </button>
+                  </div>
                   <p className="mt-1 text-[11px] text-(--text-secondary)">
                     {item.category} | {item.source} | {new Date(item.createdAt).toLocaleString("pt-BR")}
                   </p>
-                  <p className="mt-2 whitespace-pre-wrap text-xs text-(--text-primary)">
-                    {item.content.length > 700 ? `${item.content.slice(0, 700)}...` : item.content}
-                  </p>
+                  <details className="group">
+                    <summary className="mt-2 cursor-pointer text-xs font-medium text-(--accent)">
+                      Ver conteúdo estruturado
+                    </summary>
+                    <KnowledgeContent content={item.content} />
+                  </details>
                 </article>
               ))}
             </div>
@@ -843,7 +899,7 @@ export default function ProjectsPage() {
         </div>
 
         {selectedProject ? (
-          <div className="mt-4 space-y-2 rounded-lg border border-(--border) bg-(--bg-muted) p-3">
+          <div id="detalhes-projeto" className="mt-4 space-y-2 rounded-lg border border-(--border) bg-(--bg-muted) p-3">
             <p className="text-xs font-semibold uppercase tracking-wide text-(--text-secondary)">
               Detalhes do projeto ativo
             </p>

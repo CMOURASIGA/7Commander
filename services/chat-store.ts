@@ -10,7 +10,14 @@ function normalizeTitle(text: string): string {
   return trimmed.length > 45 ? `${trimmed.slice(0, 45)}...` : trimmed || "Nova conversa";
 }
 
-function ensureLocalConversation(conversationId: string, userId: string, firstMessage?: string): void {
+function ensureLocalConversation(params: {
+  conversationId: string;
+  userId: string;
+  projectId: string;
+  projectName?: string | null;
+  firstMessage?: string;
+}): void {
+  const { conversationId, userId, projectId, projectName, firstMessage } = params;
   const owner = localConversationOwners.get(conversationId);
   if (owner && owner !== userId) {
     return;
@@ -20,11 +27,18 @@ function ensureLocalConversation(conversationId: string, userId: string, firstMe
     localConversationOwners.set(conversationId, userId);
   }
 
-  if (!conversations.has(conversationId)) {
+  const existingConversation = conversations.get(conversationId);
+  if (existingConversation?.projectId && existingConversation.projectId !== projectId) {
+    throw new Error("Esta conversa pertence a outro projeto. Inicie uma nova conversa para trocar o contexto.");
+  }
+
+  if (!existingConversation) {
     conversations.set(conversationId, {
       id: conversationId,
       title: normalizeTitle(firstMessage ?? "Nova conversa"),
       createdAt: new Date().toISOString(),
+      projectId,
+      projectName: projectName ?? null,
     });
   }
 
@@ -36,30 +50,39 @@ function ensureLocalConversation(conversationId: string, userId: string, firstMe
 async function ensureSupabaseConversation(
   conversationId: string,
   userId: string,
+  projectId: string,
   firstMessage?: string,
-): Promise<boolean> {
+): Promise<{ ready: boolean; error?: string }> {
   const supabase = getSupabaseServerClient();
-  if (!supabase) return false;
+  if (!supabase) return { ready: false };
   try {
     const existing = await supabase
       .from("conversations")
-      .select("id, user_id")
+      .select("id, user_id, project_id")
       .eq("id", conversationId)
       .maybeSingle();
-    if (existing.error) return false;
+    if (existing.error) return { ready: false };
     if (existing.data?.id) {
-      return existing.data.user_id === userId;
+      if (existing.data.user_id !== userId) return { ready: false, error: "Conversa nao encontrada." };
+      if (!existing.data.project_id) {
+        return { ready: false, error: "Esta conversa antiga nao possui projeto vinculado. Inicie uma nova conversa no projeto desejado." };
+      }
+      if (existing.data.project_id !== projectId) {
+        return { ready: false, error: "Esta conversa pertence a outro projeto. Inicie uma nova conversa para trocar o contexto." };
+      }
+      return { ready: true };
     }
 
     const created = await supabase.from("conversations").insert({
       id: conversationId,
       user_id: userId,
+      project_id: projectId,
       titulo: normalizeTitle(firstMessage ?? "Nova conversa"),
     });
 
-    return !created.error;
+    return created.error ? { ready: false } : { ready: true };
   } catch {
-    return false;
+    return { ready: false };
   }
 }
 
@@ -69,6 +92,8 @@ export async function appendMessage(params: {
   role: ChatRole;
   content: string;
   specialist: SpecialistId;
+  projectId: string;
+  projectName?: string | null;
 }): Promise<ChatMessage> {
   const createdAt = new Date().toISOString();
   const fallbackMessage: ChatMessage = {
@@ -80,13 +105,16 @@ export async function appendMessage(params: {
     createdAt,
   };
 
-  const conversationReady = await ensureSupabaseConversation(
+  const conversation = await ensureSupabaseConversation(
     params.conversationId,
     params.userId,
+    params.projectId,
     params.content,
   );
 
-  if (conversationReady) {
+  if (conversation.error) throw new Error(conversation.error);
+
+  if (conversation.ready) {
     const supabase = getSupabaseServerClient();
     if (supabase) {
       try {
@@ -117,7 +145,13 @@ export async function appendMessage(params: {
     }
   }
 
-  ensureLocalConversation(params.conversationId, params.userId, params.content);
+  ensureLocalConversation({
+    conversationId: params.conversationId,
+    userId: params.userId,
+    projectId: params.projectId,
+    projectName: params.projectName,
+    firstMessage: params.content,
+  });
   const current = messages.get(params.conversationId) ?? [];
   current.push(fallbackMessage);
   messages.set(params.conversationId, current);
@@ -177,17 +211,22 @@ export async function listConversations(userId: string): Promise<ConversationMet
     try {
       const result = await supabase
         .from("conversations")
-        .select("id, titulo, created_at")
+        .select("id, titulo, created_at, project_id, projects(nome)")
         .eq("user_id", userId)
         .order("created_at", { ascending: false })
         .limit(50);
 
       if (!result.error && result.data) {
-        return result.data.map((item) => ({
-          id: item.id,
-          title: item.titulo,
-          createdAt: item.created_at,
-        }));
+        return result.data.map((item) => {
+          const projectRelation = (item as unknown as { projects?: { nome?: string | null } | Array<{ nome?: string | null }> | null }).projects;
+          return {
+            id: item.id,
+            title: item.titulo,
+            createdAt: item.created_at,
+            projectId: item.project_id ?? null,
+            projectName: Array.isArray(projectRelation) ? projectRelation[0]?.nome ?? null : projectRelation?.nome ?? null,
+          };
+        });
       }
     } catch {
       // fallback local below

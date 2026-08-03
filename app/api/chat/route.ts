@@ -3,6 +3,7 @@ import { appendMessage } from "@/services/chat-store";
 import { generateKairosResponse } from "@/services/kairos-core";
 import { requireApiAuth } from "@/lib/api-auth";
 import { ChatPayload, SpecialistId } from "@/types/chat";
+import { getProjectById } from "@/services/project-service";
 
 const validSpecialists: SpecialistId[] = [
   "core",
@@ -18,6 +19,7 @@ const validSpecialists: SpecialistId[] = [
 function validatePayload(payload: ChatPayload): string | null {
   if (!payload.message?.trim()) return "Campo 'message' obrigatorio.";
   if (!payload.conversationId?.trim()) return "Campo 'conversationId' obrigatorio.";
+  if (!payload.projectId?.trim()) return "Selecione um projeto para iniciar a conversa.";
   if (payload.selectedSpecialist && !validSpecialists.includes(payload.selectedSpecialist)) {
     return "Especialista invalido.";
   }
@@ -36,12 +38,23 @@ export async function POST(request: NextRequest) {
     }
 
     const userId = auth.context.userId;
+    const project = await getProjectById({
+      userId,
+      userEmail: auth.context.userEmail,
+      projectId: body.projectId!.trim(),
+    });
+    if (!project) {
+      return NextResponse.json({ error: "Projeto nao encontrado ou sem acesso." }, { status: 404 });
+    }
+
     await appendMessage({
       userId,
       conversationId: body.conversationId,
       role: "user",
       content: body.message.trim(),
       specialist: body.selectedSpecialist ?? "core",
+      projectId: project.id,
+      projectName: project.name,
     });
 
     const result = await generateKairosResponse({
@@ -50,7 +63,7 @@ export async function POST(request: NextRequest) {
       conversationId: body.conversationId,
       message: body.message.trim(),
       selectedSpecialist: body.selectedSpecialist,
-      projectId: body.projectId ?? null,
+      projectId: project.id,
     });
 
     const assistantMessage = await appendMessage({
@@ -59,6 +72,8 @@ export async function POST(request: NextRequest) {
       role: "assistant",
       content: result.answer,
       specialist: result.specialist,
+      projectId: project.id,
+      projectName: project.name,
     });
 
     return NextResponse.json({

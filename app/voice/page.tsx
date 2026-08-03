@@ -84,7 +84,7 @@ export default function VoiceRoomPage() {
   const auth = useKairosAuth();
   const [voiceState, setVoiceState] = useState<VoiceState>("inativo");
   const [error, setError] = useState<string | null>(null);
-  const [conversationId] = useState<string>(createConversationId);
+  const [conversationId, setConversationId] = useState<string>(createConversationId);
   const [projects, setProjects] = useState<ProjectOption[]>([]);
   const [activeProjectId, setActiveProjectId] = useState<string | null>(null);
   const [isBusy, setIsBusy] = useState(false);
@@ -193,6 +193,17 @@ export default function VoiceRoomPage() {
   }
 
   async function handleActivateProject(projectId: string) {
+    if (!projectId) {
+      setError("Selecione um projeto antes de iniciar o Voice Room.");
+      return;
+    }
+    if (projectId !== activeProjectId && messages.length > 0) {
+      const confirmed = window.confirm("Trocar o projeto inicia uma nova conversa de Voice Room. Deseja continuar?");
+      if (!confirmed) return;
+      setConversationId(createConversationId());
+      setMessages([]);
+      addSessionEvent(setSessionMemory, "Nova conversa iniciada para evitar mistura de contextos entre projetos.");
+    }
     try {
       setActiveProjectId(projectId || null);
       await fetch("/api/projects/active", {
@@ -340,6 +351,10 @@ export default function VoiceRoomPage() {
 
   async function startListening() {
     if (isBusy || voiceState === "ouvindo") return;
+    if (!activeProjectId) {
+      setError("Selecione um projeto antes de iniciar o Voice Room.");
+      return;
+    }
     setError(null);
 
     try {
@@ -437,6 +452,10 @@ export default function VoiceRoomPage() {
   async function handleTextSubmit() {
     const value = input.trim();
     if (!value || isBusy) return;
+    if (!activeProjectId) {
+      setError("Selecione um projeto antes de enviar a mensagem.");
+      return;
+    }
     setInput("");
     await handleAssistantResponse(value, "text", false);
   }
@@ -477,7 +496,7 @@ export default function VoiceRoomPage() {
                   onChange={(event) => void handleActivateProject(event.target.value)}
                   className="workspace-select mt-2 min-w-0 rounded-xl bg-white pr-10 text-[13px]"
                 >
-                  <option value="">Sem projeto</option>
+                  <option value="">Selecione um projeto</option>
                   {projects.map((project) => (
                     <option key={project.id} value={project.id}>
                       {project.name}
@@ -588,6 +607,7 @@ export default function VoiceRoomPage() {
                         ? "border-[color:#B4B2A9] bg-(--bg-muted) text-(--text-secondary)"
                         : "border-(--border-strong) bg-(--accent-soft) text-(--accent-strong)",
                 ].join(" ")}
+                disabled={!activeProjectId || isBusy}
               >
                 <VoiceGlyph state={voiceUiState} />
               </button>
@@ -634,10 +654,12 @@ export default function VoiceRoomPage() {
                 onKeyDown={handleInputKeyDown}
                 placeholder="Ou digite sua mensagem..."
                 className="workspace-input rounded-full bg-(--bg-muted) pr-12 text-[13px]"
+                disabled={!activeProjectId || isBusy}
               />
               <button
                 type="button"
                 onClick={() => void handleTextSubmit()}
+                disabled={!activeProjectId || isBusy}
                 className="absolute right-2 top-1/2 inline-flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full bg-(--accent) text-[12px] text-white"
               >
                 →

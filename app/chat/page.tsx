@@ -5,6 +5,8 @@ import { ChatMessage, ConversationMeta } from "@/types/chat";
 import { getClientAuthHeaders } from "@/lib/client-auth";
 import { PageIntro, SectionLabel, StatusPill, SurfaceCard } from "@/components/ui/workspace-primitives";
 
+type ProjectOption = { id: string; name: string; status: string };
+
 function createConversationId(): string {
   return typeof crypto !== "undefined" && "randomUUID" in crypto
     ? crypto.randomUUID()
@@ -24,11 +26,16 @@ export default function ChatPage() {
   const [decisionLoadingId, setDecisionLoadingId] = useState<string | null>(null);
   const [decisionSavedIds, setDecisionSavedIds] = useState<Record<string, boolean>>({});
   const [activeProjectId, setActiveProjectId] = useState<string | null>(null);
+  const [projects, setProjects] = useState<ProjectOption[]>([]);
+  const [isNewConversation, setIsNewConversation] = useState(true);
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
   const hasMessages = useMemo(() => messages.length > 0, [messages.length]);
 
-  async function refreshConversations(selectLatest = false) {
+  const selectedConversation = conversations.find((item) => item.id === conversationId) ?? null;
+  const selectedProject = projects.find((item) => item.id === activeProjectId) ?? null;
+
+  async function refreshConversations() {
     const response = await fetch("/api/conversations", {
       headers: getClientAuthHeaders(),
     });
@@ -38,9 +45,6 @@ export default function ChatPage() {
     const data = (payload?.data ?? []) as ConversationMeta[];
     setConversations(data);
 
-    if (selectLatest && data.length > 0) {
-      setConversationId(data[0].id);
-    }
   }
 
   async function loadMessages(targetConversationId: string) {
@@ -56,14 +60,19 @@ export default function ChatPage() {
   useEffect(() => {
     async function bootstrap() {
       setLoadingHistory(true);
-      const activeProjectResponse = await fetch("/api/projects/active", {
-        headers: getClientAuthHeaders(),
-      });
+      const [activeProjectResponse, projectsResponse] = await Promise.all([
+        fetch("/api/projects/active", { headers: getClientAuthHeaders() }),
+        fetch("/api/projects", { headers: getClientAuthHeaders() }),
+      ]);
       if (activeProjectResponse.ok) {
         const payload = await activeProjectResponse.json();
         setActiveProjectId(payload?.data?.id ?? null);
       }
-      await refreshConversations(true);
+      if (projectsResponse.ok) {
+        const payload = await projectsResponse.json();
+        setProjects((payload?.data ?? []) as ProjectOption[]);
+      }
+      await refreshConversations();
       setLoadingHistory(false);
     }
 
@@ -71,9 +80,9 @@ export default function ChatPage() {
   }, []);
 
   useEffect(() => {
-    if (!conversationId) return;
+    if (!conversationId || isNewConversation) return;
     void loadMessages(conversationId);
-  }, [conversationId]);
+  }, [conversationId, isNewConversation]);
 
   useEffect(() => {
     return () => {
@@ -88,6 +97,10 @@ export default function ChatPage() {
     event.preventDefault();
     const value = input.trim();
     if (!value || loading) return;
+    if (!activeProjectId) {
+      setVoiceError("Selecione um projeto antes de iniciar a conversa.");
+      return;
+    }
 
     const activeConversationId = conversationId || createConversationId();
     setConversationId(activeConversationId);
@@ -125,6 +138,7 @@ export default function ChatPage() {
       const assistantMessage = payload?.data?.message as ChatMessage;
       setMessages((prev) => [...prev, assistantMessage]);
       await refreshConversations();
+      setIsNewConversation(false);
     } catch (error) {
       const fallback: ChatMessage = {
         id: `${Date.now()}-assistant`,
@@ -144,6 +158,15 @@ export default function ChatPage() {
     const id = createConversationId();
     setConversationId(id);
     setMessages([]);
+    setIsNewConversation(true);
+    setVoiceError(null);
+  }
+
+  function selectConversation(item: ConversationMeta) {
+    setConversationId(item.id);
+    setActiveProjectId(item.projectId);
+    setIsNewConversation(false);
+    setVoiceError(item.projectId ? null : "Conversa antiga sem projeto vinculado. Inicie uma nova conversa.");
   }
 
   function stopCurrentAudio() {
@@ -274,7 +297,7 @@ export default function ChatPage() {
               <button
                 key={item.id}
                 type="button"
-                onClick={() => setConversationId(item.id)}
+                onClick={() => selectConversation(item)}
                 className={[
                   "w-full rounded-xl border px-3 py-2 text-left text-xs",
                   conversationId === item.id
@@ -283,6 +306,7 @@ export default function ChatPage() {
                 ].join(" ")}
               >
                 <p className="truncate font-medium">{item.title}</p>
+                <p className="mt-1 opacity-80">{item.projectName ?? "Sem projeto - legado"}</p>
                 <p className="mt-1 opacity-80">{new Date(item.createdAt).toLocaleString("pt-BR")}</p>
               </button>
             ))}
@@ -299,11 +323,33 @@ export default function ChatPage() {
             <>
               <StatusPill tone="accent">{conversations.length} conversas</StatusPill>
               <StatusPill tone="success">
-                {activeProjectId ? "Projeto vinculado" : "Sem projeto ativo"}
+                {selectedProject ? `Projeto: ${selectedProject.name}` : "Selecione um projeto"}
               </StatusPill>
             </>
           }
         />
+
+        <SurfaceCard className="flex flex-wrap items-end gap-3 p-3">
+          <div className="min-w-[240px] flex-1">
+            <SectionLabel>{isNewConversation ? "Projeto desta nova conversa" : "Projeto vinculado à conversa"}</SectionLabel>
+            <select
+              value={activeProjectId ?? ""}
+              onChange={(event) => setActiveProjectId(event.target.value || null)}
+              disabled={!isNewConversation}
+              className="workspace-select mt-1 w-full"
+            >
+              <option value="">Selecione um projeto</option>
+              {projects.map((project) => <option key={project.id} value={project.id}>{project.name}</option>)}
+            </select>
+          </div>
+          <p className="max-w-xl text-xs text-(--text-secondary)">
+            {isNewConversation
+              ? "O projeto escolhido será gravado ao enviar a primeira mensagem e não poderá ser trocado nesta conversa."
+              : selectedConversation?.projectId
+                ? "Este histórico e todas as próximas mensagens permanecem restritos ao projeto exibido."
+                : "Histórico legado apenas para consulta. Para falar com o Kairos, abra uma nova conversa."}
+          </p>
+        </SurfaceCard>
 
         <SurfaceCard className="min-h-0 flex-1 overflow-y-auto p-4">
           {voiceError ? (
@@ -380,7 +426,7 @@ export default function ChatPage() {
             />
             <button
               type="submit"
-              disabled={loading}
+              disabled={loading || !activeProjectId || (!isNewConversation && !selectedConversation?.projectId)}
               className="workspace-button-primary"
             >
               {loading ? "Enviando..." : "Enviar"}

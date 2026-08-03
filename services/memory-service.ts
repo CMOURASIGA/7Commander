@@ -382,6 +382,28 @@ export async function updateMemory(params: {
   return target;
 }
 
+export async function deleteMemory(params: {
+  userId: string;
+  memoryId: string;
+}): Promise<boolean> {
+  const supabase = getSupabaseServerClient();
+  if (supabase) {
+    try {
+      const deleted = await supabase.from("memories").delete().eq("id", params.memoryId).eq("user_id", params.userId);
+      if (!deleted.error) return true;
+    } catch {
+      // Local fallback below.
+    }
+  }
+
+  const local = memoryStore.get(params.userId) ?? [];
+  const index = local.findIndex((item) => item.id === params.memoryId);
+  if (index === -1) return false;
+  local.splice(index, 1);
+  memoryStore.set(params.userId, local);
+  return true;
+}
+
 export async function runMemoryCompression(
   userId: string,
   options?: { force?: boolean },

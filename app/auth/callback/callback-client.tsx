@@ -16,6 +16,15 @@ function readSearchParams() {
   return new URLSearchParams(window.location.search);
 }
 
+function getAuthErrorMessage(error: unknown) {
+  if (error instanceof Error && error.message.trim()) return error.message.trim();
+  if (typeof error === "object" && error && "message" in error) {
+    const message = String(error.message ?? "").trim();
+    if (message) return message;
+  }
+  return "Não foi possível concluir a troca do código de acesso pela sessão.";
+}
+
 export function AuthCallbackClient() {
   const router = useRouter();
   const [message, setMessage] = useState("Concluindo autenticacao...");
@@ -32,9 +41,9 @@ export function AuthCallbackClient() {
       const queryParams = readSearchParams();
       const code = queryParams.get("code");
       if (code) {
-        const exchanged = await client.auth.exchangeCodeForSession(code).catch(() => null);
-        if (!exchanged || exchanged.error) {
-          setMessage("Falha ao validar login Google.");
+        const exchanged = await client.auth.exchangeCodeForSession(code).catch((error) => ({ error }));
+        if (exchanged.error) {
+          setMessage(`Falha ao validar login Google: ${getAuthErrorMessage(exchanged.error)}`);
           return;
         }
       } else {
@@ -48,7 +57,7 @@ export function AuthCallbackClient() {
             refresh_token: refreshToken,
           });
           if (restored.error) {
-            setMessage("Falha ao restaurar a sessao autenticada.");
+            setMessage(`Falha ao restaurar a sessao: ${getAuthErrorMessage(restored.error)}`);
             return;
           }
           window.history.replaceState(null, "", window.location.pathname + window.location.search);

@@ -57,11 +57,13 @@ function decodeTextFile(fileBuffer: ArrayBuffer): string {
 }
 
 function normalizeExtractedText(value: string): string {
-  return normalizeText(
-    value
-      .replace(/\u0000/g, " ")
-      .replace(/[\u0001-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, " "),
-  );
+  return value
+    .replace(/\r\n?/g, "\n")
+    .replace(/\u0000/g, " ")
+    .replace(/[\u0001-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, " ")
+    .replace(/[\t ]+\n/g, "\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
 }
 
 async function extractDocxText(fileBuffer: ArrayBuffer): Promise<string> {
