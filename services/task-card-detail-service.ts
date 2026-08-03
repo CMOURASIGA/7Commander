@@ -613,6 +613,86 @@ export async function addTaskComment(params: {
   return true;
 }
 
+export async function updateTaskComment(params: {
+  userId: string;
+  userEmail?: string | null;
+  taskId: string;
+  commentId: string;
+  content: string;
+}): Promise<boolean> {
+  const context = await loadTaskContext(params);
+  if (!context || !canEdit(context.accessRole)) return false;
+  const supabase = getSupabaseServerClient();
+  if (!supabase) return false;
+
+  const cleanContent = params.content.trim();
+  if (!cleanContent) return false;
+
+  const comment = await supabase
+    .from("task_comments")
+    .select("id, author_user_id")
+    .eq("id", params.commentId)
+    .eq("task_id", params.taskId)
+    .single();
+  if (comment.error || !comment.data || comment.data.author_user_id !== params.userId) return false;
+
+  const updated = await supabase
+    .from("task_comments")
+    .update({ content: cleanContent.slice(0, 4000) })
+    .eq("id", params.commentId)
+    .eq("task_id", params.taskId)
+    .select("id")
+    .single();
+  if (updated.error || !updated.data) return false;
+
+  await registerTaskActivity({
+    taskId: params.taskId,
+    actorUserId: params.userId,
+    actorEmail: params.userEmail,
+    actionType: "comment_updated",
+    actionDetail: "Comentario editado.",
+  });
+  return true;
+}
+
+export async function deleteTaskComment(params: {
+  userId: string;
+  userEmail?: string | null;
+  taskId: string;
+  commentId: string;
+}): Promise<boolean> {
+  const context = await loadTaskContext(params);
+  if (!context || !canEdit(context.accessRole)) return false;
+  const supabase = getSupabaseServerClient();
+  if (!supabase) return false;
+
+  const comment = await supabase
+    .from("task_comments")
+    .select("id, author_user_id")
+    .eq("id", params.commentId)
+    .eq("task_id", params.taskId)
+    .single();
+  if (comment.error || !comment.data || comment.data.author_user_id !== params.userId) return false;
+
+  const deleted = await supabase
+    .from("task_comments")
+    .delete()
+    .eq("id", params.commentId)
+    .eq("task_id", params.taskId)
+    .select("id")
+    .single();
+  if (deleted.error || !deleted.data) return false;
+
+  await registerTaskActivity({
+    taskId: params.taskId,
+    actorUserId: params.userId,
+    actorEmail: params.userEmail,
+    actionType: "comment_deleted",
+    actionDetail: "Comentario excluido.",
+  });
+  return true;
+}
+
 export async function addTaskAttachment(params: {
   userId: string;
   userEmail?: string | null;

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { getClientAuthHeaders } from "@/lib/client-auth";
+import { getClientAuthEmail, getClientAuthHeaders } from "@/lib/client-auth";
 import { PageIntro, SectionLabel, StatusPill, SurfaceCard } from "@/components/ui/workspace-primitives";
 
 type ProjectSummary = {
@@ -90,12 +90,15 @@ export default function ActivitiesPage() {
   const [memberEmail, setMemberEmail] = useState("");
   const [checklistTitle, setChecklistTitle] = useState("");
   const [commentText, setCommentText] = useState("");
+  const [editingCommentId, setEditingCommentId] = useState<string | null>(null);
+  const [editingCommentText, setEditingCommentText] = useState("");
   const [attachmentName, setAttachmentName] = useState("");
   const [attachmentUrl, setAttachmentUrl] = useState("");
   const [checklistItemInput, setChecklistItemInput] = useState<Record<string, string>>({});
 
   const canEdit = accessRole === "owner" || accessRole === "editor";
   const canEditDetail = taskDetail?.accessRole === "owner" || taskDetail?.accessRole === "editor";
+  const currentUserEmail = getClientAuthEmail()?.toLowerCase() ?? "";
 
   const selectedProject = useMemo(
     () => projects.find((project) => project.id === activeProjectId) ?? null,
@@ -693,7 +696,25 @@ export default function ActivitiesPage() {
                     {taskDetail.comments.map((comment) => (
                       <div key={comment.id} className="rounded border border-(--border) bg-white px-2 py-2 text-xs">
                         <p className="font-medium text-(--text-primary)">{comment.authorEmail}</p>
-                        <p className="mt-1 text-(--text-primary)">{comment.content}</p>
+                        {editingCommentId === comment.id ? (
+                          <>
+                            <textarea value={editingCommentText} onChange={(event) => setEditingCommentText(event.target.value)} className="mt-2 min-h-16 w-full rounded border border-(--border) px-2 py-1 text-xs" />
+                            <div className="mt-2 flex gap-2">
+                              <button type="button" onClick={() => void applyDetailAction({ action: "update_comment", commentId: comment.id, content: editingCommentText }).then(() => { setEditingCommentId(null); setEditingCommentText(""); })} className="rounded bg-(--accent) px-2 py-1 text-xs font-medium text-white">Salvar</button>
+                              <button type="button" onClick={() => { setEditingCommentId(null); setEditingCommentText(""); }} className="rounded border border-(--border) px-2 py-1 text-xs">Cancelar</button>
+                            </div>
+                          </>
+                        ) : (
+                          <>
+                            <p className="mt-1 text-(--text-primary)">{comment.content}</p>
+                            {canEditDetail && currentUserEmail === comment.authorEmail.toLowerCase() ? (
+                              <div className="mt-2 flex gap-2">
+                                <button type="button" onClick={() => { setEditingCommentId(comment.id); setEditingCommentText(comment.content); }} className="text-xs font-medium text-(--accent)">Editar</button>
+                                <button type="button" onClick={() => { if (window.confirm("Excluir este comentario?")) void applyDetailAction({ action: "delete_comment", commentId: comment.id }); }} className="text-xs font-medium text-red-700">Excluir</button>
+                              </div>
+                            ) : null}
+                          </>
+                        )}
                       </div>
                     ))}
                     {canEditDetail ? (

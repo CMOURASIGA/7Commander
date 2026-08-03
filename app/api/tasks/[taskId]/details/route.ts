@@ -8,10 +8,12 @@ import {
   addTaskLabel,
   addTaskMember,
   getTaskCardDetail,
+  deleteTaskComment,
   removeTaskLabel,
   removeTaskMember,
   setTaskCoreFields,
   toggleTaskChecklistItem,
+  updateTaskComment,
 } from "@/services/task-card-detail-service";
 
 type ActionPayload =
@@ -31,6 +33,8 @@ type ActionPayload =
   | { action: "add_checklist_item"; checklistId?: string; content?: string }
   | { action: "toggle_checklist_item"; itemId?: string; done?: boolean }
   | { action: "add_comment"; content?: string }
+  | { action: "update_comment"; commentId?: string; content?: string }
+  | { action: "delete_comment"; commentId?: string }
   | { action: "add_attachment"; fileName?: string; fileUrl?: string; mimeType?: string | null };
 
 export async function GET(
@@ -141,6 +145,21 @@ export async function POST(
         userEmail: auth.context.userEmail,
         taskId: normalizedTaskId,
         content: payload.content ?? "",
+      });
+    } else if (payload.action === "update_comment") {
+      ok = await updateTaskComment({
+        userId: auth.context.userId,
+        userEmail: auth.context.userEmail,
+        taskId: normalizedTaskId,
+        commentId: payload.commentId ?? "",
+        content: payload.content ?? "",
+      });
+    } else if (payload.action === "delete_comment") {
+      ok = await deleteTaskComment({
+        userId: auth.context.userId,
+        userEmail: auth.context.userEmail,
+        taskId: normalizedTaskId,
+        commentId: payload.commentId ?? "",
       });
     } else if (payload.action === "add_attachment") {
       ok = await addTaskAttachment({
