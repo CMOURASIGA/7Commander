@@ -74,6 +74,45 @@ type RiskItem = {
   createdAt: string;
 };
 
+type RoutineKey = "ingestion" | "risks" | "knowledge" | "members" | "decisions";
+
+function ProjectRoutine({
+  title,
+  description,
+  badge,
+  isOpen,
+  onToggle,
+  children,
+}: {
+  title: string;
+  description: string;
+  badge?: string;
+  isOpen: boolean;
+  onToggle: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <section className="order-2 overflow-hidden rounded-xl border border-(--border) bg-(--bg-surface)">
+      <button
+        type="button"
+        onClick={onToggle}
+        aria-expanded={isOpen}
+        className="flex w-full items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-(--bg-muted)"
+      >
+        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-(--accent-soft) text-sm font-bold text-(--accent)">
+          {isOpen ? "-" : "+"}
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="block text-sm font-semibold text-(--text-primary)">{title}</span>
+          <span className="mt-0.5 block text-xs text-(--text-secondary)">{description}</span>
+        </span>
+        {badge ? <span className="rounded-full bg-(--bg-muted) px-2 py-1 text-[11px] font-medium text-(--text-secondary)">{badge}</span> : null}
+      </button>
+      {isOpen ? <div className="border-t border-(--border) bg-(--bg-muted)/50 p-4">{children}</div> : null}
+    </section>
+  );
+}
+
 function KnowledgeContent({ content }: { content: string }) {
   if (content.trim()) {
     return <MarkdownContent content={content} className="mt-2" />;
@@ -105,6 +144,7 @@ export default function ProjectsPage() {
   const [clients, setClients] = useState<ClientSummary[]>([]);
   const [selectedClientIdForCreate, setSelectedClientIdForCreate] = useState<string>("");
   const [activeProjectId, setActiveProjectId] = useState<string | null>(null);
+  const [openRoutine, setOpenRoutine] = useState<RoutineKey | null>(null);
   const [newProjectName, setNewProjectName] = useState("");
   const [decisions, setDecisions] = useState<Decision[]>([]);
   const [loading, setLoading] = useState(true);
@@ -310,6 +350,7 @@ export default function ProjectsPage() {
 
   async function handleActivateProject(projectId: string) {
     setActiveProjectId(projectId);
+    setOpenRoutine(null);
     try {
       await fetch("/api/projects/active", {
         method: "PATCH",
@@ -660,7 +701,7 @@ export default function ProjectsPage() {
         }
       />
 
-      <article className="workspace-card p-4">
+      <article className="workspace-card flex flex-col gap-3 p-4">
         <SectionLabel>Projetos</SectionLabel>
         <h3 className="mt-2 text-base font-semibold text-(--text-primary)">Contextos ativos</h3>
         <div className="mt-3 flex flex-wrap gap-2">
@@ -717,7 +758,13 @@ export default function ProjectsPage() {
             <a href="#detalhes-projeto" className="ml-auto text-(--accent) underline">Editar vínculo e detalhes</a>
           </div>
         ) : null}
-        <div className="workspace-card-muted mt-4 space-y-2 p-3">
+        <ProjectRoutine
+          title="Ingestao de arquivos"
+          description="Envie documentos para extrair conhecimento e atualizar o contexto do projeto."
+          badge={ingestFile ? "arquivo selecionado" : undefined}
+          isOpen={openRoutine === "ingestion"}
+          onToggle={() => setOpenRoutine((current) => current === "ingestion" ? null : "ingestion")}
+        >
           <SectionLabel>Ingestão de documento/imagem</SectionLabel>
           <p className="text-xs text-(--text-secondary)">
             Envie arquivo para o projeto ativo. O 7C Commander extrai conteúdo, salva conhecimento e atualiza o contexto do projeto.
@@ -748,9 +795,15 @@ export default function ProjectsPage() {
             {ingesting ? "Processando..." : "Enviar e estruturar projeto"}
           </button>
           {ingestStatus ? <p className="text-xs text-(--text-primary)">{ingestStatus}</p> : null}
-        </div>
+        </ProjectRoutine>
 
-        <div className="mt-4 space-y-2 rounded-lg border border-(--border) bg-(--bg-muted) p-3">
+        <ProjectRoutine
+          title="Riscos do projeto"
+          description="Registre, acompanhe status e defina a mitigacao dos riscos operacionais."
+          badge={risks.length ? `${risks.length} registros` : undefined}
+          isOpen={openRoutine === "risks"}
+          onToggle={() => setOpenRoutine((current) => current === "risks" ? null : "risks")}
+        >
           <p className="text-xs font-semibold uppercase tracking-wide text-(--text-secondary)">
             Riscos do projeto
           </p>
@@ -861,9 +914,15 @@ export default function ProjectsPage() {
               ))
             )}
           </div>
-        </div>
+        </ProjectRoutine>
 
-        <div className="mt-4 space-y-2 rounded-lg border border-(--border) bg-(--bg-muted) p-3">
+        <ProjectRoutine
+          title="Conhecimento do projeto"
+          description="Consulte documentos processados e remova conhecimentos que nao forem mais relevantes."
+          badge={knowledgeItems.length ? `${knowledgeItems.length} documentos` : undefined}
+          isOpen={openRoutine === "knowledge"}
+          onToggle={() => setOpenRoutine((current) => current === "knowledge" ? null : "knowledge")}
+        >
           <p className="text-xs font-semibold uppercase tracking-wide text-(--text-secondary)">
             Conhecimento ingerido no projeto
           </p>
@@ -896,10 +955,10 @@ export default function ProjectsPage() {
               ))}
             </div>
           )}
-        </div>
+        </ProjectRoutine>
 
         {selectedProject ? (
-          <div id="detalhes-projeto" className="mt-4 space-y-2 rounded-lg border border-(--border) bg-(--bg-muted) p-3">
+          <div id="detalhes-projeto" className="order-1 space-y-2 rounded-xl border border-(--border-strong) bg-(--accent-ghost) p-4">
             <p className="text-xs font-semibold uppercase tracking-wide text-(--text-secondary)">
               Detalhes do projeto ativo
             </p>
@@ -981,7 +1040,13 @@ export default function ProjectsPage() {
         ) : null}
 
         {selectedProject ? (
-          <div className="mt-4 space-y-2 rounded-lg border border-(--border) bg-(--bg-muted) p-3">
+          <ProjectRoutine
+            title="Membros e compartilhamento"
+            description="Convide pessoas e administre as permissoes de acesso deste projeto."
+            badge={members.length ? `${members.length} membros` : undefined}
+            isOpen={openRoutine === "members"}
+            onToggle={() => setOpenRoutine((current) => current === "members" ? null : "members")}
+          >
             <p className="text-xs font-semibold uppercase tracking-wide text-(--text-secondary)">
               Compartilhamento do projeto
             </p>
@@ -1051,10 +1116,17 @@ export default function ProjectsPage() {
               )}
             </div>
             {inviteStatus ? <p className="text-xs text-(--text-primary)">{inviteStatus}</p> : null}
-          </div>
+          </ProjectRoutine>
         ) : null}
       </article>
 
+      <ProjectRoutine
+        title="Decisoes do projeto"
+        description="Crie, acompanhe o status e consulte o historico das decisoes operacionais."
+        badge={decisions.length ? `${decisions.length} registros` : undefined}
+        isOpen={openRoutine === "decisions"}
+        onToggle={() => setOpenRoutine((current) => current === "decisions" ? null : "decisions")}
+      >
       <article className="rounded-xl border border-(--border) bg-(--bg-surface) p-4">
         <p className="text-sm font-semibold text-(--text-primary)">Nova decisao do projeto</p>
         <div className="mt-2 grid gap-2 md:grid-cols-2">
@@ -1171,6 +1243,7 @@ export default function ProjectsPage() {
           ))}
         </div>
       )}
+      </ProjectRoutine>
     </section>
   );
 }

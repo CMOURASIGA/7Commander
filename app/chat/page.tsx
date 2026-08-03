@@ -3,9 +3,31 @@
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { ChatMessage, ConversationMeta } from "@/types/chat";
 import { getClientAuthHeaders } from "@/lib/client-auth";
+import { MarkdownContent } from "@/components/ui/markdown-content";
 import { PageIntro, SectionLabel, StatusPill, SurfaceCard } from "@/components/ui/workspace-primitives";
 
 type ProjectOption = { id: string; name: string; status: string };
+type SaveKind = "decision" | "risk";
+type SaveDialog = { kind: SaveKind; message: ChatMessage } | null;
+
+function getSuggestedTitle(content: string, kind: SaveKind): string {
+  const sectionPattern = kind === "decision"
+    ? /#{1,6}\s*decis(?:a|ã)o\s+(?:sugerida|proposta|para registrar)[\s\S]*?(?=\n#{1,6}\s|$)/i
+    : /#{1,6}\s*risco\s+(?:identificado|sugerido|para registrar)[\s\S]*?(?=\n#{1,6}\s|$)/i;
+  const section = content.match(sectionPattern)?.[0] ?? "";
+  const titled = section.match(/(?:titulo|título)\s*:\s*([^\n]+)/i)?.[1]?.trim();
+  if (titled) return titled.replace(/^[-*]\s*/, "").slice(0, 180);
+
+  const firstItem = section.match(/^\s*[-*]\s+(.+)$/m)?.[1]?.trim();
+  return (firstItem || section.replace(/#{1,6}[^\n]*/, "").trim() || "Registro operacional").slice(0, 180);
+}
+
+function hasSaveSuggestion(content: string, kind: SaveKind): boolean {
+  const pattern = kind === "decision"
+    ? /#{1,6}\s*decis(?:a|ã)o\s+(?:sugerida|proposta|para registrar)/i
+    : /#{1,6}\s*risco\s+(?:identificado|sugerido|para registrar)/i;
+  return pattern.test(content);
+}
 
 function createConversationId(): string {
   return typeof crypto !== "undefined" && "randomUUID" in crypto
@@ -25,6 +47,12 @@ export default function ChatPage() {
   const [voiceError, setVoiceError] = useState<string | null>(null);
   const [decisionLoadingId, setDecisionLoadingId] = useState<string | null>(null);
   const [decisionSavedIds, setDecisionSavedIds] = useState<Record<string, boolean>>({});
+  const [riskLoadingId, setRiskLoadingId] = useState<string | null>(null);
+  const [riskSavedIds, setRiskSavedIds] = useState<Record<string, boolean>>({});
+  const [saveDialog, setSaveDialog] = useState<SaveDialog>(null);
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [decisionForm, setDecisionForm] = useState({ title: "", context: "", impact: "", artifactId: "" });
+  const [riskForm, setRiskForm] = useState({ title: "", impact: "", probability: "", mitigation: "", owner: "" });
   const [activeProjectId, setActiveProjectId] = useState<string | null>(null);
   const [projects, setProjects] = useState<ProjectOption[]>([]);
   const [isNewConversation, setIsNewConversation] = useState(true);
@@ -231,31 +259,38 @@ export default function ChatPage() {
     }
   }
 
-  async function handleSaveDecision(message: ChatMessage) {
-    if (message.role !== "assistant") return;
-    if (decisionSavedIds[message.id]) return;
+  function openSaveDialog(kind: SaveKind, message: ChatMessage) {
+    setSaveError(null);
+    if (kind === "decision") {
+      setDecisionForm({ title: getSuggestedTitle(message.content, kind), context: "", impact: "", artifactId: "" });
+    } else {
+      setRiskForm({ title: getSuggestedTitle(message.content, kind), impact: "", probability: "", mitigation: "", owner: "" });
+    }
+    setSaveDialog({ kind, message });
+  }
 
-    const suggestedTitle = message.content.replace(/\s+/g, " ").trim().slice(0, 100) || "Decisao sem titulo";
-    const title = window.prompt("Titulo da decisao:", suggestedTitle)?.trim();
-    if (!title) return;
-    const context = window.prompt("Contexto operacional da decisao (opcional):", "")?.trim() ?? "";
-    const impact = window.prompt("Impacto esperado (opcional):", "")?.trim() ?? "";
-    const artifactId = window.prompt("Artefato relacionado (opcional):", "")?.trim() ?? "";
+  async function handleSaveDecision() {
+    if (!saveDialog || saveDialog.kind !== "decision" || !activeProjectId) return;
+    if (!decisionForm.title.trim()) {
+      setSaveError("Informe o titulo da decisao.");
+      return;
+    }
 
-    setDecisionLoadingId(message.id);
+    setDecisionLoadingId(saveDialog.message.id);
+    setSaveError(null);
     try {
       const response = await fetch("/api/decisions", {
         method: "POST",
         headers: getClientAuthHeaders({ "Content-Type": "application/json" }),
         body: JSON.stringify({
-          title,
-          context,
-          reason: message.content,
-          impact: impact || `Registrada via chat (${message.specialist})`,
+          title: decisionForm.title.trim(),
+          context: decisionForm.context.trim(),
+          reason: saveDialog.message.content,
+          impact: decisionForm.impact.trim() || `Registrada via chat (${saveDialog.message.specialist})`,
           status: "aberta",
           projectId: activeProjectId,
           conversationId,
-          artifactId: artifactId || null,
+          artifactId: decisionForm.artifactId.trim() || null,
         }),
       });
 
@@ -264,12 +299,46 @@ export default function ChatPage() {
         throw new Error(payload?.error || "Erro ao salvar decisao.");
       }
 
-      setDecisionSavedIds((prev) => ({ ...prev, [message.id]: true }));
+      setDecisionSavedIds((prev) => ({ ...prev, [saveDialog.message.id]: true }));
+      setSaveDialog(null);
     } catch (error) {
-      const text = error instanceof Error ? error.message : "Falha ao salvar decisao.";
-      window.alert(text);
+      setSaveError(error instanceof Error ? error.message : "Falha ao salvar decisao.");
     } finally {
       setDecisionLoadingId(null);
+    }
+  }
+
+  async function handleSaveRisk() {
+    if (!saveDialog || saveDialog.kind !== "risk" || !activeProjectId) return;
+    if (!riskForm.title.trim()) {
+      setSaveError("Informe o titulo do risco.");
+      return;
+    }
+
+    setRiskLoadingId(saveDialog.message.id);
+    setSaveError(null);
+    try {
+      const response = await fetch(`/api/projects/${activeProjectId}/risks`, {
+        method: "POST",
+        headers: getClientAuthHeaders({ "Content-Type": "application/json" }),
+        body: JSON.stringify({
+          title: riskForm.title.trim(),
+          impact: riskForm.impact.trim(),
+          probability: riskForm.probability.trim(),
+          mitigation: riskForm.mitigation.trim(),
+          owner: riskForm.owner.trim(),
+          status: "aberto",
+        }),
+      });
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload?.error || "Erro ao salvar risco.");
+
+      setRiskSavedIds((prev) => ({ ...prev, [saveDialog.message.id]: true }));
+      setSaveDialog(null);
+    } catch (error) {
+      setSaveError(error instanceof Error ? error.message : "Falha ao salvar risco.");
+    } finally {
+      setRiskLoadingId(null);
     }
   }
 
@@ -371,7 +440,16 @@ export default function ChatPage() {
                       : "border border-(--border) bg-(--bg-muted) text-(--text-primary)",
                   ].join(" ")}
                 >
-                  <p>{message.content}</p>
+                  <div className="mb-2 flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.08em]">
+                    <span className={message.role === "user" ? "text-white/75" : "text-(--accent)"}>
+                      {message.role === "user" ? "Voce" : "Kairos"}
+                    </span>
+                  </div>
+                  {message.role === "assistant" ? (
+                    <MarkdownContent content={message.content} className="chat-response-markdown" />
+                  ) : (
+                    <p className="whitespace-pre-wrap">{message.content}</p>
+                  )}
                   <p
                     className={[
                       "mt-1 text-[11px]",
@@ -395,18 +473,26 @@ export default function ChatPage() {
                             : "Ouvir resposta"}
                       </button>
 
-                      <button
-                        type="button"
-                        onClick={() => handleSaveDecision(message)}
-                        disabled={decisionLoadingId === message.id || decisionSavedIds[message.id]}
-                        className="workspace-button-secondary px-3 py-2 text-[11px]"
-                      >
-                        {decisionSavedIds[message.id]
-                          ? "Decisao salva"
-                          : decisionLoadingId === message.id
-                            ? "Salvando..."
-                            : "Salvar decisao"}
-                      </button>
+                      {hasSaveSuggestion(message.content, "decision") ? (
+                        <button
+                          type="button"
+                          onClick={() => openSaveDialog("decision", message)}
+                          disabled={decisionLoadingId === message.id || decisionSavedIds[message.id]}
+                          className="workspace-button-secondary px-3 py-2 text-[11px]"
+                        >
+                          {decisionSavedIds[message.id] ? "Decisao salva" : "Registrar decisao sugerida"}
+                        </button>
+                      ) : null}
+                      {hasSaveSuggestion(message.content, "risk") ? (
+                        <button
+                          type="button"
+                          onClick={() => openSaveDialog("risk", message)}
+                          disabled={riskLoadingId === message.id || riskSavedIds[message.id]}
+                          className="workspace-button-secondary px-3 py-2 text-[11px]"
+                        >
+                          {riskSavedIds[message.id] ? "Risco salvo" : "Registrar risco identificado"}
+                        </button>
+                      ) : null}
                     </div>
                   ) : null}
                 </article>
@@ -434,6 +520,73 @@ export default function ChatPage() {
           </div>
         </form>
       </div>
+
+      {saveDialog ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/45 p-4" role="presentation">
+          <div role="dialog" aria-modal="true" aria-labelledby="save-dialog-title" className="workspace-card w-full max-w-2xl p-5 shadow-2xl">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.12em] text-(--accent)">Registro no projeto</p>
+                <h2 id="save-dialog-title" className="mt-1 text-lg font-semibold text-(--text-primary)">
+                  {saveDialog.kind === "decision" ? "Registrar decisao sugerida" : "Registrar risco identificado"}
+                </h2>
+                <p className="mt-1 text-sm text-(--text-secondary)">
+                  Revise e complete as informacoes antes de salvar em {selectedProject?.name ?? "este projeto"}.
+                </p>
+              </div>
+              <button type="button" onClick={() => setSaveDialog(null)} className="workspace-button-secondary px-3 py-2 text-xs">Fechar</button>
+            </div>
+
+            {saveDialog.kind === "decision" ? (
+              <div className="mt-5 grid gap-3 sm:grid-cols-2">
+                <label className="sm:col-span-2 text-xs font-medium text-(--text-primary)">Titulo da decisao
+                  <input value={decisionForm.title} onChange={(event) => setDecisionForm((prev) => ({ ...prev, title: event.target.value }))} className="workspace-input mt-1 w-full" />
+                </label>
+                <label className="text-xs font-medium text-(--text-primary)">Contexto
+                  <textarea value={decisionForm.context} onChange={(event) => setDecisionForm((prev) => ({ ...prev, context: event.target.value }))} className="workspace-input mt-1 min-h-24 w-full" />
+                </label>
+                <label className="text-xs font-medium text-(--text-primary)">Impacto esperado
+                  <textarea value={decisionForm.impact} onChange={(event) => setDecisionForm((prev) => ({ ...prev, impact: event.target.value }))} className="workspace-input mt-1 min-h-24 w-full" />
+                </label>
+                <label className="sm:col-span-2 text-xs font-medium text-(--text-primary)">Artefato relacionado (opcional)
+                  <input value={decisionForm.artifactId} onChange={(event) => setDecisionForm((prev) => ({ ...prev, artifactId: event.target.value }))} className="workspace-input mt-1 w-full" />
+                </label>
+              </div>
+            ) : (
+              <div className="mt-5 grid gap-3 sm:grid-cols-2">
+                <label className="sm:col-span-2 text-xs font-medium text-(--text-primary)">Titulo do risco
+                  <input value={riskForm.title} onChange={(event) => setRiskForm((prev) => ({ ...prev, title: event.target.value }))} className="workspace-input mt-1 w-full" />
+                </label>
+                <label className="text-xs font-medium text-(--text-primary)">Impacto
+                  <input value={riskForm.impact} onChange={(event) => setRiskForm((prev) => ({ ...prev, impact: event.target.value }))} className="workspace-input mt-1 w-full" />
+                </label>
+                <label className="text-xs font-medium text-(--text-primary)">Probabilidade
+                  <input value={riskForm.probability} onChange={(event) => setRiskForm((prev) => ({ ...prev, probability: event.target.value }))} className="workspace-input mt-1 w-full" />
+                </label>
+                <label className="text-xs font-medium text-(--text-primary)">Responsavel
+                  <input value={riskForm.owner} onChange={(event) => setRiskForm((prev) => ({ ...prev, owner: event.target.value }))} className="workspace-input mt-1 w-full" />
+                </label>
+                <label className="text-xs font-medium text-(--text-primary)">Plano de mitigacao
+                  <input value={riskForm.mitigation} onChange={(event) => setRiskForm((prev) => ({ ...prev, mitigation: event.target.value }))} className="workspace-input mt-1 w-full" />
+                </label>
+              </div>
+            )}
+
+            {saveError ? <p className="mt-4 rounded-lg bg-red-50 px-3 py-2 text-xs text-red-700">{saveError}</p> : null}
+            <div className="mt-5 flex justify-end gap-2">
+              <button type="button" onClick={() => setSaveDialog(null)} className="workspace-button-secondary px-4 py-2 text-sm">Cancelar</button>
+              <button
+                type="button"
+                onClick={() => void (saveDialog.kind === "decision" ? handleSaveDecision() : handleSaveRisk())}
+                disabled={decisionLoadingId === saveDialog.message.id || riskLoadingId === saveDialog.message.id}
+                className="workspace-button-primary px-4 py-2 text-sm"
+              >
+                {decisionLoadingId === saveDialog.message.id || riskLoadingId === saveDialog.message.id ? "Salvando..." : "Confirmar e salvar"}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </section>
   );
 }
