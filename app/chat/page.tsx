@@ -8,11 +8,11 @@ import { PageIntro, SectionLabel, StatusPill, SurfaceCard } from "@/components/u
 
 type ProjectOption = { id: string; name: string; status: string };
 type KairosProfileSummary = { icebreakers: string[] };
-type SaveKind = "decision" | "risk" | "knowledge";
+type SaveKind = "decision" | "risk" | "knowledge" | "task";
 type SaveDialog = { kind: SaveKind | "choose"; message: ChatMessage } | null;
 
 function getSuggestedTitle(content: string, kind: SaveKind): string {
-  if (kind === "knowledge") {
+  if (kind === "knowledge" || kind === "task") {
     return content.replace(/[#*_`]/g, "").replace(/\s+/g, " ").trim().slice(0, 180) || "Registro do Kairos";
   }
 
@@ -56,11 +56,13 @@ export default function ChatPage() {
   const [riskSavedIds, setRiskSavedIds] = useState<Record<string, boolean>>({});
   const [knowledgeLoadingId, setKnowledgeLoadingId] = useState<string | null>(null);
   const [knowledgeSavedIds, setKnowledgeSavedIds] = useState<Record<string, boolean>>({});
+  const [taskLoadingId, setTaskLoadingId] = useState<string | null>(null);
   const [saveDialog, setSaveDialog] = useState<SaveDialog>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [decisionForm, setDecisionForm] = useState({ title: "", context: "", impact: "", artifactId: "" });
   const [riskForm, setRiskForm] = useState({ title: "", impact: "", probability: "", mitigation: "", owner: "" });
   const [knowledgeForm, setKnowledgeForm] = useState({ title: "", category: "registro do Kairos", content: "" });
+  const [taskForm, setTaskForm] = useState({ title: "", description: "", columnKey: "todo", priority: "media", dueDate: "" });
   const [activeProjectId, setActiveProjectId] = useState<string | null>(null);
   const [projects, setProjects] = useState<ProjectOption[]>([]);
   const [icebreakers, setIcebreakers] = useState<string[]>([]);
@@ -280,7 +282,11 @@ export default function ChatPage() {
     } else if (kind === "risk") {
       setRiskForm({ title: getSuggestedTitle(message.content, kind), impact: "", probability: "", mitigation: "", owner: "" });
     } else {
-      setKnowledgeForm({ title: getSuggestedTitle(message.content, kind), category: "registro do Kairos", content: message.content });
+      if (kind === "knowledge") {
+        setKnowledgeForm({ title: getSuggestedTitle(message.content, kind), category: "registro do Kairos", content: message.content });
+      } else {
+        setTaskForm({ title: getSuggestedTitle(message.content, kind), description: message.content, columnKey: "todo", priority: "media", dueDate: "" });
+      }
     }
     setSaveDialog({ kind, message });
   }
@@ -393,6 +399,38 @@ export default function ChatPage() {
       setSaveError(error instanceof Error ? error.message : "Falha ao guardar conhecimento.");
     } finally {
       setKnowledgeLoadingId(null);
+    }
+  }
+
+  async function handleSaveTask() {
+    if (!saveDialog || saveDialog.kind !== "task" || !activeProjectId) return;
+    if (!taskForm.title.trim()) {
+      setSaveError("Informe o titulo da atividade.");
+      return;
+    }
+
+    setTaskLoadingId(saveDialog.message.id);
+    setSaveError(null);
+    try {
+      const response = await fetch(`/api/projects/${activeProjectId}/tasks`, {
+        method: "POST",
+        headers: getClientAuthHeaders({ "Content-Type": "application/json" }),
+        body: JSON.stringify({
+          title: taskForm.title.trim(),
+          description: taskForm.description.trim(),
+          columnKey: taskForm.columnKey,
+          priority: taskForm.priority,
+          dueDate: taskForm.dueDate || null,
+        }),
+      });
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload?.error || "Erro ao criar atividade no Kanban.");
+
+      setSaveDialog(null);
+    } catch (error) {
+      setSaveError(error instanceof Error ? error.message : "Falha ao criar atividade no Kanban.");
+    } finally {
+      setTaskLoadingId(null);
     }
   }
 
@@ -621,7 +659,9 @@ export default function ChatPage() {
                       ? "Registrar decisao"
                       : saveDialog.kind === "risk"
                         ? "Registrar risco"
-                        : "Guardar como conhecimento"}
+                        : saveDialog.kind === "knowledge"
+                          ? "Guardar como conhecimento"
+                          : "Criar atividade no Kanban"}
                 </h2>
                 <p className="mt-1 text-sm text-(--text-secondary)">
                   Revise e complete as informacoes antes de salvar em {selectedProject?.name ?? "este projeto"}.
@@ -631,7 +671,7 @@ export default function ChatPage() {
             </div>
 
             {saveDialog.kind === "choose" ? (
-              <div className="mt-5 grid gap-3 sm:grid-cols-3">
+              <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
                 <button type="button" onClick={() => openSaveDialog("decision", saveDialog.message)} className="workspace-button-secondary p-4 text-left">
                   <span className="block text-sm font-semibold">Decisao</span>
                   <span className="mt-1 block text-xs text-(--text-secondary)">Registre uma escolha, justificativa e impacto.</span>
@@ -643,6 +683,10 @@ export default function ChatPage() {
                 <button type="button" onClick={() => openSaveDialog("knowledge", saveDialog.message)} className="workspace-button-secondary p-4 text-left">
                   <span className="block text-sm font-semibold">Conhecimento</span>
                   <span className="mt-1 block text-xs text-(--text-secondary)">Guarde a resposta como referencia do projeto.</span>
+                </button>
+                <button type="button" onClick={() => openSaveDialog("task", saveDialog.message)} className="workspace-button-secondary p-4 text-left">
+                  <span className="block text-sm font-semibold">Atividade no Kanban</span>
+                  <span className="mt-1 block text-xs text-(--text-secondary)">Crie um card para executar e acompanhar no quadro.</span>
                 </button>
               </div>
             ) : saveDialog.kind === "decision" ? (
@@ -678,7 +722,7 @@ export default function ChatPage() {
                   <input value={riskForm.mitigation} onChange={(event) => setRiskForm((prev) => ({ ...prev, mitigation: event.target.value }))} className="workspace-input mt-1 w-full" />
                 </label>
               </div>
-            ) : (
+            ) : saveDialog.kind === "knowledge" ? (
               <div className="mt-5 grid gap-3">
                 <label className="text-xs font-medium text-(--text-primary)">Titulo do conhecimento
                   <input value={knowledgeForm.title} onChange={(event) => setKnowledgeForm((prev) => ({ ...prev, title: event.target.value }))} className="workspace-input mt-1 w-full" />
@@ -690,6 +734,33 @@ export default function ChatPage() {
                   <textarea value={knowledgeForm.content} onChange={(event) => setKnowledgeForm((prev) => ({ ...prev, content: event.target.value }))} className="workspace-input mt-1 min-h-48 w-full" />
                 </label>
               </div>
+            ) : (
+              <div className="mt-5 grid gap-3 sm:grid-cols-2">
+                <label className="sm:col-span-2 text-xs font-medium text-(--text-primary)">Titulo da atividade
+                  <input value={taskForm.title} onChange={(event) => setTaskForm((prev) => ({ ...prev, title: event.target.value }))} className="workspace-input mt-1 w-full" />
+                </label>
+                <label className="text-xs font-medium text-(--text-primary)">Coluna do Kanban
+                  <select value={taskForm.columnKey} onChange={(event) => setTaskForm((prev) => ({ ...prev, columnKey: event.target.value }))} className="workspace-select mt-1 w-full">
+                    <option value="todo">TO DO</option>
+                    <option value="doing">DOING</option>
+                    <option value="done">DONE</option>
+                  </select>
+                </label>
+                <label className="text-xs font-medium text-(--text-primary)">Prioridade
+                  <select value={taskForm.priority} onChange={(event) => setTaskForm((prev) => ({ ...prev, priority: event.target.value }))} className="workspace-select mt-1 w-full">
+                    <option value="baixa">Baixa</option>
+                    <option value="media">Media</option>
+                    <option value="alta">Alta</option>
+                    <option value="critica">Critica</option>
+                  </select>
+                </label>
+                <label className="text-xs font-medium text-(--text-primary)">Data limite (opcional)
+                  <input type="date" value={taskForm.dueDate} onChange={(event) => setTaskForm((prev) => ({ ...prev, dueDate: event.target.value }))} className="workspace-input mt-1 w-full" />
+                </label>
+                <label className="sm:col-span-2 text-xs font-medium text-(--text-primary)">Descricao
+                  <textarea value={taskForm.description} onChange={(event) => setTaskForm((prev) => ({ ...prev, description: event.target.value }))} className="workspace-input mt-1 min-h-36 w-full" />
+                </label>
+              </div>
             )}
 
             {saveError ? <p className="mt-4 rounded-lg bg-red-50 px-3 py-2 text-xs text-red-700">{saveError}</p> : null}
@@ -697,11 +768,11 @@ export default function ChatPage() {
               <button type="button" onClick={() => setSaveDialog(null)} className="workspace-button-secondary px-4 py-2 text-sm">Cancelar</button>
               <button
                 type="button"
-                onClick={() => void (saveDialog.kind === "decision" ? handleSaveDecision() : saveDialog.kind === "risk" ? handleSaveRisk() : handleSaveKnowledge())}
-                disabled={decisionLoadingId === saveDialog.message.id || riskLoadingId === saveDialog.message.id || knowledgeLoadingId === saveDialog.message.id}
+                onClick={() => void (saveDialog.kind === "decision" ? handleSaveDecision() : saveDialog.kind === "risk" ? handleSaveRisk() : saveDialog.kind === "knowledge" ? handleSaveKnowledge() : handleSaveTask())}
+                disabled={decisionLoadingId === saveDialog.message.id || riskLoadingId === saveDialog.message.id || knowledgeLoadingId === saveDialog.message.id || taskLoadingId === saveDialog.message.id}
                 className="workspace-button-primary px-4 py-2 text-sm"
               >
-                {decisionLoadingId === saveDialog.message.id || riskLoadingId === saveDialog.message.id || knowledgeLoadingId === saveDialog.message.id ? "Salvando..." : "Confirmar e salvar"}
+                {decisionLoadingId === saveDialog.message.id || riskLoadingId === saveDialog.message.id || knowledgeLoadingId === saveDialog.message.id || taskLoadingId === saveDialog.message.id ? "Salvando..." : "Confirmar e salvar"}
               </button>
             </div> : null}
           </div>
