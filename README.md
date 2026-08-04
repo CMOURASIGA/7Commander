@@ -81,6 +81,7 @@ Diagnostico via API:
 2. Execute o conteudo de `database/schema.sql`.
    - Para ambiente ja existente, execute tambem `database/migrations/017_embeddings.sql`.
    - Para campo de contexto em decisoes, execute `database/migrations/021_decision_context.sql`.
+   - Para personalizar o Kairos por usuario, execute `database/migrations/044_kairos_profiles.sql`.
 3. Rode `npm run dev`.
 4. Valide:
    - `GET /api/health/env`
