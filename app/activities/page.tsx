@@ -292,7 +292,7 @@ export default function ActivitiesPage() {
   return (
     <section className="space-y-4">
       <PageIntro
-        eyebrow="7C Commander"
+        eyebrow="7Commander"
         title="Atividades operacionais"
         description="Quadro Kanban por projeto com cards operacionais, responsáveis, checklists, anexos e histórico completo."
         aside={

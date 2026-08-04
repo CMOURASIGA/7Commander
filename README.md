@@ -1,4 +1,4 @@
-﻿# 7C Commander
+﻿# 7Commander
 
 Workspace operacional com memória contextual compartilhada.
 

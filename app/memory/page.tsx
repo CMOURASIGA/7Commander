@@ -143,7 +143,7 @@ export default function MemoryPage() {
   return (
     <section className="space-y-3">
       <PageIntro
-        eyebrow="7C Commander"
+        eyebrow="7Commander"
         title="Memória operacional"
         description="Governança do contexto persistido, priorização automática e compressão de histórico para manter respostas úteis e rastreáveis."
         aside={

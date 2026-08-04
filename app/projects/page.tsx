@@ -687,7 +687,7 @@ export default function ProjectsPage() {
   return (
     <section className="space-y-3">
       <PageIntro
-        eyebrow="7C Commander"
+        eyebrow="7Commander"
         title="Projetos e decisões"
         description="Projetos concentram contexto, documentos, riscos, membros e decisões do command center operacional."
         aside={
@@ -767,7 +767,7 @@ export default function ProjectsPage() {
         >
           <SectionLabel>Ingestão de documento/imagem</SectionLabel>
           <p className="text-xs text-(--text-secondary)">
-            Envie arquivo para o projeto ativo. O 7C Commander extrai conteúdo, salva conhecimento e atualiza o contexto do projeto.
+            Envie arquivo para o projeto ativo. O 7Commander extrai conteúdo, salva conhecimento e atualiza o contexto do projeto.
           </p>
           <label className="workspace-button-secondary inline-flex cursor-pointer text-xs text-(--accent)">
             Selecionar arquivo do projeto

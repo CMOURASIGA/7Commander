@@ -120,7 +120,7 @@ export default function ClientsPage() {
   return (
     <section className="space-y-3">
       <PageIntro
-        eyebrow="7C Commander"
+        eyebrow="7Commander"
         title="Base de clientes"
         description="Cadastro, vínculo operacional e manutenção dos clientes conectados aos projetos do command center."
         aside={

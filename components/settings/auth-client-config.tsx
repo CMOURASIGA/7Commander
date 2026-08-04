@@ -37,7 +37,7 @@ export function AuthClientConfig() {
         </p>
       ) : (
         <p className="mt-2 text-sm leading-6 text-(--text-secondary)">
-          Use este bloco quando `KAIROS_API_KEY` estiver habilitada no backend do 7C Commander.
+          Use este bloco quando `KAIROS_API_KEY` estiver habilitada no backend do 7Commander.
         </p>
       )}
 

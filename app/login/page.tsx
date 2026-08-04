@@ -30,7 +30,7 @@ export default function LoginPage() {
         <p className="text-[10px] font-black uppercase tracking-[0.24em] text-(--accent)">
           Acesso ao sistema
         </p>
-        <h2 className="mt-2 text-2xl font-semibold text-(--text-primary)">Entrar no 7C Commander</h2>
+        <h2 className="mt-2 text-2xl font-semibold text-(--text-primary)">Entrar no 7Commander</h2>
         <p className="mt-2 text-sm leading-6 text-(--text-secondary)">
           Use sua conta Google para acessar projetos, contexto compartilhado e operacao colaborativa.
         </p>

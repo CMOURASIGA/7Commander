@@ -536,7 +536,7 @@ export default function ChatPage() {
 
       <div className="flex min-h-0 flex-col gap-3 overflow-hidden">
         <PageIntro
-          eyebrow="7C Commander"
+          eyebrow="7Commander"
           title="Chat operacional"
           description="Conversa contextual com memória persistida, contexto do projeto e suporte às decisões operacionais."
           aside={
