@@ -12,6 +12,7 @@ import {
   removeTaskLabel,
   removeTaskMember,
   setTaskCoreFields,
+  setTaskDailySelection,
   toggleTaskChecklistItem,
   updateTaskComment,
 } from "@/services/task-card-detail-service";
@@ -35,6 +36,7 @@ type ActionPayload =
   | { action: "add_comment"; content?: string }
   | { action: "update_comment"; commentId?: string; content?: string }
   | { action: "delete_comment"; commentId?: string }
+  | { action: "set_daily_selection"; selected?: boolean }
   | { action: "add_attachment"; fileName?: string; fileUrl?: string; mimeType?: string | null };
 
 export async function GET(
@@ -160,6 +162,13 @@ export async function POST(
         userEmail: auth.context.userEmail,
         taskId: normalizedTaskId,
         commentId: payload.commentId ?? "",
+      });
+    } else if (payload.action === "set_daily_selection") {
+      ok = await setTaskDailySelection({
+        userId: auth.context.userId,
+        userEmail: auth.context.userEmail,
+        taskId: normalizedTaskId,
+        selected: Boolean(payload.selected),
       });
     } else if (payload.action === "add_attachment") {
       ok = await addTaskAttachment({

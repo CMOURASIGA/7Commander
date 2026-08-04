@@ -65,6 +65,7 @@ type TaskActivityLog = {
 export type TaskCardDetail = {
   card: TaskCard;
   accessRole: ProjectAccessRole;
+  dailySelected: boolean;
   labels: TaskLabel[];
   members: TaskMember[];
   checklists: TaskChecklist[];
@@ -190,7 +191,7 @@ export async function getTaskCardDetail(params: {
   const supabase = getSupabaseServerClient();
   if (!supabase) return null;
 
-  const [card, labelsRes, membersRes, checklistsRes, checklistItemsRes, commentsRes, attachmentsRes, activityRes] =
+  const [card, labelsRes, membersRes, checklistsRes, checklistItemsRes, commentsRes, attachmentsRes, activityRes, dailySelectionRes] =
     await Promise.all([
       resolveCardByTaskId(params.taskId),
       supabase
@@ -231,6 +232,12 @@ export async function getTaskCardDetail(params: {
         .eq("task_id", params.taskId)
         .order("created_at", { ascending: false })
         .limit(150),
+      supabase
+        .from("task_daily_selections")
+        .select("task_id")
+        .eq("task_id", params.taskId)
+        .eq("user_id", params.userId)
+        .maybeSingle(),
     ]);
 
   if (!card) return null;
@@ -258,6 +265,7 @@ export async function getTaskCardDetail(params: {
   return {
     card,
     accessRole: context.accessRole,
+    dailySelected: Boolean(dailySelectionRes.data),
     labels: ((labelsRes.data ?? []) as Array<{ id: string; name: string; color: string | null; created_at: string }>).map((row) => ({
       id: row.id,
       name: row.name,
@@ -609,6 +617,44 @@ export async function addTaskComment(params: {
     actorEmail: params.userEmail,
     actionType: "comment_added",
     actionDetail: "Comentario adicionado.",
+  });
+  return true;
+}
+
+export async function setTaskDailySelection(params: {
+  userId: string;
+  userEmail?: string | null;
+  taskId: string;
+  selected: boolean;
+}): Promise<boolean> {
+  const context = await loadTaskContext(params);
+  if (!context || !canEdit(context.accessRole)) return false;
+  const supabase = getSupabaseServerClient();
+  if (!supabase) return false;
+
+  const result = params.selected
+    ? await supabase.from("task_daily_selections").upsert(
+      {
+        task_id: params.taskId,
+        user_id: params.userId,
+        project_id: context.task.project_id,
+        selected_at: new Date().toISOString(),
+      },
+      { onConflict: "task_id,user_id" },
+    )
+    : await supabase
+      .from("task_daily_selections")
+      .delete()
+      .eq("task_id", params.taskId)
+      .eq("user_id", params.userId);
+  if (result.error) return false;
+
+  await registerTaskActivity({
+    taskId: params.taskId,
+    actorUserId: params.userId,
+    actorEmail: params.userEmail,
+    actionType: params.selected ? "daily_selected" : "daily_unselected",
+    actionDetail: params.selected ? "Card incluido na Daily." : "Card removido da Daily.",
   });
   return true;
 }

@@ -56,6 +56,7 @@ async function main() {
     "task_activity_log:id,task_id,action_type,action_detail,metadata",
     "risks:id,user_id,project_id,decision_id,task_id,titulo,impacto,probabilidade,mitigacao,responsavel,status,updated_at",
     "kairos_profiles:user_id,instructions,knowledge,icebreakers,updated_at",
+    "task_daily_selections:task_id,user_id,project_id,selected_at",
   ];
 
   let hasFailure = false;
@@ -72,7 +73,7 @@ async function main() {
 
   if (hasFailure) {
     console.log("\nDiagnostico: schema incompleto para fluxo voice-first + atividades.");
-    console.log("Aplique as migrations pendentes no Supabase SQL Editor, incluindo 044_kairos_profiles.sql para a personalizacao do Kairos.");
+    console.log("Aplique as migrations pendentes no Supabase SQL Editor, incluindo 044_kairos_profiles.sql e 045_task_daily_selections.sql.");
     process.exit(2);
   }
 

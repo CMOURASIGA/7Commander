@@ -56,6 +56,7 @@ type TaskActivity = { id: string; actionType: string; actionDetail: string; acto
 type TaskDetail = {
   card: TaskCard;
   accessRole: AccessRole;
+  dailySelected: boolean;
   labels: TaskLabel[];
   members: TaskMember[];
   checklists: TaskChecklist[];
@@ -503,6 +504,16 @@ export default function ActivitiesPage() {
                   placeholder="Descricao detalhada"
                   className="min-h-24 w-full rounded-lg border border-(--border) px-3 py-2 text-sm outline-none focus:border-(--accent)"
                 />
+                {canEditDetail ? (
+                  <label className="flex w-fit cursor-pointer items-center gap-2 rounded-lg border border-(--border) bg-(--bg-muted) px-3 py-2 text-sm text-(--text-primary)">
+                    <input
+                      type="checkbox"
+                      checked={taskDetail.dailySelected}
+                      onChange={(event) => void applyDetailAction({ action: "set_daily_selection", selected: event.target.checked })}
+                    />
+                    Incluir na Daily
+                  </label>
+                ) : null}
                 {canEditDetail ? (
                   <button
                     type="button"

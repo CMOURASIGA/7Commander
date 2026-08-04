@@ -82,6 +82,7 @@ Diagnostico via API:
    - Para ambiente ja existente, execute tambem `database/migrations/017_embeddings.sql`.
    - Para campo de contexto em decisoes, execute `database/migrations/021_decision_context.sql`.
    - Para personalizar o Kairos por usuario, execute `database/migrations/044_kairos_profiles.sql`.
+   - Para selecionar cards do Kanban na Daily, execute `database/migrations/045_task_daily_selections.sql`.
 3. Rode `npm run dev`.
 4. Valide:
    - `GET /api/health/env`
