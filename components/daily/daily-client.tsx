@@ -9,6 +9,7 @@ type ColumnKey = "todo" | "doing" | "done";
 type TaskDetail = {
   card: DailyTask & { columnId: string };
   dailySelected: boolean;
+  comments: Array<{ id: string; authorEmail: string; content: string; createdAt: string }>;
 };
 type TaskBoard = { columns: Array<{ id: string; key: ColumnKey; cards: Array<{ id: string }> }> };
 type TaskForm = {
@@ -47,6 +48,8 @@ export function DailyClient() {
   const [form, setForm] = useState<TaskForm>(EMPTY_FORM);
   const [drawerLoading, setDrawerLoading] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [commentText, setCommentText] = useState("");
+  const [commentSaving, setCommentSaving] = useState(false);
 
   async function loadDaily() {
     setLoading(true);
@@ -153,6 +156,27 @@ export function DailyClient() {
     }
   }
 
+  async function addComment() {
+    if (!selectedTask || !commentText.trim() || commentSaving) return;
+    setCommentSaving(true);
+    setError(null);
+    try {
+      const response = await fetch(`/api/tasks/${selectedTask.id}/details`, {
+        method: "POST",
+        headers: getClientAuthHeaders({ "Content-Type": "application/json" }),
+        body: JSON.stringify({ action: "add_comment", content: commentText.trim() }),
+      });
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload?.error || "Falha ao registrar o comentario.");
+      setTaskDetail(payload.data as TaskDetail);
+      setCommentText("");
+    } catch (commentError) {
+      setError(commentError instanceof Error ? commentError.message : "Falha ao registrar o comentario.");
+    } finally {
+      setCommentSaving(false);
+    }
+  }
+
   return (
     <section className="space-y-4">
       <PageIntro eyebrow="Workspace ativo" title="Daily do projeto" description="Cards selecionados no Kanban para orientar o trabalho de hoje." />
@@ -212,6 +236,21 @@ export function DailyClient() {
                   <label className="sm:col-span-2 text-xs font-medium text-(--text-primary)">Orientacao e descricao<textarea value={form.description} onChange={(event) => setForm((current) => ({ ...current, description: event.target.value }))} className="workspace-input mt-1 min-h-36 w-full" /></label>
                 </div>
                 <label className="flex w-fit cursor-pointer items-center gap-2 rounded-lg border border-(--border) bg-(--bg-muted) px-3 py-2 text-sm text-(--text-primary)"><input type="checkbox" checked={form.dailySelected} onChange={(event) => setForm((current) => ({ ...current, dailySelected: event.target.checked }))} />Manter vinculado a Daily</label>
+                <div className="space-y-3 rounded-xl border border-(--border) bg-(--bg-muted) p-4">
+                  <div>
+                    <SectionLabel>Comentarios</SectionLabel>
+                    <p className="mt-1 text-sm text-(--text-secondary)">Registre alinhamentos e atualizacoes. Eles tambem aparecem no card do Kanban.</p>
+                  </div>
+                  {taskDetail.comments.map((comment) => (
+                    <article key={comment.id} className="rounded-lg border border-(--border) bg-white px-3 py-3 text-sm">
+                      <p className="font-medium text-(--text-primary)">{comment.authorEmail}</p>
+                      <p className="mt-1 whitespace-pre-wrap text-(--text-primary)">{comment.content}</p>
+                      <p className="mt-2 text-xs text-(--text-secondary)">{new Date(comment.createdAt).toLocaleString("pt-BR")}</p>
+                    </article>
+                  ))}
+                  <textarea value={commentText} onChange={(event) => setCommentText(event.target.value)} placeholder="Registrar comentario no card..." className="workspace-input min-h-24 w-full" />
+                  <button type="button" onClick={() => void addComment()} disabled={commentSaving || !commentText.trim()} className="workspace-button-secondary px-3 py-2 text-sm">{commentSaving ? "Registrando..." : "Adicionar comentario"}</button>
+                </div>
                 <p className="text-xs leading-5 text-(--text-secondary)">Salvar atualiza este mesmo card no Kanban. Se alterar a coluna, o card tambem sera movido no quadro.</p>
                 <div className="flex justify-end gap-2"><button type="button" onClick={() => setSelectedTask(null)} className="workspace-button-secondary px-4 py-2 text-sm">Cancelar</button><button type="button" onClick={() => void saveTask()} disabled={saving || !form.title.trim()} className="workspace-button-primary px-4 py-2 text-sm">{saving ? "Salvando..." : "Salvar card"}</button></div>
               </div>
