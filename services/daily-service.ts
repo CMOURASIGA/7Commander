@@ -2,6 +2,7 @@ import { getSupabaseServerClient } from "@/lib/supabase/server";
 
 export type DailyTask = {
   id: string;
+  projectId: string;
   title: string;
   description: string;
   priority: "baixa" | "media" | "alta" | "critica";
@@ -40,7 +41,7 @@ export async function getDailySnapshot(userId: string): Promise<DailySnapshot> {
   const taskIds = selections.data.map((item) => item.task_id);
   const tasksResult = await supabase
     .from("tasks")
-    .select("id, titulo, descricao, prioridade, status, responsavel, due_date")
+    .select("id, project_id, titulo, descricao, prioridade, status, responsavel, due_date")
     .in("id", taskIds);
   if (tasksResult.error || !tasksResult.data) return { tasks: [] };
 
@@ -51,6 +52,7 @@ export async function getDailySnapshot(userId: string): Promise<DailySnapshot> {
     if (!task) return [];
     return [{
       id: task.id,
+      projectId: task.project_id,
       title: task.titulo,
       description: task.descricao ?? "",
       priority: normalizePriority(task.prioridade),
