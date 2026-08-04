@@ -48,7 +48,7 @@ export function DailyClient() {
         {error ? <p className="mt-3 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p> : null}
         {!loading && !error && daily.tasks.length === 0 ? (
           <div className="mt-4 rounded-xl border border-dashed border-(--border) bg-(--bg-muted) p-5 text-sm text-(--text-secondary)">
-            Nenhuma atividade foi selecionada para a Daily. Abra um card no Kanban e marque "Incluir na Daily".
+            Nenhuma atividade foi selecionada para a Daily. Abra um card no Kanban e marque &quot;Incluir na Daily&quot;.
           </div>
         ) : null}
         {!loading && !error && daily.tasks.length > 0 ? (
