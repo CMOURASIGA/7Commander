@@ -32,7 +32,7 @@ export default function LoginPage() {
         </p>
         <h2 className="mt-2 text-2xl font-semibold text-(--text-primary)">Entrar no 7Commander</h2>
         <p className="mt-2 text-sm leading-6 text-(--text-secondary)">
-          Use sua conta Google para acessar projetos, contexto compartilhado e operacao colaborativa.
+          Acesse o ambiente demonstrativo com dados fictícios armazenados somente neste navegador.
         </p>
       </div>
 
@@ -51,10 +51,10 @@ export default function LoginPage() {
           }
           className="w-full rounded-xl bg-(--accent) px-4 py-3 text-sm font-semibold text-(--accent-contrast)"
         >
-          Entrar com Google
+          Entrar na demonstração
         </button>
         <p className="mt-3 text-center text-xs leading-5 text-(--text-secondary)">
-          Login oficial para acessar o workspace operacional e os dados sincronizados.
+          Nenhum cadastro ou conexão externa é necessário.
         </p>
         {error ? <p className="mt-3 text-center text-sm text-red-600">{error}</p> : null}
       </div>

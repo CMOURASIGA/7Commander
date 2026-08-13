@@ -22,10 +22,6 @@ export const SERVER_ENV_KEYS: Array<keyof ServerEnv> = [
   "SUPABASE_SERVICE_ROLE_KEY",
 ];
 
-function getEnvValue(name: string): string {
-  return process.env[name]?.trim() ?? "";
-}
-
 export function getPublicEnv(): PublicEnv {
   return {
     NEXT_PUBLIC_APP_URL: process.env.NEXT_PUBLIC_APP_URL?.trim() ?? "",
@@ -45,9 +41,7 @@ export function getServerEnv(): ServerEnv {
 }
 
 export function isAuthRequired(): boolean {
-  const value = getEnvValue("KAIROS_AUTH_REQUIRED").toLowerCase();
-  if (!value) return true;
-  return value !== "false";
+  return true;
 }
 
 export function validatePublicEnv(): string[] {

@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { BRAND_LOGO_URL, BRAND_NAME, BRAND_SUBTITLE } from "@/lib/brand";
 import { DEFAULT_CLIENT_BRAND, getClientBrandSettings, ClientBrandSettings } from "@/lib/brand-settings";
+import { resetDemoData } from "@/lib/demo-store";
 
 const NAV_ITEMS = [
   { section: "Principal", href: "/", label: "Inicio" },
@@ -44,6 +45,11 @@ export function Sidebar() {
         <p className="sidebar-product-name">{BRAND_NAME}</p>
         <p className="sidebar-product-subtitle">{BRAND_SUBTITLE}</p>
         <p className="sidebar-product-owner">Uma plataforma Consult Services Tecnologia</p>
+        <div className="mt-3 rounded-xl border border-cyan-300/30 bg-cyan-300/10 px-3 py-2">
+          <p className="text-[10px] font-black uppercase tracking-[0.18em] text-cyan-100">Modo demonstração</p>
+          <p className="mt-1 text-[11px] leading-4 text-white/70">Dados fictícios salvos somente neste navegador.</p>
+          <button type="button" onClick={resetDemoData} className="mt-2 text-[11px] font-semibold text-cyan-100 underline underline-offset-2">Restaurar dados iniciais</button>
+        </div>
       </div>
 
       <nav className="relative mt-5 flex flex-wrap gap-4 px-3 pb-5 md:flex-col md:gap-5 md:px-3">

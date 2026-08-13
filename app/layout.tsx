@@ -6,8 +6,8 @@ import { isAuthRequired } from "@/lib/env";
 import { BRAND_DESCRIPTION, BRAND_NAME } from "@/lib/brand";
 
 export const metadata: Metadata = {
-  title: BRAND_NAME,
-  description: BRAND_DESCRIPTION,
+  title: `${BRAND_NAME} | Demonstração`,
+  description: `${BRAND_DESCRIPTION} Ambiente demonstrativo com armazenamento local.`,
 };
 
 export default function RootLayout({
