@@ -1,10 +1,12 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { Sidebar } from "@/components/layout/sidebar";
 import { Header } from "@/components/layout/header";
 import { useKairosAuth } from "@/components/auth/kairos-auth-provider";
+import { KairosLauncher } from "@/components/kairos/kairos-launcher";
+import { KairosPanel } from "@/components/kairos/kairos-panel";
 
 type AppShellProps = {
   children: React.ReactNode;
@@ -14,6 +16,7 @@ export function AppShell({ children }: AppShellProps) {
   const auth = useKairosAuth();
   const pathname = usePathname();
   const router = useRouter();
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const canBypassAuth =
     pathname === "/login" || pathname.startsWith("/auth/callback");
   const mustWaitForAuth = auth.required && auth.loading && !canBypassAuth;
@@ -23,6 +26,11 @@ export function AppShell({ children }: AppShellProps) {
     if (!mustBlock) return;
     router.replace(`/login?next=${encodeURIComponent(pathname)}`);
   }, [mustBlock, pathname, router]);
+
+  // Fecha a gaveta mobile automaticamente ao trocar de rota.
+  useEffect(() => {
+    setMobileNavOpen(false);
+  }, [pathname]);
 
   if (canBypassAuth) {
     return (
@@ -72,11 +80,13 @@ export function AppShell({ children }: AppShellProps) {
 
   return (
     <div className="min-h-screen bg-(--bg-page) md:flex md:items-stretch">
-      <Sidebar />
+      <Sidebar isMobileOpen={mobileNavOpen} onCloseMobile={() => setMobileNavOpen(false)} />
       <div className="flex min-h-screen flex-1 flex-col">
-        <Header />
+        <Header onToggleMobileNav={() => setMobileNavOpen((prev) => !prev)} mobileNavOpen={mobileNavOpen} />
         <main className="flex-1 overflow-x-hidden p-4 md:p-5">{children}</main>
       </div>
+      <KairosLauncher />
+      <KairosPanel />
     </div>
   );
 }
