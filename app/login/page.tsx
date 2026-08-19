@@ -56,7 +56,7 @@ export default function LoginPage() {
         <p className="mt-3 text-center text-xs leading-5 text-(--text-secondary)">
           Login oficial para acessar o workspace operacional e os dados sincronizados.
         </p>
-        {error ? <p className="mt-3 text-center text-sm text-red-600">{error}</p> : null}
+        {error ? <p className="mt-3 text-center text-sm text-(--danger)">{error}</p> : null}
       </div>
     </section>
   );
