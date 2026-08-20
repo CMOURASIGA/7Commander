@@ -3,13 +3,13 @@
 import { FormEvent } from "react";
 import { MarkdownContent } from "@/components/ui/markdown-content";
 import { PageIntro, SectionLabel, StatusPill, SurfaceCard } from "@/components/ui/workspace-primitives";
-import { useKairosCore } from "@/components/kairos/use-kairos-core";
+import { useSharedKairosCore } from "@/components/kairos/kairos-core-context";
 import { KairosMessageActions } from "@/components/kairos/kairos-message-actions";
 import { KairosSaveDialog } from "@/components/kairos/kairos-save-dialog";
 import { VoiceGlyph } from "@/components/icons/voice-icons";
 
 export default function ChatPage() {
-  const core = useKairosCore();
+  const core = useSharedKairosCore();
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();

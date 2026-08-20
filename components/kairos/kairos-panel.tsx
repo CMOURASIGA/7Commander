@@ -3,7 +3,7 @@
 import { useEffect, useRef } from "react";
 import Link from "next/link";
 import { useKairosPanel } from "@/components/kairos/kairos-context";
-import { useKairosCore } from "@/components/kairos/use-kairos-core";
+import { useSharedKairosCore } from "@/components/kairos/kairos-core-context";
 import { KairosMessageActions } from "@/components/kairos/kairos-message-actions";
 import { KairosSaveDialog } from "@/components/kairos/kairos-save-dialog";
 import { MarkdownContent } from "@/components/ui/markdown-content";
@@ -18,7 +18,7 @@ import { VoiceGlyph } from "@/components/icons/voice-icons";
  */
 export function KairosPanel() {
   const { isOpen, seedMessage, seedProjectId, closePanel } = useKairosPanel();
-  const core = useKairosCore({ initialProjectId: seedProjectId, initialInput: seedMessage ?? undefined });
+  const core = useSharedKairosCore();
   const wasOpenRef = useRef(false);
   const endRef = useRef<HTMLDivElement | null>(null);
 
