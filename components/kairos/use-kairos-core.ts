@@ -42,6 +42,47 @@ function removeMarkdown(value: string): string {
   return value.replace(/[*_`#]/g, "").replace(/\s+/g, " ").trim();
 }
 
+/**
+ * Encontra marcadores numerados (1., 2., 3.) em sequencia crescente comecando
+ * em 1, em qualquer lugar do texto -- nao so no inicio de linha. O Kairos
+ * frequentemente devolve listas como um paragrafo corrido ("1. Item um. 2.
+ * Item dois...") sem quebra de linha real entre os itens; um regex ancorado
+ * em inicio de linha (^) nunca encontra o segundo item nesse formato e o
+ * parser cai no fallback de "atividade unica" mesmo quando ha varias.
+ * Validar a sequencia (1, depois 2, depois 3...) evita casar decimais como
+ * "R$ 2,50" ou "3.14" como se fossem itens de lista.
+ */
+function matchSequentialNumberedItems(content: string): RegExpMatchArray[] {
+  const candidates = [...content.matchAll(/(?:^|[\s.])(\d{1,2})[.)]\s+(?=\S)/g)];
+  const startIndex = candidates.findIndex((item) => Number(item[1]) === 1);
+  if (startIndex === -1) return [];
+
+  const sequence = [candidates[startIndex]];
+  for (let i = startIndex + 1; i < candidates.length; i += 1) {
+    const expected = Number(sequence[sequence.length - 1][1]) + 1;
+    if (Number(candidates[i][1]) === expected) sequence.push(candidates[i]);
+    else break;
+  }
+  return sequence;
+}
+
+function splitTitleAndDescription(raw: string): { title: string; description: string } {
+  const trimmed = raw.trim();
+  const boldMatch = trimmed.match(/^\*\*([^*]+)\*\*\s*[-:–]?\s*/);
+  if (boldMatch) {
+    return {
+      title: removeMarkdown(boldMatch[1]).replace(/[.:]\s*$/, ""),
+      description: removeMarkdown(trimmed.slice(boldMatch[0].length)),
+    };
+  }
+  const sentenceEnd = trimmed.search(/[.\n]/);
+  const title = sentenceEnd > 0 ? trimmed.slice(0, sentenceEnd) : trimmed;
+  return {
+    title: removeMarkdown(title).replace(/[.:]\s*$/, ""),
+    description: removeMarkdown(trimmed.slice(title.length)),
+  };
+}
+
 export function getTaskDrafts(content: string): TaskDraft[] {
   const numberedItems = [...content.matchAll(/^\s*(\d+)[.)]\s+(.+)$/gm)];
 
@@ -58,6 +99,21 @@ export function getTaskDrafts(content: string): TaskDraft[] {
         id: `task-${item[1]}`,
         title: removeMarkdown(item[2]).replace(/[.:]\s*$/, "") || `Atividade ${item[1]}`,
         description: removeMarkdown(description),
+        selected: true,
+      };
+    });
+  }
+
+  const inlineNumberedItems = matchSequentialNumberedItems(content);
+  if (inlineNumberedItems.length > 1) {
+    return inlineNumberedItems.map((item, index) => {
+      const start = (item.index ?? 0) + item[0].length;
+      const end = inlineNumberedItems[index + 1]?.index ?? content.length;
+      const { title, description } = splitTitleAndDescription(content.slice(start, end));
+      return {
+        id: `task-inline-${item[1]}`,
+        title: title || `Atividade ${item[1]}`,
+        description,
         selected: true,
       };
     });

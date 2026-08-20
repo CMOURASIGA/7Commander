@@ -6,7 +6,7 @@ import { BRAND_NAME } from "@/lib/brand";
 import { VoiceGlyph } from "@/components/icons/voice-icons";
 import { SectionLabel, StatusPill } from "@/components/ui/workspace-primitives";
 import { MarkdownContent } from "@/components/ui/markdown-content";
-import { useKairosCore } from "@/components/kairos/use-kairos-core";
+import { useSharedKairosCore } from "@/components/kairos/kairos-core-context";
 import { KairosMessageActions } from "@/components/kairos/kairos-message-actions";
 import { KairosSaveDialog } from "@/components/kairos/kairos-save-dialog";
 
@@ -26,7 +26,7 @@ function getStateLabels(voiceUiState: "idle" | "listening" | "processing" | "pau
 }
 
 export default function VoiceRoomPage() {
-  const core = useKairosCore();
+  const core = useSharedKairosCore();
   const stateLabels = getStateLabels(core.voiceUiState);
   const pauseLabel = core.voiceState === "pausado" ? "Retomar" : "Pausar";
   const currentDateLabel = new Intl.DateTimeFormat("pt-BR", { day: "2-digit", month: "short", year: "numeric" }).format(new Date());

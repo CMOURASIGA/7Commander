@@ -3,6 +3,7 @@ import "./globals.css";
 import { AppShell } from "@/components/layout/app-shell";
 import { KairosAuthProvider } from "@/components/auth/kairos-auth-provider";
 import { KairosPanelProvider } from "@/components/kairos/kairos-context";
+import { KairosCoreProvider } from "@/components/kairos/kairos-core-context";
 import { ToastProvider } from "@/components/ui/toast";
 import { ConfirmProvider } from "@/components/ui/confirm-dialog";
 import { isAuthRequired } from "@/lib/env";
@@ -26,9 +27,11 @@ export default function RootLayout({
         <ToastProvider>
           <ConfirmProvider>
             <KairosAuthProvider required={authRequired}>
-              <KairosPanelProvider>
-                <AppShell>{children}</AppShell>
-              </KairosPanelProvider>
+              <KairosCoreProvider>
+                <KairosPanelProvider>
+                  <AppShell>{children}</AppShell>
+                </KairosPanelProvider>
+              </KairosCoreProvider>
             </KairosAuthProvider>
           </ConfirmProvider>
         </ToastProvider>
