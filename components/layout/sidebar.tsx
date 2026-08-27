@@ -51,8 +51,8 @@ export function Sidebar({ isMobileOpen, onCloseMobile }: SidebarProps) {
     {isMobileOpen ? <button type="button" aria-label="Fechar menu" className="sidebar-backdrop" onClick={onCloseMobile} /> : null}
     <aside className={["sidebar-shell overflow-y-auto md:min-h-screen md:self-stretch", isMobileOpen ? "is-open" : ""].join(" ")} style={{ width: 256, maxWidth: "82vw" }}>
       <div className="relative px-4 pt-4 pb-0">
-        <div className="flex h-[144px] w-full items-center justify-center overflow-hidden rounded-xl bg-white px-1 py-1 shadow-sm">
-          <img src={clientBrand.logoUrl || BRAND_LOGO_URL} alt={clientBrand.clientName || "Consult Services Tecnologia"} className="max-h-[132px] w-[99%] object-contain object-center" />
+        <div className="flex h-[144px] w-full items-center justify-center overflow-hidden rounded-xl border border-slate-200/90 bg-white px-1 py-1 shadow-sm ring-1 ring-black/5">
+          <img src={clientBrand.logoUrl || BRAND_LOGO_URL} alt={clientBrand.clientName || "Consult Services Tecnologia"} className="max-h-[128px] max-w-[92%] object-contain object-center" />
         </div>
         <button type="button" onClick={onCloseMobile} className="sidebar-close absolute right-6 top-6 md:hidden" aria-label="Fechar menu">×</button>
       </div>
