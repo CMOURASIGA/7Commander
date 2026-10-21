@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { getDefaultUserId } from "@/lib/user-context";
 import { getPublicEnv, isAuthRequired } from "@/lib/env";
+import { getSupabaseServerClient } from "@/lib/supabase/server";
 
 const USER_ID_HEADER = "x-kairos-user-id";
 const API_KEY_HEADER = "x-kairos-api-key";
@@ -74,6 +75,13 @@ export async function requireApiAuth(request: NextRequest): Promise<{
       const userResult = await authClient.auth.getUser(bearerToken);
 
       if (userResult.data.user && !userResult.error) {
+        const db = getSupabaseServerClient();
+        if (!db) return { ok: false, response: NextResponse.json({ error: "Banco indisponivel" }, { status: 503 }) };
+        const userId = userResult.data.user.id;
+        const admin = await db.from("platform_admins").select("active").eq("user_id", userId).eq("active", true).maybeSingle();
+        const access = await db.from("internal_user_access").select("active").eq("user_id", userId).maybeSingle();
+        if (admin.error || access.error) return { ok: false, response: NextResponse.json({ error: "Verificacao de acesso indisponivel" }, { status: 503 }) };
+        if (!admin.data && !access.data?.active) return { ok: false, response: NextResponse.json({ error: "Usuario nao autorizado ou suspenso" }, { status: 403 }) };
         return {
           ok: true,
           context: {
