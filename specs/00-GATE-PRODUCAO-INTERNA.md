@@ -57,3 +57,12 @@ Vercel: foram encontrados tres projetos `7-commander`, `7-commander-demo`, `7-co
 - UI `app/login/page.tsx` usa Google OAuth via auth.signInWithGoogle; `lib/supabase/client.ts` usa PKCE com callback explicito. Verificar provider Google, Site URL/Redirect URLs, callback e JS runtime.
 - Logs da janela de 7 dias nao estao disponiveis no plano Hobby por retencao. Capturar erro na proxima tentativa em tempo real.
 - NAO alterar protecao Vercel nem segredos ate distinguir login SSO do login Google Supabase.
+
+### Intervencao autorizada pelo usuario (21/10/2026)
+Evidencia de browser enviada pelo usuario: `DNS_PROBE_FINISHED_NXDOMAIN` ao navegar para `wiehbgimmylmfgergidk.supabase.co/auth/v1/authorize`, URL divergente do Supabase oficial.
+Alteracoes efetuadas apenas no projeto Vercel `7-commander`, target production:
+1. `NEXT_PUBLIC_SUPABASE_URL` atualizado para `https://pmituaahaqimvhzhqsry.supabase.co`.
+2. `NEXT_PUBLIC_SUPABASE_ANON_KEY` sincronizada com a chave anon ativa do Supabase oficial, valor nao exposto.
+3. Deploy de producao acionado para SHA existente `a182b792c652a77512a3ae4a6e8de1d885a1d632`, ID `dpl_4aJUTAPHW5eTNoSnSAVCn5qu9oEn`; observado BUILDING, nao homologado ate deploy READY + teste de login.
+Pendencias: confirmar `SUPABASE_SERVICE_ROLE_KEY` vinculada a mesma base e armazenada somente no server; Supabase Auth Google provider, callbacks, Site URL e `NEXT_PUBLIC_APP_URL`; validar OAuth de ponta a ponta, CRUD e autorizacao A/B.
+Nao declarar uso real liberado sem testes de ponta a ponta.
