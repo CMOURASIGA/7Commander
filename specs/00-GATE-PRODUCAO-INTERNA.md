@@ -23,3 +23,22 @@ P0-08 Definir rollback com SHA, procedimento de incidente e responsavel pela ope
 
 ## Aceite
 Gate PASS somente com matriz de evidencias (ambiente, SHA, data, responsavel, resultado) e ausencia de falha critica/alta. Gate FAIL bloqueia informacoes reais, mesmo que preview funcione. Aprovar producao interna limitada ANTES de acesso externo de clientes. Nao executar merge, deploy ou migracao no escopo desta SPEC de planejamento.
+
+## INCIDENTE CONFIRMADO EM 21/10/2026 - LOGIN INOPERANTE (P0 BLOQUEANTE)
+Relato de validacao humana: deploy no Vercel nao permite concluir login. Incidente reproduzido pelo usuario; causa tecnica ainda NAO determinada. Estado operacional: BLOCKED / NOT PRODUCTION READY. Nao declarar PASS por deploy READY ou banco HEALTHY.
+
+### Infraestrutura identificada sem alteracoes
+Supabase preexistente: ref `pmituaahaqimvhzhqsry` (nome `7Commander_oficial`, regiao sa-east-1), estado ACTIVE_HEALTHY na verificacao de 21/10/2026. Inventario de 37 tabelas public, com RLS habilitado; nao comprova policies ou transacoes autorizadas. Reutilizar este projeto, sujeito a validacao das configuracoes e do ambiente correto, em vez de recriar DB.
+Vercel: foram encontrados tres projetos `7-commander`, `7-commander-demo`, `7-commander-oficial`. NAO assumir qual URL/branch aponta para cada um; identificar dominios, aliases, target, project ID, Git branch, SHA e secrets por ambiente antes de ajustes.
+
+### Nova fase obrigatoria 00A - Restabelecimento do login
+00A-01 Inventariar URL exata com falha, projeto Vercel, deployment, branch/SHA, logs runtime e erro observado na interface/rede. Segregar causa demonstrada de hipotese.
+00A-02 Conferir envs do deployment correspondente sem expor valores: NEXT_PUBLIC_SUPABASE_URL deve apontar para `https://pmituaahaqimvhzhqsry.supabase.co`; conferir chave publica deste MESMO projeto, service role server-only e NEXT_PUBLIC_APP_URL coerente; revisar configuracao exigida de auth e ausencia de valores dev/mock. Registrar divergencias apenas por identificador e status, nunca credenciais.
+00A-03 Conferir Supabase Auth: providers habilitados, usuarios autorizados, URLs do site e redirects/callbacks permitidos por ambiente, expiracao de sessao, cookies e comportamento browser; verificar logs dos erros sem divulgar tokens.
+00A-04 Auditar fluxo real frontend -> Supabase Auth -> API /api/auth/profile -> area autenticada e integracao do header Bearer; validar login, refresh, logout, bloqueio nao autenticado e tentativa de acesso de outro usuario.
+00A-05 Acessar dados do banco existente apenas com operacoes de leitura; inventariar migrations, constraints, grants, RLS/policies e correspondencia com a versao implantada. Nenhuma migration, limpeza, seed ou alteracao de provider sem autorizacao e plano de reversao.
+00A-06 Criar correcao em branch de hotfix e PR com testes; nao publicar automaticamente. Validar smoke de login no preview com o mesmo SHA, depois producao controlada com monitoramento e rollback.
+00A-07 Gate de saida: login PASS no desktop e mobile, usuario A/B isolados, refresh e logout PASS, cadastro/leitura de cliente e projeto PASS no Supabase, logs sem erro critico e evidencias por SHA + URL + data.
+
+### Dependencia das fases
+00A antecede os demais gates da SPEC 00 e toda entrada de prospect/cliente real. SPEC 01-05 permanecem planejamento. Nao usar servico de banco saudavel como prova de aplicacao funcional.
