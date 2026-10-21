@@ -42,3 +42,9 @@ Vercel: foram encontrados tres projetos `7-commander`, `7-commander-demo`, `7-co
 
 ### Dependencia das fases
 00A antecede os demais gates da SPEC 00 e toda entrada de prospect/cliente real. SPEC 01-05 permanecem planejamento. Nao usar servico de banco saudavel como prova de aplicacao funcional.
+
+### Evidencias complementares Vercel e Supabase (21/10/2026)
+- O projeto Vercel `7-commander` registra deploys automaticos a partir da branch documental desta SPEC; esses PREVIEWS NAO sao ambiente homologado, nem evidenciam login funcional.
+- O projeto Vercel `7-commander-oficial` tem deployment READY ligado ao repositorio GitHub **CMOURASIGA/7Commander_oficial**, branch `feature/kairos-unification-v2`, SHA `5eff9e2845b04ce7831d1048e828ac8bf98ae841`. Distinguir explicitamente desse repositorio `CMOURASIGA/7Commander`. Verificar qual dos dois representa a aplicacao que o usuario tentou acessar.
+- Avisos de seguranca Supabase identificados: tabelas `project_permissions`, `task_checklist_items` e `task_columns` com RLS habilitado sem policy; funcoes `match_memories` e `touch_profiles_updated_at` com search_path mutavel; funcoes SECURITY DEFINER de organizacao/plataforma expostas a `anon` e `authenticated`; extensao vector em public. Avaliar severidade efetiva, nao aplicar ALTER/REVOKE cegamente, preservar funcionalidades e testar com usuarios A/B.
+- Fontes oficiais de remediacao: https://supabase.com/docs/guides/database/database-linter?lint=0028_anon_security_definer_function_executable e https://supabase.com/docs/guides/database/database-linter?lint=0008_rls_enabled_no_policy
