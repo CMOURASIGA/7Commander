@@ -67,6 +67,6 @@ export async function PATCH(request: NextRequest) {
   const admin = updated.data.role === "admin" && updated.data.active;
   const setAdmin = await db.from("platform_admins").upsert({ user_id: userId, role: "admin", active: admin });
   if (setAdmin.error) return NextResponse.json({ error: "Perfil atualizado parcialmente; revisar permissao administrativa." }, { status: 500 });
-  if (!updated.data.active) await db.auth.admin.signOut(userId, "global");
+  // Requests from suspended users are rejected by requireApiAuth.
   return NextResponse.json({ data: updated.data });
 }
