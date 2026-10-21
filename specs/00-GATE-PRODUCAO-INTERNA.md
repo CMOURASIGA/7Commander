@@ -48,3 +48,12 @@ Vercel: foram encontrados tres projetos `7-commander`, `7-commander-demo`, `7-co
 - O projeto Vercel `7-commander-oficial` tem deployment READY ligado ao repositorio GitHub **CMOURASIGA/7Commander_oficial**, branch `feature/kairos-unification-v2`, SHA `5eff9e2845b04ce7831d1048e828ac8bf98ae841`. Distinguir explicitamente desse repositorio `CMOURASIGA/7Commander`. Verificar qual dos dois representa a aplicacao que o usuario tentou acessar.
 - Avisos de seguranca Supabase identificados: tabelas `project_permissions`, `task_checklist_items` e `task_columns` com RLS habilitado sem policy; funcoes `match_memories` e `touch_profiles_updated_at` com search_path mutavel; funcoes SECURITY DEFINER de organizacao/plataforma expostas a `anon` e `authenticated`; extensao vector em public. Avaliar severidade efetiva, nao aplicar ALTER/REVOKE cegamente, preservar funcionalidades e testar com usuarios A/B.
 - Fontes oficiais de remediacao: https://supabase.com/docs/guides/database/database-linter?lint=0028_anon_security_definer_function_executable e https://supabase.com/docs/guides/database/database-linter?lint=0008_rls_enabled_no_policy
+
+### Diagnostico Vercel em 21/10/2026 (somente leitura)
+- Projeto Vercel correto associado ao repo CMOURASIGA/7Commander: `7-commander`, ID `prj_cAra9YU7WwOu8PUH9Wj3bVVLWfxZ`.
+- Ultimo deploy target=production READY: `dpl_F9oDYLSXyWfjmujkpepiv8A7Lvsb`, branch `main`, SHA `a182b792c652a77512a3ae4a6e8de1d885a1d632`. READY nao valida login.
+- Deploy protection Vercel SSO configurado para `all_except_custom_domains`, potencial bloqueio de acesso a URLs `.vercel.app`. Confirmar dominio de producao e manter login real de aplicacao; nao abrir deployment indiscriminadamente.
+- Env production tem NEXT_PUBLIC_APP_URL, NEXT_PUBLIC_SUPABASE_URL, NEXT_PUBLIC_SUPABASE_ANON_KEY, OPENAI_API_KEY e SUPABASE_SERVICE_ROLE_KEY declaradas. Isso NAO confirma valores, target Supabase correto, credenciais validas ou build atual. `KAIROS_AUTH_REQUIRED` nao aparece explicitamente no target production, porem funcao isAuthRequired retorna true por padrao quando ausente.
+- UI `app/login/page.tsx` usa Google OAuth via auth.signInWithGoogle; `lib/supabase/client.ts` usa PKCE com callback explicito. Verificar provider Google, Site URL/Redirect URLs, callback e JS runtime.
+- Logs da janela de 7 dias nao estao disponiveis no plano Hobby por retencao. Capturar erro na proxima tentativa em tempo real.
+- NAO alterar protecao Vercel nem segredos ate distinguir login SSO do login Google Supabase.
