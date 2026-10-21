@@ -12,7 +12,7 @@ async function guard(request: NextRequest) {
   const db = getSupabaseServerClient();
   if (!db) return { response: NextResponse.json({ error: "Banco indisponivel" }, { status: 503 }), db: null };
   const { data, error } = await db.from("platform_admins").select("role,active").eq("user_id", auth.context.userId).eq("active", true).maybeSingle();
-  if (error || !data || !["owner","admin","super_admin"].includes(data.role)) return { response: NextResponse.json({ error: "Sem permissao de administrador" }, { status: 403 }), db: null };
+  if (error || !data || !["owner","admin","super_admin","superadmin"].includes(data.role)) return { response: NextResponse.json({ error: "Sem permissao de administrador" }, { status: 403 }), db: null };
   return { response: null, db };
 }
 export async function GET(request: NextRequest) {
