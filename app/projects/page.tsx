@@ -153,6 +153,7 @@ export default function ProjectsPage() {
   const [creatingDecision, setCreatingDecision] = useState(false);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
   const [creatingProject, setCreatingProject] = useState(false);
+  const [deletingProjectId,setDeletingProjectId] = useState<string|null>(null);
   const [savingProject, setSavingProject] = useState(false);
   const [projectStatus, setProjectStatus] = useState<string | null>(null);
   const [decisionStatusMessage, setDecisionStatusMessage] = useState<string | null>(null);
@@ -261,6 +262,27 @@ export default function ProjectsPage() {
     void loadClients();
     void loadDecisions(null);
   }, []);
+
+  async function handleDeleteProject(project: ProjectSummary) {
+    const ok=await confirm({title:`Excluir projeto "${project.name}"?`,
+      description:"Exclusão irreversível. Por segurança, projetos com tarefas, riscos, decisões, conversas ou outros vínculos não poderão ser excluídos. Nesses casos, utilize Arquivar.",
+      confirmLabel:"Excluir projeto",tone:"danger"});
+    if(!ok)return;
+    const typed=window.prompt(`Digite o nome exato do projeto para confirmar:\\n${project.name}`);
+    if(typed!==project.name){setProjectStatus("Exclusão cancelada: o nome informado não corresponde ao projeto.");return;}
+    setDeletingProjectId(project.id);setProjectStatus(null);
+    try{
+      const response=await fetch(`/api/projects/${project.id}`,{
+        method:"DELETE",headers:getClientAuthHeaders({"Content-Type":"application/json"}),
+        body:JSON.stringify({confirmName:typed})
+      });
+      const payload=await response.json();
+      if(!response.ok)throw new Error(payload?.error||"Não foi possível excluir o projeto.");
+      setProjectStatus(`Projeto "${project.name}" excluído.`);
+      await loadProjects();
+    }catch(err){setProjectStatus(err instanceof Error?err.message:"Falha ao excluir projeto.");}
+    finally{setDeletingProjectId(null);}
+  }
 
   async function handleCreateProject() {
     const name = newProjectName.trim();
@@ -715,8 +737,8 @@ export default function ProjectsPage() {
         <h3 className="mt-2 text-base font-semibold text-(--text-primary)">Contextos ativos</h3>
         <div className="mt-3 flex flex-wrap gap-2">
           {projects.map((project) => (
+            <div key={project.id} className="flex flex-col gap-1">
             <button
-              key={project.id}
               type="button"
               onClick={() => void handleActivateProject(project.id)}
               className={[
@@ -730,6 +752,11 @@ export default function ProjectsPage() {
               <p className="mt-1 text-[13px]">Cliente: {project.clientName ?? "Nao vinculado"}</p>
               <p className="mt-1">{project.status}</p>
             </button>
+            <button type="button" disabled={deletingProjectId===project.id} onClick={() => void handleDeleteProject(project)}
+              className="self-start rounded-md px-2 py-1 text-xs font-medium text-red-700 hover:bg-red-50 disabled:opacity-50">
+              {deletingProjectId===project.id?"Excluindo...":"Excluir projeto"}
+            </button>
+            </div>
           ))}
         </div>
         <div className="mt-4 grid gap-2 md:grid-cols-[1fr_240px_auto]">
