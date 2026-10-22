@@ -1,5 +1,5 @@
 import { getSupabaseServerClient } from "@/lib/supabase/server";
-import { CONSULT_ORG_ID } from "@/lib/consult-workspace";
+import { CONSULT_ORG_ID, resolveConsultAssignee } from "@/lib/consult-workspace";
 import { getProjectAccessRole } from "@/services/project-service";
 
 type ColumnKey = "todo" | "doing" | "done";
@@ -646,16 +646,9 @@ export async function updateTaskCard(params: {
   if (params.responsible?.trim()) {
     const requested = params.responsible.trim().toLowerCase();
     if (!/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(requested)) return null;
-    const managed = await supabase.from("internal_user_access")
-      .select("user_id").eq("email",requested).eq("active",true).maybeSingle();
-    const profile = managed.data ? null : await supabase.from("profiles")
-      .select("user_id").eq("email",requested).maybeSingle();
-    assigneeId = managed.data?.user_id ?? profile?.data?.user_id ?? null;
-    if (!assigneeId) return null;
-    const authorized = await supabase.from("organization_members").select("id")
-      .eq("organization_id",CONSULT_ORG_ID).eq("user_id",assigneeId)
-      .eq("status","active").maybeSingle();
-    if (authorized.error || !authorized.data) return null;
+    const assignee = await resolveConsultAssignee(requested);
+    if (!assignee) return null;
+    assigneeId = assignee.userId;
     assigneeEmail = requested;
   }
 
