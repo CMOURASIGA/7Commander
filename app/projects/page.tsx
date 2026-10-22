@@ -153,6 +153,8 @@ export default function ProjectsPage() {
   const [creatingDecision, setCreatingDecision] = useState(false);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
   const [creatingProject, setCreatingProject] = useState(false);
+  const [deletingProjectId,setDeletingProjectId] = useState<string|null>(null);
+  const [manageProjectsOpen,setManageProjectsOpen] = useState(false);
   const [savingProject, setSavingProject] = useState(false);
   const [projectStatus, setProjectStatus] = useState<string | null>(null);
   const [decisionStatusMessage, setDecisionStatusMessage] = useState<string | null>(null);
@@ -259,8 +261,28 @@ export default function ProjectsPage() {
   useEffect(() => {
     void loadProjects();
     void loadClients();
-    void loadDecisions(null);
   }, []);
+
+  async function handleDeleteProject(project: ProjectSummary) {
+    const ok=await confirm({title:`Excluir projeto "${project.name}"?`,
+      description:"Exclusão irreversível: riscos deste projeto e seu quadro Kanban vazio serão apagados. Se houver tarefas, conversas, decisões ou conhecimento, a exclusão será bloqueada para preservar o histórico.",
+      confirmLabel:"Excluir projeto",tone:"danger"});
+    if(!ok)return;
+    const typed=window.prompt(`Digite o nome exato do projeto para confirmar:\\n${project.name}`);
+    if(typed!==project.name){setProjectStatus("Exclusão cancelada: o nome informado não corresponde ao projeto.");return;}
+    setDeletingProjectId(project.id);setProjectStatus(null);
+    try{
+      const response=await fetch(`/api/projects/${project.id}`,{
+        method:"DELETE",headers:getClientAuthHeaders({"Content-Type":"application/json"}),
+        body:JSON.stringify({confirmName:typed})
+      });
+      const payload=await response.json();
+      if(!response.ok)throw new Error(payload?.error||"Não foi possível excluir o projeto.");
+      setProjectStatus(`Projeto "${project.name}" excluído.`);
+      await loadProjects();
+    }catch(err){setProjectStatus(err instanceof Error?err.message:"Falha ao excluir projeto.");}
+    finally{setDeletingProjectId(null);}
+  }
 
   async function handleCreateProject() {
     const name = newProjectName.trim();
@@ -354,31 +376,14 @@ export default function ProjectsPage() {
     setActiveProjectId(projectId);
     setOpenRoutine(null);
     try {
-      await fetch("/api/projects/active", {
+      const response = await fetch("/api/projects/active", {
         method: "PATCH",
         headers: getClientAuthHeaders({ "Content-Type": "application/json" }),
         body: JSON.stringify({ projectId }),
       });
-      await loadProjects();
-      await loadDecisions(projectId);
-      await loadRisks(projectId);
-      const selected = projects.find((item) => item.id === projectId);
-      if (selected) {
-        setProjectForm({
-          name: selected.name,
-          description: selected.description ?? "",
-          objective: selected.objective ?? "",
-          context: selected.context ?? "",
-          stakeholders: selected.stakeholders ?? "",
-          maturity: selected.maturity ?? "",
-          tags: (selected.tags ?? []).join(", "),
-          status: selected.status ?? "ativo",
-          clientId: selected.clientId ?? "",
-        });
-      }
-      await loadMembers(projectId);
-    } catch {
-      // no-op
+      if (!response.ok) throw new Error("Não foi possível selecionar o projeto.");
+    } catch (error) {
+      setProjectStatus(error instanceof Error ? error.message : "Falha ao selecionar o projeto.");
     }
   }
 
@@ -712,26 +717,32 @@ export default function ProjectsPage() {
 
       <article className="workspace-card flex flex-col gap-3 p-4">
         <SectionLabel>Projetos</SectionLabel>
-        <h3 className="mt-2 text-base font-semibold text-(--text-primary)">Contextos ativos</h3>
-        <div className="mt-3 flex flex-wrap gap-2">
-          {projects.map((project) => (
-            <button
-              key={project.id}
-              type="button"
-              onClick={() => void handleActivateProject(project.id)}
-              className={[
-                "rounded-xl border px-3 py-2 text-left text-xs",
-                activeProjectId === project.id
-                  ? "border-(--accent) bg-(--accent-soft) text-(--text-primary)"
-                  : "border-(--border) bg-(--bg-muted) text-(--text-secondary)",
-              ].join(" ")}
-            >
-              <p className="font-semibold">{project.name}</p>
-              <p className="mt-1 text-[13px]">Cliente: {project.clientName ?? "Nao vinculado"}</p>
-              <p className="mt-1">{project.status}</p>
-            </button>
-          ))}
+        <div className="mt-2 flex flex-wrap items-center justify-between gap-3">
+          <label className="flex min-w-0 flex-1 flex-col gap-1 text-sm font-semibold text-(--text-primary)">
+            Projeto em edição
+            <select aria-label="Selecionar projeto" value={activeProjectId ?? ""}
+              onChange={e=>{if(e.target.value)void handleActivateProject(e.target.value)}}
+              className="workspace-select max-w-xl">
+              <option value="">Selecione um projeto</option>
+              {projects.map(p=><option key={p.id} value={p.id}>{p.name}{p.clientName ? ` — ${p.clientName}` : ""}</option>)}
+            </select>
+          </label>
+          <button type="button" className="workspace-button-secondary text-xs" onClick={()=>setManageProjectsOpen(x=>!x)}
+            aria-expanded={manageProjectsOpen}>{manageProjectsOpen?"Fechar gerenciamento":"Gerenciar projetos"}</button>
         </div>
+        {manageProjectsOpen?<section className="mt-3 rounded-xl border border-(--border) p-4" aria-label="Gerenciamento de projetos">
+          <h4 className="text-sm font-semibold">Gerenciamento de projetos</h4>
+          <p className="mt-1 text-xs text-(--text-secondary)">Exclusão é definitiva e somente permitida a administradores. Projetos com histórico operacional devem ser arquivados.</p>
+          <div className="mt-3 space-y-2">
+            {projects.map(project=><div key={project.id} className="flex flex-wrap items-center justify-between gap-2 border-b border-(--border) py-2">
+              <span className="text-sm">{project.name}</span>
+              <button type="button" disabled={deletingProjectId===project.id}
+                onClick={()=>void handleDeleteProject(project)} className="workspace-button-danger px-3 py-2 text-xs disabled:opacity-50">
+                {deletingProjectId===project.id?"Excluindo...":"Excluir"}
+              </button>
+            </div>)}
+          </div>
+        </section>:null}
         <div className="mt-4 grid gap-2 md:grid-cols-[1fr_240px_auto]">
           <input
             value={newProjectName}

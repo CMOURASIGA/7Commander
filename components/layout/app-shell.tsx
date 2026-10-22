@@ -7,6 +7,7 @@ import { Header } from "@/components/layout/header";
 import { useKairosAuth } from "@/components/auth/kairos-auth-provider";
 import { KairosLauncher } from "@/components/kairos/kairos-launcher";
 import { KairosPanel } from "@/components/kairos/kairos-panel";
+import { TaskAlerts } from "@/components/notifications/task-alerts";
 
 type AppShellProps = {
   children: React.ReactNode;
@@ -83,7 +84,7 @@ export function AppShell({ children }: AppShellProps) {
       <Sidebar isMobileOpen={mobileNavOpen} onCloseMobile={() => setMobileNavOpen(false)} />
       <div className="flex min-h-screen flex-1 flex-col">
         <Header onToggleMobileNav={() => setMobileNavOpen((prev) => !prev)} mobileNavOpen={mobileNavOpen} />
-        <main className="flex-1 overflow-x-hidden p-4 md:p-5">{children}</main>
+        <main className="flex-1 overflow-x-hidden p-4 md:p-5">{pathname === "/" && <TaskAlerts center />}{children}</main>
       </div>
       <KairosLauncher />
       <KairosPanel />

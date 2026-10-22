@@ -10,6 +10,7 @@ type KairosAuthState = {
   required: boolean;
   user: User | null;
   signInWithGoogle: (nextPath?: string) => Promise<void>;
+  signInWithPassword: (email: string, password: string) => Promise<void>;
   signOut: () => Promise<void>;
 };
 
@@ -28,7 +29,7 @@ async function syncProfile(user: User) {
       body: JSON.stringify({
         nome: user.user_metadata?.full_name ?? user.user_metadata?.name ?? "",
         avatarUrl: user.user_metadata?.avatar_url ?? "",
-        provider: "google",
+        provider: user.app_metadata?.provider ?? "email",
       }),
     });
   } catch {
@@ -116,6 +117,12 @@ export function KairosAuthProvider({ required, children }: ProviderProps) {
         if (result.error) {
           throw new Error(result.error.message || "Falha ao iniciar login Google.");
         }
+      },
+      signInWithPassword: async (email: string, password: string) => {
+        const client = getSupabaseBrowserClient();
+        if (!client) throw new Error("Cliente Supabase indisponivel.");
+        const { error } = await client.auth.signInWithPassword({ email: email.trim(), password });
+        if (error) throw new Error("E-mail ou senha incorretos, ou conta nao habilitada.");
       },
       signOut: async () => {
         const client = getSupabaseBrowserClient();
