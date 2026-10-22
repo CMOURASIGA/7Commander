@@ -154,6 +154,7 @@ export default function ProjectsPage() {
   const [updatingId, setUpdatingId] = useState<string | null>(null);
   const [creatingProject, setCreatingProject] = useState(false);
   const [deletingProjectId,setDeletingProjectId] = useState<string|null>(null);
+  const [manageProjectsOpen,setManageProjectsOpen] = useState(false);
   const [savingProject, setSavingProject] = useState(false);
   const [projectStatus, setProjectStatus] = useState<string | null>(null);
   const [decisionStatusMessage, setDecisionStatusMessage] = useState<string | null>(null);
@@ -734,31 +735,32 @@ export default function ProjectsPage() {
 
       <article className="workspace-card flex flex-col gap-3 p-4">
         <SectionLabel>Projetos</SectionLabel>
-        <h3 className="mt-2 text-base font-semibold text-(--text-primary)">Contextos ativos</h3>
-        <div className="mt-3 flex flex-wrap gap-2">
-          {projects.map((project) => (
-            <div key={project.id} className="flex flex-col gap-1">
-            <button
-              type="button"
-              onClick={() => void handleActivateProject(project.id)}
-              className={[
-                "rounded-xl border px-3 py-2 text-left text-xs",
-                activeProjectId === project.id
-                  ? "border-(--accent) bg-(--accent-soft) text-(--text-primary)"
-                  : "border-(--border) bg-(--bg-muted) text-(--text-secondary)",
-              ].join(" ")}
-            >
-              <p className="font-semibold">{project.name}</p>
-              <p className="mt-1 text-[13px]">Cliente: {project.clientName ?? "Nao vinculado"}</p>
-              <p className="mt-1">{project.status}</p>
-            </button>
-            <button type="button" disabled={deletingProjectId===project.id} onClick={() => void handleDeleteProject(project)}
-              className="self-start rounded-md px-2 py-1 text-xs font-medium text-red-700 hover:bg-red-50 disabled:opacity-50">
-              {deletingProjectId===project.id?"Excluindo...":"Excluir projeto"}
-            </button>
-            </div>
-          ))}
+        <div className="mt-2 flex flex-wrap items-center justify-between gap-3">
+          <label className="flex min-w-0 flex-1 flex-col gap-1 text-sm font-semibold text-(--text-primary)">
+            Projeto em edição
+            <select aria-label="Selecionar projeto" value={activeProjectId ?? ""}
+              onChange={e=>{if(e.target.value)void handleActivateProject(e.target.value)}}
+              className="workspace-select max-w-xl">
+              <option value="">Selecione um projeto</option>
+              {projects.map(p=><option key={p.id} value={p.id}>{p.name}{p.clientName ? ` — ${p.clientName}` : ""}</option>)}
+            </select>
+          </label>
+          <button type="button" className="workspace-button-secondary text-xs" onClick={()=>setManageProjectsOpen(x=>!x)}
+            aria-expanded={manageProjectsOpen}>{manageProjectsOpen?"Fechar gerenciamento":"Gerenciar projetos"}</button>
         </div>
+        {manageProjectsOpen?<section className="mt-3 rounded-xl border border-(--border) p-4" aria-label="Gerenciamento de projetos">
+          <h4 className="text-sm font-semibold">Gerenciamento de projetos</h4>
+          <p className="mt-1 text-xs text-(--text-secondary)">Exclusão é definitiva e somente permitida a administradores. Projetos com histórico operacional devem ser arquivados.</p>
+          <div className="mt-3 space-y-2">
+            {projects.map(project=><div key={project.id} className="flex flex-wrap items-center justify-between gap-2 border-b border-(--border) py-2">
+              <span className="text-sm">{project.name}</span>
+              <button type="button" disabled={deletingProjectId===project.id}
+                onClick={()=>void handleDeleteProject(project)} className="workspace-button-danger px-3 py-2 text-xs disabled:opacity-50">
+                {deletingProjectId===project.id?"Excluindo...":"Excluir"}
+              </button>
+            </div>)}
+          </div>
+        </section>:null}
         <div className="mt-4 grid gap-2 md:grid-cols-[1fr_240px_auto]">
           <input
             value={newProjectName}
