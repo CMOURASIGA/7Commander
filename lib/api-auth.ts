@@ -79,9 +79,18 @@ export async function requireApiAuth(request: NextRequest): Promise<{
         if (!db) return { ok: false, response: NextResponse.json({ error: "Banco indisponivel" }, { status: 503 }) };
         const userId = userResult.data.user.id;
         const admin = await db.from("platform_admins").select("active").eq("user_id", userId).eq("active", true).maybeSingle();
-        const access = await db.from("internal_user_access").select("active").eq("user_id", userId).maybeSingle();
+        const access = await db.from("internal_user_access").select("active,role").eq("user_id", userId).maybeSingle();
         if (admin.error || access.error) return { ok: false, response: NextResponse.json({ error: "Verificacao de acesso indisponivel" }, { status: 503 }) };
         if (!admin.data && !access.data?.active) return { ok: false, response: NextResponse.json({ error: "Usuario nao autorizado ou suspenso" }, { status: 403 }) };
+        const isPrivileged = Boolean(admin.data);
+        const method = request.method.toUpperCase();
+        const path = request.nextUrl.pathname;
+        const write = !["GET", "HEAD", "OPTIONS"].includes(method);
+        if (!isPrivileged && write && path !== "/api/auth/profile") {
+          if (access.data?.role === "leitor" || (access.data?.role === "colaborador" && method === "DELETE")) {
+            return { ok: false, response: NextResponse.json({ error: "Seu perfil nao permite esta operacao." }, { status: 403 }) };
+          }
+        }
         return {
           ok: true,
           context: {
@@ -123,7 +132,7 @@ export async function requireApiAuth(request: NextRequest): Promise<{
       ok: false,
       response: NextResponse.json(
         {
-          error: "Nao autenticado. Entre com Google para continuar.",
+          error: "Nao autenticado. Entre com seu e-mail e senha para continuar.",
         },
         { status: 401 },
       ),
