@@ -135,18 +135,18 @@ export async function DELETE(request: NextRequest, context: { params: Promise<{ 
   const body = await request.json().catch(() => ({}));
   if (body.confirmName !== project.name)
     return NextResponse.json({ error: "Informe o nome exato do projeto para confirmar a exclusao." }, { status: 400 });
-  const references = ["conversations", "decisions", "knowledge_base", "knowledge_chunks", "knowledge_embeddings",
-    "risks", "tasks", "task_boards", "task_members", "task_labels", "project_members", "project_invites", "task_daily_selections"];
-  for (const table of references) {
-    const { count, error } = await db.from(table).select("id", { head: true, count: "exact" }).eq("project_id", projectId);
-    if (error) return NextResponse.json({ error: "Nao foi possivel validar as dependencias do projeto. Exclusao bloqueada." }, { status: 503 });
-    if ((count ?? 0) > 0) return NextResponse.json({
-      error: `O projeto possui registros vinculados em ${table}. Para proteger seu historico, remova os vinculos ou arquive o projeto.`
-    }, { status: 409 });
+  const deleted = await db.rpc("delete_empty_project_with_risks", {
+    p_project_id: projectId,
+    p_actor_id: auth.context.userId,
+    p_confirm_name: body.confirmName,
+  });
+  if (deleted.error) {
+    const blocked = /historico operacional/i.test(deleted.error.message);
+    return NextResponse.json({
+      error: blocked
+        ? "Este projeto possui tarefas, conversas, decisões ou conhecimento vinculado. Para preservar o histórico, a exclusão foi bloqueada."
+        : "Exclusão não concluída: " + deleted.error.message,
+    }, { status: blocked ? 409 : 500 });
   }
-  const deleted = await db.from("projects").delete().eq("id", projectId).select("id").single();
-  if (deleted.error || !deleted.data) return NextResponse.json({
-    error: "Nao foi possivel excluir com seguranca. Verifique se surgiram dependencias."
-  }, { status: 409 });
-  return NextResponse.json({ data: { id: projectId, deleted: true } });
+  return NextResponse.json({ data: { id: projectId, ...deleted.data } });
 }
