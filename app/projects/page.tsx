@@ -261,7 +261,6 @@ export default function ProjectsPage() {
   useEffect(() => {
     void loadProjects();
     void loadClients();
-    void loadDecisions(null);
   }, []);
 
   async function handleDeleteProject(project: ProjectSummary) {
@@ -377,31 +376,14 @@ export default function ProjectsPage() {
     setActiveProjectId(projectId);
     setOpenRoutine(null);
     try {
-      await fetch("/api/projects/active", {
+      const response = await fetch("/api/projects/active", {
         method: "PATCH",
         headers: getClientAuthHeaders({ "Content-Type": "application/json" }),
         body: JSON.stringify({ projectId }),
       });
-      await loadProjects();
-      await loadDecisions(projectId);
-      await loadRisks(projectId);
-      const selected = projects.find((item) => item.id === projectId);
-      if (selected) {
-        setProjectForm({
-          name: selected.name,
-          description: selected.description ?? "",
-          objective: selected.objective ?? "",
-          context: selected.context ?? "",
-          stakeholders: selected.stakeholders ?? "",
-          maturity: selected.maturity ?? "",
-          tags: (selected.tags ?? []).join(", "),
-          status: selected.status ?? "ativo",
-          clientId: selected.clientId ?? "",
-        });
-      }
-      await loadMembers(projectId);
-    } catch {
-      // no-op
+      if (!response.ok) throw new Error("Não foi possível selecionar o projeto.");
+    } catch (error) {
+      setProjectStatus(error instanceof Error ? error.message : "Falha ao selecionar o projeto.");
     }
   }
 
