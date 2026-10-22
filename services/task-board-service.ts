@@ -1,4 +1,5 @@
 import { getSupabaseServerClient } from "@/lib/supabase/server";
+import { CONSULT_ORG_ID } from "@/lib/consult-workspace";
 import { getProjectAccessRole } from "@/services/project-service";
 
 type ColumnKey = "todo" | "doing" | "done";
@@ -640,6 +641,24 @@ export async function updateTaskCard(params: {
     finalColumnKey = foundTarget.column_key;
   }
 
+  let assigneeId: string | null = null;
+  let assigneeEmail: string | null = null;
+  if (params.responsible?.trim()) {
+    const requested = params.responsible.trim().toLowerCase();
+    if (!/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(requested)) return null;
+    const managed = await supabase.from("internal_user_access")
+      .select("user_id").eq("email",requested).eq("active",true).maybeSingle();
+    const profile = managed.data ? null : await supabase.from("profiles")
+      .select("user_id").eq("email",requested).maybeSingle();
+    assigneeId = managed.data?.user_id ?? profile?.data?.user_id ?? null;
+    if (!assigneeId) return null;
+    const authorized = await supabase.from("organization_members").select("id")
+      .eq("organization_id",CONSULT_ORG_ID).eq("user_id",assigneeId)
+      .eq("status","active").maybeSingle();
+    if (authorized.error || !authorized.data) return null;
+    assigneeEmail = requested;
+  }
+
   const patch: Record<string, unknown> = {
     updated_at: new Date().toISOString(),
   };
@@ -668,6 +687,24 @@ export async function updateTaskCard(params: {
       return updateTaskCardLegacy(params);
     }
     return null;
+  }
+  if (params.responsible !== undefined) {
+    if (task.responsavel && task.responsavel.toLowerCase() !== assigneeEmail) {
+      await supabase.from("task_members").delete()
+        .eq("task_id",params.taskId).eq("role","assignee")
+        .eq("member_email",task.responsavel.trim().toLowerCase());
+    }
+    if (assigneeId && assigneeEmail) {
+      const linked = await supabase.from("task_members").upsert({
+        task_id:params.taskId,
+        project_id:task.project_id,
+        member_user_id:assigneeId,
+        member_email:assigneeEmail,
+        role:"assignee",
+        created_by:params.userId,
+      },{onConflict:"task_id,member_email"});
+      if (linked.error) console.error("[task assignment] could not sync assignment",linked.error.code);
+    }
   }
   await normalizeColumnPositions(task.board_id, task.column_id);
   if (finalColumnId !== task.column_id) {
