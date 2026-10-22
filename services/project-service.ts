@@ -1,4 +1,5 @@
 import { getSupabaseServerClient } from "@/lib/supabase/server";
+import { getConsultMemberIds, consultMemberRole } from "@/lib/consult-workspace";
 import { CreateProjectInput, ProjectRecord, ProjectStatus } from "@/types/project";
 
 const projectStore = new Map<string, ProjectRecord[]>();
@@ -151,6 +152,7 @@ async function listProjectsWithAccessFilter(params: {
   const supabase = getSupabaseServerClient();
   if (!supabase) return null;
 
+  const teamIds = await getConsultMemberIds(params.userId);
   const sharedIds = await listSharedProjectIds({
     userId: params.userId,
     userEmail: params.userEmail,
@@ -167,9 +169,9 @@ async function listProjectsWithAccessFilter(params: {
       .order("created_at", { ascending: false })
       .limit(200);
   if (sharedIds.length > 0) {
-    query = query.or(`user_id.eq.${params.userId},id.in.(${sharedIds.join(",")})`);
+    query = query.or(`user_id.in.(${teamIds.join(",")}),id.in.(${sharedIds.join(",")})`);
   } else {
-    query = query.eq("user_id", params.userId);
+    query = query.in("user_id", teamIds);
   }
 
   const result = await query;
@@ -218,6 +220,11 @@ export async function getProjectAccessRole(params: {
   });
   if (!project) return "none";
   if (project.userId === params.userId) return "owner";
+  const teamIds = await getConsultMemberIds(params.userId);
+  if (teamIds.length > 1 && teamIds.includes(project.userId)) {
+    const role = await consultMemberRole(params.userId);
+    return role === "member" ? "editor" : role ? "editor" : "viewer";
+  }
 
   const role = await getMembershipRole({
     projectId: params.projectId,
@@ -233,7 +240,13 @@ async function canEditProject(params: {
   userEmail?: string | null;
 }): Promise<boolean> {
   const role = await getMembershipRole(params);
-  return role === "owner" || role === "editor";
+  if (role === "owner" || role === "editor") return true;
+  const teamIds = await getConsultMemberIds(params.userId);
+  if (teamIds.length <= 1) return false;
+  const db = getSupabaseServerClient();
+  if (!db) return false;
+  const project = await db.from("projects").select("user_id").eq("id", params.projectId).maybeSingle();
+  return Boolean(project.data && teamIds.includes(project.data.user_id) && await consultMemberRole(params.userId));
 }
 
 export async function listProjects(userId: string, userEmail?: string | null): Promise<ProjectRecord[]> {

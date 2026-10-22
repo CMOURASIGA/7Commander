@@ -102,7 +102,19 @@ export function KairosSaveDialog({ core }: { core: KairosCore }) {
           </div>
         ) : saveDialog.kind === "risk" ? (
           <div className="mt-5 grid gap-3 sm:grid-cols-2">
-            <label className="sm:col-span-2 text-xs font-medium text-(--text-primary)">Titulo do risco
+            {core.riskDrafts.length > 0 ? <section className="sm:col-span-2 space-y-3">
+              <p className="text-sm font-semibold">{core.riskDrafts.length} riscos identificados — cada item será registrado separadamente no projeto.</p>
+              <p className="text-xs text-(--text-secondary)">Confira, edite e selecione os riscos que deseja cadastrar.</p>
+              {core.riskDrafts.map((risk,index)=><div key={index} className="rounded-lg border p-3">
+                <label className="flex items-center gap-2 text-sm font-semibold">
+                  <input type="checkbox" checked={risk.selected} onChange={e=>core.setRiskDrafts(prev=>prev.map((x,i)=>i===index?{...x,selected:e.target.checked}:x))}/>
+                  Risco {index+1}
+                </label>
+                <input aria-label={`Título do risco ${index+1}`} className="workspace-input mt-2 w-full" value={risk.title} onChange={e=>core.setRiskDrafts(prev=>prev.map((x,i)=>i===index?{...x,title:e.target.value}:x))}/>
+                <textarea aria-label={`Descrição do risco ${index+1}`} className="workspace-input mt-2 w-full" rows={3} value={risk.description} onChange={e=>core.setRiskDrafts(prev=>prev.map((x,i)=>i===index?{...x,description:e.target.value}:x))}/>
+              </div>)}
+            </section> : null}
+            {core.riskDrafts.length===0 ? <label className="sm:col-span-2 text-xs font-medium text-(--text-primary)">Titulo do risco
               <input
                 value={core.riskForm.title}
                 onChange={(event) => {
@@ -113,7 +125,7 @@ export function KairosSaveDialog({ core }: { core: KairosCore }) {
                 className={`workspace-input mt-1 w-full ${core.riskTitleError ? "field-invalid" : ""}`}
               />
               {core.riskTitleError ? <p className="field-error">{core.riskTitleError}</p> : null}
-            </label>
+            </label> : null}
             <label className="text-xs font-medium text-(--text-primary)">Impacto
               <input value={core.riskForm.impact} onChange={(event) => core.setRiskForm((prev) => ({ ...prev, impact: event.target.value }))} className="workspace-input mt-1 w-full" />
             </label>

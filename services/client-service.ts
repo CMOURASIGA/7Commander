@@ -1,4 +1,5 @@
 import { getSupabaseServerClient } from "@/lib/supabase/server";
+import { getConsultMemberIds } from "@/lib/consult-workspace";
 import { ClientRecord, ClientStatus, CreateClientInput, UpdateClientInput } from "@/types/client";
 
 const clientStore = new Map<string, ClientRecord[]>();
@@ -53,10 +54,11 @@ function saveLocalClient(input: CreateClientInput): ClientRecord {
 export async function listClients(userId: string): Promise<ClientRecord[]> {
   const supabase = getSupabaseServerClient();
   if (supabase) {
+    const ownerIds = await getConsultMemberIds(userId);
     const result = await supabase
       .from("clients")
       .select("id, user_id, nome, descricao, contato, status, created_at, updated_at")
-      .eq("user_id", userId)
+      .in("user_id", ownerIds)
       .order("updated_at", { ascending: false })
       .limit(300);
     if (!result.error && result.data) {
@@ -125,7 +127,7 @@ export async function updateClient(input: UpdateClientInput): Promise<ClientReco
       .from("clients")
       .update(patch)
       .eq("id", input.clientId)
-      .eq("user_id", input.userId)
+.eq("user_id", current.userId)
       .select("id, user_id, nome, descricao, contato, status, created_at, updated_at")
       .single();
 
@@ -152,11 +154,13 @@ export async function deleteClient(params: {
 }): Promise<boolean> {
   const supabase = getSupabaseServerClient();
   if (supabase) {
+    const current = await getClientById(params);
+    if (!current) return false;
     const result = await supabase
       .from("clients")
       .delete()
       .eq("id", params.clientId)
-      .eq("user_id", params.userId);
+      .eq("user_id", current.userId);
     if (!result.error) return true;
   }
 

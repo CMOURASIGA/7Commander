@@ -1,4 +1,5 @@
 "use client";
+import { parseRiskDrafts, type RiskDraft } from "@/lib/kairos-risk-parser";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ChatMessage, ConversationMeta } from "@/types/chat";
@@ -300,6 +301,7 @@ export function useKairosCore(options?: UseKairosCoreOptions) {
   const [knowledgeContentError, setKnowledgeContentError] = useState<string | null>(null);
   const [decisionForm, setDecisionForm] = useState({ title: "", context: "", impact: "", artifactId: "" });
   const [riskForm, setRiskForm] = useState({ title: "", impact: "", probability: "", mitigation: "", owner: "" });
+  const [riskDrafts,setRiskDrafts] = useState<RiskDraft[]>([]);
   const [knowledgeForm, setKnowledgeForm] = useState({ title: "", category: "registro do Kairos", content: "" });
   const [taskForm, setTaskForm] = useState({ columnKey: "todo", priority: "media", dueDate: "" });
   const [taskDrafts, setTaskDrafts] = useState<TaskDraft[]>([]);
@@ -710,7 +712,9 @@ export function useKairosCore(options?: UseKairosCoreOptions) {
     if (kind === "decision") {
       setDecisionForm({ title: getSuggestedTitle(message.content, kind), context: "", impact: "", artifactId: "" });
     } else if (kind === "risk") {
-      setRiskForm({ title: getSuggestedTitle(message.content, kind), impact: "", probability: "", mitigation: "", owner: "" });
+      const parsed = parseRiskDrafts(message.content);
+      setRiskDrafts(parsed);
+      setRiskForm({ title: parsed.length ? "" : getSuggestedTitle(message.content, kind), impact: "", probability: "", mitigation: "", owner: "" });
     } else if (kind === "knowledge") {
       setKnowledgeForm({ title: getSuggestedTitle(message.content, kind), category: "registro do Kairos", content: message.content });
     } else {
@@ -761,32 +765,36 @@ export function useKairosCore(options?: UseKairosCoreOptions) {
 
   async function handleSaveRisk() {
     if (!saveDialog || saveDialog.kind !== "risk" || !activeProjectId) return;
-    if (!riskForm.title.trim()) { setRiskTitleError("Informe o titulo do risco."); return; }
+    const records = riskDrafts.length
+      ? riskDrafts.filter(x=>x.selected && x.title.trim()).map(x=>({title:x.title.trim(),description:x.description.trim()}))
+      : riskForm.title.trim() ? [{title:riskForm.title.trim(),description:""}] : [];
+    if (!records.length){setRiskTitleError("Selecione ao menos um risco.");return;}
     setRiskTitleError(null);
     setRiskLoadingId(saveDialog.message.id);
+    let created=0;
     try {
-      const response = await fetch(`/api/projects/${activeProjectId}/risks`, {
-        method: "POST",
-        headers: getClientAuthHeaders({ "Content-Type": "application/json" }),
-        body: JSON.stringify({
-          title: riskForm.title.trim(),
-          impact: riskForm.impact.trim(),
-          probability: riskForm.probability.trim(),
-          mitigation: riskForm.mitigation.trim(),
-          owner: riskForm.owner.trim(),
-          status: "aberto",
-        }),
-      });
-      const payload = await response.json();
-      if (!response.ok) throw new Error(payload?.error || "Erro ao salvar risco.");
-      setRiskSavedIds((prev) => ({ ...prev, [saveDialog.message.id]: true }));
+      for (const risk of records) {
+        const response = await fetch(`/api/projects/${activeProjectId}/risks`, {
+          method:"POST",headers:getClientAuthHeaders({"Content-Type":"application/json"}),
+          body:JSON.stringify({
+            title:risk.title,
+            impact:risk.description || riskForm.impact.trim(),
+            probability:riskForm.probability.trim(),
+            mitigation:riskForm.mitigation.trim(),
+            owner:riskForm.owner.trim(),
+            status:"aberto",
+          }),
+        });
+        const payload=await response.json();
+        if(!response.ok)throw new Error(payload?.error || "Falha ao criar risco.");
+        created+=1;
+      }
+      setRiskSavedIds(prev=>({...prev,[saveDialog.message.id]:true}));
       setSaveDialog(null);
-      showToast("Risco registrado no projeto.", "success");
-    } catch (error) {
-      showToast(error instanceof Error ? error.message : "Falha ao salvar risco.", "error");
-    } finally {
-      setRiskLoadingId(null);
-    }
+      showToast(`${created} risco(s) registrado(s) individualmente no projeto.`,"success");
+    } catch(error) {
+      showToast(`${created} de ${records.length} riscos registrados. ${error instanceof Error?error.message:"Falha no registro."} Revise a lista do projeto antes de tentar novamente para evitar duplicidades.`,"error");
+    } finally {setRiskLoadingId(null);}
   }
 
   async function handleSaveKnowledge() {
@@ -876,7 +884,7 @@ export function useKairosCore(options?: UseKairosCoreOptions) {
     // save flow
     saveDialog, openSaveDialog, openDirectionPicker, closeSaveDialog,
     decisionForm, setDecisionForm, decisionTitleError, decisionLoadingId, decisionSavedIds, handleSaveDecision,
-    riskForm, setRiskForm, riskTitleError, riskLoadingId, riskSavedIds, handleSaveRisk,
+    riskForm, setRiskForm, riskDrafts, setRiskDrafts, riskTitleError, riskLoadingId, riskSavedIds, handleSaveRisk,
     knowledgeForm, setKnowledgeForm, knowledgeTitleError, knowledgeContentError, knowledgeLoadingId, knowledgeSavedIds, handleSaveKnowledge,
     taskDrafts, setTaskDrafts, taskForm, setTaskForm, taskLoadingId, handleSaveTask,
     // clearing field errors on edit
