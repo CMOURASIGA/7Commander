@@ -265,7 +265,7 @@ export default function ProjectsPage() {
 
   async function handleDeleteProject(project: ProjectSummary) {
     const ok=await confirm({title:`Excluir projeto "${project.name}"?`,
-      description:"Exclusão irreversível. Por segurança, projetos com tarefas, riscos, decisões, conversas ou outros vínculos não poderão ser excluídos. Nesses casos, utilize Arquivar.",
+      description:"Exclusão irreversível: riscos deste projeto e seu quadro Kanban vazio serão apagados. Se houver tarefas, conversas, decisões ou conhecimento, a exclusão será bloqueada para preservar o histórico.",
       confirmLabel:"Excluir projeto",tone:"danger"});
     if(!ok)return;
     const typed=window.prompt(`Digite o nome exato do projeto para confirmar:\\n${project.name}`);
