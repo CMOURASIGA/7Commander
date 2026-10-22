@@ -93,7 +93,11 @@ export default function ActivitiesPage() {
   const [labelName, setLabelName] = useState("");
   const [labelColor, setLabelColor] = useState("#334155");
   const [memberEmail, setMemberEmail] = useState("");
+  const [assignees,setAssignees]=useState<Array<{id:string;name:string;email:string}>>([]);
+  const [assigneeError,setAssigneeError]=useState<string|null>(null);
   const [checklistTitle, setChecklistTitle] = useState("");
+  useEffect(()=>{let live=true;async function loadAssignees(){try{const r=await fetch("/api/team/assignees",{headers:getClientAuthHeaders(),cache:"no-store"});const j=await r.json();if(!r.ok)throw new Error(j.error||"Falha ao buscar usuários");if(live){setAssignees(j.data||[]);setAssigneeError(null)}}catch(e){if(live)setAssigneeError(e instanceof Error?e.message:"Falha ao buscar equipe")}}void loadAssignees();return()=>{live=false}},[]);
+
   const [commentText, setCommentText] = useState("");
   const [editingCommentId, setEditingCommentId] = useState<string | null>(null);
   const [editingCommentText, setEditingCommentText] = useState("");
@@ -489,12 +493,18 @@ export default function ActivitiesPage() {
                     onChange={(event) => setDetailForm((prev) => ({ ...prev, title: event.target.value }))}
                     className="w-full rounded-lg border border-(--border) px-3 py-2 text-sm outline-none focus:border-(--accent)"
                   />
-                  <input
-                    value={detailForm.responsible}
-                    onChange={(event) => setDetailForm((prev) => ({ ...prev, responsible: event.target.value }))}
-                    placeholder="Responsavel (email)"
-                    className="w-full rounded-lg border border-(--border) px-3 py-2 text-sm outline-none focus:border-(--accent)"
-                  />
+                  <div>
+                    <label htmlFor="task-responsible" className="mb-1 block text-xs font-medium">Responsável</label>
+                    <select id="task-responsible" value={detailForm.responsible}
+                      onChange={(event) => setDetailForm((prev) => ({ ...prev, responsible: event.target.value }))}
+                      disabled={Boolean(assigneeError)}
+                      className="w-full rounded-lg border border-(--border) px-3 py-2 text-sm outline-none focus:border-(--accent)">
+                      <option value="">Sem responsável</option>
+                      {detailForm.responsible && !assignees.some(u=>u.email===detailForm.responsible) ? <option value={detailForm.responsible} disabled>Responsável anterior: {detailForm.responsible}</option> : null}
+                      {assignees.map(u=><option key={u.id} value={u.email}>{u.name} — {u.email}</option>)}
+                    </select>
+                    {assigneeError?<p role="alert" className="mt-1 text-xs text-red-600">{assigneeError}</p>:null}
+                  </div>
                   <select
                     value={detailForm.priority}
                     onChange={(event) =>
