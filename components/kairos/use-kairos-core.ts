@@ -1,5 +1,5 @@
-import { parseRiskDrafts, type RiskDraft } from "@/lib/kairos-risk-parser";
 "use client";
+import { parseRiskDrafts, type RiskDraft } from "@/lib/kairos-risk-parser";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ChatMessage, ConversationMeta } from "@/types/chat";
