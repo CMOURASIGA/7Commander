@@ -391,8 +391,10 @@ export default function ProjectsPage() {
   }
 
   async function handleActivateProject(projectId: string) {
+    const previousProjectId=activeProjectId;
     setActiveProjectId(projectId);
     setOpenRoutine(null);
+    setProjectStatus(null);
     try {
       const response = await fetch("/api/projects/active", {
         method: "PATCH",
@@ -401,6 +403,7 @@ export default function ProjectsPage() {
       });
       if (!response.ok) throw new Error("Não foi possível selecionar o projeto.");
     } catch (error) {
+      setActiveProjectId(previousProjectId);
       setProjectStatus(error instanceof Error ? error.message : "Falha ao selecionar o projeto.");
     }
   }
