@@ -54,6 +54,11 @@ export async function POST(req:NextRequest){
   if(role!=="owner"&&role!=="editor")return err("Projeto sem permissão de edição.",403);
  }
  if(body.kind!=="prospect"&&body.kind!=="opportunity"&&!projectId)return err("Selecione um projeto para este registro.");
+ if(body.kind==="opportunity"&&typeof body.payload?.prospectId==="string"&&body.payload.prospectId){
+  const linked=await c.db!.from("commander_planning_records").select("id").eq("id",body.payload.prospectId)
+   .eq("kind","prospect").eq("organization_id",CONSULT_ORG_ID).maybeSingle();
+  if(linked.error||!linked.data)return err("Prospect informado não pertence à Consult Services.",403);
+ }
  const sourceUrl=typeof body.sourceUrl==="string"&&/^https:\/\//i.test(body.sourceUrl)?body.sourceUrl.slice(0,2000):null;
  const insert=await c.db!.from("commander_planning_records").insert({
   organization_id:CONSULT_ORG_ID,project_id:projectId,kind:body.kind,title,
@@ -83,6 +88,11 @@ export async function PATCH(req:NextRequest){
  if(["approved","won"].includes(nextStatus)&&!["owner","admin","manager"].includes(c.role!))return err("Aprovação exige perfil de gestão.",403);
  const title=typeof body.title==="string"?body.title.trim():row.title;
  if(title.length<3||title.length>180)return err("Título inválido.");
+ if(row.kind==="opportunity"&&typeof body.payload?.prospectId==="string"&&body.payload.prospectId){
+  const linked=await c.db!.from("commander_planning_records").select("id").eq("id",body.payload.prospectId)
+   .eq("kind","prospect").eq("organization_id",CONSULT_ORG_ID).maybeSingle();
+  if(linked.error||!linked.data)return err("Prospect de origem não encontrado nesta organização.",403);
+ }
  const changes={title,description:typeof body.description==="string"?body.description.slice(0,10000):row.description,
   payload:body.payload!==undefined?cleanPayload(body.payload):row.payload,status:nextStatus,version:row.version+1,
   updated_by:c.user!.userId,updated_at:new Date().toISOString()};
