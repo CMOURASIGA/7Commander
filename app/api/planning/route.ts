@@ -8,6 +8,12 @@ const KINDS = ["prospect","opportunity","requirement","research","assessment","d
 const STATUSES = ["draft","review","approved","rejected","won","lost","archived"] as const;
 type Kind=typeof KINDS[number];
 function err(message:string,status=400){return NextResponse.json({error:message},{status});}
+function databaseError(operation:"read"|"write",code?:string,message?:string){
+ const missing=code==="42P01"||code==="PGRST205"||code==="PGRST204"||/commander_planning_(records|audit).*not found|schema cache|does not exist/i.test(message||"");
+ if(missing)return err("O módulo Planejamento ainda não foi instalado no banco deste ambiente. É necessária a migration 048 antes de cadastrar prospects. Seus dados permanecem no formulário.",503);
+ console.error("[planning] Falha de banco",{operation,code});
+ return err(operation==="write"?"Não foi possível salvar o rascunho. O cadastro não foi confirmado; tente novamente após a correção do banco.":"Não foi possível carregar os registros. Confira a conexão do ambiente com o banco.",503);
+}
 async function context(req:NextRequest,write=false){
  const auth=await requireApiAuth(req);if(!auth.ok)return {response:auth.response};
  if(auth.context.authMode!=="supabase")return {response:err("É necessária uma sessão Supabase.",403)};
@@ -39,7 +45,7 @@ export async function GET(req:NextRequest){
  if(rawKind)query=query.eq("kind",rawKind);
  if(projectId)query=query.eq("project_id",projectId);
  const data=await query;
- if(data.error)return err("Não foi possível consultar o planejamento. Confira a migration 048.",503);
+ if(data.error)return databaseError("read",data.error.code,data.error.message);
  return NextResponse.json({data:data.data??[],meta:{total:data.count,page,pageSize:25}},{headers:{"Cache-Control":"no-store"}});
 }
 export async function POST(req:NextRequest){
@@ -66,9 +72,10 @@ export async function POST(req:NextRequest){
   status:"draft",payload:cleanPayload(body.payload),source_url:sourceUrl,
   source_checked_at:sourceUrl?new Date().toISOString():null,created_by:c.user!.userId,updated_by:c.user!.userId
  }).select("*").single();
- if(insert.error||!insert.data)return err("Falha ao registrar item.",503);
+ if(insert.error)return databaseError("write",insert.error.code,insert.error.message);
+ if(!insert.data)return err("O banco não confirmou a criação do prospect. Nenhum sucesso foi registrado.",503);
  const audit=await c.db!.from("commander_planning_audit").insert({record_id:insert.data.id,version:1,actor_id:c.user!.userId,action:"created",snapshot:insert.data});
- if(audit.error)return err("Registro criado, mas auditoria falhou. Não repita sem conferir a lista.",503);
+ if(audit.error)return databaseError("write",audit.error.code,audit.error.message);
  return NextResponse.json({data:insert.data},{status:201});
 }
 export async function PATCH(req:NextRequest){
