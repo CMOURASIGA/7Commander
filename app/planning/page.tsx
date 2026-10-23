@@ -1,5 +1,6 @@
 "use client";
 import {useCallback,useEffect,useState} from "react";
+import Link from "next/link";
 import {getClientAuthHeaders} from "@/lib/client-auth";
 type Kind="prospect"|"opportunity"|"requirement"|"research"|"assessment"|"decision_gate";
 type RecordItem={id:string;kind:Kind;title:string;description:string;status:string;version:number;project_id:string|null;source_url:string|null;payload:Record<string,string|number|boolean>;updated_at:string};
@@ -65,6 +66,7 @@ export default function PlanningPage(){
   <header><p className="text-sm text-(--text-secondary)">Consult Services · Workspace compartilhado</p>
    <h1 className="text-2xl font-semibold">Planejamento e oportunidades</h1>
    <p className="mt-1 text-sm text-(--text-secondary)">Prospects, requisitos e análise de soluções com revisão humana e histórico versionado.</p>
+   <Link className="mt-3 inline-block text-sm underline" href="/planning/workflows">Abrir fluxo de análise e checkpoints →</Link>
   </header>
   <div className="flex flex-wrap gap-2" role="group" aria-label="Módulos de planejamento">{kinds.map(k=><button key={k.value} type="button"
    onClick={()=>{setKind(k.value);setPage(1);reset();setStatus(null)}}
