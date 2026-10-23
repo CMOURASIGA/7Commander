@@ -91,7 +91,7 @@ export default function PlanningPage(){
   <header><p className="text-sm text-(--text-secondary)">Consult Services · Workspace compartilhado</p>
    <h1 className="text-2xl font-semibold">Planejamento e oportunidades</h1>
    <p className="mt-1 text-sm text-(--text-secondary)">Prospects, requisitos e análise de soluções com revisão humana e histórico versionado.</p>
-   <div className="mt-3 flex flex-wrap gap-4"><Link className="text-sm underline" href="/planning/workflows">Fluxo de análise e checkpoints →</Link><Link className="text-sm underline" href="/planning/coverage">Matriz requisito × alternativa →</Link></div>
+   <div className="mt-3 flex flex-wrap gap-4"><Link className="text-sm underline" href="/planning/workflows">Fluxo de análise e checkpoints →</Link><Link className="text-sm underline" href="/planning/coverage">Matriz requisito × alternativa →</Link><Link className="text-sm underline" href="/planning/backlog">Backlog aprovado →</Link></div>
   </header>
   <div className="flex flex-wrap gap-2" role="group" aria-label="Módulos de planejamento">{kinds.map(k=><button key={k.value} type="button"
    onClick={()=>{setKind(k.value);setPage(1);reset();setStatus(null)}}
