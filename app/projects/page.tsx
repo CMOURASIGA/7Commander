@@ -221,10 +221,9 @@ export default function ProjectsPage() {
       if (!response.ok) throw new Error(payload?.error || "Erro ao carregar projetos.");
       const list = (payload?.data ?? []) as ProjectSummary[];
       setProjects(list);
-      setActiveProjectId(payload?.meta?.activeProjectId ?? null);
-    } catch {
-      setProjects([]);
-      setActiveProjectId(null);
+      setActiveProjectId(current => current && list.some(p=>p.id===current) ? current : (payload?.meta?.activeProjectId ?? null));
+    } catch(error) {
+      setProjectStatus(error instanceof Error ? error.message : "Não foi possível atualizar a lista de projetos.");
     }
   }
 
