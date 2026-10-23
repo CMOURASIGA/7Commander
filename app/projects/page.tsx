@@ -155,6 +155,7 @@ export default function ProjectsPage() {
   const [creatingProject, setCreatingProject] = useState(false);
   const [deletingProjectId,setDeletingProjectId] = useState<string|null>(null);
   const [manageProjectsOpen,setManageProjectsOpen] = useState(false);
+  const [archivingProjectId,setArchivingProjectId] = useState<string|null>(null);
   const [savingProject, setSavingProject] = useState(false);
   const [projectStatus, setProjectStatus] = useState<string | null>(null);
   const [decisionStatusMessage, setDecisionStatusMessage] = useState<string | null>(null);
@@ -262,6 +263,24 @@ export default function ProjectsPage() {
     void loadProjects();
     void loadClients();
   }, []);
+
+  async function handleArchiveProject(project: ProjectSummary) {
+    if (project.status === "arquivado") return;
+    const approved = await confirm({title:`Arquivar projeto "${project.name}"?`,
+      description:"O histórico permanecerá preservado. O projeto ficará marcado como arquivado.",
+      confirmLabel:"Arquivar projeto"});
+    if(!approved)return;
+    setArchivingProjectId(project.id);
+    try {
+      const r=await fetch(`/api/projects/${project.id}`,{method:"PATCH",
+        headers:getClientAuthHeaders({"Content-Type":"application/json"}),
+        body:JSON.stringify({status:"arquivado"})});
+      const json=await r.json();
+      if(!r.ok)throw new Error(json.error||"Falha ao arquivar.");
+      await loadProjects();setProjectStatus("Projeto arquivado com histórico preservado.");
+    } catch(err) {setProjectStatus(err instanceof Error?err.message:"Erro ao arquivar.");}
+    finally{setArchivingProjectId(null);}
+  }
 
   async function handleDeleteProject(project: ProjectSummary) {
     const ok=await confirm({title:`Excluir projeto "${project.name}"?`,
@@ -736,6 +755,10 @@ export default function ProjectsPage() {
           <div className="mt-3 space-y-2">
             {projects.map(project=><div key={project.id} className="flex flex-wrap items-center justify-between gap-2 border-b border-(--border) py-2">
               <span className="text-sm">{project.name}</span>
+              {project.status !== "arquivado" ? <button type="button" disabled={archivingProjectId===project.id}
+                onClick={()=>void handleArchiveProject(project)} className="workspace-button-secondary px-3 py-2 text-xs disabled:opacity-50">
+                {archivingProjectId===project.id?"Arquivando...":"Arquivar"}
+              </button> : <span className="text-xs">Arquivado</span>}
               <button type="button" disabled={deletingProjectId===project.id}
                 onClick={()=>void handleDeleteProject(project)} className="workspace-button-danger px-3 py-2 text-xs disabled:opacity-50">
                 {deletingProjectId===project.id?"Excluindo...":"Excluir"}
