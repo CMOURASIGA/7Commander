@@ -1,7 +1,7 @@
 # SPEC 10 — Workbench integrado de pré-venda e análise (lote em desenvolvimento)
 
 ## Situação real
-**Lote funcional parcial e ainda não homologado.** Migrations `048` a `052` foram criadas em `develop`; nenhuma foi aplicada ao Supabase de produção. Não houve deploy manual nesta rodada.
+**Lote funcional parcial e ainda não homologado.** Migrations `048` a `053` foram criadas em `develop`; nenhuma foi aplicada ao Supabase de produção. Não houve deploy manual nesta rodada.
 
 ### Implementado em código
 - **CRM:** prospects, oportunidades, etapas comerciais, referência cruzada, conversão humana de prospect ganho em cliente via RPC transacional/idempotente (migration 049).
@@ -10,7 +10,9 @@
 - **Matriz:** relacionamento requisito × alternativa por projeto, fonte e data de conferência. Apenas relações verificadas entram no score — nunca atribuir score à cobertura não avaliada (migration 051).
 - **Governança:** execução com chave idempotente, checkpoint e transições de etapa aprovadas manualmente; não dispara agentes automaticamente (migration 050).
 - **Pesquisa externa opcional:** provedor Brave Web Search, desligado por padrão, opt-in por consulta pública, filtragem básica de PII, timeout, sem redirecionamentos, limites diários transacionais (10 por organização), fontes exibidas como não verificadas (migration 052). Requer configuração voluntária de credenciais, que não foram cadastradas. Resultados não são armazenados automaticamente.
-- **Interface:** `/planning`, `/planning/coverage`, `/planning/workflows`, menu, estados de gravação e revisão humana.
+- **Interface:** `/planning`, `/planning/coverage`, `/planning/workflows`, `/planning/backlog`, menu, estados de gravação e revisão humana.
+- **Requisitos:** revisão determinística de aceites ausentes, falta de fonte/categoria, títulos duplicados e termos subjetivos, sempre sem alteração automática.
+- **Backlog:** a partir de requisito e decisão formalmente aprovados, criado apenas após confirmação humana, usando chave única de origem em `tasks` (migration 053).
 - **Qualidade:** workflow de GitHub Actions acionável manualmente para typecheck, lint e build, além de testes de interface sintéticos. Ainda não executados.
 
 ### Bloqueadores antes de concluir todas as SPECs 01–05
@@ -18,7 +20,7 @@
 2. Baselines imutáveis de requisitos, dependências estruturadas, ingestão de arquivos, detecção automática de conflitos e interface de aprovações detalhada.
 3. Provedor de pesquisa ainda sem credenciais; precisa de avaliação de custo, quota por cliente, licenciamento, compliance, logs e testes reais de consulta. Não habilitar por padrão.
 4. Matriz com pesos, cobertura de **todos** os requisitos, custos verificáveis, comparador build/buy/híbrido e decisão com snapshot imutável.
-5. Geração de backlog idempotente com vínculo de proveniência e gate de aprovação.
+5. Geração de backlog por requisito e decisão aprovados foi implementada no código com chave única de origem (migration 053). Faltam testes transacionais, integração com responsável/notificações e rastreamento detalhado de decisão → evidência → requisito.
 6. Orquestrador de IA persistente com jobs assíncronos, reprocessamento seguro, limite de custo/modelo e integrações autônomas autorizadas. O painel atual é manual.
 7. Melhorar isolamento multiempresa parametrizado (nesta implementação o escopo é Consult Services), corrigir atomicidade total de gravações/auditorias e completar auditoria RBAC/RLS.
 8. Executar migrations somente em ambiente seguro de homologação, qualidade técnica, testes de integração/concorrência, segurança e validação humana antes de produção.
