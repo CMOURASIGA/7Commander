@@ -1,24 +1,27 @@
 # SPEC 10 — Workbench integrado de pré-venda e análise (lote em desenvolvimento)
 
 ## Situação real
-**Implementação parcial e não homologada**. A migration 048 foi criada no repositório, **não aplicada no Supabase de produção**. Nenhum deploy foi solicitado nesta rodada.
+**Lote funcional parcial e ainda não homologado.** Migrations `048` a `052` foram criadas em `develop`; nenhuma foi aplicada ao Supabase de produção. Não houve deploy manual nesta rodada.
 
-### Disponível no código
-- `/planning` e menu: seleção de 6 áreas, cadastro, listagem paginada 25 itens, edição versionada e estados de revisão.
-- `/api/planning` com autenticação JWT, vínculo ativo à organização Consult Services e validação de edição por projeto, versão otimista, fonte HTTPS opcional.
-- `commander_planning_records` e `commander_planning_audit` com histórico e RLS habilitada (sem políticas de acesso público; service_role apenas no backend).
-- Rascunhos de prospects, oportunidades, requisitos, pesquisa manual, avaliações e decisão com gate humano.
-- Nenhuma busca externa é executada nem informações confidenciais são transmitidas. URL de evidência é apenas referência informada pelo operador.
+### Implementado em código
+- **CRM:** prospects, oportunidades, etapas comerciais, referência cruzada, conversão humana de prospect ganho em cliente via RPC transacional/idempotente (migration 049).
+- **Planejamento:** registros de requisitos, alternativas, avaliações e decisões com versão otimista, estados de revisão e auditoria por versão; GET paginado (25), POST e PATCH autenticados.
+- **Histórico:** rota para consultar snapshots de registros versionados.
+- **Matriz:** relacionamento requisito × alternativa por projeto, fonte e data de conferência. Apenas relações verificadas entram no score — nunca atribuir score à cobertura não avaliada (migration 051).
+- **Governança:** execução com chave idempotente, checkpoint e transições de etapa aprovadas manualmente; não dispara agentes automaticamente (migration 050).
+- **Pesquisa externa opcional:** provedor Brave Web Search, desligado por padrão, opt-in por consulta pública, filtragem básica de PII, timeout, sem redirecionamentos, limites diários transacionais (10 por organização), fontes exibidas como não verificadas (migration 052). Requer configuração voluntária de credenciais, que não foram cadastradas. Resultados não são armazenados automaticamente.
+- **Interface:** `/planning`, `/planning/coverage`, `/planning/workflows`, menu, estados de gravação e revisão humana.
+- **Qualidade:** workflow de GitHub Actions acionável manualmente para typecheck, lint e build, além de testes de interface sintéticos. Ainda não executados.
 
-### Não concluído (bloqueadores para chamar SPECs 01–05 de prontas)
-1. Múltiplas oportunidades por prospect e pipeline Kanban comercial, conversão transacional em Cliente e deduplicação.
-2. CSV com prévia, importação idempotente e exportação autorizada.
-3. Baseline imutável de requisitos, dependências estruturadas, anexos, comparação e sugestões de conflitos/lacunas.
-4. Provedor de pesquisa externa seguro, quotas, robôs, URLs bloqueadas, capturas de evidência verificadas e status de validade.
-5. Matriz normalizada requisito x alternativa, pontuação com cobertura de evidência, revisão/decisão imutável e geração idempotente de backlog.
-6. Orquestrador persistente de jobs, checkpoints e retomada, roteador LLM governado, custos e desligamento emergencial.
-7. Auditoria e alterações precisam ser atômicas, revisão de RLS, gestão multiempresa sem org hardcoded, perfil RBAC aprofundado.
-8. Build, lint, typecheck, testes de API/UI, carga, segurança e validação humana.
+### Bloqueadores antes de concluir todas as SPECs 01–05
+1. Kanban comercial pleno, filtros por responsável e SLA, upload/importação CSV idempotente e exportação autorizada.
+2. Baselines imutáveis de requisitos, dependências estruturadas, ingestão de arquivos, detecção automática de conflitos e interface de aprovações detalhada.
+3. Provedor de pesquisa ainda sem credenciais; precisa de avaliação de custo, quota por cliente, licenciamento, compliance, logs e testes reais de consulta. Não habilitar por padrão.
+4. Matriz com pesos, cobertura de **todos** os requisitos, custos verificáveis, comparador build/buy/híbrido e decisão com snapshot imutável.
+5. Geração de backlog idempotente com vínculo de proveniência e gate de aprovação.
+6. Orquestrador de IA persistente com jobs assíncronos, reprocessamento seguro, limite de custo/modelo e integrações autônomas autorizadas. O painel atual é manual.
+7. Melhorar isolamento multiempresa parametrizado (nesta implementação o escopo é Consult Services), corrigir atomicidade total de gravações/auditorias e completar auditoria RBAC/RLS.
+8. Executar migrations somente em ambiente seguro de homologação, qualidade técnica, testes de integração/concorrência, segurança e validação humana antes de produção.
 
 ### Roteiro único da homologação integrada (somente após conclusão)
 1. Conta superadmin e gestor, sessão isolada; leitor e usuário desativado sem escrita; acesso indevido a outro tenant deve falhar.
