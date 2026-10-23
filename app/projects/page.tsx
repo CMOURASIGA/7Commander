@@ -678,25 +678,25 @@ export default function ProjectsPage() {
   }, [selectedProject]);
 
   useEffect(() => {
-    if (!activeProjectId) {
+    if (!activeProjectId || openRoutine !== "members") {
       setMembers([]);
       setCanManageMembers(false);
       return;
     }
     void loadMembers(activeProjectId);
-  }, [activeProjectId]);
+  }, [activeProjectId, openRoutine]);
 
   useEffect(() => {
-    void loadKnowledge(activeProjectId);
-  }, [activeProjectId]);
+    if (activeProjectId && openRoutine === "knowledge") void loadKnowledge(activeProjectId);
+  }, [activeProjectId, openRoutine]);
 
   useEffect(() => {
-    void loadDecisions(activeProjectId);
-  }, [activeProjectId]);
+    if (activeProjectId && openRoutine === "decisions") void loadDecisions(activeProjectId);
+  }, [activeProjectId, openRoutine]);
 
   useEffect(() => {
-    void loadRisks(activeProjectId);
-  }, [activeProjectId]);
+    if (activeProjectId && openRoutine === "risks") void loadRisks(activeProjectId);
+  }, [activeProjectId, openRoutine]);
 
   return (
     <section className="space-y-3">
