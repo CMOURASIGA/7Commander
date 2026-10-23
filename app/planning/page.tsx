@@ -32,6 +32,17 @@ export default function PlanningPage(){
  }catch{}}void fetchProjects();return()=>{mounted=false}},[]);
  function reset(){setActive(null);setTitle("");setDescription("");setSourceUrl("");setOwner("");setNextAction("");}
  function edit(item:RecordItem){setActive(item);setTitle(item.title);setDescription(item.description);setSourceUrl(item.source_url||"");setOwner(String(item.payload.owner||""));setNextAction(String(item.payload.nextAction||""));setStatus(null);}
+ async function convertProspect(){
+  if(!active||kind!=="prospect"||active.status!=="won")return;
+  if(!window.confirm(`Converter "${active.title}" em cliente? Esta ação cria um registro na base de clientes da Consult Services.`))return;
+  setBusy(true);setStatus("Convertendo prospect...");
+  try{
+   const r=await fetch(`/api/planning/${active.id}/convert`,{method:"POST",headers:getClientAuthHeaders()});
+   const j=await r.json();if(!r.ok)throw Error(j.error||"Falha na conversão");
+   setStatus(j.data?.already_converted?"Prospect já convertido.":"Cliente criado com sucesso.");
+   reset();await load();
+  }catch(e){setStatus(e instanceof Error?e.message:"Falha na conversão");}finally{setBusy(false);}
+ }
  async function save(action:"draft"|"review"|"approved"|"rejected"|"won"|"lost"){
   if(title.trim().length<3){setStatus("Informe um título de pelo menos 3 caracteres.");return;}
   if(!active&&!projectId&&!["prospect","opportunity"].includes(kind)){setStatus("Selecione o projeto deste registro.");return;}
@@ -87,7 +98,8 @@ export default function PlanningPage(){
       {active?<><button disabled={busy} className="workspace-button-secondary px-3 py-2" onClick={()=>void save("review")}>Enviar à revisão</button>
       <button disabled={busy} className="workspace-button-secondary px-3 py-2" onClick={()=>void save("approved")}>Aprovar</button>
       <button disabled={busy} className="workspace-button-secondary px-3 py-2" onClick={()=>void save("rejected")}>Rejeitar</button>
-      {kind==="opportunity"?<button disabled={busy} className="workspace-button-secondary px-3 py-2" onClick={()=>void save("won")}>Marcar ganho</button>:null}</>:null}
+      {(kind==="opportunity"||kind==="prospect")?<button disabled={busy} className="workspace-button-secondary px-3 py-2" onClick={()=>void save("won")}>Marcar ganho</button>:null}</>:null}
+      {active&&kind==="prospect"&&active.status==="won"?<button disabled={busy} className="workspace-button-primary px-3 py-2" onClick={()=>void convertProspect()}>Converter em cliente</button>:null}
       {active?<button className="workspace-button-secondary px-3 py-2" disabled={busy} onClick={reset}>Cancelar edição</button>:null}
      </div>
      {status?<p role="status" aria-live="polite" className="rounded-lg border border-(--border) p-3 text-sm">{status}</p>:null}
