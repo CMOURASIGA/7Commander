@@ -75,7 +75,7 @@ export async function POST(req:NextRequest){
  if(insert.error)return databaseError("write",insert.error.code,insert.error.message);
  if(!insert.data)return err("O banco não confirmou a criação do prospect. Nenhum sucesso foi registrado.",503);
  const audit=await c.db!.from("commander_planning_audit").insert({record_id:insert.data.id,version:1,actor_id:c.user!.userId,action:"created",snapshot:insert.data});
- if(audit.error)return databaseError("write",audit.error.code,audit.error.message);
+ if(audit.error){console.error("[planning] Falha de auditoria",{code:audit.error.code});return err("O rascunho pode ter sido criado, mas o histórico não foi confirmado. Atualize a lista antes de tentar novamente para evitar duplicidade.",503);}
  return NextResponse.json({data:insert.data},{status:201});
 }
 export async function PATCH(req:NextRequest){
