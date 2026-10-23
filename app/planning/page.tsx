@@ -21,6 +21,8 @@ export default function PlanningPage(){
  const[stage,setStage]=useState("novo"),[prospectId,setProspectId]=useState(""),[prospects,setProspects]=useState<Array<{id:string;title:string}>>([]);
  const[active,setActive]=useState<RecordItem|null>(null),[status,setStatus]=useState<string|null>(null);
  const[publicQuery,setPublicQuery]=useState(""),[publicConfirmed,setPublicConfirmed]=useState(false);
+ const[reqCategory,setReqCategory]=useState("funcional"),[reqAcceptance,setReqAcceptance]=useState(""),[reqSource,setReqSource]=useState(""),[reqPriority,setReqPriority]=useState("media");
+ const[findings,setFindings]=useState<Array<{recordId:string;severity:string;detail:string}>>([]);
  const[searchResults,setSearchResults]=useState<Array<{title:string;url:string;snippet:string;consultedAt:string}>>([]);
  const[searchBusy,setSearchBusy]=useState(false);
  const[busy,setBusy]=useState(false),[loading,setLoading]=useState(false),[page,setPage]=useState(1),[total,setTotal]=useState(0);
@@ -36,8 +38,17 @@ export default function PlanningPage(){
   const r=await fetch("/api/projects",{headers:getClientAuthHeaders(),cache:"no-store"});const j=await r.json();
   if(mounted&&r.ok)setProjects((j.data??[]).map((p:{id:string;name:string})=>({id:p.id,name:p.name})));
  }catch{}}void fetchProjects();return()=>{mounted=false}},[]);
- function reset(){setActive(null);setTitle("");setDescription("");setSourceUrl("");setOwner("");setNextAction("");setStage("novo");setProspectId("");}
- function edit(item:RecordItem){setActive(item);setTitle(item.title);setDescription(item.description);setSourceUrl(item.source_url||"");setOwner(String(item.payload.owner||""));setNextAction(String(item.payload.nextAction||""));setStage(String(item.payload.stage||"novo"));setProspectId(String(item.payload.prospectId||""));setStatus(null);}
+ function reset(){setActive(null);setTitle("");setDescription("");setSourceUrl("");setOwner("");setNextAction("");setStage("novo");setProspectId("");setReqCategory("funcional");setReqAcceptance("");setReqSource("");setReqPriority("media");}
+ function edit(item:RecordItem){setActive(item);setTitle(item.title);setDescription(item.description);setSourceUrl(item.source_url||"");setOwner(String(item.payload.owner||""));setNextAction(String(item.payload.nextAction||""));setStage(String(item.payload.stage||"novo"));setProspectId(String(item.payload.prospectId||""));setReqCategory(String(item.payload.category||"funcional"));setReqAcceptance(String(item.payload.acceptance||""));setReqSource(String(item.payload.source||""));setReqPriority(String(item.payload.priority||"media"));setStatus(null);}
+ async function reviewRequirements(){
+  if(!projectId){setStatus("Selecione um projeto para revisar requisitos.");return;}
+  setBusy(true);setStatus("Analisando requisitos por regras determinísticas...");
+  try{
+   const r=await fetch("/api/planning/requirements/review",{method:"POST",headers:getClientAuthHeaders({"Content-Type":"application/json"}),body:JSON.stringify({projectId})});
+   const j=await r.json();if(!r.ok)throw Error(j.error||"Falha na análise");
+   setFindings(j.data||[]);setStatus(`${(j.data||[]).length} ponto(s) para revisão humana. Nenhum requisito foi alterado.`);
+  }catch(e){setStatus(e instanceof Error?e.message:"Erro na revisão");}finally{setBusy(false)}
+ }
  async function searchExternal(){
   setSearchBusy(true);setStatus("Buscando fontes públicas...");
   try{
@@ -66,8 +77,8 @@ export default function PlanningPage(){
    const editing=Boolean(active);const r=await fetch("/api/planning",{method:editing?"PATCH":"POST",
     headers:getClientAuthHeaders({"Content-Type":"application/json"}),
     body:JSON.stringify(editing?
-      {id:active!.id,version:active!.version,title,description,status:action,payload:{owner,nextAction,stage,prospectId}}:
-      {kind,projectId:projectId||null,title,description,sourceUrl,payload:{owner,nextAction,stage,prospectId}})
+      {id:active!.id,version:active!.version,title,description,status:action,payload:{owner,nextAction,stage,prospectId,category:reqCategory,acceptance:reqAcceptance,source:reqSource,priority:reqPriority}}:
+      {kind,projectId:projectId||null,title,description,sourceUrl,payload:{owner,nextAction,stage,prospectId,category:reqCategory,acceptance:reqAcceptance,source:reqSource,priority:reqPriority}})
    });const j=await r.json();
    if(!r.ok)throw Error(j.error||"Não foi possível salvar");
    setStatus(editing?"Registro atualizado.":"Registro criado como rascunho. Para aprovação, revise o item.");
@@ -91,6 +102,21 @@ export default function PlanningPage(){
     <h2 className="text-lg font-semibold">{active?"Editar registro":"Novo registro"} · {info.label}</h2>
     <p className="mb-4 text-sm text-(--text-secondary)">{info.help}</p>
     <div className="space-y-3">
+     {kind==="requirement"?<section className="rounded-lg border border-(--border) bg-(--bg-muted) p-3 space-y-2">
+       <h3 className="text-sm font-semibold">Qualificação do requisito</h3>
+       <div className="grid gap-2 sm:grid-cols-2">
+         <label className="text-sm">Categoria<select className="workspace-select mt-1 w-full" value={reqCategory} onChange={e=>setReqCategory(e.target.value)}>
+           {["funcional","nao_funcional","legal","operacional"].map(x=><option key={x} value={x}>{x}</option>)}
+         </select></label>
+         <label className="text-sm">Prioridade<select className="workspace-select mt-1 w-full" value={reqPriority} onChange={e=>setReqPriority(e.target.value)}>
+           {["baixa","media","alta","critica"].map(x=><option key={x} value={x}>{x}</option>)}
+         </select></label>
+       </div>
+       <label className="block text-sm">Critério de aceite<textarea className="workspace-input mt-1 w-full" rows={2} value={reqAcceptance} onChange={e=>setReqAcceptance(e.target.value)}/></label>
+       <label className="block text-sm">Fonte / proveniência<input className="workspace-input mt-1 w-full" value={reqSource} onChange={e=>setReqSource(e.target.value)}/></label>
+       <button type="button" disabled={!projectId||busy} onClick={()=>void reviewRequirements()} className="workspace-button-secondary px-3 py-2 text-xs">Revisar lacunas e redundâncias</button>
+       {findings.length?<ul className="space-y-1">{findings.map((x,i)=><li key={i} className="text-xs">{x.severity==="warning"?"Atenção":"Pergunta"} · {x.detail}</li>)}</ul>:null}
+     </section>:null}
      {kind==="research"?<section className="rounded-lg border border-(--border) bg-(--bg-muted) p-3 space-y-3">
       <h3 className="font-semibold text-sm">Pesquisa externa opcional</h3>
       <p className="text-xs text-(--text-secondary)">Apenas uma consulta pública digitada manualmente é enviada ao provedor. Não inclua requisitos internos, dados de clientes, pacientes ou informações pessoais.</p>
