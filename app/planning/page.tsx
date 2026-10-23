@@ -20,6 +20,9 @@ export default function PlanningPage(){
  const[owner,setOwner]=useState(""),[nextAction,setNextAction]=useState("");
  const[stage,setStage]=useState("novo"),[prospectId,setProspectId]=useState(""),[prospects,setProspects]=useState<Array<{id:string;title:string}>>([]);
  const[active,setActive]=useState<RecordItem|null>(null),[status,setStatus]=useState<string|null>(null);
+ const[publicQuery,setPublicQuery]=useState(""),[publicConfirmed,setPublicConfirmed]=useState(false);
+ const[searchResults,setSearchResults]=useState<Array<{title:string;url:string;snippet:string;consultedAt:string}>>([]);
+ const[searchBusy,setSearchBusy]=useState(false);
  const[busy,setBusy]=useState(false),[loading,setLoading]=useState(false),[page,setPage]=useState(1),[total,setTotal]=useState(0);
  const load=useCallback(async()=>{setLoading(true);try{
   const query=new URLSearchParams({kind,page:String(page)});if(projectId&&kind!=="prospect"&&kind!=="opportunity")query.set("projectId",projectId);
@@ -35,6 +38,15 @@ export default function PlanningPage(){
  }catch{}}void fetchProjects();return()=>{mounted=false}},[]);
  function reset(){setActive(null);setTitle("");setDescription("");setSourceUrl("");setOwner("");setNextAction("");setStage("novo");setProspectId("");}
  function edit(item:RecordItem){setActive(item);setTitle(item.title);setDescription(item.description);setSourceUrl(item.source_url||"");setOwner(String(item.payload.owner||""));setNextAction(String(item.payload.nextAction||""));setStage(String(item.payload.stage||"novo"));setProspectId(String(item.payload.prospectId||""));setStatus(null);}
+ async function searchExternal(){
+  setSearchBusy(true);setStatus("Buscando fontes públicas...");
+  try{
+   const r=await fetch("/api/planning/research",{method:"POST",headers:getClientAuthHeaders({"Content-Type":"application/json"}),
+    body:JSON.stringify({projectId,publicQuery,confirmPublicQuery:publicConfirmed})});
+   const j=await r.json();if(!r.ok)throw Error(j.error||"Falha na pesquisa");
+   setSearchResults(j.data||[]);setStatus(`${(j.data||[]).length} fonte(s) recuperada(s). Nenhuma está verificada. Consulte a fonte antes de registrar.`);
+  }catch(e){setStatus(e instanceof Error?e.message:"Pesquisa indisponível")}finally{setSearchBusy(false)}
+ }
  async function convertProspect(){
   if(!active||kind!=="prospect"||active.status!=="won")return;
   if(!window.confirm(`Converter "${active.title}" em cliente? Esta ação cria um registro na base de clientes da Consult Services.`))return;
@@ -79,6 +91,22 @@ export default function PlanningPage(){
     <h2 className="text-lg font-semibold">{active?"Editar registro":"Novo registro"} · {info.label}</h2>
     <p className="mb-4 text-sm text-(--text-secondary)">{info.help}</p>
     <div className="space-y-3">
+     {kind==="research"?<section className="rounded-lg border border-(--border) bg-(--bg-muted) p-3 space-y-3">
+      <h3 className="font-semibold text-sm">Pesquisa externa opcional</h3>
+      <p className="text-xs text-(--text-secondary)">Apenas uma consulta pública digitada manualmente é enviada ao provedor. Não inclua requisitos internos, dados de clientes, pacientes ou informações pessoais.</p>
+      <label className="block text-sm">Consulta pública
+       <input className="workspace-input mt-1 w-full" value={publicQuery} onChange={e=>setPublicQuery(e.target.value)} placeholder="Ex.: sistemas de gestão clínica funcionalidades públicas"/>
+      </label>
+      <label className="flex items-center gap-2 text-xs"><input type="checkbox" checked={publicConfirmed} onChange={e=>setPublicConfirmed(e.target.checked)}/> Confirmo que a consulta é pública e não contém informações confidenciais.</label>
+      <button type="button" className="workspace-button-secondary px-3 py-2 text-xs"
+       disabled={!projectId||!publicConfirmed||searchBusy} onClick={()=>void searchExternal()}>
+       {searchBusy?"Pesquisando...":"Pesquisar fontes externas"}</button>
+      <div className="space-y-2">{searchResults.map(r=><article key={r.url} className="rounded-lg border border-(--border) bg-white p-3">
+       <strong className="block text-sm">{r.title}</strong><p className="text-xs">{r.snippet}</p>
+       <a className="text-xs underline" href={r.url} target="_blank" rel="noopener noreferrer">Abrir fonte para conferência</a>
+       <button type="button" className="ml-3 text-xs underline" onClick={()=>{setTitle(r.title);setDescription(r.snippet);setSourceUrl(r.url);setStatus("Fonte inserida no formulário. Confira antes de criar o registro.");}}>Usar como rascunho</button>
+      </article>)}</div>
+     </section>:null}
      <label className="block text-sm">Projeto {kind==="prospect"||kind==="opportunity"?"(opcional)":"(obrigatório)"}
       <select className="workspace-select mt-1 w-full" value={active?.project_id||projectId} disabled={Boolean(active)} onChange={e=>setProjectId(e.target.value)}>
        <option value="">Sem projeto associado</option>{projects.map(p=><option key={p.id} value={p.id}>{p.name}</option>)}
