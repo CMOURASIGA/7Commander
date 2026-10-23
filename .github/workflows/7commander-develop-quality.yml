@@ -8,6 +8,9 @@ on:
         description: "SHA da develop a validar"
         required: true
         type: string
+concurrency:
+  group: 7commander-develop-quality
+  cancel-in-progress: true
 permissions:
   contents: read
 jobs:
