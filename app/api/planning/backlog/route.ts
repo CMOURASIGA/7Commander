@@ -17,6 +17,7 @@ export async function POST(req:NextRequest){
  const access=await getProjectAccessRole({userId:auth.context.userId,userEmail:auth.context.userEmail,projectId});
  if(!["owner","editor"].includes(access))return fail("Sem permissão no projeto",403);
  const db=getSupabaseServerClient();if(!db)return fail("Banco indisponível",503);
+ const validatedDb=db;
  const sourceRef="planning:"+decisionId+":"+requirementId;
  const records=await db.from("commander_planning_records").select("id,title,description,kind,status,project_id")
   .eq("organization_id",CONSULT_ORG_ID).in("id",[decisionId,requirementId]);
@@ -27,7 +28,7 @@ export async function POST(req:NextRequest){
  if(!requirement||requirement.kind!=="requirement"||requirement.project_id!==projectId||requirement.status!=="approved")
   return fail("O requisito precisa estar aprovado para este projeto",409);
  async function existing(){
-  const result=await db.from("tasks").select("id,titulo").eq("project_id",projectId).eq("source_ref",sourceRef).maybeSingle();
+  const result=await validatedDb.from("tasks").select("id,titulo").eq("project_id",projectId).eq("source_ref",sourceRef).maybeSingle();
   return result.data;
  }
  const before=await existing();
