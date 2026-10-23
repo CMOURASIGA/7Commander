@@ -20,7 +20,7 @@ async function context(req:NextRequest,write=false){
 function cleanPayload(data:unknown){
  if(!data || typeof data!=="object"||Array.isArray(data))return {};
  const input=data as Record<string,unknown>;const out:Record<string,string|number|boolean>={};
- for(const key of ["source","owner","nextAction","acceptance","priority","category","supplier","coverage","evidence","confidence","estimatedValue","currency","reason","stage","baseline","recommendation"]){
+ for(const key of ["source","owner","nextAction","acceptance","priority","category","supplier","coverage","evidence","confidence","estimatedValue","currency","reason","stage","baseline","recommendation","prospectId","estimatedCloseDate","legalBasis"]){
   const value=input[key];
   if(typeof value==="string")out[key]=value.slice(0,1500);
   if(typeof value==="number"&&Number.isFinite(value))out[key]=value;
