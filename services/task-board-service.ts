@@ -440,6 +440,7 @@ export async function createTaskCard(params: {
   dueDate?: string | null;
   columnKey?: ColumnKey;
   actionSource?: "user" | "kairos";
+  sourceRef?: string;
 }): Promise<TaskCard | null> {
   const access = await getProjectAccessRole({
     userId: params.userId,
@@ -456,7 +457,7 @@ export async function createTaskCard(params: {
     projectId: params.projectId,
   });
   if (!board) {
-    return createTaskCardLegacy(params);
+    return params.sourceRef ? null : createTaskCardLegacy(params);
   }
 
   const targetColumnKey = params.columnKey ?? "todo";
@@ -469,7 +470,7 @@ export async function createTaskCard(params: {
 
   if (column.error || !column.data) {
     if (isSchemaMissingMessage(column.error?.message)) {
-      return createTaskCardLegacy(params);
+      return params.sourceRef ? null : createTaskCardLegacy(params);
     }
     return null;
   }
@@ -489,6 +490,7 @@ export async function createTaskCard(params: {
     .insert({
       user_id: params.userId,
       project_id: params.projectId,
+      source_ref: params.sourceRef || null,
       board_id: board.id,
       column_id: column.data.id,
       titulo: params.title.trim().slice(0, 180),
@@ -504,7 +506,7 @@ export async function createTaskCard(params: {
 
   if (inserted.error || !inserted.data) {
     if (isSchemaMissingMessage(inserted.error?.message)) {
-      return createTaskCardLegacy(params);
+      return params.sourceRef ? null : createTaskCardLegacy(params);
     }
     return null;
   }
