@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireApiAuth } from "@/lib/api-auth";
-import { createProject, getActiveProject, listProjects } from "@/services/project-service";
+import { createProject, listProjects } from "@/services/project-service";
 import { ensureProjectOwnerMembership } from "@/services/project-sharing-service";
 import { getClientById } from "@/services/client-service";
 import { ProjectStatus } from "@/types/project";
@@ -27,10 +27,8 @@ export async function GET(request: NextRequest) {
     const auth = await requireApiAuth(request);
     if (!auth.ok) return auth.response;
 
-    const [projects, activeProject] = await Promise.all([
-      listProjects(auth.context.userId, auth.context.userEmail),
-      getActiveProject(auth.context.userId, auth.context.userEmail),
-    ]);
+    const projects = await listProjects(auth.context.userId, auth.context.userEmail);
+    const activeProject = projects.find(project => project.isActive) ?? projects[0] ?? null;
 
     return NextResponse.json({
       data: projects,
