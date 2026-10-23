@@ -788,6 +788,7 @@ export function useKairosCore(options?: UseKairosCoreOptions) {
         const payload=await response.json();
         if(!response.ok)throw new Error(payload?.error || "Falha ao criar risco.");
         created+=1;
+        setRiskDrafts(prev=>prev.map(item=>item.title.trim()===risk.title ? {...item,selected:false}:item));
       }
       setRiskSavedIds(prev=>({...prev,[saveDialog.message.id]:true}));
       setSaveDialog(null);
