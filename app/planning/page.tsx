@@ -18,6 +18,7 @@ export default function PlanningPage(){
  const[projects,setProjects]=useState<Project[]>([]),[projectId,setProjectId]=useState("");
  const[title,setTitle]=useState(""),[description,setDescription]=useState(""),[sourceUrl,setSourceUrl]=useState("");
  const[owner,setOwner]=useState(""),[nextAction,setNextAction]=useState("");
+ const[stage,setStage]=useState("novo"),[prospectId,setProspectId]=useState(""),[prospects,setProspects]=useState<Array<{id:string;title:string}>>([]);
  const[active,setActive]=useState<RecordItem|null>(null),[status,setStatus]=useState<string|null>(null);
  const[busy,setBusy]=useState(false),[loading,setLoading]=useState(false),[page,setPage]=useState(1),[total,setTotal]=useState(0);
  const load=useCallback(async()=>{setLoading(true);try{
@@ -27,12 +28,13 @@ export default function PlanningPage(){
   setItems(json.data||[]);setTotal(json.meta?.total||0);
  }catch(e){setStatus(e instanceof Error?e.message:"Falha ao carregar");}finally{setLoading(false)}},[kind,page,projectId]);
  useEffect(()=>{void load()},[load]);
+ useEffect(()=>{let live=true;async function loadProspects(){try{const r=await fetch("/api/planning?kind=prospect",{headers:getClientAuthHeaders(),cache:"no-store"});if(!r.ok)return;const j=await r.json();if(live)setProspects((j.data||[]).map((p:{id:string;title:string})=>({id:p.id,title:p.title})));}catch{}}if(kind==="opportunity")void loadProspects();return()=>{live=false}},[kind]);
  useEffect(()=>{let mounted=true;async function fetchProjects(){try{
   const r=await fetch("/api/projects",{headers:getClientAuthHeaders(),cache:"no-store"});const j=await r.json();
   if(mounted&&r.ok)setProjects((j.data??[]).map((p:{id:string;name:string})=>({id:p.id,name:p.name})));
  }catch{}}void fetchProjects();return()=>{mounted=false}},[]);
- function reset(){setActive(null);setTitle("");setDescription("");setSourceUrl("");setOwner("");setNextAction("");}
- function edit(item:RecordItem){setActive(item);setTitle(item.title);setDescription(item.description);setSourceUrl(item.source_url||"");setOwner(String(item.payload.owner||""));setNextAction(String(item.payload.nextAction||""));setStatus(null);}
+ function reset(){setActive(null);setTitle("");setDescription("");setSourceUrl("");setOwner("");setNextAction("");setStage("novo");setProspectId("");}
+ function edit(item:RecordItem){setActive(item);setTitle(item.title);setDescription(item.description);setSourceUrl(item.source_url||"");setOwner(String(item.payload.owner||""));setNextAction(String(item.payload.nextAction||""));setStage(String(item.payload.stage||"novo"));setProspectId(String(item.payload.prospectId||""));setStatus(null);}
  async function convertProspect(){
   if(!active||kind!=="prospect"||active.status!=="won")return;
   if(!window.confirm(`Converter "${active.title}" em cliente? Esta ação cria um registro na base de clientes da Consult Services.`))return;
@@ -52,8 +54,8 @@ export default function PlanningPage(){
    const editing=Boolean(active);const r=await fetch("/api/planning",{method:editing?"PATCH":"POST",
     headers:getClientAuthHeaders({"Content-Type":"application/json"}),
     body:JSON.stringify(editing?
-      {id:active!.id,version:active!.version,title,description,status:action,payload:{owner,nextAction}}:
-      {kind,projectId:projectId||null,title,description,sourceUrl,payload:{owner,nextAction}})
+      {id:active!.id,version:active!.version,title,description,status:action,payload:{owner,nextAction,stage,prospectId}}:
+      {kind,projectId:projectId||null,title,description,sourceUrl,payload:{owner,nextAction,stage,prospectId}})
    });const j=await r.json();
    if(!r.ok)throw Error(j.error||"Não foi possível salvar");
    setStatus(editing?"Registro atualizado.":"Registro criado como rascunho. Para aprovação, revise o item.");
@@ -82,6 +84,14 @@ export default function PlanningPage(){
        <option value="">Sem projeto associado</option>{projects.map(p=><option key={p.id} value={p.id}>{p.name}</option>)}
       </select>
      </label>
+     {kind==="prospect"||kind==="opportunity"?<label className="block text-sm">Etapa comercial
+      <select className="workspace-select mt-1 w-full" value={stage} onChange={e=>setStage(e.target.value)}>
+       {["novo","qualificacao","diagnostico","proposta","negociacao","ganho","perdido"].map(v=><option key={v} value={v}>{v}</option>)}
+      </select></label>:null}
+     {kind==="opportunity"?<label className="block text-sm">Prospect vinculado
+      <select className="workspace-select mt-1 w-full" value={prospectId} onChange={e=>setProspectId(e.target.value)}>
+       <option value="">Sem vínculo</option>{prospects.map(p=><option key={p.id} value={p.id}>{p.title}</option>)}
+      </select></label>:null}
      <label className="block text-sm">Título<input maxLength={180} value={title} onChange={e=>setTitle(e.target.value)} className="workspace-input mt-1 w-full" placeholder="Nome do prospect, requisito ou alternativa"/></label>
      <label className="block text-sm">Descrição e contexto<textarea rows={5} maxLength={10000} value={description} onChange={e=>setDescription(e.target.value)} className="workspace-input mt-1 w-full" placeholder="Registre fatos, necessidades e hipóteses separadamente."/></label>
      {kind==="research"?<label className="block text-sm">Fonte externa (HTTPS)
