@@ -434,6 +434,15 @@ export default function ActivitiesPage() {
                             </span>
                           </span>
                         ) : null}
+                        {card.dueDate ? (
+                          <span
+                            className={`mt-2 inline-flex max-w-full items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-medium ${new Date(`${card.dueDate.slice(0, 10)}T23:59:59`).getTime() < Date.now() && card.status !== "concluida" ? "border-red-300 bg-red-50 text-red-700" : "border-(--border) bg-(--bg-surface) text-(--text-primary)"}`}
+                            title="Data final de entrega"
+                          >
+                            <span aria-hidden="true">📅</span>
+                            <span>Entrega: {card.dueDate.slice(0, 10).split("-").reverse().join("/")}</span>
+                          </span>
+                        ) : null}
                         {card.labels.length ? (
                           <div className="mt-2 flex flex-wrap gap-1">
                             {card.labels.map((label) => (
