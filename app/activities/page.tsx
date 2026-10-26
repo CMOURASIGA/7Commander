@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { getClientAuthEmail, getClientAuthHeaders } from "@/lib/client-auth";
 import { PageIntro, SectionLabel, StatusPill, SurfaceCard } from "@/components/ui/workspace-primitives";
 import { useConfirm } from "@/components/ui/confirm-dialog";
@@ -355,6 +356,11 @@ export default function ActivitiesPage() {
           </>
         }
       />
+
+      <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-(--border) bg-(--bg-surface) px-4 py-3">
+        <p className="text-sm text-(--text-secondary)">Novo fluxo multicontexto em preparação com dados sintéticos.</p>
+        <Link href="/activities/overview" className="rounded-lg border border-(--border) px-3 py-2 text-sm font-medium">Visualizar protótipo operacional</Link>
+      </div>
 
       <SurfaceCard>
         <div className="flex flex-wrap items-center gap-3">
