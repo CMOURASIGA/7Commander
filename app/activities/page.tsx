@@ -423,6 +423,17 @@ export default function ActivitiesPage() {
                         className="w-full cursor-grab px-3 pt-3 text-left"
                       >
                         <p className="font-medium text-(--text-primary)">{card.title}</p>
+                        {card.responsible ? (
+                          <span
+                            className="mt-2 inline-flex max-w-full items-center gap-1 rounded-full border border-(--border) bg-(--bg-surface) px-2 py-0.5 text-[11px] font-medium text-(--text-primary)"
+                            title={`Responsável: ${assignees.find((person) => person.email.toLowerCase() === card.responsible?.toLowerCase())?.name || card.responsible}`}
+                          >
+                            <span aria-hidden="true">👤</span>
+                            <span className="truncate">
+                              {assignees.find((person) => person.email.toLowerCase() === card.responsible?.toLowerCase())?.name || card.responsible}
+                            </span>
+                          </span>
+                        ) : null}
                         {card.labels.length ? (
                           <div className="mt-2 flex flex-wrap gap-1">
                             {card.labels.map((label) => (
