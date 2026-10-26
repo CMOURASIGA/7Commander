@@ -1,4 +1,5 @@
 import { getSupabaseServerClient } from "@/lib/supabase/server";
+import { CONSULT_ORG_ID, resolveConsultAssignee } from "@/lib/consult-workspace";
 import { getProjectAccessRole, ProjectAccessRole } from "@/services/project-service";
 import { TaskCard, createTaskCard, listTaskBoard, updateTaskCard } from "@/services/task-board-service";
 
@@ -410,12 +411,17 @@ export async function addTaskMember(params: {
 
   const email = params.memberEmail.trim().toLowerCase();
   if (!email) return false;
+  // Only actual active teammates can be assigned company work.
+  const assignee = await resolveConsultAssignee(email);
+  if (!assignee) return false;
+  const memberId = assignee.userId;
 
   const result = await supabase.from("task_members").upsert(
     {
       task_id: params.taskId,
       project_id: context.task.project_id,
       member_email: email,
+      member_user_id: memberId,
       role: params.role?.trim() || "assignee",
       created_by: params.userId,
     },

@@ -90,6 +90,11 @@ export async function POST(
       );
     }
 
+    // Idempotent retry protection for Kairos submissions and manual duplicate entries.
+    const existing = await listRisksByProject({userId:auth.context.userId,projectId:normalizedProjectId});
+    const normalize = (value:string)=>value.normalize("NFD").replace(/[\\u0300-\\u036f]/g,"").trim().toLowerCase().replace(/\\s+/g," ");
+    const duplicate = existing.find(r=>normalize(r.title)===normalize(body.title));
+    if (duplicate) return NextResponse.json({error:"Já existe um risco com este título neste projeto. Revise a lista antes de registrar novamente.",existingRiskId:duplicate.id},{status:409});
     const created = await createRisk({
       userId: auth.context.userId,
       projectId: normalizedProjectId,

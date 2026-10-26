@@ -1,4 +1,5 @@
 import { getSupabaseServerClient } from "@/lib/supabase/server";
+import { getConsultMemberIds } from "@/lib/consult-workspace";
 import { CreateRiskInput, RiskRecord, RiskStatus } from "@/types/risk";
 
 const riskStore = new Map<string, RiskRecord[]>();
@@ -71,11 +72,12 @@ export async function listRisksByProject(params: {
   projectId: string;
 }): Promise<RiskRecord[]> {
   const supabase = getSupabaseServerClient();
+  const memberIds = await getConsultMemberIds(params.userId);
   if (supabase) {
     const result = await supabase
       .from("risks")
       .select("id, user_id, project_id, decision_id, task_id, titulo, impacto, probabilidade, mitigacao, responsavel, status, created_at, updated_at")
-      .eq("user_id", params.userId)
+      .in("user_id", memberIds)
       .eq("project_id", params.projectId)
       .order("created_at", { ascending: false })
       .limit(200);

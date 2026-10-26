@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useKairosAuth } from "@/components/auth/kairos-auth-provider";
+import { TaskAlerts } from "@/components/notifications/task-alerts";
 
 const PAGE_TITLES: Record<string, string> = {
   "/": "Inicio", "/voice": "Voice Room", "/chat": "Dashboard Kairos", "/daily": "Daily", "/clients": "Clientes", "/projects": "Projetos", "/activities": "Atividades", "/memory": "Memoria", "/help": "Ajuda", "/settings": "Configuracoes", "/login": "Acesso",
@@ -29,6 +30,7 @@ export function Header({ onToggleMobileNav, mobileNavOpen }: HeaderProps) {
         <div className="min-w-0"><p className="truncate text-[10px] font-black uppercase tracking-[0.2em] text-(--accent)">Workspace ativo</p><h1 className="truncate text-base font-semibold text-(--text-primary)">{pageTitle}</h1></div>
       </div>
       <div className="flex items-center gap-2 md:gap-3">
+        {authenticated && <TaskAlerts />}
         {authenticated && <span className="hidden items-center gap-2 rounded-full border border-[color:var(--success)]/30 bg-(--success-soft) px-3 py-1.5 text-[12px] font-semibold text-(--success) sm:inline-flex"><span className="h-2 w-2 rounded-full bg-(--success)" />Sistema online</span>}
         {auth.loading ? <span className="rounded-full border border-(--border) bg-white px-3 py-1 text-xs text-(--text-secondary)">Carregando sessao...</span> : authenticated ? (
           <div ref={menuRef} className="relative">
@@ -39,7 +41,7 @@ export function Header({ onToggleMobileNav, mobileNavOpen }: HeaderProps) {
             </button>
             {userMenuOpen && <div role="menu" className="absolute right-0 top-[calc(100%+10px)] w-64 overflow-hidden rounded-2xl border border-(--border) bg-white shadow-xl"><div className="border-b border-(--border) px-4 py-4"><p className="truncate text-sm font-semibold text-(--text-primary)">{email ?? "usuario autenticado"}</p><p className="mt-1 text-[11px] uppercase tracking-wide text-(--text-tertiary)">Usuário</p></div><div className="p-2"><button type="button" onClick={() => void auth.signOut()} className="flex w-full items-center gap-3 rounded-xl px-3 py-2 text-left text-sm font-medium text-red-600 hover:bg-red-50">Sair</button></div></div>}
           </div>
-        ) : auth.required ? <Link href="/login" className="rounded-full bg-(--accent) px-3 py-1 text-xs font-medium text-(--accent-contrast)">Entrar com Google</Link> : <span className="rounded-full border border-(--border) bg-white px-3 py-1 text-xs text-(--text-secondary)">Modo local</span>}
+        ) : auth.required ? <Link href="/login" className="rounded-full bg-(--accent) px-3 py-1 text-xs font-medium text-(--accent-contrast)">Entrar</Link> : <span className="rounded-full border border-(--border) bg-white px-3 py-1 text-xs text-(--text-secondary)">Modo local</span>}
       </div>
     </header>
   );
