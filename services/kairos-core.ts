@@ -1,4 +1,5 @@
 import { getOpenAIClient } from "@/lib/openai";
+import { KAIROS_PM_REPORT_POLICY } from "@/lib/kairos-pm-report-policy";
 import { listMessages } from "@/services/chat-store";
 import { searchRelevantMemories, saveMemory } from "@/services/memory-service";
 import { loadCapabilityModulesForMessage, loadCorePrompt } from "@/services/capability-modules";
@@ -425,6 +426,7 @@ export async function generateKairosResponse(params: GenerateParams): Promise<{
 
   const systemPrompt = [
     corePrompt,
+    KAIROS_PM_REPORT_POLICY,
     "Use o contexto de memoria, projeto e modulos internos para gerar resposta contextual.",
     "Mantenha identidade unica do Kairos Core. Evite se apresentar como varios agentes separados.",
     "Quando a pergunta for simples (ex.: quem e voce), responda curto e natural.",
