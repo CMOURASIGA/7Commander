@@ -296,6 +296,7 @@ async function createProjectExtended(input: CreateProjectInput): Promise<Project
   const inserted = await supabase
     .from("projects")
     .insert({
+      organization_id: "43973606-0c05-4934-a057-9f2710899eba",
       user_id: input.userId,
       client_id: input.clientId?.trim() || null,
       nome: input.name.trim(),
@@ -353,7 +354,15 @@ async function createProjectLegacy(input: CreateProjectInput): Promise<ProjectRe
 }
 
 export async function createProject(input: CreateProjectInput): Promise<ProjectRecord> {
+  if (!(await consultMemberRole(input.userId))) {
+    throw new Error("Usuário sem vínculo ativo com a organização.");
+  }
   const supabase = getSupabaseServerClient();
+  if (supabase && input.clientId?.trim()) {
+    const linked = await supabase.from("clients").select("organization_id")
+      .eq("id", input.clientId.trim()).eq("organization_id", "43973606-0c05-4934-a057-9f2710899eba").maybeSingle();
+    if (linked.error || !linked.data) throw new Error("Cliente inválido para a organização selecionada.");
+  }
   if (supabase) {
     try {
       const created = await createProjectExtended(input);
