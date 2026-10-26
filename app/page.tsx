@@ -233,16 +233,17 @@ export default function HomePage() {
       </div>
 
       <div className="grid gap-3 lg:grid-cols-4">
-        <MetricCard label="Projetos" icon="projects" value={counters.totalProjects} sub="Base operacional cadastrada" />
-        <MetricCard label="Ativos" icon="activities" value={counters.activeProjects} sub="Projetos em operação" />
+        <MetricCard href="/projects" label="Projetos" icon="projects" value={counters.totalProjects} sub="Base operacional cadastrada" />
+        <MetricCard href="/projects?filter=active" label="Ativos" icon="activities" value={counters.activeProjects} sub="Projetos em operação" />
         <MetricCard
+          href={project?.id ? `/projects?projectId=${encodeURIComponent(project.id)}&section=risks` : "/projects"}
           label="Em risco"
           icon="risks"
           value={counters.riskyProjects}
           sub={counters.riskyProjects > 0 ? "Projetos com atenção imediata" : "Nenhum projeto em risco"}
           tone={counters.riskyProjects > 0 ? "danger" : "default"}
         />
-        <MetricCard label="Artefatos" icon="knowledge" value={counters.artifacts} sub="Conhecimentos e registros do projeto" />
+        <MetricCard href={project?.id ? `/projects?projectId=${encodeURIComponent(project.id)}&section=knowledge` : "/projects"} label="Artefatos" icon="knowledge" value={counters.artifacts} sub="Conhecimentos e registros do projeto" />
       </div>
 
       <div className="grid gap-3 lg:grid-cols-2">
@@ -356,21 +357,23 @@ function MetricCard({
   value,
   sub,
   tone = "default",
+  href,
 }: {
   label: string;
   icon: "projects" | "activities" | "risks" | "knowledge";
   value: number;
   sub: string;
   tone?: "default" | "danger";
+  href: string;
 }) {
   return (
-    <article className="rounded-xl border border-(--border) bg-(--bg-surface) p-4">
+    <Link href={href} aria-label={`Abrir ${label.toLowerCase()}`} className="block rounded-xl border border-(--border) bg-(--bg-surface) p-4 transition hover:border-(--border-strong) hover:shadow-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-(--accent)">
       <div className="flex items-center justify-between">
         <p className="text-[11px] uppercase tracking-[0.05em] text-(--text-secondary)">{label}</p>
         <DashboardIcon type={icon} />
       </div>
       <p className={["mt-3 text-[28px] font-medium", tone === "danger" ? "text-(--danger)" : "text-(--text-primary)"].join(" ")}>{value}</p>
       <p className="mt-1 text-[13px] text-(--text-tertiary)">{sub}</p>
-    </article>
+    </Link>
   );
 }
