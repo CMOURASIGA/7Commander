@@ -466,12 +466,12 @@ export async function getProjectById(params: {
   if (db) {
     const result = await db.from("projects")
       .select("id, user_id, client_id, nome, descricao, status, tags, contexto, objetivo, stakeholders, maturidade, ativo, created_at, clients(nome)")
-      .eq("id", params.projectId).eq("user_id", params.userId).maybeSingle();
+      .eq("id", params.projectId).eq("user_id", params.userId).eq("organization_id", "43973606-0c05-4934-a057-9f2710899eba").maybeSingle();
     if (!result.error && result.data) return mapProjectRow(result.data);
     if (isSchemaMismatchMessage(result.error?.message)) {
       const legacy = await db.from("projects")
         .select("id, user_id, nome, descricao, status, created_at")
-        .eq("id", params.projectId).eq("user_id", params.userId).maybeSingle();
+        .eq("id", params.projectId).eq("user_id", params.userId).eq("organization_id", "43973606-0c05-4934-a057-9f2710899eba").maybeSingle();
       if (!legacy.error && legacy.data) return mapProjectRow(legacy.data as ProjectRowBase);
     }
   }
