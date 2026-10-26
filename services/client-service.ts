@@ -1,5 +1,5 @@
 import { getSupabaseServerClient } from "@/lib/supabase/server";
-import { getConsultMemberIds } from "@/lib/consult-workspace";
+import { getConsultMemberIds, consultMemberRole, CONSULT_ORG_ID } from "@/lib/consult-workspace";
 import { ClientRecord, ClientStatus, CreateClientInput, UpdateClientInput } from "@/types/client";
 
 const clientStore = new Map<string, ClientRecord[]>();
@@ -59,6 +59,7 @@ export async function listClients(userId: string): Promise<ClientRecord[]> {
       .from("clients")
       .select("id, user_id, nome, descricao, contato, status, created_at, updated_at")
       .in("user_id", ownerIds)
+      .eq("organization_id", CONSULT_ORG_ID)
       .order("updated_at", { ascending: false })
       .limit(300);
     if (!result.error && result.data) {
@@ -77,11 +78,13 @@ export async function getClientById(params: {
 }
 
 export async function createClient(input: CreateClientInput): Promise<ClientRecord> {
+  if (!(await consultMemberRole(input.userId))) throw new Error("Usuário sem vínculo ativo com a organização.");
   const supabase = getSupabaseServerClient();
   if (supabase) {
     const inserted = await supabase
       .from("clients")
       .insert({
+        organization_id: CONSULT_ORG_ID,
         user_id: input.userId,
         nome: input.name.trim(),
         descricao: input.description?.trim() || null,
@@ -128,6 +131,7 @@ export async function updateClient(input: UpdateClientInput): Promise<ClientReco
       .update(patch)
       .eq("id", input.clientId)
 .eq("user_id", current.userId)
+      .eq("organization_id", CONSULT_ORG_ID)
       .select("id, user_id, nome, descricao, contato, status, created_at, updated_at")
       .single();
 
