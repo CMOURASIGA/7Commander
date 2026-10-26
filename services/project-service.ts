@@ -460,6 +460,9 @@ export async function getProjectById(params: {
   userEmail?: string | null;
   projectId: string;
 }): Promise<ProjectRecord | null> {
+  // Until the multi-tenant rollout is complete, require active Consult membership
+  // even for directly owned projects: ownership cannot bypass tenant access.
+  if (!(await consultMemberRole(params.userId))) return null;
   // Fast path for owner-owned projects: do not hydrate every accessible project on
   // each task mutation. Shared projects retain the existing authorization path.
   const db = getSupabaseServerClient();
