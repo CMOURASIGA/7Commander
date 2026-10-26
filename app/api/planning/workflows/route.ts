@@ -1,7 +1,8 @@
 import {NextRequest,NextResponse} from "next/server";
 import {requireApiAuth} from "@/lib/api-auth";
 import {getSupabaseServerClient} from "@/lib/supabase/server";
-import {CONSULT_ORG_ID,consultMemberRole} from "@/lib/consult-workspace";
+import {consultMemberRole} from "@/lib/consult-workspace";
+import { TENANT_SCHEMA_READY, getTenantRole, requireEffectiveTenant } from "@/lib/tenant-runtime";
 import {getProjectAccessRole} from "@/services/project-service";
 export const dynamic="force-dynamic";
 const next:Record<string,string[]>={
@@ -18,17 +19,17 @@ function fail(error:string,status=400){return NextResponse.json({error},{status}
 async function access(req:NextRequest,projectId:string){
  const auth=await requireApiAuth(req);if(!auth.ok)return {response:auth.response};
  if(auth.context.authMode!=="supabase")return {response:fail("JWT requerido",403)};
- const role=await consultMemberRole(auth.context.userId);if(!role)return {response:fail("Sem vínculo na organização",403)};
+ const role=TENANT_SCHEMA_READY ? await getTenantRole(auth.context.userId) : await consultMemberRole(auth.context.userId);if(!role)return {response:fail("Sem vínculo na organização",403)};
  const projectRole=await getProjectAccessRole({userId:auth.context.userId,userEmail:auth.context.userEmail,projectId});
  if(!["owner","editor"].includes(projectRole))return {response:fail("Sem acesso editorial a este projeto",403)};
  const db=getSupabaseServerClient();if(!db)return {response:fail("Banco indisponível",503)};
- return {db,user:auth.context,role};
+ return {db,user:auth.context,role,organizationId:await requireEffectiveTenant(auth.context.userId)};
 }
 export async function GET(req:NextRequest){
  const projectId=req.nextUrl.searchParams.get("projectId")||"";if(!projectId)return fail("Projeto obrigatório");
  const c=await access(req,projectId);if("response"in c)return c.response!;
  const result=await c.db!.from("commander_analysis_runs").select("id,project_id,status,checkpoint,baseline_version,input_fingerprint,updated_at")
- .eq("project_id",projectId).eq("organization_id",CONSULT_ORG_ID).order("updated_at",{ascending:false}).limit(30);
+ .eq("project_id",projectId).eq("organization_id",c.organizationId!).order("updated_at",{ascending:false}).limit(30);
  if(result.error)return fail("Falha na consulta. Verifique migration 050.",503);
  return NextResponse.json({data:result.data??[]},{headers:{"Cache-Control":"no-store"}});
 }
@@ -38,11 +39,11 @@ export async function POST(req:NextRequest){
  const input=String(body.fingerprint||"");
  if(!/^[a-zA-Z0-9:_-]{10,120}$/.test(input))return fail("Identificador estável de entrada inválido");
  const existing=await c.db!.from("commander_analysis_runs").select("*").eq("project_id",body.projectId)
- .eq("organization_id",CONSULT_ORG_ID).eq("input_fingerprint",input).maybeSingle();
+ .eq("organization_id",c.organizationId!).eq("input_fingerprint",input).maybeSingle();
  if(existing.error)return fail("Erro ao conferir idempotência",503);
  if(existing.data)return NextResponse.json({data:existing.data,alreadyExists:true});
  const created=await c.db!.from("commander_analysis_runs").insert({
- organization_id:CONSULT_ORG_ID,project_id:body.projectId,baseline_version:body.baselineVersion,
+ organization_id:c.organizationId!,project_id:body.projectId,baseline_version:body.baselineVersion,
  input_fingerprint:input,status:"iniciada",created_by:c.user!.userId,updated_by:c.user!.userId
  }).select("*").single();
  if(created.error)return fail("Não foi possível iniciar análise. Pode existir outra execução para este identificador.",409);
@@ -53,7 +54,7 @@ export async function PATCH(req:NextRequest){
  if(!body?.id||!body?.projectId||typeof body.status!=="string")return fail("Execução, projeto e estado obrigatórios");
  const c=await access(req,body.projectId);if("response"in c)return c.response!;
  const current=await c.db!.from("commander_analysis_runs").select("*")
- .eq("id",body.id).eq("project_id",body.projectId).eq("organization_id",CONSULT_ORG_ID).maybeSingle();
+ .eq("id",body.id).eq("project_id",body.projectId).eq("organization_id",c.organizationId!).maybeSingle();
  if(current.error||!current.data)return fail("Execução não encontrada",404);
  if(!next[current.data.status]?.includes(body.status))return fail("Transição de etapa não permitida",409);
  if(body.status==="aprovada"&&!["owner","admin","manager"].includes(c.role!))return fail("Aprovação exige gestão",403);
