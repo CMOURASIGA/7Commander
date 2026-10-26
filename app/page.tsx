@@ -140,7 +140,7 @@ export default function HomePage() {
         });
         const projectsPayload = await projectsResponse.json().catch(() => ({}));
         if (projectsResponse.ok) {
-          setProjects((projectsPayload?.data ?? []) as ProjectSummary[]);
+          setProjects(((projectsPayload?.data ?? []) as ProjectSummary[]).filter((item) => item.status !== "arquivado"));
         }
 
         if (!activeProject?.id) {
