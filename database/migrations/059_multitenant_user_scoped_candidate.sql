@@ -66,8 +66,15 @@ DECLARE t text;
 BEGIN
  FOREACH t IN ARRAY ARRAY['memories','agent_runs','integration_executions','integration_logs'] LOOP
  EXECUTE format('ALTER TABLE public.%I ENABLE ROW LEVEL SECURITY',t);
+ EXECUTE format('DROP POLICY IF EXISTS tenant_member_access ON public.%I',t);
  EXECUTE format('DROP POLICY IF EXISTS tenant_owner_read_v2 ON public.%I',t);
  EXECUTE format('CREATE POLICY tenant_owner_read_v2 ON public.%I FOR SELECT TO authenticated USING (user_id=(select auth.uid()) AND public.is_organization_member(organization_id))',t);
  END LOOP;
 END $$;
+-- Legacy Kairos profile remains user-global until its service is replaced.
+-- Restrict direct Data API access to the signed-in owner, not a bogus org_id.
+DROP POLICY IF EXISTS tenant_member_access ON public.kairos_profiles;
+DROP POLICY IF EXISTS kairos_legacy_owner_only ON public.kairos_profiles;
+CREATE POLICY kairos_legacy_owner_only ON public.kairos_profiles FOR ALL TO authenticated
+ USING (user_id=(select auth.uid())) WITH CHECK (user_id=(select auth.uid()));
 COMMIT;
