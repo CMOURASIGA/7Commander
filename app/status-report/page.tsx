@@ -60,7 +60,7 @@ export default function StatusReportPage() {
  const cards=useMemo(()=>board?.columns.flatMap(x=>x.cards)||[],[board]);
  const issueDate=new Date().toLocaleDateString("pt-BR");
  const documentHtml=project&&board?reportDocument(project,cards,risks,decisions,period,issueDate):"";
- function download(){if(!documentHtml||!project)return;const blob=new Blob([documentHtml],{type:"text/html;charset=utf-8"});const url=URL.createObjectURL(blob);const link=document.createElement("a");link.href=url;link.download=`status-report-${project.id}-${new Date().toISOString().slice(0,10)}.html`;link.click();URL.revokeObjectURL(url);}
+ async function download(){if(!documentHtml||!project)return;let html=documentHtml;try {const image=await fetch("/api/status-report/logo",{headers:getClientAuthHeaders()});if(!image.ok)throw Error("Não foi possível incorporar a logo.");const {dataUri}=await image.json();if(typeof dataUri!=="string"||!dataUri.startsWith("data:image/"))throw Error("Logo indisponível.");html=html.replace(BRAND_LOGO_URL,dataUri);}catch{setStatus("Falha ao incorporar a logo. Exportação interrompida para evitar documento incompleto.");return;}const blob=new Blob([html],{type:"text/html;charset=utf-8"});const url=URL.createObjectURL(blob);const link=document.createElement("a");link.href=url;link.download=`status-report-${project.id}-${new Date().toISOString().slice(0,10)}.html`;link.click();URL.revokeObjectURL(url);}
  return <main className="space-y-4">
  <header className="flex flex-wrap items-center justify-between gap-3"><div><p className="text-xs uppercase tracking-wider text-(--text-secondary)">7Commander · Kairos</p><h1 className="text-2xl font-semibold">Status Report Executivo</h1><p className="text-sm text-(--text-secondary)">Documento institucional navegável e exportável para clientes.</p></div><Link className="rounded-lg border border-(--border) px-3 py-2 text-sm" href="/projects">Voltar aos projetos</Link></header>
  <section className="grid gap-3 rounded-xl border border-(--border) bg-(--bg-surface) p-4 md:grid-cols-[2fr_1fr_auto]">
@@ -69,6 +69,6 @@ export default function StatusReportPage() {
  <button type="button" onClick={download} disabled={!board||busy} className="self-end rounded-lg bg-(--accent) px-4 py-2 text-sm text-white disabled:opacity-50">Baixar HTML</button>
  </section><p role="status" className="text-sm text-(--text-secondary)">{busy?"Consolidando dados...":status}</p>
  {documentHtml?<iframe title="Prévia do Status Report" srcDoc={documentHtml} sandbox="allow-scripts" className="h-[900px] w-full rounded-xl border border-(--border) bg-white"/>:<div className="rounded-xl border border-(--border) p-10 text-center text-sm">Nenhuma prévia disponível.</div>}
- <p className="text-xs text-(--text-secondary)">Ao enviar o HTML ao cliente, revise as informações, pois o arquivo conterá um retrato dos registros autorizados. A logo é carregada do endereço público da marca e requer internet.</p>
+ <p className="text-xs text-(--text-secondary)">Ao enviar o HTML ao cliente, revise as informações, pois o arquivo conterá um retrato dos registros autorizados. A logo é incorporada ao HTML durante o download, permitindo abertura offline.</p>
  </main>
 }
