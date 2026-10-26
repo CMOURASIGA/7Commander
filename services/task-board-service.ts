@@ -1,5 +1,6 @@
 import { getSupabaseServerClient } from "@/lib/supabase/server";
 import { CONSULT_ORG_ID, resolveConsultAssignee } from "@/lib/consult-workspace";
+import {TENANT_SCHEMA_READY,requireEffectiveTenant} from "@/lib/tenant-runtime";
 import { getProjectAccessRole } from "@/services/project-service";
 
 type ColumnKey = "todo" | "doing" | "done";
@@ -644,7 +645,7 @@ export async function updateTaskCard(params: {
   if (params.responsible?.trim()) {
     const requested = params.responsible.trim().toLowerCase();
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(requested)) return null;
-    const assignee = await resolveConsultAssignee(requested);
+    const assignee = await resolveConsultAssignee(requested,TENANT_SCHEMA_READY ? await requireEffectiveTenant(params.userId):CONSULT_ORG_ID);
     if (!assignee) return null;
     assigneeId = assignee.userId;
     assigneeEmail = requested;
