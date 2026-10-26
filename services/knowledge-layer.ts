@@ -1,4 +1,5 @@
 import { getSupabaseServerClient } from "@/lib/supabase/server";
+import { TENANT_SCHEMA_READY, requireEffectiveTenant } from "@/lib/tenant-runtime";
 import { generateTextEmbedding, toVectorLiteral } from "@/services/embedding-service";
 import { deleteMemory, listMemories, saveMemory } from "@/services/memory-service";
 import { KnowledgeRecord } from "@/types/knowledge";
@@ -170,7 +171,12 @@ export async function saveKnowledge(input: {
   source?: string;
   content: string;
 }): Promise<KnowledgeRecord> {
+  const organizationId = TENANT_SCHEMA_READY ? await requireEffectiveTenant(input.userId) : null;
   const supabase = getSupabaseServerClient();
+  if(organizationId && input.projectId){
+    const related=await supabase?.from("projects").select("id").eq("id",input.projectId).eq("organization_id",organizationId).maybeSingle();
+    if(!related?.data)throw new Error("Knowledge project is not in active organization");
+  }
   let lastError: string | null = null;
   const category = sanitizeForDatabase(input.category?.trim() || "geral") || "geral";
   const source = sanitizeForDatabase(input.source?.trim() || "manual") || "manual";
@@ -188,6 +194,7 @@ export async function saveKnowledge(input: {
         .insert({
           user_id: input.userId,
           project_id: input.projectId ?? null,
+          ...(organizationId ? {organization_id:organizationId} : {}),
           titulo: title,
           categoria: category,
           fonte: source,
@@ -205,6 +212,7 @@ export async function saveKnowledge(input: {
               .from("knowledge_chunks")
               .insert({
                 knowledge_id: base.id,
+                ...(organizationId ? {organization_id:organizationId} : {}),
                 user_id: input.userId,
                 project_id: input.projectId ?? null,
                 chunk_index: 0,
@@ -216,6 +224,7 @@ export async function saveKnowledge(input: {
             if (!chunk.error && chunk.data?.id) {
               await supabase.from("knowledge_embeddings").insert({
                 chunk_id: chunk.data.id,
+                ...(organizationId ? {organization_id:organizationId} : {}),
                 user_id: input.userId,
                 project_id: input.projectId ?? null,
                 embedding: toVectorLiteral(embedding),
@@ -230,7 +239,7 @@ export async function saveKnowledge(input: {
       }
       if (inserted.error) {
         lastError = inserted.error.message;
-        if (isKnowledgeSchemaMissing(inserted.error.message)) {
+        if (!TENANT_SCHEMA_READY && isKnowledgeSchemaMissing(inserted.error.message)) {
           return saveKnowledgeInLegacyMemory({
             userId: input.userId,
             projectId: input.projectId ?? null,
@@ -246,7 +255,7 @@ export async function saveKnowledge(input: {
     }
   }
 
-  if (ALLOW_LOCAL_FALLBACK) {
+  if (ALLOW_LOCAL_FALLBACK && !TENANT_SCHEMA_READY) {
     const local: KnowledgeRecord = {
       id: crypto.randomUUID(),
       userId: input.userId,
@@ -277,6 +286,7 @@ export async function saveKnowledge(input: {
 }
 
 export async function listKnowledge(userId: string, projectId?: string | null): Promise<KnowledgeRecord[]> {
+  const organizationId = TENANT_SCHEMA_READY ? await requireEffectiveTenant(userId) : null;
   const supabase = getSupabaseServerClient();
   if (supabase) {
     try {
@@ -287,15 +297,14 @@ export async function listKnowledge(userId: string, projectId?: string | null): 
         .order("created_at", { ascending: false })
         .limit(200);
 
-      if (projectId) {
-        query = query.eq("project_id", projectId);
-      }
+      if (projectId) query = query.eq("project_id", projectId);
+      if (organizationId) query = query.eq("organization_id", organizationId);
 
       const result = await query;
       if (!result.error && result.data) {
         return result.data.map(mapKnowledgeRow);
       }
-      if (isKnowledgeSchemaMissing(result.error?.message)) {
+      if (!TENANT_SCHEMA_READY && isKnowledgeSchemaMissing(result.error?.message)) {
         const memories = await listMemories(userId);
         return memories
           .map((memory) => {
@@ -321,22 +330,21 @@ export async function listKnowledge(userId: string, projectId?: string | null): 
     }
   }
 
-  const local = ALLOW_LOCAL_FALLBACK ? knowledgeStore.get(userId) ?? [] : [];
+  const local = ALLOW_LOCAL_FALLBACK && !TENANT_SCHEMA_READY ? knowledgeStore.get(userId) ?? [] : [];
   return projectId ? local.filter((item) => item.projectId === projectId) : local;
 }
 
 export async function deleteKnowledge(params: { userId: string; knowledgeId: string }): Promise<boolean> {
+  const organizationId = TENANT_SCHEMA_READY ? await requireEffectiveTenant(params.userId) : null;
   const supabase = getSupabaseServerClient();
   let lastError: string | null = null;
 
   if (supabase) {
     try {
-      const baseRow = await supabase
-        .from("knowledge_base")
-        .select("id")
-        .eq("id", params.knowledgeId)
-        .eq("user_id", params.userId)
-        .single();
+      let lookup = supabase.from("knowledge_base").select("id")
+        .eq("id", params.knowledgeId).eq("user_id", params.userId);
+      if(organizationId)lookup=lookup.eq("organization_id",organizationId);
+      const baseRow=await lookup.single();
 
       if (!baseRow.error && baseRow.data?.id) {
         const chunkIdsResult = await supabase
@@ -356,7 +364,7 @@ export async function deleteKnowledge(params: { userId: string; knowledgeId: str
         lastError = deleted.error.message;
       } else if (baseRow.error) {
         lastError = baseRow.error.message;
-        if (isKnowledgeSchemaMissing(baseRow.error.message)) {
+        if (!TENANT_SCHEMA_READY && isKnowledgeSchemaMissing(baseRow.error.message)) {
           return deleteMemory({ userId: params.userId, memoryId: params.knowledgeId });
         }
       }
@@ -364,7 +372,7 @@ export async function deleteKnowledge(params: { userId: string; knowledgeId: str
       // Local fallback below.
     }
   }
-  if (ALLOW_LOCAL_FALLBACK) {
+  if (ALLOW_LOCAL_FALLBACK && !TENANT_SCHEMA_READY) {
     const current = knowledgeStore.get(params.userId) ?? [];
     const next = current.filter((item) => item.id !== params.knowledgeId);
     knowledgeStore.set(params.userId, next);
