@@ -1,5 +1,5 @@
 import { getSupabaseServerClient } from "@/lib/supabase/server";
-import { getConsultMemberIds, CONSULT_ORG_ID } from "@/lib/consult-workspace";
+import { getConsultMemberIds } from "@/lib/consult-workspace";
 import { getProjectById } from "@/services/project-service";
 import { CreateRiskInput, RiskRecord, RiskStatus } from "@/types/risk";
 
@@ -81,7 +81,6 @@ export async function listRisksByProject(params: {
       .select("id, user_id, project_id, decision_id, task_id, titulo, impacto, probabilidade, mitigacao, responsavel, status, created_at, updated_at")
       .in("user_id", memberIds)
       .eq("project_id", params.projectId)
-      .eq("organization_id", CONSULT_ORG_ID)
       .order("created_at", { ascending: false })
       .limit(200);
     if (!result.error && result.data) {
