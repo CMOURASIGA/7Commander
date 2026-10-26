@@ -30,3 +30,20 @@ export async function requireEffectiveTenant(userId: string): Promise<string> {
   if (!id) throw new Error("Tenant context unavailable or unauthorized");
   return id;
 }
+
+/** Tenant-local member IDs; included organization UUID supports legacy owner rows. */
+export async function getTenantMemberIds(userId:string):Promise<string[]> {
+ const organizationId=await requireEffectiveTenant(userId);
+ const db=getSupabaseServerClient();
+ if(!db)throw new Error("Database unavailable");
+ const members=await db.from("organization_members").select("user_id")
+   .eq("organization_id",organizationId).eq("status","active");
+ if(members.error||!members.data)throw new Error("Tenant members unavailable");
+ return [...new Set([userId,organizationId,...members.data.map(m=>m.user_id)])];
+}
+
+export async function getTenantRole(userId:string):Promise<"owner"|"admin"|"manager"|"member"|null>{
+ const organizationId=await getEffectiveTenantForUser(userId);
+ if(!organizationId)return null;
+ return (await resolveTenantMembership(userId,organizationId))?.role??null;
+}
