@@ -220,8 +220,13 @@ export default function ProjectsPage() {
       const payload = await response.json();
       if (!response.ok) throw new Error(payload?.error || "Erro ao carregar projetos.");
       const list = (payload?.data ?? []) as ProjectSummary[];
-      setProjects(list);
-      setActiveProjectId(current => current && list.some(p=>p.id===current) ? current : (payload?.meta?.activeProjectId ?? null));
+      const params = new URLSearchParams(window.location.search);
+      const visible = params.get("filter") === "active" ? list.filter(item => item.status === "ativo") : list;
+      setProjects(visible);
+      const requested = params.get("projectId");
+      setActiveProjectId(current => requested && visible.some(p => p.id === requested) ? requested : current && visible.some(p=>p.id===current) ? current : (payload?.meta?.activeProjectId ?? visible[0]?.id ?? null));
+      if (params.get("section") === "risks") setOpenRoutine("risks");
+      if (params.get("section") === "knowledge") setOpenRoutine("knowledge");
     } catch(error) {
       setProjectStatus(error instanceof Error ? error.message : "Não foi possível atualizar a lista de projetos.");
     }
