@@ -122,6 +122,11 @@ export async function requireApiAuth(request: NextRequest): Promise<{
     }
   }
 
+  // Tenant mode never accepts legacy API-key identities or caller-provided UUIDs.
+  if (TENANT_SCHEMA_READY) {
+    return { ok:false, response:NextResponse.json({error:"Autenticação Supabase obrigatória em ambiente multiempresa."},{status:401}) };
+  }
+
   if (authRequired) {
     if (configuredApiKey && requestApiKey === configuredApiKey) {
       const requestedUserId = normalizeHeaderValue(request.headers.get(USER_ID_HEADER));
