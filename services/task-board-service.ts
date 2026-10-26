@@ -469,9 +469,7 @@ export async function createTaskCard(params: {
     .single();
 
   if (column.error || !column.data) {
-    if (isSchemaMissingMessage(column.error?.message)) {
-      return params.sourceRef ? null : createTaskCardLegacy(params);
-    }
+    console.error("[createTaskCard] Kanban column unavailable", column.error?.message ?? targetColumnKey);
     return null;
   }
 
