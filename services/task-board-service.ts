@@ -697,9 +697,17 @@ export async function updateTaskCard(params: {
       if (linked.error) console.error("[task assignment] could not sync assignment",linked.error.code);
     }
   }
-  await normalizeColumnPositions(task.board_id, task.column_id);
-  if (finalColumnId !== task.column_id) {
-    await normalizeColumnPositions(task.board_id, finalColumnId);
+  // Reindex only when a card changes columns or position; assigning a responsible
+  // must not traverse and rewrite unrelated cards.
+  if (params.columnId || params.position !== undefined) {
+    if (finalColumnId !== task.column_id) {
+      await Promise.all([
+        normalizeColumnPositions(task.board_id, task.column_id),
+        normalizeColumnPositions(task.board_id, finalColumnId),
+      ]);
+    } else {
+      await normalizeColumnPositions(task.board_id, finalColumnId);
+    }
   }
   const card = mapTaskRowToCard(updated.data as TaskRow, finalColumnKey);
 
