@@ -253,6 +253,7 @@ export default function ActivitiesPage() {
       setNewTaskTitle("");
       setNewTaskDescription("");
       await loadBoard(activeProjectId);
+      setStatus("Atividade criada com sucesso.");
     } catch (error) {
       setStatus(error instanceof Error ? error.message : "Erro ao criar atividade.");
     } finally {
