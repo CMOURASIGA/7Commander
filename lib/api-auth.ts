@@ -3,6 +3,7 @@ import { createClient } from "@supabase/supabase-js";
 import { getDefaultUserId } from "@/lib/user-context";
 import { getPublicEnv, isAuthRequired } from "@/lib/env";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
+import { CONSULT_ORG_ID } from "@/lib/consult-workspace";
 
 const USER_ID_HEADER = "x-kairos-user-id";
 const API_KEY_HEADER = "x-kairos-api-key";
@@ -82,6 +83,14 @@ export async function requireApiAuth(request: NextRequest): Promise<{
         const access = await db.from("internal_user_access").select("active,role").eq("user_id", userId).maybeSingle();
         if (admin.error || access.error) return { ok: false, response: NextResponse.json({ error: "Verificacao de acesso indisponivel" }, { status: 503 }) };
         if (!admin.data && !access.data?.active) return { ok: false, response: NextResponse.json({ error: "Usuario nao autorizado ou suspenso" }, { status: 403 }) };
+        // Tenant rollout guard: legacy APIs are Consult-only. A foreign tenant
+        // selection MUST NOT reach those routes before tenant-scoped services land.
+        // Organization discovery/selection routes only validate membership.
+        const requestedOrg = normalizeHeaderValue(request.headers.get("x-7commander-organization-id"));
+        const isOrganizationRoute = request.nextUrl.pathname.startsWith("/api/organizations/");
+        if (requestedOrg && requestedOrg !== CONSULT_ORG_ID && !isOrganizationRoute) {
+          return { ok: false, response: NextResponse.json({ error: "Operação multempresa não habilitada nesta versão." }, { status: 403 }) };
+        }
         const isPrivileged = Boolean(admin.data);
         const method = request.method.toUpperCase();
         const path = request.nextUrl.pathname;
