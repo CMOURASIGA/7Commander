@@ -457,7 +457,7 @@ export async function createTaskCard(params: {
     projectId: params.projectId,
   });
   if (!board) {
-    return params.sourceRef ? null : createTaskCardLegacy(params);
+    return null;
   }
 
   const targetColumnKey = params.columnKey ?? "todo";
@@ -490,7 +490,7 @@ export async function createTaskCard(params: {
     .insert({
       user_id: params.userId,
       project_id: params.projectId,
-      source_ref: params.sourceRef || null,
+      ...(params.sourceRef ? { source_ref: params.sourceRef } : {}),
       board_id: board.id,
       column_id: column.data.id,
       titulo: params.title.trim().slice(0, 180),
@@ -505,9 +505,7 @@ export async function createTaskCard(params: {
     .single();
 
   if (inserted.error || !inserted.data) {
-    if (isSchemaMissingMessage(inserted.error?.message)) {
-      return params.sourceRef ? null : createTaskCardLegacy(params);
-    }
+    if (inserted.error) console.error("[createTaskCard] insert failed", inserted.error.message);
     return null;
   }
   const card = mapTaskRowToCard(inserted.data as TaskRow, targetColumnKey);
