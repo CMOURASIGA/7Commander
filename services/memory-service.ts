@@ -1,4 +1,5 @@
 import { getSupabaseServerClient } from "@/lib/supabase/server";
+import { TENANT_SCHEMA_READY, requireEffectiveTenant } from "@/lib/tenant-runtime";
 import { generateTextEmbedding, toVectorLiteral } from "@/services/embedding-service";
 import { getOpenAIClient } from "@/lib/openai";
 import {
@@ -190,6 +191,7 @@ export async function saveMemory(
   input: Omit<MemoryRecord, "id" | "createdAt">,
   options?: { skipCompression?: boolean },
 ): Promise<MemoryRecord> {
+  const organizationId = TENANT_SCHEMA_READY ? await requireEffectiveTenant(input.userId) : null;
   const supabase = getSupabaseServerClient();
   const embedding = await generateTextEmbedding(input.content);
   let savedRecord: MemoryRecord | null = null;
@@ -202,6 +204,7 @@ export async function saveMemory(
         prioridade: MemoryPriority;
         conteudo: string;
         embedding?: string;
+        organization_id?: string;
       } = {
         user_id: input.userId,
         tipo: input.type,
@@ -209,6 +212,7 @@ export async function saveMemory(
         conteudo: input.content,
       };
 
+      if (organizationId) insertPayload.organization_id = organizationId;
       if (embedding?.length) {
         insertPayload.embedding = toVectorLiteral(embedding);
       }
@@ -228,6 +232,7 @@ export async function saveMemory(
   }
 
   if (!savedRecord) {
+    if (TENANT_SCHEMA_READY) throw new Error("Cannot save tenant memory without scoped database persistence");
     savedRecord = {
       ...input,
       id: crypto.randomUUID(),
@@ -251,15 +256,16 @@ export async function saveMemory(
 }
 
 export async function listMemories(userId: string): Promise<MemoryRecord[]> {
+  const organizationId = TENANT_SCHEMA_READY ? await requireEffectiveTenant(userId) : null;
   const supabase = getSupabaseServerClient();
   if (supabase) {
     try {
-      const result = await supabase
+      let query = supabase
         .from("memories")
         .select("id, user_id, tipo, prioridade, conteudo, created_at")
-        .eq("user_id", userId)
-        .order("created_at", { ascending: false })
-        .limit(400);
+        .eq("user_id", userId);
+      if (organizationId) query = query.eq("organization_id", organizationId);
+      const result = await query.order("created_at", { ascending: false }).limit(400);
 
       if (!result.error && result.data) {
         return result.data.map(mapMemoryRow);
@@ -269,7 +275,7 @@ export async function listMemories(userId: string): Promise<MemoryRecord[]> {
     }
   }
 
-  return memoryStore.get(userId) ?? [];
+  return TENANT_SCHEMA_READY ? [] : (memoryStore.get(userId) ?? []);
 }
 
 async function semanticSearchMemories(
@@ -280,6 +286,9 @@ async function semanticSearchMemories(
   const supabase = getSupabaseServerClient();
   if (!supabase) return null;
 
+  // The legacy vector RPC is user-scoped but not organization-scoped.
+  // Disable it after multi-tenant activation; use tenant-filtered reads instead.
+  if (TENANT_SCHEMA_READY) return null;
   const embedding = await generateTextEmbedding(query);
   if (!embedding?.length) return null;
 
