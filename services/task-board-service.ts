@@ -896,12 +896,9 @@ export async function getUserTaskOperationalSnapshot(userId: string): Promise<{
     return { todo: 0, doing: 0, done: 0, openTitles: [] };
   }
 
-  const result = await supabase
-    .from("tasks")
-    .select("titulo, status")
-    .eq("user_id", userId)
-    .order("updated_at", { ascending: false })
-    .limit(300);
+  let query=supabase.from("tasks").select("titulo, status").eq("user_id",userId);
+  if(TENANT_SCHEMA_READY)query=query.eq("organization_id",await requireEffectiveTenant(userId));
+  const result=await query.order("updated_at",{ascending:false}).limit(300);
   if (result.error || !result.data) {
     return { todo: 0, doing: 0, done: 0, openTitles: [] };
   }
