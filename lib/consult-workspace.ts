@@ -17,12 +17,12 @@ export async function consultMemberRole(userId:string): Promise<"owner"|"admin"|
 }
 
 /** Resolves an assignee only when their Auth account is an active Consult Services member. */
-export async function resolveConsultAssignee(email: string): Promise<{ userId: string; email: string } | null> {
+export async function resolveConsultAssignee(email: string, organizationId: string = CONSULT_ORG_ID): Promise<{ userId: string; email: string } | null> {
   const db = getSupabaseServerClient();
   const normalized = email.trim().toLowerCase();
   if (!db || !normalized) return null;
   const members = await db.from("organization_members").select("user_id")
-    .eq("organization_id", CONSULT_ORG_ID).eq("status", "active");
+    .eq("organization_id", organizationId).eq("status", "active");
   if (members.error || !members.data) return null;
   for (const member of members.data) {
     const account = await db.auth.admin.getUserById(member.user_id);
