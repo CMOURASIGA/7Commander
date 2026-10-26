@@ -21,6 +21,16 @@ BEGIN
     OR coalesce(with_check,'') LIKE '%is_organization_member(user_id)%')
  ) THEN RAISE EXCEPTION 'Found legacy policy treating user_id as organization_id'; END IF;
 END $$;
+-- Direct write access is prohibited: Next.js APIs enforce project roles before using service_role.
+DO $
+DECLARE t text;
+BEGIN
+ FOREACH t IN ARRAY ARRAY['projects','clients','tasks','risks','decisions','knowledge_base','conversations'] LOOP
+ IF EXISTS (SELECT 1 FROM pg_policies WHERE schemaname='public' AND tablename=t
+            AND cmd IN ('ALL','INSERT','UPDATE','DELETE'))
+ THEN RAISE EXCEPTION '% exposes direct write policy; expected server-only mutations',t; END IF;
+ END LOOP;
+END $;
 -- These are structural assertions. Still required:
 -- 2 synthetic users / 2 organizations and tests for forged IDs,
 -- direct PostgREST, API service-role, project cards, voice, memory and export.
