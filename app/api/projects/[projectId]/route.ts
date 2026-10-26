@@ -51,6 +51,7 @@ export async function PATCH(
   request: NextRequest,
   context: { params: Promise<{ projectId: string }> },
 ) {
+  const startedAt = Date.now();
   try {
     const auth = await requireApiAuth(request);
     if (!auth.ok) return auth.response;
@@ -85,6 +86,7 @@ export async function PATCH(
       );
     }
 
+    const updateStartedAt = Date.now();
     const updated = await updateProject({
       userId: auth.context.userId,
       userEmail: auth.context.userEmail,
@@ -106,6 +108,7 @@ export async function PATCH(
       return NextResponse.json({ error: "Projeto nao encontrado para atualizacao." }, { status: 404 });
     }
 
+    console.info("[/api/projects/:id] PATCH latency", { totalMs: Date.now() - startedAt, updateMs: Date.now() - updateStartedAt });
     return NextResponse.json({ data: updated });
   } catch (error) {
     console.error("[/api/projects/[projectId]] PATCH error", error);

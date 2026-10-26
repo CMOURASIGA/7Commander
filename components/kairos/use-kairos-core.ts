@@ -545,6 +545,9 @@ export function useKairosCore(options?: UseKairosCoreOptions) {
     setVoiceState("processando");
     addSessionEvent(setSessionMemory, source === "voice" ? "Mensagem de voz transcrita e adicionada ao histórico." : "Mensagem enviada ao histórico.");
 
+    const responseWarning = window.setTimeout(() => {
+      showToast("O Kairos ainda está processando. Aguarde a resposta sem reenviar a solicitação.", "info");
+    }, 20000);
     try {
       const response = await fetch("/api/chat", {
         method: "POST",
@@ -597,6 +600,7 @@ export function useKairosCore(options?: UseKairosCoreOptions) {
       }
       addSessionEvent(setSessionMemory, "Falha ao processar a interação atual.");
     } finally {
+      window.clearTimeout(responseWarning);
       setLoading(false);
       setIsBusy(false);
     }

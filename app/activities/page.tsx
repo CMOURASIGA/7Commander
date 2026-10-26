@@ -203,7 +203,8 @@ export default function ActivitiesPage() {
       dueDate: detail.card.dueDate ? detail.card.dueDate.slice(0, 10) : "",
       responsible: detail.card.responsible ?? "",
     });
-    if (activeProjectId) await loadBoard(activeProjectId);
+    window.dispatchEvent(new Event("7commander:tasks-changed"));
+    if (activeProjectId) void loadBoard(activeProjectId);
   }
 
   useEffect(() => {
@@ -252,7 +253,8 @@ export default function ActivitiesPage() {
       if (!response.ok) throw new Error(payload?.error || "Erro ao criar atividade.");
       setNewTaskTitle("");
       setNewTaskDescription("");
-      await loadBoard(activeProjectId);
+      setStatus("Atividade criada com sucesso.");
+      void loadBoard(activeProjectId);
     } catch (error) {
       setStatus(error instanceof Error ? error.message : "Erro ao criar atividade.");
     } finally {
@@ -273,8 +275,9 @@ export default function ActivitiesPage() {
       });
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(payload?.error || "Falha ao mover atividade.");
-      if (activeProjectId) await loadBoard(activeProjectId);
-      if (selectedTaskId === taskId) await loadTaskDetail(taskId);
+      window.dispatchEvent(new CustomEvent("7commander:tasks-changed", { detail: { taskId, completed: Boolean(payload?.data?.columnKey === "done") || Boolean(payload?.data?.status === "concluida") || board?.columns.some(column => column.id === targetColumnId && column.key === "done") } }));
+      if (activeProjectId) void loadBoard(activeProjectId);
+      if (selectedTaskId === taskId) void loadTaskDetail(taskId);
     } catch (error) {
       setStatus(error instanceof Error ? error.message : "Falha ao mover atividade.");
     }

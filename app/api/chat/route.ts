@@ -27,6 +27,7 @@ function validatePayload(payload: ChatPayload): string | null {
 }
 
 export async function POST(request: NextRequest) {
+  const requestStartedAt = Date.now();
   try {
     const auth = await requireApiAuth(request);
     if (!auth.ok) return auth.response;
@@ -57,6 +58,7 @@ export async function POST(request: NextRequest) {
       projectName: project.name,
     });
 
+    const generationStartedAt = Date.now();
     const result = await generateKairosResponse({
       userId,
       userEmail: auth.context.userEmail,
@@ -66,6 +68,7 @@ export async function POST(request: NextRequest) {
       projectId: project.id,
     });
 
+    const generationDurationMs = Date.now() - generationStartedAt;
     const assistantMessage = await appendMessage({
       userId,
       conversationId: body.conversationId,
@@ -76,6 +79,7 @@ export async function POST(request: NextRequest) {
       projectName: project.name,
     });
 
+    console.info("[/api/chat] latency", { totalMs: Date.now() - requestStartedAt, generationMs: generationDurationMs, projectId: project.id });
     return NextResponse.json({
       data: {
         conversationId: body.conversationId,

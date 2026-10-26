@@ -457,7 +457,7 @@ export async function createTaskCard(params: {
     projectId: params.projectId,
   });
   if (!board) {
-    return params.sourceRef ? null : createTaskCardLegacy(params);
+    return null;
   }
 
   const targetColumnKey = params.columnKey ?? "todo";
@@ -469,9 +469,7 @@ export async function createTaskCard(params: {
     .single();
 
   if (column.error || !column.data) {
-    if (isSchemaMissingMessage(column.error?.message)) {
-      return params.sourceRef ? null : createTaskCardLegacy(params);
-    }
+    console.error("[createTaskCard] Kanban column unavailable", column.error?.message ?? targetColumnKey);
     return null;
   }
 
@@ -490,7 +488,7 @@ export async function createTaskCard(params: {
     .insert({
       user_id: params.userId,
       project_id: params.projectId,
-      source_ref: params.sourceRef || null,
+      ...(params.sourceRef ? { source_ref: params.sourceRef } : {}),
       board_id: board.id,
       column_id: column.data.id,
       titulo: params.title.trim().slice(0, 180),
@@ -505,9 +503,7 @@ export async function createTaskCard(params: {
     .single();
 
   if (inserted.error || !inserted.data) {
-    if (isSchemaMissingMessage(inserted.error?.message)) {
-      return params.sourceRef ? null : createTaskCardLegacy(params);
-    }
+    if (inserted.error) console.error("[createTaskCard] insert failed", inserted.error.message);
     return null;
   }
   const card = mapTaskRowToCard(inserted.data as TaskRow, targetColumnKey);
@@ -647,7 +643,7 @@ export async function updateTaskCard(params: {
   let assigneeEmail: string | null = null;
   if (params.responsible?.trim()) {
     const requested = params.responsible.trim().toLowerCase();
-    if (!/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(requested)) return null;
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(requested)) return null;
     const assignee = await resolveConsultAssignee(requested);
     if (!assignee) return null;
     assigneeId = assignee.userId;
@@ -701,9 +697,17 @@ export async function updateTaskCard(params: {
       if (linked.error) console.error("[task assignment] could not sync assignment",linked.error.code);
     }
   }
-  await normalizeColumnPositions(task.board_id, task.column_id);
-  if (finalColumnId !== task.column_id) {
-    await normalizeColumnPositions(task.board_id, finalColumnId);
+  // Reindex only when a card changes columns or position; assigning a responsible
+  // must not traverse and rewrite unrelated cards.
+  if (params.columnId || params.position !== undefined) {
+    if (finalColumnId !== task.column_id) {
+      await Promise.all([
+        normalizeColumnPositions(task.board_id, task.column_id),
+        normalizeColumnPositions(task.board_id, finalColumnId),
+      ]);
+    } else {
+      await normalizeColumnPositions(task.board_id, finalColumnId);
+    }
   }
   const card = mapTaskRowToCard(updated.data as TaskRow, finalColumnKey);
 

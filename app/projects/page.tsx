@@ -276,7 +276,8 @@ export default function ProjectsPage() {
         body:JSON.stringify({status:"arquivado"})});
       const json=await r.json();
       if(!r.ok)throw new Error(json.error||"Falha ao arquivar.");
-      await loadProjects();setProjectStatus("Projeto arquivado com histórico preservado.");
+      setArchivingProjectId(null);setProjectStatus("Projeto arquivado com histórico preservado.");
+      void loadProjects();
     } catch(err) {setProjectStatus(err instanceof Error?err.message:"Erro ao arquivar.");}
     finally{setArchivingProjectId(null);}
   }
@@ -322,7 +323,8 @@ export default function ProjectsPage() {
       if (!response.ok) throw new Error(payload?.error || "Erro ao criar projeto.");
       setNewProjectName("");
       setSelectedClientIdForCreate("");
-      await loadProjects();
+      setCreatingProject(false);
+      void loadProjects();
     } catch {
       // no-op
     } finally {
@@ -596,7 +598,8 @@ export default function ProjectsPage() {
       const payload = await response.json();
       if (!response.ok) throw new Error(payload?.error || "Falha ao atualizar projeto.");
       setProjectStatus("Projeto atualizado com sucesso.");
-      await loadProjects();
+      setSavingProject(false);
+      void loadProjects();
     } catch (error) {
       setProjectStatus(error instanceof Error ? error.message : "Falha ao atualizar projeto.");
     } finally {

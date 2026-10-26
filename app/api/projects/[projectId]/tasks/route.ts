@@ -71,6 +71,15 @@ export async function POST(
     }
 
     const { projectId } = await context.params;
+    const accessRole = await getProjectAccessRole({
+      userId: auth.context.userId,
+      userEmail: auth.context.userEmail,
+      projectId: projectId.trim(),
+    });
+    if (accessRole !== "owner" && accessRole !== "editor") {
+      return NextResponse.json({ error: "Sem permissão para criar atividade neste projeto." }, { status: 403 });
+    }
+
     const created = await createTaskCard({
       userId: auth.context.userId,
       userEmail: auth.context.userEmail,
@@ -83,7 +92,7 @@ export async function POST(
     });
 
     if (!created) {
-      return NextResponse.json({ error: "Sem permissao para criar atividade neste projeto." }, { status: 403 });
+      return NextResponse.json({ error: "Não foi possível gravar a atividade no quadro. Verifique a configuração das colunas e do banco; nenhuma atividade deve ser criada fora do Kanban." }, { status: 409 });
     }
 
     return NextResponse.json({ data: created }, { status: 201 });

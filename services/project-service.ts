@@ -457,6 +457,21 @@ export async function getProjectById(params: {
   userEmail?: string | null;
   projectId: string;
 }): Promise<ProjectRecord | null> {
+  // Fast path for owner-owned projects: do not hydrate every accessible project on
+  // each task mutation. Shared projects retain the existing authorization path.
+  const db = getSupabaseServerClient();
+  if (db) {
+    const result = await db.from("projects")
+      .select("id, user_id, client_id, nome, descricao, status, tags, contexto, objetivo, stakeholders, maturidade, ativo, created_at, clients(nome)")
+      .eq("id", params.projectId).eq("user_id", params.userId).maybeSingle();
+    if (!result.error && result.data) return mapProjectRow(result.data);
+    if (isSchemaMismatchMessage(result.error?.message)) {
+      const legacy = await db.from("projects")
+        .select("id, user_id, nome, descricao, status, created_at")
+        .eq("id", params.projectId).eq("user_id", params.userId).maybeSingle();
+      if (!legacy.error && legacy.data) return mapProjectRow(legacy.data as ProjectRowBase);
+    }
+  }
   const projects = await listProjects(params.userId, params.userEmail);
   return projects.find((item) => item.id === params.projectId) ?? null;
 }
