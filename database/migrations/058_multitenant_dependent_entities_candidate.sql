@@ -41,6 +41,49 @@ BEGIN
  END LOOP;
 END $$;
 
+-- A dependent row inherits its tenant from the referenced parent, never from the caller.
+CREATE OR REPLACE FUNCTION public.enforce_child_tenant() RETURNS trigger
+LANGUAGE plpgsql SET search_path=public AS $
+DECLARE parent_org uuid; parent_id uuid;
+BEGIN
+ parent_id=(to_jsonb(NEW)->>TG_ARGV[1])::uuid;
+ IF parent_id IS NULL THEN RAISE EXCEPTION 'Missing tenant parent key on %',TG_TABLE_NAME; END IF;
+ EXECUTE format('SELECT organization_id FROM public.%I WHERE id=$1',TG_ARGV[0]) INTO parent_org USING parent_id;
+ IF parent_org IS NULL THEN RAISE EXCEPTION 'Missing tenant parent for %',TG_TABLE_NAME; END IF;
+ IF NEW.organization_id IS NOT NULL AND NEW.organization_id<>parent_org
+ THEN RAISE EXCEPTION 'Cross-tenant dependent row on %',TG_TABLE_NAME USING ERRCODE='23514'; END IF;
+ NEW.organization_id=parent_org;
+ RETURN NEW;
+END $;
+REVOKE ALL ON FUNCTION public.enforce_child_tenant() FROM PUBLIC;
+
+DO $
+DECLARE m record;
+BEGIN
+ FOR m IN SELECT * FROM (VALUES
+ ('task_boards','projects','project_id'),
+ ('task_members','tasks','task_id'),
+ ('task_labels','tasks','task_id'),
+ ('task_daily_selections','tasks','task_id'),
+ ('task_comments','tasks','task_id'),
+ ('task_checklists','tasks','task_id'),
+ ('task_checklist_items','tasks','task_id'),
+ ('task_attachments','tasks','task_id'),
+ ('task_activity_log','tasks','task_id'),
+ ('task_columns','task_boards','board_id'),
+ ('project_members','projects','project_id'),
+ ('project_invites','projects','project_id'),
+ ('knowledge_chunks','knowledge_base','knowledge_id'),
+ ('knowledge_embeddings','knowledge_chunks','chunk_id'),
+ ('messages','conversations','conversation_id'),
+ ('decision_status_history','decisions','decision_id')
+ ) AS v(child_table,parent_table,parent_key) LOOP
+ EXECUTE format('DROP TRIGGER IF EXISTS trg_enforce_child_tenant ON public.%I',m.child_table);
+ EXECUTE format('CREATE TRIGGER trg_enforce_child_tenant BEFORE INSERT OR UPDATE ON public.%I FOR EACH ROW EXECUTE FUNCTION public.enforce_child_tenant(%L,%L)',
+ m.child_table,m.parent_table,m.parent_key);
+ END LOOP;
+END $;
+
 -- Row-level access for authenticated members only. Existing bespoke policies must
 -- be inventoried and reviewed before this migration is promoted to an executable release.
 DO $$
