@@ -203,6 +203,7 @@ export default function ActivitiesPage() {
       dueDate: detail.card.dueDate ? detail.card.dueDate.slice(0, 10) : "",
       responsible: detail.card.responsible ?? "",
     });
+    window.dispatchEvent(new Event("7commander:tasks-changed"));
     if (activeProjectId) await loadBoard(activeProjectId);
   }
 
@@ -274,6 +275,7 @@ export default function ActivitiesPage() {
       });
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(payload?.error || "Falha ao mover atividade.");
+      window.dispatchEvent(new Event("7commander:tasks-changed"));
       if (activeProjectId) await loadBoard(activeProjectId);
       if (selectedTaskId === taskId) await loadTaskDetail(taskId);
     } catch (error) {
