@@ -74,15 +74,12 @@ BEGIN
  EXECUTE format('DROP POLICY IF EXISTS tenant_member_read_v2 ON public.%I',t);
  EXECUTE format('CREATE POLICY tenant_member_read_v2 ON public.%I FOR SELECT TO authenticated USING (organization_id IS NOT NULL AND public.is_organization_member(organization_id))',t);
  EXECUTE format('DROP POLICY IF EXISTS tenant_member_insert_v2 ON public.%I',t);
- EXECUTE format('CREATE POLICY tenant_member_insert_v2 ON public.%I FOR INSERT TO authenticated WITH CHECK (organization_id IS NOT NULL AND public.is_organization_member(organization_id))',t);
  EXECUTE format('DROP POLICY IF EXISTS tenant_member_update_v2 ON public.%I',t);
- EXECUTE format('CREATE POLICY tenant_member_update_v2 ON public.%I FOR UPDATE TO authenticated USING (organization_id IS NOT NULL AND public.is_organization_member(organization_id)) WITH CHECK (organization_id IS NOT NULL AND public.is_organization_member(organization_id))',t);
  EXECUTE format('DROP POLICY IF EXISTS tenant_member_delete_v2 ON public.%I',t);
- EXECUTE format('CREATE POLICY tenant_member_delete_v2 ON public.%I FOR DELETE TO authenticated USING (organization_id IS NOT NULL AND public.is_organization_member(organization_id))',t);
  END LOOP;
 END $$;
 
--- Explicitly deny anonymous invocation of privileged membership helpers.
+-- Authenticated clients may read only; all mutations go through the server\n-- authorization layer (service-role calls with verified membership/RBAC).\n-- Explicitly deny anonymous invocation of privileged membership helpers.
 REVOKE EXECUTE ON FUNCTION public.is_organization_member(uuid) FROM PUBLIC, anon;
 REVOKE EXECUTE ON FUNCTION public.is_organization_admin(uuid) FROM PUBLIC, anon;
 REVOKE EXECUTE ON FUNCTION public.is_platform_admin() FROM PUBLIC, anon;
