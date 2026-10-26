@@ -643,7 +643,7 @@ export async function updateTaskCard(params: {
   let assigneeEmail: string | null = null;
   if (params.responsible?.trim()) {
     const requested = params.responsible.trim().toLowerCase();
-    if (!/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(requested)) return null;
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(requested)) return null;
     const assignee = await resolveConsultAssignee(requested);
     if (!assignee) return null;
     assigneeId = assignee.userId;
