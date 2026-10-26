@@ -1,5 +1,6 @@
 import { getSupabaseServerClient } from "@/lib/supabase/server";
-import { getConsultMemberIds } from "@/lib/consult-workspace";
+import { getConsultMemberIds, CONSULT_ORG_ID } from "@/lib/consult-workspace";
+import { getProjectById } from "@/services/project-service";
 import { CreateRiskInput, RiskRecord, RiskStatus } from "@/types/risk";
 
 const riskStore = new Map<string, RiskRecord[]>();
@@ -71,6 +72,7 @@ export async function listRisksByProject(params: {
   userId: string;
   projectId: string;
 }): Promise<RiskRecord[]> {
+  if (!(await getProjectById({userId:params.userId,projectId:params.projectId}))) return [];
   const supabase = getSupabaseServerClient();
   const memberIds = await getConsultMemberIds(params.userId);
   if (supabase) {
@@ -79,6 +81,7 @@ export async function listRisksByProject(params: {
       .select("id, user_id, project_id, decision_id, task_id, titulo, impacto, probabilidade, mitigacao, responsavel, status, created_at, updated_at")
       .in("user_id", memberIds)
       .eq("project_id", params.projectId)
+      .eq("organization_id", CONSULT_ORG_ID)
       .order("created_at", { ascending: false })
       .limit(200);
     if (!result.error && result.data) {
@@ -110,6 +113,7 @@ export async function listOpenRisksByUser(userId: string): Promise<RiskRecord[]>
 }
 
 export async function createRisk(input: CreateRiskInput): Promise<RiskRecord> {
+  if (!input.projectId || !(await getProjectById({userId:input.userId,projectId:input.projectId}))) throw new Error("Projeto sem acesso ou organização inválida.");
   const supabase = getSupabaseServerClient();
   if (supabase) {
     const inserted = await supabase
