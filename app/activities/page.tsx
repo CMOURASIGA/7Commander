@@ -67,6 +67,17 @@ type TaskDetail = {
   activity: TaskActivity[];
 };
 
+/** Calendar-day difference avoids local timezone shifts for date-only deadlines. */
+function daysToDelivery(value: string): number | null {
+  const date = value.slice(0, 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return null;
+  const [year, month, day] = date.split("-").map(Number);
+  const deadline = Date.UTC(year, month - 1, day);
+  const now = new Date();
+  const today = Date.UTC(now.getFullYear(), now.getMonth(), now.getDate());
+  return Math.round((deadline - today) / 86400000);
+}
+
 export default function ActivitiesPage() {
   const confirm = useConfirm();
   const { openPanel: openKairosPanel } = useKairosPanel();
@@ -110,6 +121,20 @@ export default function ActivitiesPage() {
   const canEdit = accessRole === "owner" || accessRole === "editor";
   const canEditDetail = taskDetail?.accessRole === "owner" || taskDetail?.accessRole === "editor";
   const currentUserEmail = getClientAuthEmail()?.toLowerCase() ?? "";
+  const reusableLabels = useMemo(() => {
+    const catalog = new Map<string, TaskLabel>();
+    for (const column of board?.columns ?? []) {
+      for (const card of column.cards) {
+        for (const label of card.labels) {
+          const key = label.name.trim().toLocaleLowerCase("pt-BR");
+          if (key && !catalog.has(key)) catalog.set(key, label);
+        }
+      }
+    }
+    return [...catalog.values()].sort((a, b) => a.name.localeCompare(b.name, "pt-BR"));
+  }, [board]);
+  const [reusableLabelName, setReusableLabelName] = useState("");
+
 
   const selectedProject = useMemo(
     () => projects.find((project) => project.id === activeProjectId) ?? null,
@@ -436,11 +461,13 @@ export default function ActivitiesPage() {
                         ) : null}
                         {card.dueDate ? (
                           <span
-                            className={`mt-2 inline-flex max-w-full items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-medium ${new Date(`${card.dueDate.slice(0, 10)}T23:59:59`).getTime() < Date.now() && card.status !== "concluida" ? "border-red-300 bg-red-50 text-red-700" : "border-(--border) bg-(--bg-surface) text-(--text-primary)"}`}
+                            className={`mt-2 inline-flex max-w-full items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-medium ${card.status !== "concluida" && daysToDelivery(card.dueDate) !== null && daysToDelivery(card.dueDate)! < 0 ? "border-red-300 bg-red-50 text-red-700" : card.status !== "concluida" && daysToDelivery(card.dueDate) !== null && daysToDelivery(card.dueDate)! <= 3 ? "border-amber-300 bg-amber-50 text-amber-900" : "border-(--border) bg-(--bg-surface) text-(--text-primary)"}`}
                             title="Data final de entrega"
                           >
                             <span aria-hidden="true">📅</span>
                             <span>Entrega: {card.dueDate.slice(0, 10).split("-").reverse().join("/")}</span>
+                            {card.status !== "concluida" && daysToDelivery(card.dueDate) !== null && daysToDelivery(card.dueDate)! < 0 ? <strong>• Atrasado</strong> : null}
+                            {card.status !== "concluida" && daysToDelivery(card.dueDate) !== null && daysToDelivery(card.dueDate)! >= 0 && daysToDelivery(card.dueDate)! <= 3 ? <strong>• Prazo próximo</strong> : null}
                           </span>
                         ) : null}
                         {card.labels.length ? (
@@ -615,6 +642,32 @@ export default function ActivitiesPage() {
                         </span>
                       ))}
                     </div>
+                    {canEditDetail && reusableLabels.length > 0 ? (
+                      <div className="flex flex-wrap items-center gap-2">
+                        <label htmlFor="existing-task-label" className="text-xs text-(--text-secondary)">Reaproveitar etiqueta:</label>
+                        <select
+                          id="existing-task-label"
+                          value={reusableLabelName}
+                          onChange={(event) => setReusableLabelName(event.target.value)}
+                          className="min-w-0 flex-1 rounded-lg border border-(--border) bg-(--bg-surface) px-2 py-2 text-xs"
+                        >
+                          <option value="">Selecione uma etiqueta existente</option>
+                          {reusableLabels.filter(label => !taskDetail.labels.some(current => current.name.toLocaleLowerCase("pt-BR") === label.name.toLocaleLowerCase("pt-BR"))).map(label => (
+                            <option key={label.name.toLocaleLowerCase("pt-BR")} value={label.name}>{label.name}</option>
+                          ))}
+                        </select>
+                        <button
+                          type="button"
+                          disabled={!reusableLabelName}
+                          onClick={() => {
+                            const selected = reusableLabels.find(label => label.name === reusableLabelName);
+                            if (!selected) return;
+                            void applyDetailAction({ action: "add_label", name: selected.name, color: selected.color }).then(() => setReusableLabelName(""));
+                          }}
+                          className="rounded-lg border border-(--border) px-3 py-2 text-xs disabled:opacity-50"
+                        >Aplicar</button>
+                      </div>
+                    ) : null}
                     {canEditDetail ? (
                       <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_72px_auto]">
                         <input
