@@ -345,6 +345,7 @@ export async function updateMemory(params: {
   priority?: MemoryPriority;
   type?: string;
 }): Promise<MemoryRecord | null> {
+  const organizationId = TENANT_SCHEMA_READY ? await requireEffectiveTenant(params.userId) : null;
   const supabase = getSupabaseServerClient();
   const shouldRegenerateEmbedding = typeof params.content === "string";
   const updatedEmbedding = shouldRegenerateEmbedding
@@ -365,13 +366,13 @@ export async function updateMemory(params: {
       if (params.type !== undefined) patch.tipo = params.type;
       if (updatedEmbedding?.length) patch.embedding = toVectorLiteral(updatedEmbedding);
 
-      const updated = await supabase
+      let query = supabase
         .from("memories")
         .update(patch)
         .eq("id", params.memoryId)
-        .eq("user_id", params.userId)
-        .select("id, user_id, tipo, prioridade, conteudo, created_at")
-        .single();
+        .eq("user_id", params.userId);
+      if(organizationId) query=query.eq("organization_id",organizationId);
+      const updated = await query.select("id, user_id, tipo, prioridade, conteudo, created_at").single();
 
       if (!updated.error && updated.data) {
         return mapMemoryRow(updated.data);
@@ -381,6 +382,7 @@ export async function updateMemory(params: {
     }
   }
 
+  if(TENANT_SCHEMA_READY)return null;
   const local = memoryStore.get(params.userId) ?? [];
   const target = local.find((item) => item.id === params.memoryId);
   if (!target) return null;
@@ -395,16 +397,20 @@ export async function deleteMemory(params: {
   userId: string;
   memoryId: string;
 }): Promise<boolean> {
+  const organizationId = TENANT_SCHEMA_READY ? await requireEffectiveTenant(params.userId) : null;
   const supabase = getSupabaseServerClient();
   if (supabase) {
     try {
-      const deleted = await supabase.from("memories").delete().eq("id", params.memoryId).eq("user_id", params.userId);
+      let query = supabase.from("memories").delete().eq("id", params.memoryId).eq("user_id", params.userId);
+      if(organizationId)query=query.eq("organization_id",organizationId);
+      const deleted=await query;
       if (!deleted.error) return true;
     } catch {
       // Local fallback below.
     }
   }
 
+  if(TENANT_SCHEMA_READY)return false;
   const local = memoryStore.get(params.userId) ?? [];
   const index = local.findIndex((item) => item.id === params.memoryId);
   if (index === -1) return false;
