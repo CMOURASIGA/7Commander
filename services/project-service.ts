@@ -422,6 +422,7 @@ export async function setActiveProject(params: {
         .from("projects")
         .update({ ativo: true })
         .eq("id", params.projectId)
+        .eq("organization_id", "43973606-0c05-4934-a057-9f2710899eba")
         .eq("user_id", params.userId)
         .select("id, user_id, client_id, nome, descricao, status, tags, contexto, objetivo, stakeholders, maturidade, ativo, created_at, clients(nome)")
         .single();
@@ -561,7 +562,8 @@ export async function updateProject(params: {
       let query = supabase
         .from("projects")
         .update(dbPatch)
-        .eq("id", params.projectId);
+        .eq("id", params.projectId)
+        .eq("organization_id", "43973606-0c05-4934-a057-9f2710899eba");
 
       if (current.userId === params.userId) {
         query = query.eq("user_id", params.userId);
