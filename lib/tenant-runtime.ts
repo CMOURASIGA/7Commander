@@ -3,7 +3,7 @@ import { CONSULT_ORG_ID } from "@/lib/consult-workspace";
 import { resolveTenantMembership } from "@/lib/tenant-context";
 
 /** Explicit rollout switch; do not enable until migrations 057–059 and isolation E2E pass. */
-export const TENANT_SCHEMA_READY = process.env.SEVEN_COMMANDER_TENANT_SCHEMA_READY === "true";
+export const TENANT_SCHEMA_READY = process.env.SEVEN_COMMANDER_TENANT_SCHEMA_READY === "true" && process.env.SEVEN_COMMANDER_MULTI_TENANT_READY === "true";
 
 /** Resolve a server-side verified tenant. Never trust browser storage or metadata alone. */
 export async function getEffectiveTenantForUser(userId: string): Promise<string | null> {
