@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { Decision, DecisionStatus } from "@/types/decision";
 import { getClientAuthHeaders } from "@/lib/client-auth";
 import { MarkdownContent } from "@/components/ui/markdown-content";
@@ -732,6 +733,7 @@ export default function ProjectsPage() {
           <>
             <StatusPill tone="accent">{projects.length} projetos</StatusPill>
             <StatusPill tone="success">{decisions.length} decisões</StatusPill>
+            <Link href="/status-report" className="workspace-button-secondary">Status Report Executivo</Link>
             <button type="button" onClick={() => void loadDecisions()} className="workspace-button-secondary">
               Atualizar
             </button>
