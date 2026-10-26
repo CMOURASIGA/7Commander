@@ -17,7 +17,7 @@ export async function GET(req: NextRequest) {
   const t=await db.from("tasks").select("id,project_id,titulo,status,prioridade,due_date,updated_at").in("id",ids).neq("status","concluida").order("due_date",{ascending:true,nullsFirst:false}).limit(100);
   if(t.error)return NextResponse.json({error:"Falha ao consultar atividades"},{status:503});
   const projectIds=[...new Set((t.data??[]).map(x=>x.project_id).filter(Boolean))];
-  const p=projectIds.length?await db.from("projects").select("id,nome").in("id",projectIds):{data:[],error:null};
+  const p=projectIds.length?await db.from("projects").select("id,nome,status").in("id",projectIds).neq("status","arquivado"):{data:[],error:null};
   if(p.error)return NextResponse.json({error:"Falha ao consultar projetos"},{status:503});
   const names=new Map((p.data??[]).map(x=>[x.id,x.nome]));
   const accessible=(t.data??[]).filter(x=>Boolean((p.data??[]).find(project=>project.id===x.project_id)));
