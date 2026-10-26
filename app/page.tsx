@@ -186,6 +186,11 @@ export default function HomePage() {
 
   return (
     <section className="space-y-4">
+      {statusMessage ? (
+        <div role="alert" className="rounded-xl border border-(--border) bg-(--bg-surface) p-4 text-[13px] text-(--text-secondary)">
+          {statusMessage}
+        </div>
+      ) : null}
       <div className="rounded-xl border border-(--border) bg-(--bg-surface) p-5">
         <h2 className="text-[20px] font-medium text-(--text-primary)">{`${greetingForNow()}, ${userName}`}</h2>
         <p className="mt-2 text-[13px] text-(--text-secondary)">{subtitle}</p>
@@ -336,11 +341,6 @@ export default function HomePage() {
         </article>
       ) : null}
 
-      {statusMessage ? (
-        <div className="rounded-xl border border-(--border) bg-(--bg-surface) p-4 text-[13px] text-(--text-secondary)">
-          {statusMessage}
-        </div>
-      ) : null}
     </section>
   );
 }
