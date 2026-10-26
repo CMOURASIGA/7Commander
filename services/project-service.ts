@@ -174,6 +174,9 @@ async function listProjectsWithAccessFilter(params: {
     query = query.in("user_id", teamIds);
   }
 
+  // Until every module supports tenant selection, restrict project discovery to
+  // Consult Services. Explicit sharing cannot bypass organization boundaries.
+  query = query.eq("organization_id", "43973606-0c05-4934-a057-9f2710899eba");
   const result = await query;
   if (result.error || !result.data) return null;
   return (result.data as unknown as ProjectRowExtended[]).map(mapProjectRow);
