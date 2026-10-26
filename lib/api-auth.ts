@@ -91,6 +91,18 @@ export async function requireApiAuth(request: NextRequest): Promise<{
         if (requestedOrg && requestedOrg !== CONSULT_ORG_ID && !isOrganizationRoute) {
           return { ok: false, response: NextResponse.json({ error: "Operação multempresa não habilitada nesta versão." }, { status: 403 }) };
         }
+        // Legacy endpoints are restricted to active members of the Consult tenant.
+        // Platform administrators must also belong to this tenant to access its data.
+        if (!isOrganizationRoute) {
+          const membership = await db.from("organization_members")
+            .select("id")
+            .eq("organization_id", CONSULT_ORG_ID)
+            .eq("user_id", userId)
+            .eq("status", "active")
+            .maybeSingle();
+          if (membership.error) return { ok: false, response: NextResponse.json({ error: "Falha ao verificar organização." }, { status: 503 }) };
+          if (!membership.data) return { ok: false, response: NextResponse.json({ error: "Sem acesso à organização." }, { status: 403 }) };
+        }
         const isPrivileged = Boolean(admin.data);
         const method = request.method.toUpperCase();
         const path = request.nextUrl.pathname;
