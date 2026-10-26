@@ -1,4 +1,5 @@
 import { getSupabaseServerClient } from "@/lib/supabase/server";
+import { getProjectById } from "@/services/project-service";
 import {
   CreateDecisionInput,
   Decision,
@@ -205,6 +206,7 @@ async function createDecisionLegacy(input: CreateDecisionInput): Promise<Decisio
 }
 
 export async function createDecision(input: CreateDecisionInput): Promise<Decision> {
+  if (input.projectId && !(await getProjectById({userId: input.userId,projectId: input.projectId}))) throw new Error("Projeto fora da organização autorizada.");
   const supabase = getSupabaseServerClient();
   if (supabase) {
     try {
@@ -302,6 +304,7 @@ async function listDecisionsLegacy(params: {
 }
 
 export async function listDecisions(userId: string, projectId?: string | null): Promise<Decision[]> {
+  if (projectId && !(await getProjectById({userId,projectId}))) return [];
   const supabase = getSupabaseServerClient();
   if (supabase) {
     try {
