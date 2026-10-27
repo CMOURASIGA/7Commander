@@ -49,7 +49,7 @@ export async function PATCH(request: NextRequest) {
   const primaryColor = String(branding.primaryColor ?? "");
   const secondaryColor = String(branding.secondaryColor ?? "");
   const logoUrl = String(branding.logoUrl ?? "");
-  if (!displayName || displayName.length > 120 || !colorPattern.test(primaryColor) || !colorPattern.test(secondaryColor) || logoUrl.length > 2048 || (logoUrl && (!logoUrl.startsWith("https://") || !/^https:\/\/[^\s]+$/.test(logoUrl)))) return NextResponse.json({ error: "Nome, cores ou URL de logotipo inválidos." }, { status: 400 });
+  if (!displayName || displayName.length > 120 || !colorPattern.test(primaryColor) || !colorPattern.test(secondaryColor) || logoUrl.length > 480000 || (logoUrl && !( /^https:\/\/[^\s]+$/.test(logoUrl) || /^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/]+={0,2}$/.test(logoUrl)))) return NextResponse.json({ error: "Nome, cores ou URL de logotipo inválidos." }, { status: 400 });
   const updated = await db.from("organizations").update({ branding: { displayName, primaryColor, secondaryColor, logoUrl } }).eq("id",input.id).select("id,name,branding").single();
   if (updated.error) return NextResponse.json({ error: "Falha ao salvar whitelabel." }, { status: 500 });
   return NextResponse.json({ data: updated.data }, { headers: noStore });
