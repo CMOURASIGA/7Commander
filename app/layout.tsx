@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 import { AppShell } from "@/components/layout/app-shell";
 import { KairosAuthProvider } from "@/components/auth/kairos-auth-provider";
+import { OrganizationBrandSync } from "@/components/brand/organization-brand-sync";
 import { KairosPanelProvider } from "@/components/kairos/kairos-context";
 import { KairosCoreProvider } from "@/components/kairos/kairos-core-context";
 import { ToastProvider } from "@/components/ui/toast";
@@ -28,6 +29,7 @@ export default function RootLayout({
         <ToastProvider>
           <ConfirmProvider>
             <KairosAuthProvider required={authRequired}>
+              <OrganizationBrandSync />
               <KairosCoreProvider>
                 <KairosPanelProvider>
                   <AppShell>{children}</AppShell>

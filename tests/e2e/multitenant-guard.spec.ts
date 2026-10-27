@@ -30,3 +30,14 @@ test.describe("Multiempresa — UX com dados sintéticos, sem banco de produçã
   expect(selected).toBeNull();
  });
 });
+
+test("API administrativa não permite operações sem sessão de superadmin", async ({request}) => {
+ const list=await request.get("/api/platform/companies");
+ expect([401,403]).toContain(list.status());
+ const create=await request.post("/api/platform/companies",{data:{name:"Empresa QA Sintética",slug:"qa-isolated-example"}});
+ expect([401,403]).toContain(create.status());
+});
+test("Análise do Kairos não expõe projetos sem autenticação", async ({request}) => {
+ const response=await request.post("/api/status-report/analysis",{data:{projectId:FOREIGN,mode:"current"}});
+ expect([401,403]).toContain(response.status());
+});
