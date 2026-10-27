@@ -122,6 +122,15 @@ export async function requireApiAuth(request: NextRequest): Promise<{
     }
   }
 
+  // Public Preview may expose only the UI, never operational data through
+  // legacy API keys or caller supplied identities. Supabase JWT remains required.
+  if (process.env.VERCEL_ENV === "preview") {
+    return { ok: false, response: NextResponse.json(
+      { error: "Faça login para validar operações com dados reais. O Preview visual está disponível sem login." },
+      { status: 401 },
+    ) };
+  }
+
   // Tenant mode never accepts legacy API-key identities or caller-provided UUIDs.
   if (TENANT_SCHEMA_READY) {
     return { ok:false, response:NextResponse.json({error:"Autenticação Supabase obrigatória em ambiente multiempresa."},{status:401}) };
