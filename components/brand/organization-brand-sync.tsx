@@ -30,7 +30,7 @@ export function OrganizationBrandSync() {
         const b=data.branding;
         const color=(value:unknown,fallback:string) => typeof value==="string" && /^#[0-9a-fA-F]{6}$/.test(value)?value:fallback;
         const isConsult = data.name?.trim().toLowerCase().includes("consult services");
-        const logo=typeof b?.logoUrl==="string" && b.logoUrl.startsWith("https://")?b.logoUrl:DEFAULT_CLIENT_BRAND.logoUrl;
+        const logo=typeof b?.logoUrl==="string" && (b.logoUrl.startsWith("https://") || /^data:image\/(png|jpeg|webp);base64,/.test(b.logoUrl))?b.logoUrl:DEFAULT_CLIENT_BRAND.logoUrl;
         // A identidade institucional da Consult Services é imutável no workspace proprietário.
         if(isConsult){publishBrand(DEFAULT_CLIENT_BRAND);return;}
         publishBrand({clientName:b?.displayName||data.name||DEFAULT_CLIENT_BRAND.clientName,logoUrl:logo,primaryColor:color(b?.primaryColor,DEFAULT_CLIENT_BRAND.primaryColor),highlightColor:color(b?.secondaryColor,DEFAULT_CLIENT_BRAND.highlightColor)});
