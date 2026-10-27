@@ -1,14 +1,16 @@
 import {NextRequest,NextResponse} from "next/server";
 import {requireApiAuth} from "@/lib/api-auth";
 import {getSupabaseServerClient} from "@/lib/supabase/server";
-import {CONSULT_ORG_ID,consultMemberRole} from "@/lib/consult-workspace";
+import {consultMemberRole} from "@/lib/consult-workspace";
+import { TENANT_SCHEMA_READY, getTenantRole, requireEffectiveTenant } from "@/lib/tenant-runtime";
 import {getProjectAccessRole} from "@/services/project-service";
 import {createTaskCard} from "@/services/task-board-service";
 function fail(error:string,status=400){return NextResponse.json({error},{status});}
 export async function POST(req:NextRequest){
  const auth=await requireApiAuth(req);if(!auth.ok)return auth.response;
+ const organizationId=await requireEffectiveTenant(auth.context.userId);
  if(auth.context.authMode!=="supabase")return fail("JWT obrigatório",403);
- const role=await consultMemberRole(auth.context.userId);
+ const role=(TENANT_SCHEMA_READY ? await getTenantRole(auth.context.userId) : await consultMemberRole(auth.context.userId));
  if(!role||!["owner","admin","manager"].includes(role))return fail("Geração de backlog exige aprovação da gestão",403);
  const body=await req.json().catch(()=>null);
  const projectId=String(body?.projectId||""),decisionId=String(body?.decisionId||""),requirementId=String(body?.requirementId||"");
@@ -20,7 +22,7 @@ export async function POST(req:NextRequest){
  const validatedDb=db;
  const sourceRef="planning:"+decisionId+":"+requirementId;
  const records=await db.from("commander_planning_records").select("id,title,description,kind,status,project_id")
-  .eq("organization_id",CONSULT_ORG_ID).in("id",[decisionId,requirementId]);
+  .eq("organization_id",organizationId).in("id",[decisionId,requirementId]);
  if(records.error||records.data?.length!==2)return fail("Requisito ou decisão não encontrados",404);
  const decision=records.data.find(r=>r.id===decisionId),requirement=records.data.find(r=>r.id===requirementId);
  if(!decision||decision.kind!=="decision_gate"||decision.project_id!==projectId||decision.status!=="approved")

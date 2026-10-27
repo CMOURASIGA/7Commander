@@ -1,4 +1,5 @@
 import { getSupabaseServerClient } from "@/lib/supabase/server";
+import { TENANT_SCHEMA_READY, requireEffectiveTenant } from "@/lib/tenant-runtime";
 
 const ALLOW_LOCAL_FALLBACK = process.env.KAIROS_ENABLE_LOCAL_FALLBACK === "true";
 const localProfiles = new Map<string, KairosProfileConfig>();
@@ -36,6 +37,16 @@ export function normalizeKairosProfile(input: Partial<KairosProfileConfig>): Kai
 }
 
 export async function getKairosProfile(userId: string): Promise<KairosProfileConfig> {
+  if (TENANT_SCHEMA_READY) {
+    const organizationId = await requireEffectiveTenant(userId);
+    const db = getSupabaseServerClient();
+    if (!db) throw new Error("Tenant profile database unavailable");
+    const row = await db.from("kairos_organization_profiles")
+      .select("instructions,knowledge,icebreakers")
+      .eq("user_id",userId).eq("organization_id",organizationId).maybeSingle();
+    if (row.error) throw new Error("Could not read scoped Kairos profile");
+    return row.data ? normalizeKairosProfile(row.data) : DEFAULT_KAIROS_PROFILE;
+  }
   const supabase = getSupabaseServerClient();
   if (supabase) {
     try {
@@ -58,6 +69,18 @@ export async function saveKairosProfile(
   input: Partial<KairosProfileConfig>,
 ): Promise<KairosProfileConfig> {
   const profile = normalizeKairosProfile(input);
+  if (TENANT_SCHEMA_READY) {
+    const organizationId = await requireEffectiveTenant(userId);
+    const db = getSupabaseServerClient();
+    if (!db) throw new Error("Tenant profile database unavailable");
+    const upsert = await db.from("kairos_organization_profiles").upsert({
+      organization_id:organizationId,user_id:userId,
+      instructions:profile.instructions,knowledge:profile.knowledge,
+      icebreakers:profile.icebreakers,updated_at:new Date().toISOString()
+    },{onConflict:"organization_id,user_id"}).select("instructions,knowledge,icebreakers").single();
+    if(upsert.error||!upsert.data) throw new Error("Could not save scoped Kairos profile");
+    return normalizeKairosProfile(upsert.data);
+  }
   const supabase = getSupabaseServerClient();
   if (supabase) {
     const result = await supabase

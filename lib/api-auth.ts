@@ -3,6 +3,8 @@ import { createClient } from "@supabase/supabase-js";
 import { getDefaultUserId } from "@/lib/user-context";
 import { getPublicEnv, isAuthRequired } from "@/lib/env";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
+import { CONSULT_ORG_ID } from "@/lib/consult-workspace";
+import { TENANT_SCHEMA_READY, getEffectiveTenantForUser } from "@/lib/tenant-runtime";
 
 const USER_ID_HEADER = "x-kairos-user-id";
 const API_KEY_HEADER = "x-kairos-api-key";
@@ -82,6 +84,23 @@ export async function requireApiAuth(request: NextRequest): Promise<{
         const access = await db.from("internal_user_access").select("active,role").eq("user_id", userId).maybeSingle();
         if (admin.error || access.error) return { ok: false, response: NextResponse.json({ error: "Verificacao de acesso indisponivel" }, { status: 503 }) };
         if (!admin.data && !access.data?.active) return { ok: false, response: NextResponse.json({ error: "Usuario nao autorizado ou suspenso" }, { status: 403 }) };
+        // Tenant identity comes from a verified membership, never a browser claim.
+        // Prior to the coordinated release, only Consult Services is operational.
+        const requestedOrg = normalizeHeaderValue(request.headers.get("x-7commander-organization-id"));
+        const isOrganizationRoute = request.nextUrl.pathname.startsWith("/api/organizations/");
+        const organizationId = TENANT_SCHEMA_READY
+          ? await getEffectiveTenantForUser(userId)
+          : CONSULT_ORG_ID;
+        if (!isOrganizationRoute) {
+          if (!organizationId) return { ok: false, response: NextResponse.json({ error: "Selecione uma organização autorizada." }, { status: 403 }) };
+          if (requestedOrg && requestedOrg !== organizationId) {
+            return { ok: false, response: NextResponse.json({ error: "Empresa informada difere da empresa ativa." }, { status: 403 }) };
+          }
+          const membership = await db.from("organization_members").select("id")
+            .eq("organization_id",organizationId).eq("user_id",userId).eq("status","active").maybeSingle();
+          if(membership.error)return {ok:false,response:NextResponse.json({error:"Verificação empresarial indisponível"},{status:503})};
+          if(!membership.data)return {ok:false,response:NextResponse.json({error:"Empresa não autorizada"},{status:403})};
+        }
         const isPrivileged = Boolean(admin.data);
         const method = request.method.toUpperCase();
         const path = request.nextUrl.pathname;
@@ -101,6 +120,20 @@ export async function requireApiAuth(request: NextRequest): Promise<{
         };
       }
     }
+  }
+
+  // Public Preview may expose only the UI, never operational data through
+  // legacy API keys or caller supplied identities. Supabase JWT remains required.
+  if (process.env.VERCEL_ENV === "preview") {
+    return { ok: false, response: NextResponse.json(
+      { error: "Faça login para validar operações com dados reais. O Preview visual está disponível sem login." },
+      { status: 401 },
+    ) };
+  }
+
+  // Tenant mode never accepts legacy API-key identities or caller-provided UUIDs.
+  if (TENANT_SCHEMA_READY) {
+    return { ok:false, response:NextResponse.json({error:"Autenticação Supabase obrigatória em ambiente multiempresa."},{status:401}) };
   }
 
   if (authRequired) {

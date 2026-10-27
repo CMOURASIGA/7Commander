@@ -1,5 +1,7 @@
 import { getSupabaseServerClient } from "@/lib/supabase/server";
 import { getConsultMemberIds } from "@/lib/consult-workspace";
+import { TENANT_SCHEMA_READY, getTenantMemberIds, requireEffectiveTenant } from "@/lib/tenant-runtime";
+import { getProjectById } from "@/services/project-service";
 import { CreateRiskInput, RiskRecord, RiskStatus } from "@/types/risk";
 
 const riskStore = new Map<string, RiskRecord[]>();
@@ -71,45 +73,47 @@ export async function listRisksByProject(params: {
   userId: string;
   projectId: string;
 }): Promise<RiskRecord[]> {
+  if (!(await getProjectById({userId:params.userId,projectId:params.projectId}))) return [];
   const supabase = getSupabaseServerClient();
-  const memberIds = await getConsultMemberIds(params.userId);
+  const memberIds = TENANT_SCHEMA_READY ? await getTenantMemberIds(params.userId) : await getConsultMemberIds(params.userId);
   if (supabase) {
-    const result = await supabase
+    let query = supabase
       .from("risks")
       .select("id, user_id, project_id, decision_id, task_id, titulo, impacto, probabilidade, mitigacao, responsavel, status, created_at, updated_at")
       .in("user_id", memberIds)
-      .eq("project_id", params.projectId)
-      .order("created_at", { ascending: false })
-      .limit(200);
+      .eq("project_id", params.projectId);
+    if (TENANT_SCHEMA_READY) query=query.eq("organization_id",await requireEffectiveTenant(params.userId));
+    const result=await query.order("created_at",{ascending:false}).limit(200);
     if (!result.error && result.data) {
       return (result.data as RiskRow[]).map(mapRiskRow);
     }
   }
 
-  if (!ALLOW_LOCAL_FALLBACK) return [];
+  if (!ALLOW_LOCAL_FALLBACK || TENANT_SCHEMA_READY) return [];
   return (riskStore.get(params.userId) ?? []).filter((item) => item.projectId === params.projectId);
 }
 
 export async function listOpenRisksByUser(userId: string): Promise<RiskRecord[]> {
+  const organizationId=TENANT_SCHEMA_READY ? await requireEffectiveTenant(userId):null;
   const supabase = getSupabaseServerClient();
   if (supabase) {
-    const result = await supabase
-      .from("risks")
+    let query=supabase.from("risks")
       .select("id, user_id, project_id, decision_id, task_id, titulo, impacto, probabilidade, mitigacao, responsavel, status, created_at, updated_at")
-      .eq("user_id", userId)
-      .in("status", ["aberto", "em_mitigacao"])
-      .order("created_at", { ascending: false })
-      .limit(200);
+      .eq("user_id",userId).in("status",["aberto","em_mitigacao"]);
+    if(organizationId)query=query.eq("organization_id",organizationId);
+    const result=await query.order("created_at",{ascending:false}).limit(200);
     if (!result.error && result.data) {
       return (result.data as RiskRow[]).map(mapRiskRow);
     }
   }
 
-  if (!ALLOW_LOCAL_FALLBACK) return [];
+  if (!ALLOW_LOCAL_FALLBACK || TENANT_SCHEMA_READY) return [];
   return (riskStore.get(userId) ?? []).filter((item) => item.status === "aberto" || item.status === "em_mitigacao");
 }
 
 export async function createRisk(input: CreateRiskInput): Promise<RiskRecord> {
+  if (!input.projectId || !(await getProjectById({userId:input.userId,projectId:input.projectId}))) throw new Error("Projeto sem acesso ou organização inválida.");
+  const organizationId=TENANT_SCHEMA_READY ? await requireEffectiveTenant(input.userId):null;
   const supabase = getSupabaseServerClient();
   if (supabase) {
     const inserted = await supabase
@@ -117,6 +121,7 @@ export async function createRisk(input: CreateRiskInput): Promise<RiskRecord> {
       .insert({
         user_id: input.userId,
         project_id: input.projectId,
+        ...(organizationId?{organization_id:organizationId}:{}),
         decision_id: input.decisionId?.trim() || null,
         task_id: input.taskId?.trim() || null,
         titulo: input.title.trim(),
@@ -133,7 +138,7 @@ export async function createRisk(input: CreateRiskInput): Promise<RiskRecord> {
     }
   }
 
-  if (ALLOW_LOCAL_FALLBACK) return saveLocalRisk(input);
+  if (ALLOW_LOCAL_FALLBACK && !TENANT_SCHEMA_READY) return saveLocalRisk(input);
   throw new Error("Falha ao criar risco no Supabase.");
 }
 
@@ -141,20 +146,20 @@ export async function getRiskById(params: {
   userId: string;
   riskId: string;
 }): Promise<RiskRecord | null> {
+  const organizationId=TENANT_SCHEMA_READY ? await requireEffectiveTenant(params.userId):null;
   const supabase = getSupabaseServerClient();
   if (supabase) {
-    const result = await supabase
-      .from("risks")
+    let query=supabase.from("risks")
       .select("id, user_id, project_id, decision_id, task_id, titulo, impacto, probabilidade, mitigacao, responsavel, status, created_at, updated_at")
-      .eq("id", params.riskId)
-      .eq("user_id", params.userId)
-      .single();
+      .eq("id",params.riskId).eq("user_id",params.userId);
+    if(organizationId)query=query.eq("organization_id",organizationId);
+    const result=await query.single();
     if (!result.error && result.data) {
       return mapRiskRow(result.data as RiskRow);
     }
   }
 
-  if (!ALLOW_LOCAL_FALLBACK) return null;
+  if (!ALLOW_LOCAL_FALLBACK || TENANT_SCHEMA_READY) return null;
   return (riskStore.get(params.userId) ?? []).find((item) => item.id === params.riskId) ?? null;
 }
 
@@ -187,20 +192,17 @@ export async function updateRisk(params: {
     if (params.patch.decisionId !== undefined) updatePatch.decision_id = params.patch.decisionId?.trim() || null;
     if (params.patch.taskId !== undefined) updatePatch.task_id = params.patch.taskId?.trim() || null;
 
-    const updated = await supabase
-      .from("risks")
-      .update(updatePatch)
-      .eq("id", params.riskId)
-      .eq("user_id", params.userId)
-      .select("id, user_id, project_id, decision_id, task_id, titulo, impacto, probabilidade, mitigacao, responsavel, status, created_at, updated_at")
-      .single();
+    let query=supabase.from("risks").update(updatePatch)
+      .eq("id",params.riskId).eq("user_id",params.userId);
+    if(TENANT_SCHEMA_READY)query=query.eq("organization_id",await requireEffectiveTenant(params.userId));
+    const updated=await query.select("id, user_id, project_id, decision_id, task_id, titulo, impacto, probabilidade, mitigacao, responsavel, status, created_at, updated_at").single();
 
     if (!updated.error && updated.data) {
       return mapRiskRow(updated.data as RiskRow);
     }
   }
 
-  if (!ALLOW_LOCAL_FALLBACK) return null;
+  if (!ALLOW_LOCAL_FALLBACK || TENANT_SCHEMA_READY) return null;
   const local = riskStore.get(params.userId) ?? [];
   const target = local.find((item) => item.id === params.riskId);
   if (!target) return null;

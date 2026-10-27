@@ -1,13 +1,15 @@
 import {NextRequest,NextResponse} from "next/server";
 import {requireApiAuth} from "@/lib/api-auth";
 import {getSupabaseServerClient} from "@/lib/supabase/server";
-import {CONSULT_ORG_ID,consultMemberRole} from "@/lib/consult-workspace";
+import {consultMemberRole} from "@/lib/consult-workspace";
+import { TENANT_SCHEMA_READY, getTenantRole, requireEffectiveTenant } from "@/lib/tenant-runtime";
 import {getProjectAccessRole} from "@/services/project-service";
 type Finding={recordId:string;severity:"warning"|"question";type:string;detail:string};
 const norm=(s:string)=>s.normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase().replace(/[^a-z0-9 ]/g," ").replace(/\s+/g," ").trim();
 export async function POST(req:NextRequest){
  const auth=await requireApiAuth(req);if(!auth.ok)return auth.response;
- if(auth.context.authMode!=="supabase"||!await consultMemberRole(auth.context.userId))
+ const organizationId=await requireEffectiveTenant(auth.context.userId);
+ if(auth.context.authMode!=="supabase"||!(TENANT_SCHEMA_READY ? await getTenantRole(auth.context.userId) : await consultMemberRole(auth.context.userId)))
   return NextResponse.json({error:"Sem acesso à equipe"},{status:403});
  const body=await req.json().catch(()=>null);
  const projectId=typeof body?.projectId==="string"?body.projectId:"";
@@ -16,7 +18,7 @@ export async function POST(req:NextRequest){
  if(access==="none")return NextResponse.json({error:"Projeto sem acesso"},{status:403});
  const db=getSupabaseServerClient();if(!db)return NextResponse.json({error:"Banco indisponível"},{status:503});
  const rows=await db.from("commander_planning_records").select("id,title,description,payload,version")
- .eq("organization_id",CONSULT_ORG_ID).eq("project_id",projectId).eq("kind","requirement").limit(200);
+ .eq("organization_id",organizationId).eq("project_id",projectId).eq("kind","requirement").limit(200);
  if(rows.error)return NextResponse.json({error:"Falha ao consultar requisitos"},{status:503});
  const seen=new Map<string,string>();const findings:Finding[]=[];
  for(const row of rows.data??[]){

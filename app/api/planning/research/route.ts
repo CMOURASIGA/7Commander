@@ -1,13 +1,15 @@
 import {NextRequest,NextResponse} from "next/server";
 import {requireApiAuth} from "@/lib/api-auth";
 import {getSupabaseServerClient} from "@/lib/supabase/server";
-import {CONSULT_ORG_ID,consultMemberRole} from "@/lib/consult-workspace";
+import {consultMemberRole} from "@/lib/consult-workspace";
+import { TENANT_SCHEMA_READY, getTenantRole, requireEffectiveTenant } from "@/lib/tenant-runtime";
 import {getProjectAccessRole} from "@/services/project-service";
 export const runtime="nodejs";
 function fail(error:string,status=400){return NextResponse.json({error},{status});}
 export async function POST(req:NextRequest){
  const auth=await requireApiAuth(req);if(!auth.ok)return auth.response;
- const role=await consultMemberRole(auth.context.userId);
+ const organizationId=await requireEffectiveTenant(auth.context.userId);
+ const role=(TENANT_SCHEMA_READY ? await getTenantRole(auth.context.userId) : await consultMemberRole(auth.context.userId));
  if(auth.context.authMode!=="supabase"||!role||role==="member")return fail("Sem permissão de pesquisa",403);
  if(process.env.RESEARCH_EXTERNAL_ENABLED!=="true"||!process.env.BRAVE_SEARCH_API_KEY)
   return fail("Pesquisa externa desabilitada. Configure explicitamente RESEARCH_EXTERNAL_ENABLED e BRAVE_SEARCH_API_KEY.",503);
@@ -22,7 +24,7 @@ export async function POST(req:NextRequest){
  const access=await getProjectAccessRole({userId:auth.context.userId,userEmail:auth.context.userEmail,projectId});
  if(access!=="owner"&&access!=="editor")return fail("Sem acesso de edição ao projeto",403);
  const db=getSupabaseServerClient();if(!db)return fail("Banco indisponível",503);
- const reserved=await db.rpc("reserve_commander_research_request",{p_org_id:CONSULT_ORG_ID,p_actor_id:auth.context.userId});
+ const reserved=await db.rpc("reserve_commander_research_request",{p_org_id:organizationId,p_actor_id:auth.context.userId});
  if(reserved.error)return fail("Limite de pesquisa ou verificação de acesso: "+reserved.error.message,429);
  const url=new URL("https://api.search.brave.com/res/v1/web/search");
  url.searchParams.set("q",query);url.searchParams.set("count","6");url.searchParams.set("country","BR");url.searchParams.set("search_lang","pt");url.searchParams.set("safesearch","strict");

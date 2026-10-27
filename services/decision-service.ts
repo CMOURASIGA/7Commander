@@ -1,4 +1,6 @@
 import { getSupabaseServerClient } from "@/lib/supabase/server";
+import { getProjectById } from "@/services/project-service";
+import { TENANT_SCHEMA_READY, requireEffectiveTenant } from "@/lib/tenant-runtime";
 import {
   CreateDecisionInput,
   Decision,
@@ -113,6 +115,7 @@ async function registerDecisionStatusHistory(params: {
     await supabase.from("decision_status_history").insert({
       user_id: params.userId,
       decision_id: params.decisionId,
+      ...(TENANT_SCHEMA_READY ? {organization_id:await requireEffectiveTenant(params.userId)} : {}),
       previous_status: params.previousStatus,
       new_status: params.newStatus,
       source: params.source?.trim() || "manual",
@@ -163,6 +166,7 @@ async function createDecisionExtended(input: CreateDecisionInput): Promise<Decis
     .from("decisions")
     .insert({
       user_id: input.userId,
+      ...(TENANT_SCHEMA_READY ? {organization_id:await requireEffectiveTenant(input.userId)} : {}),
       titulo: input.title.trim(),
       contexto: input.context?.trim() ?? null,
       motivo: input.reason?.trim() ?? null,
@@ -191,6 +195,7 @@ async function createDecisionLegacy(input: CreateDecisionInput): Promise<Decisio
     .from("decisions")
     .insert({
       user_id: input.userId,
+      ...(TENANT_SCHEMA_READY ? {organization_id:await requireEffectiveTenant(input.userId)} : {}),
       titulo: input.title.trim(),
       motivo,
       impacto: input.impact?.trim() ?? null,
@@ -205,6 +210,7 @@ async function createDecisionLegacy(input: CreateDecisionInput): Promise<Decisio
 }
 
 export async function createDecision(input: CreateDecisionInput): Promise<Decision> {
+  if (input.projectId && !(await getProjectById({userId: input.userId,projectId: input.projectId}))) throw new Error("Projeto fora da organização autorizada.");
   const supabase = getSupabaseServerClient();
   if (supabase) {
     try {
@@ -245,6 +251,7 @@ export async function createDecision(input: CreateDecisionInput): Promise<Decisi
     }
   }
 
+  if(TENANT_SCHEMA_READY)throw new Error("Tenant decision persistence unavailable");
   const local = saveLocalDecision(input);
   await registerDecisionStatusHistory({
     userId: input.userId,
@@ -270,10 +277,8 @@ async function listDecisionsExtended(params: {
     .eq("user_id", params.userId)
     .order("created_at", { ascending: false })
     .limit(300);
-  if (params.projectId) {
-    query = query.eq("project_id", params.projectId);
-  }
-
+  if (params.projectId) query = query.eq("project_id", params.projectId);
+  if(TENANT_SCHEMA_READY)query=query.eq("organization_id",await requireEffectiveTenant(params.userId));
   const result = await query;
   if (result.error || !result.data) return null;
   return result.data.map(mapSupabaseDecision);
@@ -292,16 +297,15 @@ async function listDecisionsLegacy(params: {
     .eq("user_id", params.userId)
     .order("created_at", { ascending: false })
     .limit(300);
-  if (params.projectId) {
-    query = query.eq("project_id", params.projectId);
-  }
-
+  if (params.projectId) query = query.eq("project_id", params.projectId);
+  if(TENANT_SCHEMA_READY)query=query.eq("organization_id",await requireEffectiveTenant(params.userId));
   const result = await query;
   if (result.error || !result.data) return null;
   return (result.data as DecisionRowBase[]).map((item) => mapSupabaseDecision(item));
 }
 
 export async function listDecisions(userId: string, projectId?: string | null): Promise<Decision[]> {
+  if (projectId && !(await getProjectById({userId,projectId}))) return [];
   const supabase = getSupabaseServerClient();
   if (supabase) {
     try {
@@ -319,6 +323,7 @@ export async function listDecisions(userId: string, projectId?: string | null): 
     }
   }
 
+  if(TENANT_SCHEMA_READY)return [];
   const local = decisionStore.get(userId) ?? [];
   return projectId ? local.filter((item) => item.projectId === projectId) : local;
 }
@@ -335,6 +340,7 @@ export async function listDecisionStatusHistory(params: {
   userId: string;
   decisionId: string;
 }): Promise<DecisionStatusHistoryItem[]> {
+  if(TENANT_SCHEMA_READY && !(await getDecisionById({userId:params.userId,decisionId:params.decisionId})))return [];
   const supabase = getSupabaseServerClient();
   if (supabase) {
     const result = await supabase
@@ -418,6 +424,7 @@ export async function updateDecisionStatus(params: {
     }
   }
 
+  if(TENANT_SCHEMA_READY)return null;
   const current = decisionStore.get(params.userId) ?? [];
   const found = current.find((item) => item.id === params.decisionId);
   if (!found) return null;

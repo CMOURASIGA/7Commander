@@ -19,7 +19,8 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  const authRequired = isAuthRequired();
+  // Preview libera apenas a navegação visual. As APIs continuam autenticadas.
+  const authRequired = process.env.VERCEL_ENV === "preview" ? false : isAuthRequired();
 
   return (
     <html lang="pt-BR">

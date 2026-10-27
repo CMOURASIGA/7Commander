@@ -4,6 +4,8 @@ import { generateKairosResponse } from "@/services/kairos-core";
 import { requireApiAuth } from "@/lib/api-auth";
 import { ChatPayload, SpecialistId } from "@/types/chat";
 import { getProjectById } from "@/services/project-service";
+import { CONSULT_ORG_ID } from "@/lib/consult-workspace";
+import { getSupabaseServerClient } from "@/lib/supabase/server";
 
 const validSpecialists: SpecialistId[] = [
   "core",
@@ -47,6 +49,11 @@ export async function POST(request: NextRequest) {
     if (!project) {
       return NextResponse.json({ error: "Projeto nao encontrado ou sem acesso." }, { status: 404 });
     }
+
+    const db = getSupabaseServerClient();
+    if (!db) return NextResponse.json({ error: "Banco indisponível." }, { status: 503 });
+    const ownership = await db.from("projects").select("organization_id").eq("id", project.id).eq("organization_id", CONSULT_ORG_ID).maybeSingle();
+    if (ownership.error || !ownership.data) return NextResponse.json({ error: "Projeto fora da organização autorizada." }, { status: 403 });
 
     await appendMessage({
       userId,

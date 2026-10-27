@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useKairosAuth } from "@/components/auth/kairos-auth-provider";
 import { TaskAlerts } from "@/components/notifications/task-alerts";
+import { getClientAuthHeaders } from "@/lib/client-auth";
 
 const PAGE_TITLES: Record<string, string> = {
   "/": "Inicio", "/voice": "Voice Room", "/chat": "Dashboard Kairos", "/daily": "Daily", "/clients": "Clientes", "/projects": "Projetos", "/activities": "Atividades", "/memory": "Memoria", "/help": "Ajuda", "/settings": "Configuracoes", "/login": "Acesso",
@@ -18,6 +19,8 @@ export function Header({ onToggleMobileNav, mobileNavOpen }: HeaderProps) {
   const authenticated = Boolean(auth.user);
   const pageTitle = PAGE_TITLES[pathname] ?? "Workspace";
   const [userMenuOpen, setUserMenuOpen] = useState(false);
+  const [companies,setCompanies] = useState<Array<{id:string;name:string}>>([]);
+  useEffect(() => { if(!authenticated) {setCompanies([]);return;} let alive=true; void fetch("/api/organizations/mine",{headers:getClientAuthHeaders(),cache:"no-store"}).then(async response=>{if(!response.ok)return;const payload=await response.json();if(!alive)return;setCompanies((payload.data??[]).map((entry:{id:string;organization:{name:string}|Array<{name:string}>})=>({id:entry.id,name:Array.isArray(entry.organization)?entry.organization[0]?.name:entry.organization?.name})));}).catch(()=>{});return()=>{alive=false};},[authenticated]);
   const menuRef = useRef<HTMLDivElement>(null);
   const avatarLabel = (email ?? "7c").split("@")[0].split(/[.\s_-]+/).filter(Boolean).slice(0, 2).map((part) => part[0]?.toUpperCase() ?? "").join("") || "7C";
 
@@ -30,6 +33,7 @@ export function Header({ onToggleMobileNav, mobileNavOpen }: HeaderProps) {
         <div className="min-w-0"><p className="truncate text-[10px] font-black uppercase tracking-[0.2em] text-(--accent)">Workspace ativo</p><h1 className="truncate text-base font-semibold text-(--text-primary)">{pageTitle}</h1></div>
       </div>
       <div className="flex items-center gap-2 md:gap-3">
+        {authenticated && companies.length > 0 && <Link href="/organizations" title="Consultar empresas vinculadas" className="hidden max-w-48 truncate rounded-lg border border-(--border) px-3 py-2 text-xs font-medium text-(--text-primary) lg:inline-flex">{companies.length===1?companies[0].name:`${companies.length} empresas`}</Link>}
         {authenticated && <TaskAlerts />}
         {authenticated && <span className="hidden items-center gap-2 rounded-full border border-[color:var(--success)]/30 bg-(--success-soft) px-3 py-1.5 text-[12px] font-semibold text-(--success) sm:inline-flex"><span className="h-2 w-2 rounded-full bg-(--success)" />Sistema online</span>}
         {auth.loading ? <span className="rounded-full border border-(--border) bg-white px-3 py-1 text-xs text-(--text-secondary)">Carregando sessao...</span> : authenticated ? (

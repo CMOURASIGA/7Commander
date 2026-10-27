@@ -1,6 +1,17 @@
 import { getSupabaseServerClient } from "@/lib/supabase/server";
-import { getConsultMemberIds, consultMemberRole } from "@/lib/consult-workspace";
+import { getConsultMemberIds, consultMemberRole, CONSULT_ORG_ID } from "@/lib/consult-workspace";
+import { TENANT_SCHEMA_READY, getTenantMemberIds, getTenantRole, requireEffectiveTenant } from "@/lib/tenant-runtime";
 import { CreateProjectInput, ProjectRecord, ProjectStatus } from "@/types/project";
+
+async function projectTenantId(userId:string):Promise<string>{
+ return TENANT_SCHEMA_READY ? requireEffectiveTenant(userId) : CONSULT_ORG_ID;
+}
+async function projectMemberIds(userId:string):Promise<string[]>{
+ return TENANT_SCHEMA_READY ? getTenantMemberIds(userId) : getConsultMemberIds(userId);
+}
+async function projectMemberRole(userId:string){
+ return TENANT_SCHEMA_READY ? getTenantRole(userId) : consultMemberRole(userId);
+}
 
 const projectStore = new Map<string, ProjectRecord[]>();
 const activeProjectStore = new Map<string, string>();
@@ -152,7 +163,7 @@ async function listProjectsWithAccessFilter(params: {
   const supabase = getSupabaseServerClient();
   if (!supabase) return null;
 
-  const teamIds = await getConsultMemberIds(params.userId);
+  const teamIds = await projectMemberIds(params.userId);
   const sharedIds = await listSharedProjectIds({
     userId: params.userId,
     userEmail: params.userEmail,
@@ -174,6 +185,9 @@ async function listProjectsWithAccessFilter(params: {
     query = query.in("user_id", teamIds);
   }
 
+  // Until every module supports tenant selection, restrict project discovery to
+  // Consult Services. Explicit sharing cannot bypass organization boundaries.
+  query = query.eq("organization_id", await projectTenantId(params.userId));
   const result = await query;
   if (result.error || !result.data) return null;
   return (result.data as unknown as ProjectRowExtended[]).map(mapProjectRow);
@@ -220,9 +234,9 @@ export async function getProjectAccessRole(params: {
   });
   if (!project) return "none";
   if (project.userId === params.userId) return "owner";
-  const teamIds = await getConsultMemberIds(params.userId);
+  const teamIds = await projectMemberIds(params.userId);
   if (teamIds.length > 1 && teamIds.includes(project.userId)) {
-    const role = await consultMemberRole(params.userId);
+    const role = await projectMemberRole(params.userId);
     return role === "member" ? "editor" : role ? "editor" : "viewer";
   }
 
@@ -241,15 +255,16 @@ async function canEditProject(params: {
 }): Promise<boolean> {
   const role = await getMembershipRole(params);
   if (role === "owner" || role === "editor") return true;
-  const teamIds = await getConsultMemberIds(params.userId);
+  const teamIds = await projectMemberIds(params.userId);
   if (teamIds.length <= 1) return false;
   const db = getSupabaseServerClient();
   if (!db) return false;
   const project = await db.from("projects").select("user_id").eq("id", params.projectId).maybeSingle();
-  return Boolean(project.data && teamIds.includes(project.data.user_id) && await consultMemberRole(params.userId));
+  return Boolean(project.data && teamIds.includes(project.data.user_id) && await projectMemberRole(params.userId));
 }
 
 export async function listProjects(userId: string, userEmail?: string | null): Promise<ProjectRecord[]> {
+  if(TENANT_SCHEMA_READY && !(await getTenantRole(userId))) return [];
   const supabase = getSupabaseServerClient();
   if (supabase) {
     try {
@@ -293,6 +308,7 @@ async function createProjectExtended(input: CreateProjectInput): Promise<Project
   const inserted = await supabase
     .from("projects")
     .insert({
+      organization_id: await projectTenantId(input.userId),
       user_id: input.userId,
       client_id: input.clientId?.trim() || null,
       nome: input.name.trim(),
@@ -350,7 +366,15 @@ async function createProjectLegacy(input: CreateProjectInput): Promise<ProjectRe
 }
 
 export async function createProject(input: CreateProjectInput): Promise<ProjectRecord> {
+  if (!(await projectMemberRole(input.userId))) {
+    throw new Error("Usuário sem vínculo ativo com a organização.");
+  }
   const supabase = getSupabaseServerClient();
+  if (supabase && input.clientId?.trim()) {
+    const linked = await supabase.from("clients").select("organization_id")
+      .eq("id", input.clientId.trim()).eq("organization_id", await projectTenantId(input.userId)).maybeSingle();
+    if (linked.error || !linked.data) throw new Error("Cliente inválido para a organização selecionada.");
+  }
   if (supabase) {
     try {
       const created = await createProjectExtended(input);
@@ -410,6 +434,7 @@ export async function setActiveProject(params: {
         .from("projects")
         .update({ ativo: true })
         .eq("id", params.projectId)
+        .eq("organization_id", await projectTenantId(params.userId))
         .eq("user_id", params.userId)
         .select("id, user_id, client_id, nome, descricao, status, tags, contexto, objetivo, stakeholders, maturidade, ativo, created_at, clients(nome)")
         .single();
@@ -457,18 +482,21 @@ export async function getProjectById(params: {
   userEmail?: string | null;
   projectId: string;
 }): Promise<ProjectRecord | null> {
+  // Until the multi-tenant rollout is complete, require active Consult membership
+  // even for directly owned projects: ownership cannot bypass tenant access.
+  if (!(await projectMemberRole(params.userId))) return null;
   // Fast path for owner-owned projects: do not hydrate every accessible project on
   // each task mutation. Shared projects retain the existing authorization path.
   const db = getSupabaseServerClient();
   if (db) {
     const result = await db.from("projects")
       .select("id, user_id, client_id, nome, descricao, status, tags, contexto, objetivo, stakeholders, maturidade, ativo, created_at, clients(nome)")
-      .eq("id", params.projectId).eq("user_id", params.userId).maybeSingle();
+      .eq("id", params.projectId).eq("user_id", params.userId).eq("organization_id", await projectTenantId(params.userId)).maybeSingle();
     if (!result.error && result.data) return mapProjectRow(result.data);
     if (isSchemaMismatchMessage(result.error?.message)) {
       const legacy = await db.from("projects")
         .select("id, user_id, nome, descricao, status, created_at")
-        .eq("id", params.projectId).eq("user_id", params.userId).maybeSingle();
+        .eq("id", params.projectId).eq("user_id", params.userId).eq("organization_id", await projectTenantId(params.userId)).maybeSingle();
       if (!legacy.error && legacy.data) return mapProjectRow(legacy.data as ProjectRowBase);
     }
   }
@@ -546,7 +574,8 @@ export async function updateProject(params: {
       let query = supabase
         .from("projects")
         .update(dbPatch)
-        .eq("id", params.projectId);
+        .eq("id", params.projectId)
+        .eq("organization_id", await projectTenantId(params.userId));
 
       if (current.userId === params.userId) {
         query = query.eq("user_id", params.userId);

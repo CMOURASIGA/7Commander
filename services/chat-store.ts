@@ -1,4 +1,5 @@
 import { getSupabaseServerClient } from "@/lib/supabase/server";
+import { TENANT_SCHEMA_READY, requireEffectiveTenant } from "@/lib/tenant-runtime";
 import { ChatMessage, ChatRole, ConversationMeta, SpecialistId } from "@/types/chat";
 
 const conversations = new Map<string, ConversationMeta>();
@@ -55,12 +56,18 @@ async function ensureSupabaseConversation(
 ): Promise<{ ready: boolean; error?: string }> {
   const supabase = getSupabaseServerClient();
   if (!supabase) return { ready: false };
+  const organizationId = TENANT_SCHEMA_READY ? await requireEffectiveTenant(userId) : null;
   try {
-    const existing = await supabase
-      .from("conversations")
+    if(organizationId){
+      const project = await supabase.from("projects").select("organization_id")
+        .eq("id",projectId).eq("organization_id",organizationId).maybeSingle();
+      if(project.error||!project.data)return {ready:false,error:"Projeto não pertence à empresa ativa."};
+    }
+    let lookup = supabase.from("conversations")
       .select("id, user_id, project_id")
-      .eq("id", conversationId)
-      .maybeSingle();
+      .eq("id", conversationId);
+    if(organizationId)lookup=lookup.eq("organization_id",organizationId);
+    const existing = await lookup.maybeSingle();
     if (existing.error) return { ready: false };
     if (existing.data?.id) {
       if (existing.data.user_id !== userId) return { ready: false, error: "Conversa nao encontrada." };
@@ -77,6 +84,7 @@ async function ensureSupabaseConversation(
       id: conversationId,
       user_id: userId,
       project_id: projectId,
+      ...(organizationId ? {organization_id:organizationId} : {}),
       titulo: normalizeTitle(firstMessage ?? "Nova conversa"),
     });
 
@@ -115,6 +123,7 @@ export async function appendMessage(params: {
   if (conversation.error) throw new Error(conversation.error);
 
   if (conversation.ready) {
+    const organizationId = TENANT_SCHEMA_READY ? await requireEffectiveTenant(params.userId) : null;
     const supabase = getSupabaseServerClient();
     if (supabase) {
       try {
@@ -122,6 +131,7 @@ export async function appendMessage(params: {
           .from("messages")
           .insert({
             conversation_id: params.conversationId,
+            ...(organizationId ? {organization_id:organizationId} : {}),
             role: params.role,
             content: params.content,
             specialist: params.specialist,
@@ -145,6 +155,7 @@ export async function appendMessage(params: {
     }
   }
 
+  if(TENANT_SCHEMA_READY)throw new Error("Tenant chat persistence unavailable");
   ensureLocalConversation({
     conversationId: params.conversationId,
     userId: params.userId,
@@ -162,15 +173,14 @@ export async function listMessages(params: {
   conversationId: string;
   userId: string;
 }): Promise<ChatMessage[]> {
+  const organizationId = TENANT_SCHEMA_READY ? await requireEffectiveTenant(params.userId) : null;
   const supabase = getSupabaseServerClient();
   if (supabase) {
     try {
-      const conversation = await supabase
-        .from("conversations")
-        .select("id")
-        .eq("id", params.conversationId)
-        .eq("user_id", params.userId)
-        .maybeSingle();
+      let lookup = supabase.from("conversations").select("id")
+        .eq("id", params.conversationId).eq("user_id", params.userId);
+      if(organizationId)lookup=lookup.eq("organization_id",organizationId);
+      const conversation=await lookup.maybeSingle();
 
       if (conversation.error || !conversation.data?.id) {
         return [];
@@ -198,6 +208,7 @@ export async function listMessages(params: {
     }
   }
 
+  if(TENANT_SCHEMA_READY)return [];
   if (localConversationOwners.get(params.conversationId) !== params.userId) {
     return [];
   }
@@ -206,15 +217,15 @@ export async function listMessages(params: {
 }
 
 export async function listConversations(userId: string): Promise<ConversationMeta[]> {
+  const organizationId = TENANT_SCHEMA_READY ? await requireEffectiveTenant(userId) : null;
   const supabase = getSupabaseServerClient();
   if (supabase) {
     try {
-      const result = await supabase
-        .from("conversations")
+      let query = supabase.from("conversations")
         .select("id, titulo, created_at, project_id, projects(nome)")
-        .eq("user_id", userId)
-        .order("created_at", { ascending: false })
-        .limit(50);
+        .eq("user_id", userId);
+      if(organizationId)query=query.eq("organization_id",organizationId);
+      const result=await query.order("created_at",{ascending:false}).limit(50);
 
       if (!result.error && result.data) {
         return result.data.map((item) => {
@@ -233,6 +244,7 @@ export async function listConversations(userId: string): Promise<ConversationMet
     }
   }
 
+  if(TENANT_SCHEMA_READY)return [];
   return Array.from(conversations.values())
     .filter((item) => localConversationOwners.get(item.id) === userId)
     .sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1));

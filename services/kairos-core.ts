@@ -1,4 +1,7 @@
 import { getOpenAIClient } from "@/lib/openai";
+import { CONSULT_ORG_ID } from "@/lib/consult-workspace";
+import { getSupabaseServerClient } from "@/lib/supabase/server";
+import { KAIROS_PM_REPORT_POLICY } from "@/lib/kairos-pm-report-policy";
 import { listMessages } from "@/services/chat-store";
 import { searchRelevantMemories, saveMemory } from "@/services/memory-service";
 import { loadCapabilityModulesForMessage, loadCorePrompt } from "@/services/capability-modules";
@@ -409,6 +412,16 @@ export async function generateKairosResponse(params: GenerateParams): Promise<{
     };
   }
 
+  // The Voice Room and text chat share this service. Never proceed with
+  // an inferred/project-switched context from another organization.
+  if (projectResolution.project) {
+    const db = getSupabaseServerClient();
+    if (!db) throw new Error("Tenant validation unavailable");
+    const tenant = await db.from("projects").select("organization_id")
+      .eq("id", projectResolution.project.id).eq("organization_id", CONSULT_ORG_ID).maybeSingle();
+    if (tenant.error || !tenant.data) throw new Error("Kairos project tenant mismatch");
+  }
+
   const projectContext = buildProjectContext(projectResolution.project);
   const moduleContext = modules.length
     ? modules.map((item) => `# Modulo ${item.id.toUpperCase()}\n${item.prompt}`).join("\n\n")
@@ -425,6 +438,7 @@ export async function generateKairosResponse(params: GenerateParams): Promise<{
 
   const systemPrompt = [
     corePrompt,
+    KAIROS_PM_REPORT_POLICY,
     "Use o contexto de memoria, projeto e modulos internos para gerar resposta contextual.",
     "Mantenha identidade unica do Kairos Core. Evite se apresentar como varios agentes separados.",
     "Quando a pergunta for simples (ex.: quem e voce), responda curto e natural.",

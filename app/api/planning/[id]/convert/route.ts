@@ -1,16 +1,18 @@
 import {NextRequest,NextResponse} from "next/server";
 import {requireApiAuth} from "@/lib/api-auth";
 import {getSupabaseServerClient} from "@/lib/supabase/server";
-import {CONSULT_ORG_ID,consultMemberRole} from "@/lib/consult-workspace";
+import {consultMemberRole} from "@/lib/consult-workspace";
+import { TENANT_SCHEMA_READY, getTenantRole, requireEffectiveTenant } from "@/lib/tenant-runtime";
 export async function POST(req:NextRequest,context:{params:Promise<{id:string}>}){
  const auth=await requireApiAuth(req);if(!auth.ok)return auth.response;
+ const organizationId=await requireEffectiveTenant(auth.context.userId);
  if(auth.context.authMode!=="supabase")return NextResponse.json({error:"Sessão Supabase necessária"},{status:403});
- const role=await consultMemberRole(auth.context.userId);
+ const role=(TENANT_SCHEMA_READY ? await getTenantRole(auth.context.userId) : await consultMemberRole(auth.context.userId));
  if(!role||role==="member")return NextResponse.json({error:"Somente gestão pode converter prospects"},{status:403});
  const db=getSupabaseServerClient();if(!db)return NextResponse.json({error:"Banco indisponível"},{status:503});
  const {id}=await context.params;
  const item=await db.from("commander_planning_records").select("id,kind,status,organization_id")
- .eq("id",id).eq("organization_id",CONSULT_ORG_ID).maybeSingle();
+ .eq("id",id).eq("organization_id",organizationId).maybeSingle();
  if(item.error||!item.data)return NextResponse.json({error:"Prospect não encontrado"},{status:404});
  if(item.data.kind!=="prospect"||item.data.status!=="won")
   return NextResponse.json({error:"O prospect deve estar na etapa Ganho"},{status:409});
