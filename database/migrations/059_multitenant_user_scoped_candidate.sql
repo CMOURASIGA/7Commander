@@ -58,8 +58,8 @@ ALTER TABLE public.kairos_organization_profiles ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS kairos_organization_profile_owner ON public.kairos_organization_profiles;
 CREATE POLICY kairos_organization_profile_owner ON public.kairos_organization_profiles
  FOR ALL TO authenticated
- USING (user_id=(select auth.uid()) AND public.is_organization_member(organization_id))
- WITH CHECK (user_id=(select auth.uid()) AND public.is_organization_member(organization_id));
+ USING (user_id=(select auth.uid()) AND public.is_organization_member(organization_id) AND organization_id=(SELECT active_organization_id FROM public.profiles WHERE user_id=(SELECT auth.uid())))
+ WITH CHECK (user_id=(select auth.uid()) AND public.is_organization_member(organization_id) AND organization_id=(SELECT active_organization_id FROM public.profiles WHERE user_id=(SELECT auth.uid())));
 
 DO $$
 DECLARE t text;
@@ -68,7 +68,7 @@ BEGIN
  EXECUTE format('ALTER TABLE public.%I ENABLE ROW LEVEL SECURITY',t);
  EXECUTE format('DROP POLICY IF EXISTS tenant_member_access ON public.%I',t);
  EXECUTE format('DROP POLICY IF EXISTS tenant_owner_read_v2 ON public.%I',t);
- EXECUTE format('CREATE POLICY tenant_owner_read_v2 ON public.%I FOR SELECT TO authenticated USING (user_id=(select auth.uid()) AND public.is_organization_member(organization_id))',t);
+ EXECUTE format('CREATE POLICY tenant_owner_read_v2 ON public.%I FOR SELECT TO authenticated USING (user_id=(select auth.uid()) AND public.is_organization_member(organization_id) AND organization_id=(SELECT active_organization_id FROM public.profiles WHERE user_id=(SELECT auth.uid())))',t);
  END LOOP;
 END $$;
 -- Legacy Kairos profile remains user-global until its service is replaced.
