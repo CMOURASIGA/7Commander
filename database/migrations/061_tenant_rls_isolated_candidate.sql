@@ -33,7 +33,7 @@ BEGIN
  FOR p IN SELECT policyname FROM pg_policies WHERE schemaname='public' AND tablename=t LOOP
  EXECUTE format('DROP POLICY IF EXISTS %I ON public.%I',p.policyname,t);
  END LOOP;
- EXECUTE format('CREATE POLICY tenant_read_authenticated ON public.%I FOR SELECT TO authenticated USING (organization_id IS NOT NULL AND public.is_organization_member(organization_id))',t);
+ EXECUTE format('CREATE POLICY tenant_read_authenticated ON public.%I FOR SELECT TO authenticated USING (organization_id IS NOT NULL AND public.is_organization_member(organization_id) AND organization_id = (SELECT active_organization_id FROM public.profiles WHERE user_id = (SELECT auth.uid())))',t);
  -- No INSERT/UPDATE/DELETE to authenticated roles; writes must use authorized server endpoints.
  END LOOP;
 END $$;
