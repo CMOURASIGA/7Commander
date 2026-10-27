@@ -322,6 +322,9 @@ export async function generateKairosResponse(params: GenerateParams): Promise<{
   };
 }> {
   const specialist = params.selectedSpecialist ?? classifyIntent(params.message) ?? DEFAULT_SPECIALIST;
+  // Fail closed before parallel context resolution (which can create a project).
+  const initialTenant = await getEffectiveTenantForUser(params.userId);
+  if (!initialTenant) throw new Error("Kairos tenant unavailable");
   const [memoryContext, corePrompt, modules, projectResolution, kairosProfile] = await Promise.all([
     buildMemoryContext(params.userId, params.message),
     loadCorePrompt(),
@@ -341,8 +344,7 @@ export async function generateKairosResponse(params: GenerateParams): Promise<{
   if (projectResolution.project) {
     const db = getSupabaseServerClient();
     if (!db) throw new Error("Tenant validation unavailable");
-    const allowedOrganization = await getEffectiveTenantForUser(params.userId);
-    if (!allowedOrganization) throw new Error("Kairos tenant unavailable");
+    const allowedOrganization = initialTenant;
     const tenant = await db.from("projects").select("organization_id")
       .eq("id", projectResolution.project.id).eq("organization_id", allowedOrganization).maybeSingle();
     if (tenant.error || !tenant.data) throw new Error("Kairos project tenant mismatch");
