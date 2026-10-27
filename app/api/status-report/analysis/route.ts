@@ -42,6 +42,13 @@ export async function POST(request: NextRequest) {
     if(log.error)return NextResponse.json({error:"Histórico do período indisponível; relatório não gerado."},{status:503});
     events=log.data||[];
   }
+  const inPeriod=(value:string|null|undefined) => mode==="period" && Boolean(value) && value!.slice(0,10)>=start && value!.slice(0,10)<=end;
+  const periodMetrics = mode==="period" ? {
+    tasksCreated:tasks.filter(x=>inPeriod(x.created_at)).length,
+    risksRegistered:risks.filter(x=>inPeriod(x.created_at)).length,
+    decisionsRegistered:decisions.filter(x=>inPeriod(x.created_at)).length,
+    activityEvents:events.length,
+  } : null;
   const period = mode==="current" ? "Situação atual" : start+" a "+end;
   const scope = {
     projeto:project.nome, objetivo:project.objetivo||project.descricao||"Não registrado",
@@ -51,10 +58,11 @@ export async function POST(request: NextRequest) {
     riscosAtuais:risks.map(x=>({titulo:x.titulo,status:x.status,impacto:x.impacto,probabilidade:x.probabilidade,mitigacao:x.mitigacao,responsavel:x.responsavel})),
     decisoesAtuais:decisions.map(x=>({titulo:x.titulo,status:x.status,impacto:x.impacto,contexto:x.contexto})),
     eventosNoPeriodo:events.map(x=>({tipo:x.action_type,data:x.created_at})),
+    registrosCriadosNoPeriodo:periodMetrics,
     avisos:["Não equiparar quantidade de cartões a percentual de escopo.","Não inferir estado passado de registros atuais.","Não tratar ausência de histórico como ausência de trabalho."]
   };
   const openai = getOpenAIClient();
-  if (!openai) return NextResponse.json({data:{period,mode,source:"unavailable",periodEvents:events.length,analysis:null},warning:"OPENAI_API_KEY indisponível; não foi inventada análise."},{headers:noStore});
+  if (!openai) return NextResponse.json({data:{period,mode,source:"unavailable",periodEvents:events.length,periodMetrics,analysis:null},warning:"OPENAI_API_KEY indisponível; não foi inventada análise."},{headers:noStore});
   try {
     const result = await openai.responses.create({
       model:"gpt-4o-mini",
@@ -67,7 +75,7 @@ export async function POST(request: NextRequest) {
     const parsed=JSON.parse(raw) as Partial<Narrative>;
     if(!parsed || !["executiveSummary","riskAnalysis","nextSteps"].every(k=>typeof parsed[k as keyof Narrative]==="string" && String(parsed[k as keyof Narrative]).length>20))throw Error("Invalid narrative");
     const analysis:Narrative={executiveSummary:parsed.executiveSummary!.slice(0,3000),riskAnalysis:parsed.riskAnalysis!.slice(0,3000),nextSteps:parsed.nextSteps!.slice(0,3000)};
-    return NextResponse.json({data:{period,mode,periodEvents:events.length,source:"ai",analysis}},{headers:noStore});
+    return NextResponse.json({data:{period,mode,periodEvents:events.length,periodMetrics,source:"ai",analysis}},{headers:noStore});
   }catch {
     return NextResponse.json({data:{period,mode,periodEvents:events.length,source:"unavailable",analysis:null},warning:"Análise inteligente indisponível no momento; dados operacionais permanecem acessíveis."},{headers:noStore});
   }
