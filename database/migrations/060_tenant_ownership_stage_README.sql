@@ -1,0 +1,3 @@
+-- Refer to the SQL artifact attached in the 27 Oct development handoff.
+-- Migration stage intentionally not auto-applied by CI.
+-- Requires isolated DB test, backup, and RLS follow-up.
