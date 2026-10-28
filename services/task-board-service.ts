@@ -306,17 +306,16 @@ export async function listTaskBoard(params: {
     return listTaskBoardLegacy(params);
   }
 
+  const tenantId = TENANT_SCHEMA_READY ? await requireEffectiveTenant(params.userId) : null;
+  let columnsQuery = supabase.from("task_columns").select("id, board_id, column_key, title, position").eq("board_id", board.id);
+  let tasksQuery = supabase.from("tasks").select("id, user_id, project_id, board_id, column_id, titulo, descricao, prioridade, status, responsavel, due_date, position, created_at, updated_at").eq("board_id", board.id);
+  if (tenantId) {
+    columnsQuery = columnsQuery.eq("organization_id", tenantId);
+    tasksQuery = tasksQuery.eq("organization_id", tenantId);
+  }
   const [columnsResult, tasksResult] = await Promise.all([
-    supabase
-      .from("task_columns")
-      .select("id, board_id, column_key, title, position")
-      .eq("board_id", board.id)
-      .order("position", { ascending: true }),
-    supabase
-      .from("tasks")
-      .select("id, user_id, project_id, board_id, column_id, titulo, descricao, prioridade, status, responsavel, due_date, position, created_at, updated_at")
-      .eq("board_id", board.id)
-      .order("position", { ascending: true }),
+    columnsQuery.order("position", { ascending: true }),
+    tasksQuery.order("position", { ascending: true }),
   ]);
 
   if (columnsResult.error || tasksResult.error || !columnsResult.data || !tasksResult.data) {
