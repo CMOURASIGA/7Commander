@@ -43,7 +43,7 @@ END $$;
 
 -- A dependent row inherits its tenant from the referenced parent, never from the caller.
 CREATE OR REPLACE FUNCTION public.enforce_child_tenant() RETURNS trigger
-LANGUAGE plpgsql SET search_path=public AS $
+LANGUAGE plpgsql SET search_path=public AS $tenant_fn$
 DECLARE parent_org uuid; parent_id uuid;
 BEGIN
  parent_id=(to_jsonb(NEW)->>TG_ARGV[1])::uuid;
@@ -54,10 +54,10 @@ BEGIN
  THEN RAISE EXCEPTION 'Cross-tenant dependent row on %',TG_TABLE_NAME USING ERRCODE='23514'; END IF;
  NEW.organization_id=parent_org;
  RETURN NEW;
-END $;
+END $tenant_fn$;
 REVOKE ALL ON FUNCTION public.enforce_child_tenant() FROM PUBLIC;
 
-DO $
+DO $tenant_triggers$
 DECLARE m record;
 BEGIN
  FOR m IN SELECT * FROM (VALUES
@@ -82,7 +82,7 @@ BEGIN
  EXECUTE format('CREATE TRIGGER trg_enforce_child_tenant BEFORE INSERT OR UPDATE ON public.%I FOR EACH ROW EXECUTE FUNCTION public.enforce_child_tenant(%L,%L)',
  m.child_table,m.parent_table,m.parent_key);
  END LOOP;
-END $;
+END $tenant_triggers$;
 
 -- Row-level access for authenticated members only. Existing bespoke policies must
 -- be inventoried and reviewed before this migration is promoted to an executable release.
