@@ -303,7 +303,7 @@ export async function listTaskBoard(params: {
     projectId: params.projectId,
   });
   if (!board) {
-    return listTaskBoardLegacy(params);
+    return TENANT_SCHEMA_READY ? null : listTaskBoardLegacy(params);
   }
 
   const tenantId = TENANT_SCHEMA_READY ? await requireEffectiveTenant(params.userId) : null;
@@ -320,7 +320,7 @@ export async function listTaskBoard(params: {
 
   if (columnsResult.error || tasksResult.error || !columnsResult.data || !tasksResult.data) {
     if (isSchemaMissingMessage(columnsResult.error?.message) || isSchemaMissingMessage(tasksResult.error?.message)) {
-      return listTaskBoardLegacy(params);
+      return TENANT_SCHEMA_READY ? null : listTaskBoardLegacy(params);
     }
     return null;
   }
@@ -346,10 +346,9 @@ export async function listTaskBoard(params: {
 
   const taskIds = Array.from(cardByTaskId.keys());
   if (taskIds.length) {
-    const labelsResult = await supabase
-      .from("task_labels")
-      .select("id, task_id, name, color")
-      .in("task_id", taskIds);
+    let labelsQuery = supabase.from("task_labels").select("id, task_id, name, color").in("task_id", taskIds);
+    if (tenantId) labelsQuery = labelsQuery.eq("organization_id", tenantId);
+    const labelsResult = await labelsQuery;
 
     if (!labelsResult.error && labelsResult.data) {
       for (const label of labelsResult.data as TaskLabelRow[]) {
