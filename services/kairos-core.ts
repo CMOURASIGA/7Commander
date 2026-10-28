@@ -339,6 +339,10 @@ export async function generateKairosResponse(params: GenerateParams): Promise<{
     getKairosProfile(params.userId),
   ]);
 
+  if ((await getEffectiveTenantForUser(params.userId)) !== initialTenant) {
+    throw new Error("Kairos tenant changed during context resolution");
+  }
+
   // Validate resolved project membership before loading tenant data or executing commands.
   // This covers Kairos chat and Voice Room. Tenant identity is server-resolved.
   if (projectResolution.project) {
