@@ -674,6 +674,7 @@ export async function updateTaskCard(params: {
     .from("tasks")
     .update(patch)
     .eq("id", params.taskId)
+    .eq("organization_id", TENANT_SCHEMA_READY ? await requireEffectiveTenant(params.userId) : CONSULT_ORG_ID)
     .select("id, user_id, project_id, board_id, column_id, titulo, descricao, prioridade, status, responsavel, due_date, position, created_at, updated_at")
     .single();
 
@@ -802,6 +803,7 @@ async function updateTaskCardLegacy(params: {
     .from("tasks")
     .update(patch)
     .eq("id", params.taskId)
+    .eq("organization_id", TENANT_SCHEMA_READY ? await requireEffectiveTenant(params.userId) : CONSULT_ORG_ID)
     .select("id, project_id, titulo, descricao, prioridade, status, responsavel, due_date, created_at")
     .single();
   if (updated.error || !updated.data) return null;
