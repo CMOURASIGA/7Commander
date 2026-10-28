@@ -693,6 +693,7 @@ export async function updateTaskCard(params: {
         member_email:assigneeEmail,
         role:"assignee",
         created_by:params.userId,
+        ...(TENANT_SCHEMA_READY ? {organization_id: await requireEffectiveTenant(params.userId)} : {}),
       },{onConflict:"task_id,member_email"});
       if (linked.error) console.error("[task assignment] could not sync assignment",linked.error.code);
     }
