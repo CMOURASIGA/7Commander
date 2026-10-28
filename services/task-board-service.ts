@@ -207,14 +207,14 @@ function mapLegacyTaskRowToCard(row: LegacyTaskRow, columnKey: ColumnKey, positi
   };
 }
 
-async function ensureColumnSet(boardId: string): Promise<void> {
+async function ensureColumnSet(boardId: string, userId: string): Promise<void> {
   const supabase = getSupabaseServerClient();
   if (!supabase) return;
 
-  const existing = await supabase
-    .from("task_columns")
-    .select("id, column_key")
-    .eq("board_id", boardId);
+  const organizationId = TENANT_SCHEMA_READY ? await requireEffectiveTenant(userId) : null;
+  let columnsQuery = supabase.from("task_columns").select("id, column_key").eq("board_id", boardId);
+  if (organizationId) columnsQuery = columnsQuery.eq("organization_id", organizationId);
+  const existing = await columnsQuery;
 
   const keys = new Set<string>((existing.data ?? []).map((item) => item.column_key));
   const missing = DEFAULT_COLUMNS.filter((col) => !keys.has(col.key));
@@ -223,6 +223,7 @@ async function ensureColumnSet(boardId: string): Promise<void> {
   await supabase.from("task_columns").insert(
     missing.map((column) => ({
       board_id: boardId,
+      ...(organizationId ? {organization_id:organizationId} : {}),
       column_key: column.key,
       title: column.title,
       position: column.position,
@@ -242,7 +243,7 @@ async function ensureBoard(params: {
   const existing = await boardQuery.single();
 
   if (!existing.error && existing.data) {
-    await ensureColumnSet(existing.data.id);
+    await ensureColumnSet(existing.data.id, params.userId);
     return existing.data as TaskBoardRow;
   }
 
@@ -259,7 +260,7 @@ async function ensureBoard(params: {
 
   if (created.error || !created.data) return null;
 
-  await ensureColumnSet(created.data.id);
+  await ensureColumnSet(created.data.id, params.userId);
   return created.data as TaskBoardRow;
 }
 
