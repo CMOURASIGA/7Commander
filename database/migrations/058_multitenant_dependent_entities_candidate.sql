@@ -15,9 +15,9 @@ BEGIN
 END $$;
 
 UPDATE public.task_boards t SET organization_id=p.organization_id FROM public.projects p WHERE t.project_id=p.id AND t.organization_id IS NULL;
-UPDATE public.task_members t SET organization_id=p.organization_id FROM public.projects p WHERE t.project_id=p.id AND t.organization_id IS NULL;
-UPDATE public.task_labels t SET organization_id=p.organization_id FROM public.projects p WHERE t.project_id=p.id AND t.organization_id IS NULL;
-UPDATE public.task_daily_selections t SET organization_id=p.organization_id FROM public.projects p WHERE t.project_id=p.id AND t.organization_id IS NULL;
+UPDATE public.task_members t SET organization_id=k.organization_id FROM public.tasks k WHERE t.task_id=k.id AND t.organization_id IS NULL;
+UPDATE public.task_labels t SET organization_id=k.organization_id FROM public.tasks k WHERE t.task_id=k.id AND t.organization_id IS NULL;
+UPDATE public.task_daily_selections t SET organization_id=k.organization_id FROM public.tasks k WHERE t.task_id=k.id AND t.organization_id IS NULL;
 UPDATE public.task_comments t SET organization_id=k.organization_id FROM public.tasks k WHERE t.task_id=k.id AND t.organization_id IS NULL;
 UPDATE public.task_checklists t SET organization_id=k.organization_id FROM public.tasks k WHERE t.task_id=k.id AND t.organization_id IS NULL;
 UPDATE public.task_checklist_items t SET organization_id=k.organization_id FROM public.tasks k WHERE t.task_id=k.id AND t.organization_id IS NULL;
@@ -67,7 +67,7 @@ BEGIN
  ('task_daily_selections','tasks','task_id'),
  ('task_comments','tasks','task_id'),
  ('task_checklists','tasks','task_id'),
- ('task_checklist_items','tasks','task_id'),
+ ('task_checklist_items','task_checklists','checklist_id'),
  ('task_attachments','tasks','task_id'),
  ('task_activity_log','tasks','task_id'),
  ('task_columns','task_boards','board_id'),
