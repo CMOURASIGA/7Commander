@@ -237,11 +237,9 @@ async function ensureBoard(params: {
   const supabase = getSupabaseServerClient();
   if (!supabase) return null;
 
-  const existing = await supabase
-    .from("task_boards")
-    .select("id, project_id, name")
-    .eq("project_id", params.projectId)
-    .single();
+  let boardQuery = supabase.from("task_boards").select("id, project_id, name").eq("project_id", params.projectId);
+  if (TENANT_SCHEMA_READY) boardQuery = boardQuery.eq("organization_id", await requireEffectiveTenant(params.userId));
+  const existing = await boardQuery.single();
 
   if (!existing.error && existing.data) {
     await ensureColumnSet(existing.data.id);
