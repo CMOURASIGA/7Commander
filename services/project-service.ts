@@ -302,6 +302,7 @@ async function createProjectExtended(input: CreateProjectInput): Promise<Project
       .from("projects")
       .update({ ativo: false })
       .eq("user_id", input.userId)
+      .eq("organization_id", await projectTenantId(input.userId))
       .eq("ativo", true);
   }
 
@@ -428,7 +429,7 @@ export async function setActiveProject(params: {
   const supabase = getSupabaseServerClient();
   if (supabase) {
     try {
-      await supabase.from("projects").update({ ativo: false }).eq("user_id", params.userId).eq("ativo", true);
+      await supabase.from("projects").update({ ativo: false }).eq("user_id", params.userId).eq("organization_id", await projectTenantId(params.userId)).eq("ativo", true);
 
       const updated = await supabase
         .from("projects")
