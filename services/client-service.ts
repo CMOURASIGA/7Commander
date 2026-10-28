@@ -70,7 +70,7 @@ export async function listClients(userId: string): Promise<ClientRecord[]> {
       return (result.data as ClientRow[]).map(mapClientRow);
     }
   }
-  return ALLOW_LOCAL_FALLBACK ? clientStore.get(userId) ?? [] : [];
+  return TENANT_SCHEMA_READY ? [] : (ALLOW_LOCAL_FALLBACK ? clientStore.get(userId) ?? [] : []);
 }
 
 export async function getClientById(params: {
