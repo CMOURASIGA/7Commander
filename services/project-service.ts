@@ -290,7 +290,7 @@ export async function listProjects(userId: string, userEmail?: string | null): P
     }
   }
 
-  return ALLOW_LOCAL_FALLBACK ? projectStore.get(userId) ?? [] : [];
+  return TENANT_SCHEMA_READY ? [] : (ALLOW_LOCAL_FALLBACK ? projectStore.get(userId) ?? [] : []);
 }
 
 async function createProjectExtended(input: CreateProjectInput): Promise<ProjectRecord | null> {
