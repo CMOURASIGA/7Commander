@@ -72,6 +72,7 @@ async function registerTaskActivity(params: {
 
   await supabase.from("task_activity_log").insert({
     task_id: params.taskId,
+    ...(TENANT_SCHEMA_READY ? {organization_id: await requireEffectiveTenant(params.actorUserId ?? "")} : {}),
     actor_user_id: params.actorUserId ?? null,
     actor_email: params.actorEmail?.trim().toLowerCase() ?? null,
     action_type: params.actionType,
