@@ -851,11 +851,12 @@ export async function getProjectTaskOperationalSnapshot(params: {
   const supabase = getSupabaseServerClient();
   if (!supabase) return null;
 
-  const result = await supabase
+  let query = supabase
     .from("tasks")
     .select("titulo, prioridade, status")
-    .eq("project_id", params.projectId)
-    .order("updated_at", { ascending: false })
+    .eq("project_id", params.projectId);
+  if (TENANT_SCHEMA_READY) query = query.eq("organization_id", await requireEffectiveTenant(params.userId));
+  const result = await query.order("updated_at", { ascending: false })
     .limit(300);
 
   if (result.error || !result.data) return null;
