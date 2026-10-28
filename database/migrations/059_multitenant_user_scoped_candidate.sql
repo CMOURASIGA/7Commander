@@ -10,7 +10,7 @@ BEGIN
  END LOOP;
 END $$;
 CREATE TEMP TABLE _unique_tenant_members ON COMMIT DROP AS
- SELECT user_id, min(organization_id) AS organization_id
+ SELECT user_id, (min(organization_id::text))::uuid AS organization_id
  FROM public.organization_members
  WHERE status='active'
  GROUP BY user_id
