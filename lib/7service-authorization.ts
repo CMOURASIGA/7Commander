@@ -28,8 +28,9 @@ export async function checkCentralProductAccess(input: {
     url.searchParams.set("productCode", productCode);
     url.searchParams.set("action", "product.access");
     const response = await fetch(url.toString(), {
-      headers: { Authorization: `Bearer ${centralAccessToken}` },
+      headers: { Authorization: `Bearer ${centralAccessToken}`, Accept: "application/json" },
       cache: "no-store",
+      redirect: "error",
       signal: AbortSignal.timeout(8000),
     });
     if (!response.ok || !response.headers.get("content-type")?.includes("application/json")) return { allowed: false, reasonCode: "CENTRAL_UNAVAILABLE" };
