@@ -20,7 +20,10 @@ export async function checkCentralProductAccess(input: {
       !/^[a-f0-9-]{36}$/i.test(clientId) || !/^[a-zA-Z0-9_.-]{2,100}$/.test(productCode))
     return { allowed: false, reasonCode: "CENTRAL_CONFIG_INVALID" };
   try {
-    const url = new URL("/api/v1/authorization/decision", centralUrl);
+    const origin = new URL(centralUrl);
+    if (origin.protocol !== "https:" || origin.username || origin.password || origin.port || origin.pathname !== "/" || origin.search || origin.hash)
+      return { allowed: false, reasonCode: "CENTRAL_CONFIG_INVALID" };
+    const url = new URL("/api/v1/authorization/decision", origin);
     url.searchParams.set("clientId", clientId);
     url.searchParams.set("productCode", productCode);
     url.searchParams.set("action", "product.access");
@@ -29,7 +32,7 @@ export async function checkCentralProductAccess(input: {
       cache: "no-store",
       signal: AbortSignal.timeout(8000),
     });
-    if (!response.ok) return { allowed: false, reasonCode: "CENTRAL_UNAVAILABLE" };
+    if (!response.ok || !response.headers.get("content-type")?.includes("application/json")) return { allowed: false, reasonCode: "CENTRAL_UNAVAILABLE" };
     const body: unknown = await response.json();
     if (!body || typeof body !== "object") return { allowed: false, reasonCode: "CENTRAL_PROTOCOL_ERROR" };
     const value = body as Record<string, unknown>;
