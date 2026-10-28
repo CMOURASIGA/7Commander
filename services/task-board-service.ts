@@ -604,6 +604,7 @@ export async function updateTaskCard(params: {
     .from("tasks")
     .select("id, user_id, project_id, board_id, column_id, titulo, descricao, prioridade, status, responsavel, due_date, position, created_at, updated_at")
     .eq("id", params.taskId)
+    .eq("organization_id", TENANT_SCHEMA_READY ? await requireEffectiveTenant(params.userId) : CONSULT_ORG_ID)
     .single();
   if (current.error || !current.data) {
     if (isSchemaMissingMessage(current.error?.message)) {
@@ -763,6 +764,7 @@ async function updateTaskCardLegacy(params: {
     .from("tasks")
     .select("id, project_id, titulo, descricao, prioridade, status, responsavel, due_date, created_at")
     .eq("id", params.taskId)
+    .eq("organization_id", TENANT_SCHEMA_READY ? await requireEffectiveTenant(params.userId) : CONSULT_ORG_ID)
     .single();
   if (current.error || !current.data || !current.data.project_id) return null;
 
