@@ -20,7 +20,23 @@ export function Header({ onToggleMobileNav, mobileNavOpen }: HeaderProps) {
   const pageTitle = PAGE_TITLES[pathname] ?? "Workspace";
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [companies,setCompanies] = useState<Array<{id:string;name:string}>>([]);
+  const [activeCompany,setActiveCompany] = useState<string | null>(null);
   useEffect(() => { if(!authenticated) {setCompanies([]);return;} let alive=true; void fetch("/api/organizations/mine",{headers:getClientAuthHeaders(),cache:"no-store"}).then(async response=>{if(!response.ok)return;const payload=await response.json();if(!alive)return;setCompanies((payload.data??[]).map((entry:{id:string;organization:{name:string}|Array<{name:string}>})=>({id:entry.id,name:Array.isArray(entry.organization)?entry.organization[0]?.name:entry.organization?.name})));}).catch(()=>{});return()=>{alive=false};},[authenticated]);
+  useEffect(() => {
+    if (!authenticated) { setActiveCompany(null); return; }
+    let alive = true;
+    async function refreshActiveCompany() {
+      try {
+        const response = await fetch("/api/organizations/branding", {headers:getClientAuthHeaders(),cache:"no-store"});
+        if (!response.ok) { if(alive)setActiveCompany(null); return; }
+        const payload = await response.json();
+        if (alive) setActiveCompany(typeof payload.data?.name === "string" ? payload.data.name : null);
+      } catch { if(alive)setActiveCompany(null); }
+    }
+    void refreshActiveCompany();
+    window.addEventListener("7commander:organization-selected", refreshActiveCompany);
+    return () => {alive=false;window.removeEventListener("7commander:organization-selected", refreshActiveCompany);};
+  }, [authenticated]);
   const menuRef = useRef<HTMLDivElement>(null);
   const avatarLabel = (email ?? "7c").split("@")[0].split(/[.\s_-]+/).filter(Boolean).slice(0, 2).map((part) => part[0]?.toUpperCase() ?? "").join("") || "7C";
 
@@ -33,17 +49,17 @@ export function Header({ onToggleMobileNav, mobileNavOpen }: HeaderProps) {
         <div className="min-w-0"><p className="truncate text-[10px] font-black uppercase tracking-[0.2em] text-(--accent)">Workspace ativo</p><h1 className="truncate text-base font-semibold text-(--text-primary)">{pageTitle}</h1></div>
       </div>
       <div className="flex items-center gap-2 md:gap-3">
-        {authenticated && companies.length > 0 && <Link href="/organizations" title="Consultar empresas vinculadas" className="hidden max-w-48 truncate rounded-lg border border-(--border) px-3 py-2 text-xs font-medium text-(--text-primary) lg:inline-flex">{companies.length===1?companies[0].name:`${companies.length} empresas`}</Link>}
+        {authenticated && companies.length > 0 && <Link href="/organizations" title="Consultar empresas vinculadas" className="hidden max-w-48 truncate rounded-lg border border-(--border) px-3 py-2 text-xs font-medium text-(--text-primary) lg:inline-flex">{activeCompany ?? (companies.length===1 ? companies[0].name : `${companies.length} empresas`)}</Link>}
         {authenticated && <TaskAlerts />}
         {authenticated && <span className="hidden items-center gap-2 rounded-full border border-[color:var(--success)]/30 bg-(--success-soft) px-3 py-1.5 text-[12px] font-semibold text-(--success) sm:inline-flex"><span className="h-2 w-2 rounded-full bg-(--success)" />Sistema online</span>}
         {auth.loading ? <span className="rounded-full border border-(--border) bg-white px-3 py-1 text-xs text-(--text-secondary)">Carregando sessao...</span> : authenticated ? (
           <div ref={menuRef} className="relative">
             <button type="button" onClick={() => setUserMenuOpen((open) => !open)} className="flex items-center gap-2 rounded-xl px-1.5 py-1 transition hover:bg-(--bg-muted) sm:px-2" aria-expanded={userMenuOpen} aria-haspopup="menu">
               <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-(--brand-highlight) text-xs font-bold text-(--sidebar-deep)">{avatarLabel}</span>
-              <span className="hidden min-w-0 text-left md:block"><span className="block max-w-48 truncate text-sm font-semibold text-(--text-primary)">{email ?? "usuario autenticado"}</span><span className="block text-[10px] uppercase tracking-wide text-(--text-tertiary)">Usuário</span></span>
+              <span className="hidden min-w-0 text-left md:block"><span className="block max-w-48 truncate text-sm font-semibold text-(--text-primary)">{email ?? "usuario autenticado"}</span><span className="block max-w-48 truncate text-[10px] font-semibold text-(--text-secondary)" title={activeCompany ?? "Empresa ativa não confirmada"}>{activeCompany ? `Empresa ativa: ${activeCompany}` : "Empresa ativa não confirmada"}</span></span>
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="hidden h-4 w-4 text-(--text-tertiary) md:block" aria-hidden="true"><path d="m7 10 5 5 5-5" /></svg>
             </button>
-            {userMenuOpen && <div role="menu" className="absolute right-0 top-[calc(100%+10px)] w-64 overflow-hidden rounded-2xl border border-(--border) bg-white shadow-xl"><div className="border-b border-(--border) px-4 py-4"><p className="truncate text-sm font-semibold text-(--text-primary)">{email ?? "usuario autenticado"}</p><p className="mt-1 text-[11px] uppercase tracking-wide text-(--text-tertiary)">Usuário</p></div><div className="p-2"><button type="button" onClick={() => void auth.signOut()} className="flex w-full items-center gap-3 rounded-xl px-3 py-2 text-left text-sm font-medium text-red-600 hover:bg-red-50">Sair</button></div></div>}
+            {userMenuOpen && <div role="menu" className="absolute right-0 top-[calc(100%+10px)] w-64 overflow-hidden rounded-2xl border border-(--border) bg-white shadow-xl"><div className="border-b border-(--border) px-4 py-4"><p className="truncate text-sm font-semibold text-(--text-primary)">{email ?? "usuario autenticado"}</p><p className="mt-1 text-[11px] font-semibold text-(--text-secondary)">{activeCompany ? `Empresa ativa: ${activeCompany}` : "Empresa ativa não confirmada"}</p></div><div className="p-2"><button type="button" onClick={() => void auth.signOut()} className="flex w-full items-center gap-3 rounded-xl px-3 py-2 text-left text-sm font-medium text-red-600 hover:bg-red-50">Sair</button></div></div>}
           </div>
         ) : auth.required ? <Link href="/login" className="rounded-full bg-(--accent) px-3 py-1 text-xs font-medium text-(--accent-contrast)">Entrar</Link> : <span className="rounded-full border border-(--border) bg-white px-3 py-1 text-xs text-(--text-secondary)">Modo local</span>}
       </div>

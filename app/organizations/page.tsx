@@ -8,7 +8,10 @@ export default function OrganizationChooser(){
  const [orgs,setOrgs]=useState<Org[]>([]);
  const [selected,setSelected]=useState("");
  const [error,setError]=useState("");
- useEffect(()=>{let active=true;void(async()=>{try{const r=await fetch("/api/organizations/mine",{headers:getClientAuthHeaders(),cache:"no-store"});if(!r.ok)throw Error("Não foi possível verificar seus vínculos.");const p=await r.json();if(!active)return;const list=(p.data??[]) as Org[];setOrgs(list);const cached=window.sessionStorage.getItem(KEY);setSelected(list.find(x=>x.id===cached)?.id??list[0]?.id??"");}catch(e){if(active)setError(e instanceof Error?e.message:"Falha de acesso.");}})();return()=>{active=false};},[]);
+ const [activeCompany,setActiveCompany]=useState<string|null>(null);
+ useEffect(()=>{let active=true;void(async()=>{try{const r=await fetch("/api/organizations/mine",{headers:getClientAuthHeaders(),cache:"no-store"});if(!r.ok)throw Error("Não foi possível verificar seus vínculos.");const p=await r.json();if(!active)return;const list=(p.data??[]) as Org[];setOrgs(list);
+ const current=await fetch("/api/organizations/branding",{headers:getClientAuthHeaders(),cache:"no-store"}).then(x=>x.ok?x.json():null).catch(()=>null);
+ if(active)setActiveCompany(typeof current?.data?.name==="string"?current.data.name:null);const cached=window.sessionStorage.getItem(KEY);setSelected(list.find(x=>x.id===cached)?.id??list[0]?.id??"");}catch(e){if(active)setError(e instanceof Error?e.message:"Falha de acesso.");}})();return()=>{active=false};},[]);
  async function choose(){
   if(!orgs.some(x=>x.id===selected))return;
   try {
@@ -17,7 +20,7 @@ export default function OrganizationChooser(){
    const result=await response.json().catch(()=>({}));
    if(!response.ok)throw new Error(result.error||"Acesso à empresa negado.");
    if(result.data?.operationalIsolationReady!==true){
-    setError("Vínculo confirmado. Troca operacional bloqueada até a conclusão do isolamento multempresa.");
+    setError("A 7Commander confirmou seu vínculo, mas NÃO alterou a empresa ativa. O isolamento multempresa ainda está pendente.");
     return;
    }
    window.sessionStorage.setItem(KEY,selected);
@@ -25,5 +28,5 @@ export default function OrganizationChooser(){
    window.location.assign("/"); // Clears in-memory project and Kairos context after authorized switch.
   } catch(e){setError(e instanceof Error?e.message:"Erro ao selecionar empresa.");}
  }
- return <section className="mx-auto max-w-2xl space-y-4 rounded-xl border border-(--border) bg-(--bg-surface) p-6"><h1 className="text-xl font-semibold">Selecionar empresa</h1><p className="text-sm text-(--text-secondary)">Escolha uma das organizações às quais sua conta está vinculada.</p>{error&&<p role="alert">{error}</p>}{orgs.length===0&&!error?<p>Nenhuma empresa disponível para esta conta.</p>:<div className="space-y-2">{orgs.map(x=><label key={x.id} className="flex items-center gap-3 rounded-lg border border-(--border) p-3"><input type="radio" checked={selected===x.id} onChange={()=>setSelected(x.id)}/><span>{Array.isArray(x.organization)?x.organization[0]?.name:x.organization.name}</span><span className="ml-auto text-xs text-(--text-secondary)">{x.role}</span></label>)}</div>}<button type="button" disabled={!selected} onClick={choose} className="rounded-lg bg-(--accent) px-4 py-2 text-sm text-white disabled:opacity-50">Selecionar</button><p className="text-xs text-amber-700">Preparação técnica: a seleção ainda não altera o escopo das consultas legadas. O acesso multempresa só será liberado após isolamento de todos os módulos e testes de segurança.</p><p className="text-sm"><Link className="underline" href="/platform/companies">Administração de empresas (superadmin)</Link></p></section>;
+ return <section className="mx-auto max-w-2xl space-y-4 rounded-xl border border-(--border) bg-(--bg-surface) p-6"><h1 className="text-xl font-semibold">Selecionar empresa</h1><p className="text-sm text-(--text-secondary)">Escolha uma das organizações às quais sua conta está vinculada.</p><p className="rounded-lg border border-(--border) p-3 text-sm font-medium">Empresa realmente ativa: {activeCompany??"não confirmada"}</p>{error&&<p role="alert">{error}</p>}{orgs.length===0&&!error?<p>Nenhuma empresa disponível para esta conta.</p>:<div className="space-y-2">{orgs.map(x=><label key={x.id} className="flex items-center gap-3 rounded-lg border border-(--border) p-3"><input type="radio" checked={selected===x.id} onChange={()=>setSelected(x.id)}/><span>{Array.isArray(x.organization)?x.organization[0]?.name:x.organization.name}</span><span className="ml-auto text-xs text-(--text-secondary)">{x.role}</span></label>)}</div>}<button type="button" disabled={!selected} onClick={choose} className="rounded-lg bg-(--accent) px-4 py-2 text-sm text-white disabled:opacity-50">Selecionar</button><p className="text-xs text-amber-700">Preparação técnica: a seleção ainda não altera o escopo das consultas legadas. O acesso multempresa só será liberado após isolamento de todos os módulos e testes de segurança.</p><p className="text-sm"><Link className="underline" href="/platform/companies">Administração de empresas (superadmin)</Link></p></section>;
 }
