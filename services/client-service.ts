@@ -168,7 +168,8 @@ export async function deleteClient(params: {
       .from("clients")
       .delete()
       .eq("id", params.clientId)
-      .eq("user_id", current.userId);
+      .eq("user_id", current.userId)
+      .eq("organization_id", await clientTenant(params.userId));
     if (!result.error) return true;
   }
 
