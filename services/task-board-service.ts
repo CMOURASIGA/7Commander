@@ -265,16 +265,13 @@ async function ensureBoard(params: {
   return created.data as TaskBoardRow;
 }
 
-async function normalizeColumnPositions(boardId: string, columnId: string): Promise<void> {
+async function normalizeColumnPositions(boardId: string, columnId: string, userId: string): Promise<void> {
   const supabase = getSupabaseServerClient();
   if (!supabase) return;
 
-  const listed = await supabase
-    .from("tasks")
-    .select("id, position")
-    .eq("board_id", boardId)
-    .eq("column_id", columnId)
-    .order("position", { ascending: true });
+  let query = supabase.from("tasks").select("id, position").eq("board_id", boardId).eq("column_id", columnId);
+  if (TENANT_SCHEMA_READY) query = query.eq("organization_id", await requireEffectiveTenant(userId));
+  const listed = await query.order("position", { ascending: true });
 
   if (listed.error || !listed.data?.length) return;
   for (let index = 0; index < listed.data.length; index += 1) {
@@ -283,7 +280,8 @@ async function normalizeColumnPositions(boardId: string, columnId: string): Prom
     await supabase
       .from("tasks")
       .update({ position: index, updated_at: new Date().toISOString() })
-      .eq("id", row.id);
+      .eq("id", row.id)
+      .eq("organization_id", TENANT_SCHEMA_READY ? await requireEffectiveTenant(userId) : CONSULT_ORG_ID);
   }
 }
 
@@ -707,11 +705,11 @@ export async function updateTaskCard(params: {
   if (params.columnId || params.position !== undefined) {
     if (finalColumnId !== task.column_id) {
       await Promise.all([
-        normalizeColumnPositions(task.board_id, task.column_id),
-        normalizeColumnPositions(task.board_id, finalColumnId),
+        normalizeColumnPositions(task.board_id, task.column_id, params.userId),
+        normalizeColumnPositions(task.board_id, finalColumnId, params.userId),
       ]);
     } else {
-      await normalizeColumnPositions(task.board_id, finalColumnId);
+      await normalizeColumnPositions(task.board_id, finalColumnId, params.userId);
     }
   }
   const card = mapTaskRowToCard(updated.data as TaskRow, finalColumnKey);
