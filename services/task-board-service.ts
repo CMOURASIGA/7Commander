@@ -252,6 +252,7 @@ async function ensureBoard(params: {
     .from("task_boards")
     .insert({
       project_id: params.projectId,
+      ...(TENANT_SCHEMA_READY ? { organization_id: await requireEffectiveTenant(params.userId) } : {}),
       name: "Quadro principal",
       created_by: params.userId,
     })
@@ -489,6 +490,7 @@ export async function createTaskCard(params: {
     .insert({
       user_id: params.userId,
       project_id: params.projectId,
+      ...(TENANT_SCHEMA_READY ? { organization_id: await requireEffectiveTenant(params.userId) } : {}),
       ...(params.sourceRef ? { source_ref: params.sourceRef } : {}),
       board_id: board.id,
       column_id: column.data.id,
@@ -543,6 +545,7 @@ async function createTaskCardLegacy(params: {
     .insert({
       user_id: params.userId,
       project_id: params.projectId,
+      ...(TENANT_SCHEMA_READY ? { organization_id: await requireEffectiveTenant(params.userId) } : {}),
       titulo: params.title.trim().slice(0, 180),
       descricao: params.description?.trim() || null,
       prioridade: params.priority ?? "media",
