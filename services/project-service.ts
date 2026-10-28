@@ -402,7 +402,7 @@ export async function createProject(input: CreateProjectInput): Promise<ProjectR
     }
   }
 
-  if (ALLOW_LOCAL_FALLBACK) {
+  if (ALLOW_LOCAL_FALLBACK && !TENANT_SCHEMA_READY) {
     return saveLocalProject(input);
   }
 
@@ -448,7 +448,7 @@ export async function setActiveProject(params: {
     }
   }
 
-  if (!ALLOW_LOCAL_FALLBACK) return accessible;
+  if (!ALLOW_LOCAL_FALLBACK || TENANT_SCHEMA_READY) return accessible;
   const local = projectStore.get(params.userId) ?? [];
   let found: ProjectRecord | null = null;
   for (const item of local) {
@@ -626,7 +626,7 @@ export async function updateProject(params: {
     }
   }
 
-  if (!ALLOW_LOCAL_FALLBACK) return null;
+  if (!ALLOW_LOCAL_FALLBACK || TENANT_SCHEMA_READY) return null;
   const local = projectStore.get(params.userId) ?? [];
   const target = local.find((item) => item.id === params.projectId);
   if (!target) return null;
