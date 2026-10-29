@@ -23,11 +23,22 @@ export async function POST(request:NextRequest){
  const role=await getTenantRole(auth.context.userId);if(!role||role==="member")return NextResponse.json({error:"Somente gestores podem solicitar avaliações"},{status:403});
  const provider=providerForMode();if(!provider)return NextResponse.json({error:"Inteligência operacional desativada"},{status:503});
  const body=await request.json().catch(()=>null);
- if(!body||!validInput(body.input)||body.mode!=="simulation")return NextResponse.json({error:"Entrada inválida ou modo não autorizado"},{status:400});
+ if(!body||!validInput(body.input)||body.synthetic!==true||body.mode!==intelligenceMode())return NextResponse.json({error:"Entrada inválida; somente dados sintéticos e modo explicitamente habilitado"},{status:400});
  const organizationId=await requireEffectiveTenant(auth.context.userId);
  const db=getSupabaseServerClient();if(!db)return NextResponse.json({error:"Banco indisponível"},{status:503});
- // Simulation is restricted to caller-supplied synthetic data. No entity fetch, no external model.
- const verdict=await provider.evaluate(body.input);
+ // Hard per-tenant and per-user limit on writes / provider calls. Never accept caller-supplied tenant.
+ const start=new Date(Date.now()-60*60*1000).toISOString();
+ const quota=await db.from("operational_decision_evaluations").select("id,created_by",{count:"exact",head:true})
+  .eq("organization_id",organizationId).gte("created_at",start);
+ if(quota.error)return NextResponse.json({error:"Controle de limites indisponível"},{status:503});
+ if((quota.count??0)>=10)return NextResponse.json({error:"Limite conservador de 10 avaliações por empresa/hora atingido"},{status:429});
+ if(intelligenceMode()==="observation"&&process.env.SEVEN_COMMANDER_JEV_COST_APPROVED!=="true")
+  return NextResponse.json({error:"Observação Jev aguarda autorização financeira"},{status:503});
+ // Only user-confirmed synthetic input; no entity fetching, business mutation or secret is sent.
+ let verdict;
+ try{verdict=await provider.evaluate(body.input);}catch{
+  return NextResponse.json({error:"Avaliação indisponível; nenhuma decisão executada"},{status:503});
+ }
  const result=await db.from("operational_decision_evaluations").insert({
  organization_id:organizationId,module:body.input.module,entity_type:"synthetic",source_id:null,
  verdict,provider:provider.id,status:"pending_review",created_by:auth.context.userId
