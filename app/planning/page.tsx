@@ -60,7 +60,7 @@ export default function PlanningPage(){
  }
  async function convertProspect(){
   if(!active||kind!=="prospect"||active.status!=="won")return;
-  if(!window.confirm(`Converter "${active.title}" em cliente? Esta ação cria um registro na base de clientes da Consult Services.`))return;
+  if(!window.confirm(`Converter "${active.title}" em cliente? Esta ação cria um cliente na empresa atualmente selecionada.`))return;
   setBusy(true);setStatus("Convertendo prospect...");
   try{
    const r=await fetch(`/api/planning/${active.id}/convert`,{method:"POST",headers:getClientAuthHeaders()});
@@ -78,6 +78,9 @@ export default function PlanningPage(){
    const j=await r.json().catch(()=>({}));
    if(!r.ok)throw Error(j.error||"Não foi possível criar o projeto.");
    setStatus(j.data?.alreadyCreated?"Este planejamento já possui um projeto.":"Projeto criado e vinculado ao planejamento.");
+   if (typeof j.data?.projectId === "string") {
+     setActive(current=>current?{...current,project_id:j.data.projectId}:current);
+   }
    await load();
   }catch(e){setStatus(e instanceof Error?e.message:"Falha ao concluir o planejamento.");}
   finally{setBusy(false);}
@@ -178,7 +181,8 @@ export default function PlanningPage(){
       <button disabled={busy} className="workspace-button-secondary px-3 py-2" onClick={()=>void save("approved")}>Aprovar</button>
       <button disabled={busy} className="workspace-button-secondary px-3 py-2" onClick={()=>void save("rejected")}>Rejeitar</button>
       {(kind==="opportunity"||kind==="prospect")?<button disabled={busy} className="workspace-button-secondary px-3 py-2" onClick={()=>void save("won")}>Marcar ganho</button>:null}</>:null}
-      {active&&kind==="opportunity"&&["approved","won"].includes(active.status)?<button disabled={busy} className="workspace-button-primary px-3 py-2" onClick={()=>void createProjectFromPlanning()}>Concluir planejamento e gerar projeto</button>:null}
+      {active&&kind==="opportunity"&&["approved","won"].includes(active.status)&&!active.project_id?<button disabled={busy} className="workspace-button-primary px-3 py-2" onClick={()=>void createProjectFromPlanning()}>Concluir planejamento e gerar projeto</button>:null}
+      {active&&kind==="opportunity"&&active.project_id?<Link href="/projects" className="workspace-button-secondary px-3 py-2">Ver projeto vinculado</Link>:null}
       {active&&kind==="prospect"&&active.status==="won"?<button disabled={busy} className="workspace-button-primary px-3 py-2" onClick={()=>void convertProspect()}>Converter em cliente</button>:null}
       {active?<button className="workspace-button-secondary px-3 py-2" disabled={busy} onClick={reset}>Cancelar edição</button>:null}
      </div>
