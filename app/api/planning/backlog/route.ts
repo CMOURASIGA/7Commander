@@ -14,7 +14,7 @@ export async function POST(req:NextRequest){
  if(!role||!["owner","admin","manager"].includes(role))return fail("Geração de backlog exige aprovação da gestão",403);
  const body=await req.json().catch(()=>null);
  const projectId=String(body?.projectId||""),decisionId=String(body?.decisionId||""),requirementId=String(body?.requirementId||"");
- const uuid=/^[0-9a-f]{8}-[0-9a-f-]{27,}$/i;
+ const uuid=/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
  if(![projectId,decisionId,requirementId].every(x=>uuid.test(x)))return fail("IDs inválidos");
  const access=await getProjectAccessRole({userId:auth.context.userId,userEmail:auth.context.userEmail,projectId});
  if(!["owner","editor"].includes(access))return fail("Sem permissão no projeto",403);
@@ -23,6 +23,7 @@ export async function POST(req:NextRequest){
  const sourceRef="planning:"+decisionId+":"+requirementId;
  const records=await db.from("commander_planning_records").select("id,title,description,kind,status,project_id")
   .eq("organization_id",organizationId).in("id",[decisionId,requirementId]);
+ if(decisionId===requirementId)return fail("Decisão e requisito devem ser registros diferentes");
  if(records.error||records.data?.length!==2)return fail("Requisito ou decisão não encontrados",404);
  const decision=records.data.find(r=>r.id===decisionId),requirement=records.data.find(r=>r.id===requirementId);
  if(!decision||decision.kind!=="decision_gate"||decision.project_id!==projectId||decision.status!=="approved")
