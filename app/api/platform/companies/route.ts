@@ -73,7 +73,23 @@ export async function DELETE(request: NextRequest) {
   if(records.error)return NextResponse.json({error:"Não foi possível verificar os vínculos empresariais."},{status:503});
   if((records.count??0)>0)return NextResponse.json({error:"A empresa possui registros ou usuários vinculados. Desativação bloqueada para preservar o acesso e o histórico."},{status:409});
  }
+ const profile=await db.from("profiles").select("user_id",{count:"exact",head:true}).eq("active_organization_id",id);
+ if(profile.error)return NextResponse.json({error:"Não foi possível verificar empresas selecionadas."},{status:503});
+ if((profile.count??0)>0)return NextResponse.json({error:"Há usuários com esta empresa selecionada. Ajuste o acesso antes de desativar."},{status:409});
  const saved=await db.from("organizations").update({status:"inactive"}).eq("id",id).eq("status","active").select("id,status").maybeSingle();
  if(saved.error||!saved.data)return NextResponse.json({error:"Empresa não foi desativada ou já está inativa."},{status:409});
+ return NextResponse.json({data:saved.data},{headers:noStore});
+}
+
+export async function PUT(request: NextRequest) {
+ const {response,db}=await authorize(request);
+ if(response||!db)return response;
+ const body=await request.json().catch(()=>null);
+ const id=typeof body?.id==="string"?body.id:"";
+ if(!/^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(id)||body?.confirmation!=="REATIVAR")
+  return NextResponse.json({error:"Empresa inválida ou confirmação incorreta."},{status:400});
+ const saved=await db.from("organizations").update({status:"active"})
+  .eq("id",id).eq("status","inactive").select("id,status").maybeSingle();
+ if(saved.error||!saved.data)return NextResponse.json({error:"Empresa não encontrada ou já está ativa."},{status:409});
  return NextResponse.json({data:saved.data},{headers:noStore});
 }
