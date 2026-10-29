@@ -68,11 +68,8 @@ export async function DELETE(request: NextRequest) {
  if(org.error||!org.data)return NextResponse.json({error:"Empresa não encontrada."},{status:404});
  if(["43973606-0c05-4934-a057-9f2710899eba","bce0fe84-eb14-4e9d-9815-1cb22cde3e5a"].includes(id))
   return NextResponse.json({error:"Empresas principais protegidas. Desativação requer procedimento administrativo específico."},{status:403});
- for(const table of ["projects","clients","commander_planning_records","organization_members"] as const){
-  const records=await db.from(table).select("id",{count:"exact",head:true}).eq("organization_id",id);
-  if(records.error)return NextResponse.json({error:"Não foi possível verificar os vínculos empresariais."},{status:503});
-  if((records.count??0)>0)return NextResponse.json({error:"A empresa possui registros ou usuários vinculados. Desativação bloqueada para preservar o acesso e o histórico."},{status:409});
- }
+ // Soft-deactivation preserves every record and membership. Tenant access is denied by
+ // resolveTenantMembership while organizations.status is inactive. Never delete rows.
  const profile=await db.from("profiles").select("user_id",{count:"exact",head:true}).eq("active_organization_id",id);
  if(profile.error)return NextResponse.json({error:"Não foi possível verificar empresas selecionadas."},{status:503});
  if((profile.count??0)>0)return NextResponse.json({error:"Há usuários com esta empresa selecionada. Ajuste o acesso antes de desativar."},{status:409});
