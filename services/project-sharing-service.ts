@@ -1,4 +1,5 @@
 import { getSupabaseServerClient } from "@/lib/supabase/server";
+import {TENANT_SCHEMA_READY,requireEffectiveTenant} from "@/lib/tenant-runtime";
 import { getProjectById } from "@/services/project-service";
 
 export type ProjectRole = "owner" | "editor" | "viewer";
@@ -61,6 +62,7 @@ export async function ensureProjectOwnerMembership(params: {
   await supabase.from("project_members").upsert(
     {
       project_id: params.projectId,
+      ...(TENANT_SCHEMA_READY ? {organization_id: await requireEffectiveTenant(params.ownerUserId)} : {}),
       member_user_id: params.ownerUserId,
       member_email: email,
       role: "owner",
