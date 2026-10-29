@@ -69,6 +69,19 @@ export default function PlanningPage(){
    reset();await load();
   }catch(e){setStatus(e instanceof Error?e.message:"Falha na conversão");}finally{setBusy(false);}
  }
+ async function createProjectFromPlanning(){
+  if(!active||kind!=="opportunity"||!["approved","won"].includes(active.status))return;
+  if(!window.confirm("Criar um projeto a partir desta oportunidade aprovada?"))return;
+  setBusy(true);setStatus("Criando projeto...");
+  try{
+   const r=await fetch(`/api/planning/${active.id}/create-project`,{method:"POST",headers:getClientAuthHeaders()});
+   const j=await r.json().catch(()=>({}));
+   if(!r.ok)throw Error(j.error||"Não foi possível criar o projeto.");
+   setStatus(j.data?.alreadyCreated?"Este planejamento já possui um projeto.":"Projeto criado e vinculado ao planejamento.");
+   await load();
+  }catch(e){setStatus(e instanceof Error?e.message:"Falha ao concluir o planejamento.");}
+  finally{setBusy(false);}
+ }
  async function save(action:"draft"|"review"|"approved"|"rejected"|"won"|"lost"){
   if(title.trim().length<3){setStatus("Informe um título de pelo menos 3 caracteres.");return;}
   if(!active&&!projectId&&!["prospect","opportunity"].includes(kind)){setStatus("Selecione o projeto deste registro.");return;}
@@ -165,6 +178,7 @@ export default function PlanningPage(){
       <button disabled={busy} className="workspace-button-secondary px-3 py-2" onClick={()=>void save("approved")}>Aprovar</button>
       <button disabled={busy} className="workspace-button-secondary px-3 py-2" onClick={()=>void save("rejected")}>Rejeitar</button>
       {(kind==="opportunity"||kind==="prospect")?<button disabled={busy} className="workspace-button-secondary px-3 py-2" onClick={()=>void save("won")}>Marcar ganho</button>:null}</>:null}
+      {active&&kind==="opportunity"&&["approved","won"].includes(active.status)?<button disabled={busy} className="workspace-button-primary px-3 py-2" onClick={()=>void createProjectFromPlanning()}>Concluir planejamento e gerar projeto</button>:null}
       {active&&kind==="prospect"&&active.status==="won"?<button disabled={busy} className="workspace-button-primary px-3 py-2" onClick={()=>void convertProspect()}>Converter em cliente</button>:null}
       {active?<button className="workspace-button-secondary px-3 py-2" disabled={busy} onClick={reset}>Cancelar edição</button>:null}
      </div>
