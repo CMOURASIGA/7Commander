@@ -2,7 +2,6 @@ import {NextRequest,NextResponse} from "next/server";
 import {requireApiAuth} from "@/lib/api-auth";
 import {getSupabaseServerClient} from "@/lib/supabase/server";
 import {requireEffectiveTenant,getTenantRole} from "@/lib/tenant-runtime";
-import {createProject} from "@/services/project-service";
 import {ensureProjectOwnerMembership} from "@/services/project-sharing-service";
 
 export async function POST(req:NextRequest,context:{params:Promise<{id:string}>}) {
@@ -13,26 +12,14 @@ export async function POST(req:NextRequest,context:{params:Promise<{id:string}>}
  const organizationId=await requireEffectiveTenant(auth.context.userId);
  const db=getSupabaseServerClient();if(!db)return NextResponse.json({error:"Banco indisponível."},{status:503});
  const {id}=await context.params;
- const item=await db.from("commander_planning_records")
-  .select("id,title,description,kind,status,project_id,organization_id,version")
-  .eq("id",id).eq("organization_id",organizationId).maybeSingle();
- if(item.error||!item.data)return NextResponse.json({error:"Planejamento não encontrado nesta empresa."},{status:404});
- const row=item.data;
- if(row.kind!=="opportunity"||!["approved","won"].includes(row.status))
-  return NextResponse.json({error:"A oportunidade deve estar aprovada ou ganha para gerar um projeto."},{status:409});
- if(row.project_id){
-  const existing=await db.from("projects").select("id").eq("id",row.project_id)
-   .eq("organization_id",organizationId).maybeSingle();
-  if(existing.error||!existing.data)
-   return NextResponse.json({error:"O planejamento está vinculado a um projeto que não foi localizado nesta empresa. Solicite revisão do vínculo."},{status:409});
-  return NextResponse.json({data:{projectId:existing.data.id,alreadyCreated:true}});
+ const completed=await db.rpc("commander_complete_opportunity",{
+  p_record_id:id,p_actor_id:auth.context.userId,p_organization_id:organizationId
+ });
+ if(completed.error)return NextResponse.json({error:"Não foi possível concluir esta oportunidade: "+completed.error.message},{status:409});
+ const result=Array.isArray(completed.data)?completed.data[0]:null;
+ if(!result?.project_id)return NextResponse.json({error:"O banco não confirmou o projeto."},{status:503});
+ if(!result.already_created){
+  await ensureProjectOwnerMembership({ownerUserId:auth.context.userId,ownerEmail:auth.context.userEmail,projectId:result.project_id});
  }
- const project=await createProject({userId:auth.context.userId,name:row.title,description:row.description??"",status:"ativo",isActive:false,tags:[]});
- const linked=await db.from("commander_planning_records").update({project_id:project.id,updated_by:auth.context.userId,updated_at:new Date().toISOString()})
-  .eq("id",row.id).eq("organization_id",organizationId).is("project_id",null).select("project_id").maybeSingle();
- if(linked.error||!linked.data){
-  return NextResponse.json({error:"Um projeto foi criado, mas não foi possível vinculá-lo à oportunidade. Não tente gerar novamente antes de conferir os projetos existentes.",projectId:project.id},{status:409});
- }
- await ensureProjectOwnerMembership({ownerUserId:auth.context.userId,ownerEmail:auth.context.userEmail,projectId:project.id});
- return NextResponse.json({data:{projectId:project.id,alreadyCreated:false}},{status:201});
+ return NextResponse.json({data:{projectId:result.project_id,alreadyCreated:Boolean(result.already_created)}},{status:result.already_created?200:201});
 }
