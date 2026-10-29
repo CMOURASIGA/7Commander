@@ -18,8 +18,6 @@ export async function POST(req:NextRequest,context:{params:Promise<{id:string}>}
  if(completed.error)return NextResponse.json({error:"Não foi possível concluir esta oportunidade: "+completed.error.message},{status:409});
  const result=Array.isArray(completed.data)?completed.data[0]:null;
  if(!result?.project_id)return NextResponse.json({error:"O banco não confirmou o projeto."},{status:503});
- if(!result.already_created){
-  await ensureProjectOwnerMembership({ownerUserId:auth.context.userId,ownerEmail:auth.context.userEmail,projectId:result.project_id});
- }
+ await ensureProjectOwnerMembership({ownerUserId:auth.context.userId,ownerEmail:auth.context.userEmail,projectId:result.project_id});
  return NextResponse.json({data:{projectId:result.project_id,alreadyCreated:Boolean(result.already_created)}},{status:result.already_created?200:201});
 }
