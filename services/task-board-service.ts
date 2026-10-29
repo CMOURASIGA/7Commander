@@ -72,6 +72,7 @@ async function registerTaskActivity(params: {
 
   await supabase.from("task_activity_log").insert({
     task_id: params.taskId,
+    ...(TENANT_SCHEMA_READY ? {organization_id: await requireEffectiveTenant(params.actorUserId ?? "")} : {}),
     actor_user_id: params.actorUserId ?? null,
     actor_email: params.actorEmail?.trim().toLowerCase() ?? null,
     action_type: params.actionType,
@@ -207,14 +208,14 @@ function mapLegacyTaskRowToCard(row: LegacyTaskRow, columnKey: ColumnKey, positi
   };
 }
 
-async function ensureColumnSet(boardId: string): Promise<void> {
+async function ensureColumnSet(boardId: string, userId: string): Promise<void> {
   const supabase = getSupabaseServerClient();
   if (!supabase) return;
 
-  const existing = await supabase
-    .from("task_columns")
-    .select("id, column_key")
-    .eq("board_id", boardId);
+  const organizationId = TENANT_SCHEMA_READY ? await requireEffectiveTenant(userId) : null;
+  let columnsQuery = supabase.from("task_columns").select("id, column_key").eq("board_id", boardId);
+  if (organizationId) columnsQuery = columnsQuery.eq("organization_id", organizationId);
+  const existing = await columnsQuery;
 
   const keys = new Set<string>((existing.data ?? []).map((item) => item.column_key));
   const missing = DEFAULT_COLUMNS.filter((col) => !keys.has(col.key));
@@ -223,6 +224,7 @@ async function ensureColumnSet(boardId: string): Promise<void> {
   await supabase.from("task_columns").insert(
     missing.map((column) => ({
       board_id: boardId,
+      ...(organizationId ? {organization_id:organizationId} : {}),
       column_key: column.key,
       title: column.title,
       position: column.position,
@@ -237,14 +239,12 @@ async function ensureBoard(params: {
   const supabase = getSupabaseServerClient();
   if (!supabase) return null;
 
-  const existing = await supabase
-    .from("task_boards")
-    .select("id, project_id, name")
-    .eq("project_id", params.projectId)
-    .single();
+  let boardQuery = supabase.from("task_boards").select("id, project_id, name").eq("project_id", params.projectId);
+  if (TENANT_SCHEMA_READY) boardQuery = boardQuery.eq("organization_id", await requireEffectiveTenant(params.userId));
+  const existing = await boardQuery.single();
 
   if (!existing.error && existing.data) {
-    await ensureColumnSet(existing.data.id);
+    await ensureColumnSet(existing.data.id, params.userId);
     return existing.data as TaskBoardRow;
   }
 
@@ -252,6 +252,7 @@ async function ensureBoard(params: {
     .from("task_boards")
     .insert({
       project_id: params.projectId,
+      ...(TENANT_SCHEMA_READY ? { organization_id: await requireEffectiveTenant(params.userId) } : {}),
       name: "Quadro principal",
       created_by: params.userId,
     })
@@ -260,20 +261,17 @@ async function ensureBoard(params: {
 
   if (created.error || !created.data) return null;
 
-  await ensureColumnSet(created.data.id);
+  await ensureColumnSet(created.data.id, params.userId);
   return created.data as TaskBoardRow;
 }
 
-async function normalizeColumnPositions(boardId: string, columnId: string): Promise<void> {
+async function normalizeColumnPositions(boardId: string, columnId: string, userId: string): Promise<void> {
   const supabase = getSupabaseServerClient();
   if (!supabase) return;
 
-  const listed = await supabase
-    .from("tasks")
-    .select("id, position")
-    .eq("board_id", boardId)
-    .eq("column_id", columnId)
-    .order("position", { ascending: true });
+  let query = supabase.from("tasks").select("id, position").eq("board_id", boardId).eq("column_id", columnId);
+  if (TENANT_SCHEMA_READY) query = query.eq("organization_id", await requireEffectiveTenant(userId));
+  const listed = await query.order("position", { ascending: true });
 
   if (listed.error || !listed.data?.length) return;
   for (let index = 0; index < listed.data.length; index += 1) {
@@ -282,7 +280,8 @@ async function normalizeColumnPositions(boardId: string, columnId: string): Prom
     await supabase
       .from("tasks")
       .update({ position: index, updated_at: new Date().toISOString() })
-      .eq("id", row.id);
+      .eq("id", row.id)
+      .eq("organization_id", TENANT_SCHEMA_READY ? await requireEffectiveTenant(userId) : CONSULT_ORG_ID);
   }
 }
 
@@ -306,25 +305,24 @@ export async function listTaskBoard(params: {
     projectId: params.projectId,
   });
   if (!board) {
-    return listTaskBoardLegacy(params);
+    return TENANT_SCHEMA_READY ? null : listTaskBoardLegacy(params);
   }
 
+  const tenantId = TENANT_SCHEMA_READY ? await requireEffectiveTenant(params.userId) : null;
+  let columnsQuery = supabase.from("task_columns").select("id, board_id, column_key, title, position").eq("board_id", board.id);
+  let tasksQuery = supabase.from("tasks").select("id, user_id, project_id, board_id, column_id, titulo, descricao, prioridade, status, responsavel, due_date, position, created_at, updated_at").eq("board_id", board.id);
+  if (tenantId) {
+    columnsQuery = columnsQuery.eq("organization_id", tenantId);
+    tasksQuery = tasksQuery.eq("organization_id", tenantId);
+  }
   const [columnsResult, tasksResult] = await Promise.all([
-    supabase
-      .from("task_columns")
-      .select("id, board_id, column_key, title, position")
-      .eq("board_id", board.id)
-      .order("position", { ascending: true }),
-    supabase
-      .from("tasks")
-      .select("id, user_id, project_id, board_id, column_id, titulo, descricao, prioridade, status, responsavel, due_date, position, created_at, updated_at")
-      .eq("board_id", board.id)
-      .order("position", { ascending: true }),
+    columnsQuery.order("position", { ascending: true }),
+    tasksQuery.order("position", { ascending: true }),
   ]);
 
   if (columnsResult.error || tasksResult.error || !columnsResult.data || !tasksResult.data) {
     if (isSchemaMissingMessage(columnsResult.error?.message) || isSchemaMissingMessage(tasksResult.error?.message)) {
-      return listTaskBoardLegacy(params);
+      return TENANT_SCHEMA_READY ? null : listTaskBoardLegacy(params);
     }
     return null;
   }
@@ -350,10 +348,9 @@ export async function listTaskBoard(params: {
 
   const taskIds = Array.from(cardByTaskId.keys());
   if (taskIds.length) {
-    const labelsResult = await supabase
-      .from("task_labels")
-      .select("id, task_id, name, color")
-      .in("task_id", taskIds);
+    let labelsQuery = supabase.from("task_labels").select("id, task_id, name, color").in("task_id", taskIds);
+    if (tenantId) labelsQuery = labelsQuery.eq("organization_id", tenantId);
+    const labelsResult = await labelsQuery;
 
     if (!labelsResult.error && labelsResult.data) {
       for (const label of labelsResult.data as TaskLabelRow[]) {
@@ -489,6 +486,7 @@ export async function createTaskCard(params: {
     .insert({
       user_id: params.userId,
       project_id: params.projectId,
+      ...(TENANT_SCHEMA_READY ? { organization_id: await requireEffectiveTenant(params.userId) } : {}),
       ...(params.sourceRef ? { source_ref: params.sourceRef } : {}),
       board_id: board.id,
       column_id: column.data.id,
@@ -543,6 +541,7 @@ async function createTaskCardLegacy(params: {
     .insert({
       user_id: params.userId,
       project_id: params.projectId,
+      ...(TENANT_SCHEMA_READY ? { organization_id: await requireEffectiveTenant(params.userId) } : {}),
       titulo: params.title.trim().slice(0, 180),
       descricao: params.description?.trim() || null,
       prioridade: params.priority ?? "media",
@@ -603,6 +602,7 @@ export async function updateTaskCard(params: {
     .from("tasks")
     .select("id, user_id, project_id, board_id, column_id, titulo, descricao, prioridade, status, responsavel, due_date, position, created_at, updated_at")
     .eq("id", params.taskId)
+    .eq("organization_id", TENANT_SCHEMA_READY ? await requireEffectiveTenant(params.userId) : CONSULT_ORG_ID)
     .single();
   if (current.error || !current.data) {
     if (isSchemaMissingMessage(current.error?.message)) {
@@ -671,6 +671,7 @@ export async function updateTaskCard(params: {
     .from("tasks")
     .update(patch)
     .eq("id", params.taskId)
+    .eq("organization_id", TENANT_SCHEMA_READY ? await requireEffectiveTenant(params.userId) : CONSULT_ORG_ID)
     .select("id, user_id, project_id, board_id, column_id, titulo, descricao, prioridade, status, responsavel, due_date, position, created_at, updated_at")
     .single();
 
@@ -694,6 +695,7 @@ export async function updateTaskCard(params: {
         member_email:assigneeEmail,
         role:"assignee",
         created_by:params.userId,
+        ...(TENANT_SCHEMA_READY ? {organization_id: await requireEffectiveTenant(params.userId)} : {}),
       },{onConflict:"task_id,member_email"});
       if (linked.error) console.error("[task assignment] could not sync assignment",linked.error.code);
     }
@@ -703,11 +705,11 @@ export async function updateTaskCard(params: {
   if (params.columnId || params.position !== undefined) {
     if (finalColumnId !== task.column_id) {
       await Promise.all([
-        normalizeColumnPositions(task.board_id, task.column_id),
-        normalizeColumnPositions(task.board_id, finalColumnId),
+        normalizeColumnPositions(task.board_id, task.column_id, params.userId),
+        normalizeColumnPositions(task.board_id, finalColumnId, params.userId),
       ]);
     } else {
-      await normalizeColumnPositions(task.board_id, finalColumnId);
+      await normalizeColumnPositions(task.board_id, finalColumnId, params.userId);
     }
   }
   const card = mapTaskRowToCard(updated.data as TaskRow, finalColumnKey);
@@ -761,6 +763,7 @@ async function updateTaskCardLegacy(params: {
     .from("tasks")
     .select("id, project_id, titulo, descricao, prioridade, status, responsavel, due_date, created_at")
     .eq("id", params.taskId)
+    .eq("organization_id", TENANT_SCHEMA_READY ? await requireEffectiveTenant(params.userId) : CONSULT_ORG_ID)
     .single();
   if (current.error || !current.data || !current.data.project_id) return null;
 
@@ -799,6 +802,7 @@ async function updateTaskCardLegacy(params: {
     .from("tasks")
     .update(patch)
     .eq("id", params.taskId)
+    .eq("organization_id", TENANT_SCHEMA_READY ? await requireEffectiveTenant(params.userId) : CONSULT_ORG_ID)
     .select("id, project_id, titulo, descricao, prioridade, status, responsavel, due_date, created_at")
     .single();
   if (updated.error || !updated.data) return null;
@@ -848,11 +852,12 @@ export async function getProjectTaskOperationalSnapshot(params: {
   const supabase = getSupabaseServerClient();
   if (!supabase) return null;
 
-  const result = await supabase
+  let query = supabase
     .from("tasks")
     .select("titulo, prioridade, status")
-    .eq("project_id", params.projectId)
-    .order("updated_at", { ascending: false })
+    .eq("project_id", params.projectId);
+  if (TENANT_SCHEMA_READY) query = query.eq("organization_id", await requireEffectiveTenant(params.userId));
+  const result = await query.order("updated_at", { ascending: false })
     .limit(300);
 
   if (result.error || !result.data) return null;

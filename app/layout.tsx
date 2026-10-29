@@ -20,8 +20,9 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  // Preview libera apenas a navegação visual. As APIs continuam autenticadas.
-  const authRequired = process.env.VERCEL_ENV === "preview" ? false : isAuthRequired();
+  // Preview de homologação usa a mesma autenticação real exigida pelas APIs.
+  // Uma interface sem sessão não pode validar operações com Supabase.
+  const authRequired = process.env.VERCEL_ENV === "preview" ? true : isAuthRequired();
 
   return (
     <html lang="pt-BR">

@@ -23,5 +23,9 @@ export async function POST(request: NextRequest) {
   const written=await db.from("profiles").update({active_organization_id:tenant.organizationId})
     .eq("user_id",auth.context.userId).select("user_id").maybeSingle();
   if(written.error||!written.data)return NextResponse.json({error:"Não foi possível selecionar a empresa"},{status:409});
+  const verified = await db.from("profiles").select("active_organization_id")
+    .eq("user_id",auth.context.userId).maybeSingle();
+  if(verified.error || verified.data?.active_organization_id !== tenant.organizationId)
+    return NextResponse.json({error:"Não foi possível confirmar a empresa ativa"},{status:409});
   return NextResponse.json({data:{organizationId:tenant.organizationId,role:tenant.role,operationalIsolationReady:true}},{headers:{"Cache-Control":"no-store"}});
 }

@@ -186,11 +186,11 @@ export async function listMessages(params: {
         return [];
       }
 
-      const result = await supabase
-        .from("messages")
+      let messagesQuery = supabase.from("messages")
         .select("id, conversation_id, role, content, specialist, created_at")
-        .eq("conversation_id", params.conversationId)
-        .order("created_at", { ascending: true })
+        .eq("conversation_id", params.conversationId);
+      if (organizationId) messagesQuery = messagesQuery.eq("organization_id", organizationId);
+      const result = await messagesQuery.order("created_at", { ascending: true })
         .limit(200);
 
       if (!result.error && result.data) {

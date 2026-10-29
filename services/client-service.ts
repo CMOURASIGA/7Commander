@@ -70,7 +70,7 @@ export async function listClients(userId: string): Promise<ClientRecord[]> {
       return (result.data as ClientRow[]).map(mapClientRow);
     }
   }
-  return ALLOW_LOCAL_FALLBACK ? clientStore.get(userId) ?? [] : [];
+  return TENANT_SCHEMA_READY ? [] : (ALLOW_LOCAL_FALLBACK ? clientStore.get(userId) ?? [] : []);
 }
 
 export async function getClientById(params: {
@@ -103,7 +103,7 @@ export async function createClient(input: CreateClientInput): Promise<ClientReco
     }
   }
 
-  if (ALLOW_LOCAL_FALLBACK) {
+  if (ALLOW_LOCAL_FALLBACK && !TENANT_SCHEMA_READY) {
     return saveLocalClient(input);
   }
   throw new Error("Falha ao criar cliente no Supabase.");
@@ -144,7 +144,7 @@ export async function updateClient(input: UpdateClientInput): Promise<ClientReco
     }
   }
 
-  if (!ALLOW_LOCAL_FALLBACK) return null;
+  if (!ALLOW_LOCAL_FALLBACK || TENANT_SCHEMA_READY) return null;
   const local = clientStore.get(input.userId) ?? [];
   const target = local.find((item) => item.id === input.clientId);
   if (!target) return null;
@@ -168,11 +168,12 @@ export async function deleteClient(params: {
       .from("clients")
       .delete()
       .eq("id", params.clientId)
-      .eq("user_id", current.userId);
+      .eq("user_id", current.userId)
+      .eq("organization_id", await clientTenant(params.userId));
     if (!result.error) return true;
   }
 
-  if (!ALLOW_LOCAL_FALLBACK) return false;
+  if (!ALLOW_LOCAL_FALLBACK || TENANT_SCHEMA_READY) return false;
   const local = clientStore.get(params.userId) ?? [];
   const remaining = local.filter((item) => item.id !== params.clientId);
   clientStore.set(params.userId, remaining);

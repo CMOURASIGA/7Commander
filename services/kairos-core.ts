@@ -1,5 +1,5 @@
 import { getOpenAIClient } from "@/lib/openai";
-import { CONSULT_ORG_ID } from "@/lib/consult-workspace";
+import { getEffectiveTenantForUser } from "@/lib/tenant-runtime";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
 import { KAIROS_PM_REPORT_POLICY } from "@/lib/kairos-pm-report-policy";
 import { listMessages } from "@/services/chat-store";
@@ -322,6 +322,9 @@ export async function generateKairosResponse(params: GenerateParams): Promise<{
   };
 }> {
   const specialist = params.selectedSpecialist ?? classifyIntent(params.message) ?? DEFAULT_SPECIALIST;
+  // Fail closed before parallel context resolution (which can create a project).
+  const initialTenant = await getEffectiveTenantForUser(params.userId);
+  if (!initialTenant) throw new Error("Kairos tenant unavailable");
   const [memoryContext, corePrompt, modules, projectResolution, kairosProfile] = await Promise.all([
     buildMemoryContext(params.userId, params.message),
     loadCorePrompt(),
@@ -335,6 +338,21 @@ export async function generateKairosResponse(params: GenerateParams): Promise<{
     }),
     getKairosProfile(params.userId),
   ]);
+
+  if ((await getEffectiveTenantForUser(params.userId)) !== initialTenant) {
+    throw new Error("Kairos tenant changed during context resolution");
+  }
+
+  // Validate resolved project membership before loading tenant data or executing commands.
+  // This covers Kairos chat and Voice Room. Tenant identity is server-resolved.
+  if (projectResolution.project) {
+    const db = getSupabaseServerClient();
+    if (!db) throw new Error("Tenant validation unavailable");
+    const allowedOrganization = initialTenant;
+    const tenant = await db.from("projects").select("organization_id")
+      .eq("id", projectResolution.project.id).eq("organization_id", allowedOrganization).maybeSingle();
+    if (tenant.error || !tenant.data) throw new Error("Kairos project tenant mismatch");
+  }
 
   const knowledgeContext = await buildKnowledgeContext({
     userId: params.userId,
@@ -410,16 +428,6 @@ export async function generateKairosResponse(params: GenerateParams): Promise<{
         suggestedName: projectResolution.suggestedName,
       },
     };
-  }
-
-  // The Voice Room and text chat share this service. Never proceed with
-  // an inferred/project-switched context from another organization.
-  if (projectResolution.project) {
-    const db = getSupabaseServerClient();
-    if (!db) throw new Error("Tenant validation unavailable");
-    const tenant = await db.from("projects").select("organization_id")
-      .eq("id", projectResolution.project.id).eq("organization_id", CONSULT_ORG_ID).maybeSingle();
-    if (tenant.error || !tenant.data) throw new Error("Kairos project tenant mismatch");
   }
 
   const projectContext = buildProjectContext(projectResolution.project);
