@@ -39,8 +39,8 @@ export default function PlanningPage(){
   const r=await fetch("/api/projects",{headers:getClientAuthHeaders(),cache:"no-store"});const j=await r.json();
   if(mounted&&r.ok)setProjects((j.data??[]).map((p:{id:string;name:string})=>({id:p.id,name:p.name})));
  }catch{}}void fetchProjects();return()=>{mounted=false}},[]);
- function reset(){setActive(null);setTitle("");setDescription("");setSourceUrl("");setOwner("");setNextAction("");setStage("novo");setProspectId("");setReqCategory("funcional");setReqAcceptance("");setReqSource("");setReqPriority("media");}
- function edit(item:RecordItem){setActive(item);setTitle(item.title);setDescription(item.description);setSourceUrl(item.source_url||"");setOwner(String(item.payload.owner||""));setNextAction(String(item.payload.nextAction||""));setStage(String(item.payload.stage||"novo"));setProspectId(String(item.payload.prospectId||""));setReqCategory(String(item.payload.category||"funcional"));setReqAcceptance(String(item.payload.acceptance||""));setReqSource(String(item.payload.source||""));setReqPriority(String(item.payload.priority||"media"));setStatus(null);}
+ function reset(){setHistory([]);setActive(null);setTitle("");setDescription("");setSourceUrl("");setOwner("");setNextAction("");setStage("novo");setProspectId("");setReqCategory("funcional");setReqAcceptance("");setReqSource("");setReqPriority("media");}
+ function edit(item:RecordItem){setHistory([]);setActive(item);setTitle(item.title);setDescription(item.description);setSourceUrl(item.source_url||"");setOwner(String(item.payload.owner||""));setNextAction(String(item.payload.nextAction||""));setStage(String(item.payload.stage||"novo"));setProspectId(String(item.payload.prospectId||""));setReqCategory(String(item.payload.category||"funcional"));setReqAcceptance(String(item.payload.acceptance||""));setReqSource(String(item.payload.source||""));setReqPriority(String(item.payload.priority||"media"));setStatus(null);}
  async function reviewRequirements(){
   if(!projectId){setStatus("Selecione um projeto para revisar requisitos.");return;}
   setBusy(true);setStatus("Analisando requisitos por regras determinísticas...");
