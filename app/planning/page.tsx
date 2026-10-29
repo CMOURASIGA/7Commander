@@ -20,6 +20,7 @@ export default function PlanningPage(){
  const[owner,setOwner]=useState(""),[nextAction,setNextAction]=useState("");
  const[stage,setStage]=useState("novo"),[prospectId,setProspectId]=useState(""),[prospects,setProspects]=useState<Array<{id:string;title:string}>>([]);
  const[active,setActive]=useState<RecordItem|null>(null),[status,setStatus]=useState<string|null>(null);
+ const[history,setHistory]=useState<Array<{version:number;action:string;created_at:string;actor_id:string}>>([]);
  const[publicQuery,setPublicQuery]=useState(""),[publicConfirmed,setPublicConfirmed]=useState(false);
  const[reqCategory,setReqCategory]=useState("funcional"),[reqAcceptance,setReqAcceptance]=useState(""),[reqSource,setReqSource]=useState(""),[reqPriority,setReqPriority]=useState("media");
  const[findings,setFindings]=useState<Array<{recordId:string;severity:string;detail:string}>>([]);
@@ -68,6 +69,17 @@ export default function PlanningPage(){
    setStatus(j.data?.already_converted?"Prospect já convertido.":"Cliente criado com sucesso.");
    reset();await load();
   }catch(e){setStatus(e instanceof Error?e.message:"Falha na conversão");}finally{setBusy(false);}
+ }
+ async function showHistory(){
+  if(!active)return;
+  setBusy(true);setStatus("");
+  try{
+   const r=await fetch(`/api/planning/${active.id}/history`,{headers:getClientAuthHeaders(),cache:"no-store"});
+   const j=await r.json().catch(()=>({}));
+   if(!r.ok)throw Error(j.error||"Falha ao consultar o histórico.");
+   setHistory(j.data||[]);
+  }catch(e){setStatus(e instanceof Error?e.message:"Falha no histórico.");}
+  finally{setBusy(false);}
  }
  async function createProjectFromPlanning(){
   if(!active||kind!=="opportunity"||!["approved","won"].includes(active.status))return;
@@ -184,8 +196,10 @@ export default function PlanningPage(){
       {active&&kind==="opportunity"&&["approved","won"].includes(active.status)&&!active.project_id?<button disabled={busy} className="workspace-button-primary px-3 py-2" onClick={()=>void createProjectFromPlanning()}>Concluir planejamento e gerar projeto</button>:null}
       {active&&kind==="opportunity"&&active.project_id?<Link href="/projects" className="workspace-button-secondary px-3 py-2">Ver projeto vinculado</Link>:null}
       {active&&kind==="prospect"&&active.status==="won"?<button disabled={busy} className="workspace-button-primary px-3 py-2" onClick={()=>void convertProspect()}>Converter em cliente</button>:null}
+      {active?<button type="button" className="workspace-button-secondary px-3 py-2" disabled={busy} onClick={()=>void showHistory()}>Ver histórico e aprovações</button>:null}
       {active?<button className="workspace-button-secondary px-3 py-2" disabled={busy} onClick={reset}>Cancelar edição</button>:null}
      </div>
+     {history.length>0?<div className="rounded-lg border border-(--border) p-3"><h3 className="font-semibold">Histórico de alterações e aprovações</h3><ul className="mt-2 space-y-1 text-sm">{history.map((h,i)=><li key={h.version+"-"+i}>Versão {h.version} · {h.action} · {new Date(h.created_at).toLocaleString("pt-BR")}</li>)}</ul></div>:null}
      {status?<p role="status" aria-live="polite" className="rounded-lg border border-(--border) p-3 text-sm">{status}</p>:null}
     </div>
    </section>
