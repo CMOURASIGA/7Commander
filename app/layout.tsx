@@ -13,6 +13,10 @@ import { BRAND_DESCRIPTION, BRAND_NAME } from "@/lib/brand";
 export const metadata: Metadata = {
   title: BRAND_NAME,
   description: BRAND_DESCRIPTION,
+  applicationName: "7Commander",
+  manifest: "/manifest.webmanifest",
+  icons: { icon: "/icon", apple: "/apple-icon" },
+  appleWebApp: { capable: true, title: "7Commander", statusBarStyle: "default" },
 };
 
 export default function RootLayout({
