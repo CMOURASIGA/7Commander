@@ -6,7 +6,7 @@ export const jevProvider:DecisionProvider={id:"typesafe-ai/jev-1.14.0",evaluate:
 export type IntelligenceMode="disabled"|"simulation"|"observation";
 export function intelligenceMode():IntelligenceMode{
  const mode=process.env.SEVEN_COMMANDER_DECISIONS_MODE;
- if(mode==="observation"&&process.env.SEVEN_COMMANDER_JEV_ENABLED==="true")return "observation";
+ if(mode==="observation"&&process.env.SEVEN_COMMANDER_JEV_ENABLED==="true"&&process.env.SEVEN_COMMANDER_JEV_ATOMIC_QUOTA_READY==="true")return "observation";
  return mode==="simulation"?"simulation":"disabled";
 }
 export function providerForMode():DecisionProvider|null{
