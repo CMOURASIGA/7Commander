@@ -14,6 +14,7 @@ const NAV_ITEMS = [
   { section: "Dados", href: "/projects", label: "Projetos", icon: "projects" as const },
   { section: "Dados", href: "/activities", label: "Atividades", icon: "activities" as const },
   { section: "Dados", href: "/memory", label: "Memoria", icon: "memory" as const },
+  { section: "Sistema", href: "/operational-decisions", label: "Central de Decisões", icon: "planning" as const },
   { section: "Sistema", href: "/help", label: "Ajuda", icon: "help" as const },
   { section: "Sistema", href: "/settings", label: "Configuracoes", icon: "settings" as const },
 ];
