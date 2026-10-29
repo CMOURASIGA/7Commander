@@ -15,7 +15,7 @@ export async function POST(request:NextRequest){
  const body=await request.json().catch(()=>null);
  const module=body?.module;
  const id=body?.id;
- if(!MODULES.includes(module)||typeof id!=="string"||!/^[0-9a-f]{8}-[0-9a-f-]{27,}$/i.test(id))
+ if(!MODULES.includes(module)||typeof id!=="string"||!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id))
   return NextResponse.json({error:"Módulo ou identificador inválido"},{status:400});
  // Real organization data never goes to the external provider from this endpoint.
  // AI observation requires separate privacy assessment and explicit approval.
