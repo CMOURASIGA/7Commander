@@ -47,3 +47,25 @@ Referência de testes: `tests/fixtures/spec08-labeled-candidates.jsonl`, 105 cas
 - Build, typecheck, lint e homologação em Preview. Nenhum deploy nesta etapa.
 
 Fontes técnicas: Vercel *AI SDK evaluation to decisions* (2026-10-07), *6 ways to integrate Jev* (2026-10), Jev 1.14 AI Gateway listing.
+
+## Integração operacional segura aos sete módulos (CP-03/04 — 29/10/2026)
+
+Foram adicionados `services/operational-source-service.ts` e `app/api/operational-decisions/source/route.ts`. Os dados são consultados no servidor com `organization_id` obtido da sessão: projetos, Kanban/tarefas, riscos, comercial (prospects/oportunidades), decisões, base de conhecimento e notificações derivadas de tarefas. Esse endpoint **usa exclusivamente a rubrica determinística de simulação**, mesmo quando o modo global estiver em observação, e não envia dados reais a provedor externo.
+
+A Central permite informar o UUID de origem, consultar o resultado e revisá-lo. Existe teste Playwright da integração e da feature flag desativada. O conjunto de 105 casos possui auditoria estática em `scripts/spec08-fixture-audit.mjs`; **não é benchmark real** nem passou por validação humana.
+
+Migration 068 adiciona log de execução isolado por empresa. A tabela de telemetria ainda requer integração de escrita nos serviços e validação de limites e retenção. As migrations 066–068 continuam aguardando autorização para aplicação em ambiente remoto. A funcionalidade de avaliação de registros reais permanece desligada por padrão até que essas migrations estejam disponíveis e os gates sejam aprovados.
+
+### Matriz de aceite — estado atual
+
+| CP | Estado | Bloqueador |
+|---|---|---|
+| CP-01 Fundação | Implementação inicial | Compatibilidade final do SDK e build |
+| CP-02 Persistência/segurança | Migrations versionadas | Aplicação controlada, idempotência transacional e testes RLS |
+| CP-03 Operacional | Coleta normalizada e simulação integradas | Contratos completos por módulo, benchmarks |
+| CP-04 Complementar | Coleta normalizada e simulação integradas | Relevância de notificações e validação humana |
+| CP-05 Central | Interface, filtros e revisão implementados | Custos e detalhamento operacional completos |
+| CP-06 Laboratório | 105 candidatos e testes preparados | Rotulagem humana, chamadas Jev reais, testes executados |
+| CP-07 Estabilização | Documentação e telemetria preparada | Gates de compilação, QA e relatório final |
+
+**Decisão de segurança:** não habilitar Jev real para registros operacionais nem mover para `main` até validação de privacidade, orçamento, benchmark e testes de isolamento. A existência de código não satisfaz o critério de homologação da SPEC.
