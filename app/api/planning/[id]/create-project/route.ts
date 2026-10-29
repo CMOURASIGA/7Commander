@@ -20,12 +20,18 @@ export async function POST(req:NextRequest,context:{params:Promise<{id:string}>}
  const row=item.data;
  if(row.kind!=="opportunity"||!["approved","won"].includes(row.status))
   return NextResponse.json({error:"A oportunidade deve estar aprovada ou ganha para gerar um projeto."},{status:409});
- if(row.project_id)return NextResponse.json({data:{projectId:row.project_id,alreadyCreated:true}});
+ if(row.project_id){
+  const existing=await db.from("projects").select("id").eq("id",row.project_id)
+   .eq("organization_id",organizationId).maybeSingle();
+  if(existing.error||!existing.data)
+   return NextResponse.json({error:"O planejamento está vinculado a um projeto que não foi localizado nesta empresa. Solicite revisão do vínculo."},{status:409});
+  return NextResponse.json({data:{projectId:existing.data.id,alreadyCreated:true}});
+ }
  const project=await createProject({userId:auth.context.userId,name:row.title,description:row.description??"",status:"ativo",isActive:false,tags:[]});
  const linked=await db.from("commander_planning_records").update({project_id:project.id,updated_by:auth.context.userId,updated_at:new Date().toISOString()})
   .eq("id",row.id).eq("organization_id",organizationId).is("project_id",null).select("project_id").maybeSingle();
  if(linked.error||!linked.data){
-  return NextResponse.json({error:"O projeto foi criado, mas o vínculo ao planejamento não foi confirmado. Verifique os projetos antes de repetir.",projectId:project.id},{status:409});
+  return NextResponse.json({error:"Um projeto foi criado, mas não foi possível vinculá-lo à oportunidade. Não tente gerar novamente antes de conferir os projetos existentes.",projectId:project.id},{status:409});
  }
  await ensureProjectOwnerMembership({ownerUserId:auth.context.userId,ownerEmail:auth.context.userEmail,projectId:project.id});
  return NextResponse.json({data:{projectId:project.id,alreadyCreated:false}},{status:201});
