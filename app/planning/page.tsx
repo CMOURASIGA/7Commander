@@ -116,7 +116,7 @@ export default function PlanningPage(){
  }
  const info=kinds.find(x=>x.value===kind)!;
  return <div className="mx-auto max-w-6xl space-y-5 p-4 md:p-6">
-  <header><p className="text-sm text-(--text-secondary)">Consult Services · Workspace compartilhado</p>
+  <header><p className="text-sm text-(--text-secondary)">Planejamento da empresa selecionada</p>
    <h1 className="text-2xl font-semibold">Planejamento e oportunidades</h1>
    <p className="mt-1 text-sm text-(--text-secondary)">Prospects, requisitos e análise de soluções com revisão humana e histórico versionado.</p>
    <div className="mt-3 flex flex-wrap gap-4"><Link className="text-sm underline" href="/planning/workflows">Fluxo de análise e checkpoints →</Link><Link className="text-sm underline" href="/planning/coverage">Matriz requisito × alternativa →</Link><Link className="text-sm underline" href="/planning/backlog">Backlog aprovado →</Link></div>
@@ -194,7 +194,7 @@ export default function PlanningPage(){
       <button disabled={busy} className="workspace-button-secondary px-3 py-2" onClick={()=>void save("rejected")}>Rejeitar</button>
       {(kind==="opportunity"||kind==="prospect")?<button disabled={busy} className="workspace-button-secondary px-3 py-2" onClick={()=>void save("won")}>Marcar ganho</button>:null}</>:null}
       {active&&kind==="opportunity"&&["approved","won"].includes(active.status)&&!active.project_id?<button disabled={busy} className="workspace-button-primary px-3 py-2" onClick={()=>void createProjectFromPlanning()}>Concluir planejamento e gerar projeto</button>:null}
-      {active&&kind==="opportunity"&&active.project_id?<Link href="/projects" className="workspace-button-secondary px-3 py-2">Ver projeto vinculado</Link>:null}
+      {active&&kind==="opportunity"&&active.project_id?<><Link href="/projects" className="workspace-button-secondary px-3 py-2">Ver projeto vinculado</Link><Link href={`/planning/backlog?projectId=${encodeURIComponent(active.project_id)}`} className="workspace-button-secondary px-3 py-2">Preparar Kanban deste projeto</Link></>:null}
       {active&&kind==="prospect"&&active.status==="won"?<button disabled={busy} className="workspace-button-primary px-3 py-2" onClick={()=>void convertProspect()}>Converter em cliente</button>:null}
       {active?<button type="button" className="workspace-button-secondary px-3 py-2" disabled={busy} onClick={()=>void showHistory()}>Ver histórico e aprovações</button>:null}
       {active?<button className="workspace-button-secondary px-3 py-2" disabled={busy} onClick={reset}>Cancelar edição</button>:null}
