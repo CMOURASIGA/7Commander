@@ -20,7 +20,7 @@ export async function evaluateWithJev(input:Input):Promise<Verdict>{
   });
   if(!result.ok)throw new Error(`Falha do AI Gateway: HTTP ${result.status}`);
   const data:unknown=await result.json();
-  if(!data||typeof data!=="object")throw new Error("Resposta inválida");
+  if(!data||typeof data!=="object"||Array.isArray(data))throw new Error("Resposta inválida");
   const answers=(data as {answers?:Record<string,unknown>}).answers;
   const severity=answers?.severity as {choice?:unknown;probabilities?:Record<string,unknown>}|undefined;
   if(typeof severity?.choice!=="string"||!allowed.includes(severity.choice))throw new Error("Categoria fora do contrato");
