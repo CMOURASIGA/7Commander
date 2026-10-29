@@ -5,10 +5,19 @@ type Evaluation={id:string;module:string;entity_type:string;verdict:{category:st
 const modules=["projects","kanban","risks","commercial","decisions","knowledge","notifications"];
 export default function OperationalDecisions(){
  const [items,setItems]=useState<Evaluation[]>([]),[mode,setMode]=useState("disabled"),[error,setError]=useState(""),[busy,setBusy]=useState(false);
- const [module,setModule]=useState("projects"),[title,setTitle]=useState(""),[description,setDescription]=useState(""),[reason,setReason]=useState(""),[filter,setFilter]=useState("all");
+ const [sourceId,setSourceId]=useState(""),[module,setModule]=useState("projects"),[title,setTitle]=useState(""),[description,setDescription]=useState(""),[reason,setReason]=useState(""),[filter,setFilter]=useState("all");
  const load=useCallback(async()=>{const r=await fetch("/api/operational-decisions",{headers:getClientAuthHeaders(),cache:"no-store"});const j=await r.json();if(!r.ok)throw Error(j.error||"Falha ao consultar");setItems(j.data||[]);setMode(j.mode||"disabled");},[]);
  useEffect(()=>{void load().catch(e=>setError(e.message))},[load]);
  async function evaluate(){setBusy(true);setError("");try{const r=await fetch("/api/operational-decisions",{method:"POST",headers:getClientAuthHeaders({"Content-Type":"application/json"}),body:JSON.stringify({mode,synthetic:true,input:{module,title,description}})});const j=await r.json();if(!r.ok)throw Error(j.error);await load();setTitle("");setDescription("");}catch(e){setError(e instanceof Error?e.message:"Falha na avaliação")}finally{setBusy(false)}}
+ async function evaluateSource(){
+  setBusy(true);setError("");
+  try{
+   const r=await fetch("/api/operational-decisions/source",{method:"POST",headers:getClientAuthHeaders({"Content-Type":"application/json"}),body:JSON.stringify({module,id:sourceId.trim()})});
+   const j=await r.json();if(!r.ok)throw Error(j.error||"Falha ao avaliar registro");
+   await load();setSourceId("");
+  }catch(e){setError(e instanceof Error?e.message:"Falha de avaliação");}
+  finally{setBusy(false);}
+ }
  async function review(id:string,decision:string){if(reason.trim().length<5){setError("Informe um motivo com pelo menos cinco caracteres.");return;}setBusy(true);setError("");try{const r=await fetch(`/api/operational-decisions/${id}/review`,{method:"POST",headers:getClientAuthHeaders({"Content-Type":"application/json"}),body:JSON.stringify({decision,reason})});const j=await r.json();if(!r.ok)throw Error(j.error);await load();setReason("");}catch(e){setError(e instanceof Error?e.message:"Falha na revisão")}finally{setBusy(false)}}
  const visible=items.filter(x=>filter==="all"||x.module===filter);
  return <main className="mx-auto max-w-6xl space-y-5 p-4 md:p-6">
@@ -20,6 +29,7 @@ export default function OperationalDecisions(){
    <label className="block text-sm">Título fictício<input className="workspace-input mt-1 w-full" value={title} onChange={e=>setTitle(e.target.value)}/></label>
    <label className="block text-sm">Contexto fictício<textarea className="workspace-input mt-1 w-full" rows={3} value={description} onChange={e=>setDescription(e.target.value)}/></label>
    <button disabled={busy||title.trim().length<3} onClick={()=>void evaluate()} className="workspace-button-primary px-3 py-2">{mode==="observation"?"Avaliar exemplo com Jev":"Simular avaliação"}</button></>:<p className="text-sm">Funcionalidade desativada por padrão. Requer migração 066 e autorização para habilitar simulação.</p>}</section>
+  {mode!=="disabled"?<section className="rounded-xl border border-(--border) bg-white p-4 space-y-3"><h2 className="font-semibold">Avaliar registro existente — simulação local</h2><p className="text-xs text-(--text-secondary)">Busca os dados autorizados no servidor e aplica uma rubrica determinística. Dados reais não são enviados ao Jev neste fluxo.</p><label className="block text-sm">ID do registro<input className="workspace-input mt-1 w-full" value={sourceId} onChange={e=>setSourceId(e.target.value)} placeholder="UUID do registro da empresa selecionada"/></label><button disabled={busy||!sourceId.trim()} className="workspace-button-secondary px-3 py-2" onClick={()=>void evaluateSource()}>Avaliar registro sem IA externa</button></section>:null}
   <section className="space-y-3"><div className="flex flex-wrap items-center justify-between gap-2"><h2 className="font-semibold">Avaliações da empresa selecionada</h2><select aria-label="Filtrar módulo" className="workspace-select" value={filter} onChange={e=>setFilter(e.target.value)}><option value="all">Todos</option>{modules.map(m=><option key={m} value={m}>{m}</option>)}</select></div>
    {visible.map(x=><article key={x.id} className="rounded-xl border border-(--border) bg-white p-4 space-y-2"><div className="flex flex-wrap justify-between gap-2"><strong>{x.module} · {x.verdict?.category}</strong><span className="text-xs">{x.verdict?.severity} · {x.status}</span></div>
     <p className="text-sm">Pontuação indicativa: {x.verdict?.score}/100 · {new Date(x.created_at).toLocaleString("pt-BR")}</p>
