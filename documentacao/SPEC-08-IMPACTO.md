@@ -69,3 +69,11 @@ Migration 068 adiciona log de execução isolado por empresa. A tabela de teleme
 | CP-07 Estabilização | Documentação e telemetria preparada | Gates de compilação, QA e relatório final |
 
 **Decisão de segurança:** não habilitar Jev real para registros operacionais nem mover para `main` até validação de privacidade, orçamento, benchmark e testes de isolamento. A existência de código não satisfaz o critério de homologação da SPEC.
+
+## Revisão técnica de encerramento — 29/10/2026
+
+A compatibilidade HTTP foi confirmada nas publicações da Vercel: `POST /v1/evaluate` continua disponível, com `state`, `questions` e `answers`. O contrato do AI SDK `experimental_decide` exige `ai >=7.0.128` e sua migração permanece opcional quando o adaptador HTTP atende à integração.
+
+**Ainda não concluído:** a cota implementada nos endpoints utiliza contagem antes da chamada, não reserva transacional; chamadas concorrentes podem ultrapassar o limite. A migration 069 proposta para reserva atômica não foi integrada nesta execução e precisa ser implementada e testada antes de ativar a observação paga. O código também não fornece benchmarks reais de acurácia/latência ou validação de isolamento em ambiente homologado. Não ativar `SEVEN_COMMANDER_DECISIONS_MODE=observation` até esses critérios passarem.
+
+Documentação externa consultada: https://vercel.com/i/ai-sdk-evaluation-to-decisions e https://vercel.com/i/jev-integrations.
