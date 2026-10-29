@@ -66,11 +66,13 @@ export async function DELETE(request: NextRequest) {
   return NextResponse.json({error:"Confirme a operação digitando DESATIVAR."},{status:400});
  const org=await db.from("organizations").select("id,name,status").eq("id",id).maybeSingle();
  if(org.error||!org.data)return NextResponse.json({error:"Empresa não encontrada."},{status:404});
- if(org.data.name==="CONSULT SERVICES"||org.data.name==="7CONSULTING")
+ if(["43973606-0c05-4934-a057-9f2710899eba","bce0fe84-eb14-4e9d-9815-1cb22cde3e5a"].includes(id))
   return NextResponse.json({error:"Empresas principais protegidas. Desativação requer procedimento administrativo específico."},{status:403});
- const used=await db.from("projects").select("id",{count:"exact",head:true}).eq("organization_id",id);
- if(used.error)return NextResponse.json({error:"Não foi possível verificar projetos."},{status:503});
- if((used.count??0)>0)return NextResponse.json({error:"A empresa possui projetos. Arquive ou transfira os dados por procedimento controlado antes da desativação."},{status:409});
+ for(const table of ["projects","clients","commander_planning_records","organization_members"] as const){
+  const records=await db.from(table).select("id",{count:"exact",head:true}).eq("organization_id",id);
+  if(records.error)return NextResponse.json({error:"Não foi possível verificar os vínculos empresariais."},{status:503});
+  if((records.count??0)>0)return NextResponse.json({error:"A empresa possui registros ou usuários vinculados. Desativação bloqueada para preservar o acesso e o histórico."},{status:409});
+ }
  const saved=await db.from("organizations").update({status:"inactive"}).eq("id",id).eq("status","active").select("id,status").maybeSingle();
  if(saved.error||!saved.data)return NextResponse.json({error:"Empresa não foi desativada ou já está inativa."},{status:409});
  return NextResponse.json({data:saved.data},{headers:noStore});
