@@ -30,7 +30,7 @@ export async function POST(req:NextRequest){
  if(!requirement||requirement.kind!=="requirement"||requirement.project_id!==projectId||requirement.status!=="approved")
   return fail("O requisito precisa estar aprovado para este projeto",409);
  async function existing(){
-  const result=await validatedDb.from("tasks").select("id,titulo").eq("project_id",projectId).eq("source_ref",sourceRef).maybeSingle();
+  const result=await validatedDb.from("tasks").select("id,titulo").eq("project_id",projectId).eq("organization_id",organizationId).eq("source_ref",sourceRef).maybeSingle();
   return result.data;
  }
  const before=await existing();
