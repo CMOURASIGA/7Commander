@@ -54,3 +54,24 @@ export async function PATCH(request: NextRequest) {
   if (updated.error) return NextResponse.json({ error: "Falha ao salvar whitelabel." }, { status: 500 });
   return NextResponse.json({ data: updated.data }, { headers: noStore });
 }
+
+export async function DELETE(request: NextRequest) {
+ const {response,db}=await authorize(request);
+ if(response||!db)return response;
+ const body=await request.json().catch(()=>null);
+ const id=typeof body?.id==="string"?body.id:"";
+ if(!/^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(id))
+  return NextResponse.json({error:"Empresa inválida."},{status:400});
+ if(body.confirmation!=="DESATIVAR")
+  return NextResponse.json({error:"Confirme a operação digitando DESATIVAR."},{status:400});
+ const org=await db.from("organizations").select("id,name,status").eq("id",id).maybeSingle();
+ if(org.error||!org.data)return NextResponse.json({error:"Empresa não encontrada."},{status:404});
+ if(org.data.name==="CONSULT SERVICES"||org.data.name==="7CONSULTING")
+  return NextResponse.json({error:"Empresas principais protegidas. Desativação requer procedimento administrativo específico."},{status:403});
+ const used=await db.from("projects").select("id",{count:"exact",head:true}).eq("organization_id",id);
+ if(used.error)return NextResponse.json({error:"Não foi possível verificar projetos."},{status:503});
+ if((used.count??0)>0)return NextResponse.json({error:"A empresa possui projetos. Arquive ou transfira os dados por procedimento controlado antes da desativação."},{status:409});
+ const saved=await db.from("organizations").update({status:"inactive"}).eq("id",id).eq("status","active").select("id,status").maybeSingle();
+ if(saved.error||!saved.data)return NextResponse.json({error:"Empresa não foi desativada ou já está inativa."},{status:409});
+ return NextResponse.json({data:saved.data},{headers:noStore});
+}
