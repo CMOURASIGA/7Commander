@@ -25,28 +25,14 @@ BEGIN
   END IF;
   project_id:=rec.project_id; already_created:=true; RETURN NEXT; RETURN;
  END IF;
- IF coalesce(rec.payload->>'prospectId','') ~* '^[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}
- VALUES (p_actor_id,p_organization_id,client_ref,rec.title,rec.description,'ativo',false,ARRAY[]::text[],'Origem: oportunidade '||rec.id::text)
- RETURNING id INTO new_id;
- UPDATE public.commander_planning_records
- SET project_id=new_id,updated_by=p_actor_id,updated_at=now(),version=version+1
- WHERE id=rec.id AND organization_id=p_organization_id;
- INSERT INTO public.commander_planning_audit (record_id,version,actor_id,action,snapshot)
- SELECT r.id,r.version,p_actor_id,'project_created',to_jsonb(r)
- FROM public.commander_planning_records r WHERE r.id=rec.id;
- project_id:=new_id; already_created:=false; RETURN NEXT;
-END $$;
-REVOKE ALL ON FUNCTION public.commander_complete_opportunity(uuid,uuid,uuid) FROM PUBLIC,anon,authenticated;
-GRANT EXECUTE ON FUNCTION public.commander_complete_opportunity(uuid,uuid,uuid) TO service_role;
- THEN
+ IF coalesce(rec.payload->>'prospectId','') ~* '^[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$' THEN
   linked_prospect:=(rec.payload->>'prospectId')::uuid;
-  SELECT pr.converted_client_id INTO client_ref
-    FROM public.commander_planning_records pr
-    JOIN public.clients cl ON cl.id=pr.converted_client_id AND cl.organization_id=p_organization_id
+  SELECT pr.converted_client_id INTO client_ref FROM public.commander_planning_records pr
+   JOIN public.clients cl ON cl.id=pr.converted_client_id AND cl.organization_id=p_organization_id
    WHERE pr.id=linked_prospect AND pr.organization_id=p_organization_id AND pr.kind='prospect';
  END IF;
  INSERT INTO public.projects (user_id,organization_id,client_id,nome,descricao,status,ativo,tags,contexto)
- VALUES (p_actor_id,p_organization_id,rec.title,rec.description,'ativo',false,ARRAY[]::text[])
+ VALUES (p_actor_id,p_organization_id,client_ref,rec.title,rec.description,'ativo',false,ARRAY[]::text[],'Origem: oportunidade '||rec.id::text)
  RETURNING id INTO new_id;
  UPDATE public.commander_planning_records
  SET project_id=new_id,updated_by=p_actor_id,updated_at=now(),version=version+1
