@@ -3,6 +3,8 @@ import {useCallback,useEffect,useState} from "react";
 import {getClientAuthHeaders} from "@/lib/client-auth";
 type Evaluation={id:string;module:string;entity_type:string;verdict:{category:string;severity:string;score:number;criteria:string[];evidence:string[];limitations:string[]};status:string;provider:string;created_at:string};
 const modules=["projects","kanban","risks","commercial","decisions","knowledge","notifications"];
+const moduleLabels:Record<string,string>={projects:"Projetos",kanban:"Kanban / tarefas",risks:"Riscos e problemas",commercial:"Prospects e oportunidades",decisions:"Decisões",knowledge:"Conhecimento",notifications:"Notificações / tarefas"};
+type Preview={module:string;sourceId:string;sourceTitle:string;verdict:Evaluation["verdict"]};
 export default function OperationalDecisions(){
  const [items,setItems]=useState<Evaluation[]>([]),[mode,setMode]=useState("disabled"),[error,setError]=useState(""),[busy,setBusy]=useState(false);
  const [sourceId,setSourceId]=useState(""),[module,setModule]=useState("projects"),[title,setTitle]=useState(""),[description,setDescription]=useState(""),[reason,setReason]=useState(""),[filter,setFilter]=useState("all");
@@ -19,10 +21,31 @@ export default function OperationalDecisions(){
   finally{setBusy(false);}
  }
  async function review(id:string,decision:string){if(reason.trim().length<5){setError("Informe um motivo com pelo menos cinco caracteres.");return;}setBusy(true);setError("");try{const r=await fetch(`/api/operational-decisions/${id}/review`,{method:"POST",headers:getClientAuthHeaders({"Content-Type":"application/json"}),body:JSON.stringify({decision,reason})});const j=await r.json();if(!r.ok)throw Error(j.error);await load();setReason("");}catch(e){setError(e instanceof Error?e.message:"Falha na revisão")}finally{setBusy(false)}}
+ const [previewModule,setPreviewModule]=useState("projects"),[sources,setSources]=useState<Array<{id:string;title:string}>>([]),[previewId,setPreviewId]=useState(""),[preview,setPreview]=useState<Preview|null>(null),[previewBusy,setPreviewBusy]=useState(false),[previewError,setPreviewError]=useState("");
+ const loadSources=useCallback(async(m:string)=>{setPreviewBusy(true);setPreview(null);setPreviewId("");setPreviewError("");try{const r=await fetch("/api/operational-decisions/preview?module="+encodeURIComponent(m),{headers:getClientAuthHeaders(),cache:"no-store"});const j=await r.json();if(!r.ok)throw Error(j.error||"Falha na listagem");setSources(j.data||[]);}catch(e){setSources([]);setPreviewError(e instanceof Error?e.message:"Falha na consulta");}finally{setPreviewBusy(false);}},[]);
+ useEffect(()=>{void loadSources(previewModule);},[previewModule,loadSources]);
+ async function executePreview(){if(!previewId)return;setPreviewBusy(true);setPreview(null);setPreviewError("");try{const params=new URLSearchParams({module:previewModule,id:previewId});const r=await fetch("/api/operational-decisions/preview?"+params,{headers:getClientAuthHeaders(),cache:"no-store"});const j=await r.json();if(!r.ok)throw Error(j.error||"Falha na avaliação");if(j.readOnly!==true||j.persisted!==false||j.externalProviderCalled!==false)throw Error("Garantia de prévia sem gravação não confirmada");setPreview(j.data);}catch(e){setPreviewError(e instanceof Error?e.message:"Falha na prévia");}finally{setPreviewBusy(false);}}
  const visible=items.filter(x=>filter==="all"||x.module===filter);
  return <main className="mx-auto max-w-6xl space-y-5 p-4 md:p-6">
   <h1 className="text-2xl font-semibold">Central de Decisões Operacionais</h1>
   <p className="text-sm text-(--text-secondary)">Avaliações consultivas, sem execução automática de tarefas, alterações de status ou decisões comerciais. Não substitui o Kairos.</p>
+  <section className="rounded-xl border border-(--border) bg-white p-4 space-y-3" aria-label="Prévia sem gravação">
+   <div><h2 className="font-semibold">Prévia de registros existentes, sem gravação</h2><p className="text-sm text-(--text-secondary)">Selecione um registro da empresa ativa. Classificação por regras locais, sem Jev, sem alterar registros, sem criar avaliações e sem consumir cotas. Funciona mesmo com o laboratório desativado.</p></div>
+   <label className="block text-sm">Módulo<select className="workspace-select mt-1 w-full" value={previewModule} onChange={e=>setPreviewModule(e.target.value)}>{modules.map(m=><option key={m} value={m}>{moduleLabels[m]}</option>)}</select></label>
+   <label className="block text-sm">Registro existente<select aria-label="Registro para prévia" className="workspace-select mt-1 w-full" value={previewId} onChange={e=>{setPreviewId(e.target.value);setPreview(null);}}><option value="">Selecione um registro</option>{sources.map(x=><option key={x.id} value={x.id}>{x.title}</option>)}</select></label>
+   {sources.length===0&&!previewBusy?<p className="text-xs text-(--text-secondary)">Nenhum registro disponível nos primeiros 40 resultados deste módulo, ou acesso não autorizado.</p>:null}
+   <button type="button" disabled={previewBusy||!previewId} onClick={()=>void executePreview()} className="workspace-button-primary px-3 py-2">Gerar prévia sem salvar</button>
+   {previewBusy?<p role="status" className="text-sm">Consultando dados autorizados...</p>:null}
+   {previewError?<p role="alert" className="text-sm text-red-700">{previewError}</p>:null}
+   {preview?<article className="rounded-lg border border-(--border) bg-(--bg-surface) p-4 space-y-2" aria-label="Resultado da prévia">
+    <h3 className="font-semibold">{preview.sourceTitle}</h3>
+    <p className="text-sm"><strong>Classificação:</strong> {preview.verdict.category} · <strong>Severidade:</strong> {preview.verdict.severity} · <strong>Pontuação indicativa:</strong> {preview.verdict.score}/100</p>
+    <p className="text-sm"><strong>Critérios:</strong> {(preview.verdict.criteria||[]).join("; ")}</p>
+    <p className="text-sm"><strong>Evidências:</strong> {(preview.verdict.evidence||[]).join("; ")}</p>
+    <p className="text-sm"><strong>Limitações:</strong> {(preview.verdict.limitations||[]).join("; ")}</p>
+    <p className="text-xs font-medium">Resultado temporário nesta tela. Nenhum registro, auditoria, cota ou avaliação foi criado.</p>
+   </article>:null}
+  </section>
   <div className="grid gap-3 md:grid-cols-4">{[["Avaliações",items.length],["Pendentes",items.filter(x=>x.status==="pending_review").length],["Aceitas",items.filter(x=>x.status==="accepted").length],["Rejeitadas",items.filter(x=>x.status==="rejected").length]].map(([k,v])=><section key={k} className="rounded-xl border border-(--border) bg-white p-4"><p className="text-xs text-(--text-secondary)">{k}</p><strong className="text-2xl">{v}</strong></section>)}</div>
   <section className="rounded-xl border border-(--border) bg-white p-4 space-y-3"><h2 className="font-semibold">Laboratório de simulação</h2><p className="text-xs">Modo atual: {mode}. Use somente dados sintéticos, nunca informações reais de clientes. No modo observação, o exemplo é enviado ao provedor externo.</p>
    {mode!=="disabled"?<><label className="block text-sm">Módulo<select className="workspace-select mt-1 w-full" value={module} onChange={e=>setModule(e.target.value)}>{modules.map(x=><option key={x} value={x}>{x}</option>)}</select></label>
