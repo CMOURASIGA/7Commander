@@ -4,6 +4,7 @@ import { getDefaultUserId } from "@/lib/user-context";
 import { getPublicEnv, isAuthRequired } from "@/lib/env";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
 import { CONSULT_ORG_ID } from "@/lib/consult-workspace";
+import { query7ServiceUserAccess } from "@/lib/7service-user-access";
 import { TENANT_SCHEMA_READY, getEffectiveTenantForUser } from "@/lib/tenant-runtime";
 
 const USER_ID_HEADER = "x-kairos-user-id";
@@ -100,6 +101,25 @@ export async function requireApiAuth(request: NextRequest): Promise<{
             .eq("organization_id",organizationId).eq("user_id",userId).eq("status","active").maybeSingle();
           if(membership.error)return {ok:false,response:NextResponse.json({error:"Verificação empresarial indisponível"},{status:503})};
           if(!membership.data)return {ok:false,response:NextResponse.json({error:"Empresa não autorizada"},{status:403})};
+          // Disabled by default. Activate on the controlled develop pilot only
+          // after 7Service M2M access endpoint, tenant mapping and local Auth
+          // identity are verified. Platform admins remain internally authorized.
+          if (process.env.SERVICE_7SERVICE_ENFORCE_USER_ACCESS === "true" && !admin.data) {
+            const verifiedEmail = userResult.data.user.email;
+            if (!verifiedEmail) return {
+              ok: false, response: NextResponse.json({ error: "E-mail autenticado necessário." }, { status: 403 }),
+            };
+            try {
+              const decision = await query7ServiceUserAccess(organizationId, verifiedEmail);
+              if (!decision.allowed) return {
+                ok: false, response: NextResponse.json({ error: "Acesso não liberado pela Consult Services." }, { status: 403 }),
+              };
+            } catch {
+              return {
+                ok: false, response: NextResponse.json({ error: "Validação central indisponível." }, { status: 503 }),
+              };
+            }
+          }
         }
         const isPrivileged = Boolean(admin.data);
         const method = request.method.toUpperCase();
