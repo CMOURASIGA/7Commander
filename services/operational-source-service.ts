@@ -25,3 +25,17 @@ export async function loadOperationalSource(module:ModuleName,id:string,organiza
  if(module==="commercial"&&!["prospect","opportunity"].includes(str(spec.kind)))return null;
  return {module,title:str(spec.title,180),description:str(spec.description,3000),status:str(spec.status),owner:str(spec.owner),dueDate:str(spec.dueDate),impact:str(spec.impact),probability:str(spec.probability)};
 }
+
+/** Tenant-scoped read-only selector for previews, with no writes or provider calls. */
+export async function listOperationalSources(module:ModuleName,organizationId:string):Promise<Array<{id:string;title:string}>>{
+ if(!UUID.test(organizationId))return [];
+ const db=getSupabaseServerClient();if(!db)throw new Error("Database unavailable");
+ const spec=SOURCES[module];
+ const query=await db.from(spec.table).select(spec.kind?`id,${spec.title},${spec.kind}`:`id,${spec.title}`)
+  .eq("organization_id",organizationId).limit(40);
+ if(query.error)throw new Error("Cannot list tenant sources");
+ const rows=(query.data??[]) as unknown as Array<Record<string,unknown>>;
+ return rows.filter(row=>!spec.kind||["prospect","opportunity"].includes(String(row[spec.kind])))
+  .filter(row=>typeof row.id==="string"&&typeof row[spec.title]==="string")
+  .map(row=>({id:String(row.id),title:String(row[spec.title]).slice(0,150)}));
+}
