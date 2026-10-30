@@ -84,7 +84,11 @@ export async function requireApiAuth(request: NextRequest): Promise<{
         const admin = await db.from("platform_admins").select("active").eq("user_id", userId).eq("active", true).maybeSingle();
         const access = await db.from("internal_user_access").select("active,role").eq("user_id", userId).maybeSingle();
         if (admin.error || access.error) return { ok: false, response: NextResponse.json({ error: "Verificacao de acesso indisponivel" }, { status: 503 }) };
-        if (!admin.data && !access.data?.active) return { ok: false, response: NextResponse.json({ error: "Usuario nao autorizado ou suspenso" }, { status: 403 }) };
+        // In the controlled customer pilot, central authorization can admit
+        // a locally authenticated, active organization member even without an
+        // internal Consult Services role. Central grant remains mandatory.
+        const customerPilot = process.env.SERVICE_7SERVICE_ENFORCE_USER_ACCESS === "true" && !admin.data;
+        if (!admin.data && !access.data?.active && !customerPilot) return { ok: false, response: NextResponse.json({ error: "Usuario nao autorizado ou suspenso" }, { status: 403 }) };
         // Tenant identity comes from a verified membership, never a browser claim.
         // Prior to the coordinated release, only Consult Services is operational.
         const requestedOrg = normalizeHeaderValue(request.headers.get("x-7commander-organization-id"));
@@ -104,7 +108,7 @@ export async function requireApiAuth(request: NextRequest): Promise<{
           // Disabled by default. Activate on the controlled develop pilot only
           // after 7Service M2M access endpoint, tenant mapping and local Auth
           // identity are verified. Platform admins remain internally authorized.
-          if (process.env.SERVICE_7SERVICE_ENFORCE_USER_ACCESS === "true" && !admin.data) {
+          if (customerPilot) {
             const verifiedEmail = userResult.data.user.email;
             if (!verifiedEmail) return {
               ok: false, response: NextResponse.json({ error: "E-mail autenticado necessário." }, { status: 403 }),
@@ -125,6 +129,11 @@ export async function requireApiAuth(request: NextRequest): Promise<{
         const method = request.method.toUpperCase();
         const path = request.nextUrl.pathname;
         const write = !["GET", "HEAD", "OPTIONS"].includes(method);
+        // Until customer product roles are mapped to the local write RBAC,
+        // centrally admitted users without a local role are read-only.
+        if (!isPrivileged && !access.data?.active && write && path !== "/api/auth/profile") {
+          return { ok: false, response: NextResponse.json({ error: "Perfil local necessário para esta operação." }, { status: 403 }) };
+        }
         if (!isPrivileged && write && path !== "/api/auth/profile") {
           if (access.data?.role === "leitor" || (access.data?.role === "colaborador" && method === "DELETE")) {
             return { ok: false, response: NextResponse.json({ error: "Seu perfil nao permite esta operacao." }, { status: 403 }) };
