@@ -14,7 +14,7 @@ test.describe("Multiempresa — UX com dados sintéticos, sem banco de produçã
   await expect(page.getByRole("heading",{name:"Selecionar empresa"})).toBeVisible();
   await page.getByText("Empresa QA Sintética").click();
   await page.getByRole("button",{name:"Selecionar",exact:true}).click();
-  await expect(page.getByText(/troca operacional bloqueada/i)).toBeVisible();
+  await expect(page.getByRole("alert").getByText(/NÃO alterou a empresa ativa/i)).toBeVisible();
   const selected = await page.evaluate(()=>sessionStorage.getItem("7commander:active-organization"));
   expect(selected).toBeNull();
  });
