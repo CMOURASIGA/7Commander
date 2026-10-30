@@ -100,7 +100,9 @@ export async function requireApiAuth(request: NextRequest): Promise<{
         const organizationId = TENANT_SCHEMA_READY
           ? await getEffectiveTenantForUser(userId)
           : CONSULT_ORG_ID;
-        if (!isOrganizationRoute) {
+        // Customer routes must never bypass the central authorization check,
+        // including /api/organizations/* endpoints.
+        if (!isOrganizationRoute || customerPilot) {
           if (!organizationId) return { ok: false, response: NextResponse.json({ error: "Selecione uma organização autorizada." }, { status: 403 }) };
           if (requestedOrg && requestedOrg !== organizationId) {
             return { ok: false, response: NextResponse.json({ error: "Empresa informada difere da empresa ativa." }, { status: 403 }) };
@@ -114,7 +116,7 @@ export async function requireApiAuth(request: NextRequest): Promise<{
           // identity are verified. Platform admins remain internally authorized.
           if (customerPilot) {
             const verifiedEmail = userResult.data.user.email;
-            if (!verifiedEmail) return {
+            if (!verifiedEmail || !userResult.data.user.email_confirmed_at) return {
               ok: false, response: NextResponse.json({ error: "E-mail autenticado necessário." }, { status: 403 }),
             };
             try {
