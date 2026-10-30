@@ -88,6 +88,10 @@ export async function requireApiAuth(request: NextRequest): Promise<{
         // a locally authenticated, active organization member even without an
         // internal Consult Services role. Central grant remains mandatory.
         const customerPilot = process.env.SERVICE_7SERVICE_ENFORCE_USER_ACCESS === "true" && !admin.data;
+        // An explicit local suspension always wins over a central grant.
+        if (!admin.data && access.data && !access.data.active) {
+          return { ok: false, response: NextResponse.json({ error: "Acesso local suspenso." }, { status: 403 }) };
+        }
         if (!admin.data && !access.data?.active && !customerPilot) return { ok: false, response: NextResponse.json({ error: "Usuario nao autorizado ou suspenso" }, { status: 403 }) };
         // Tenant identity comes from a verified membership, never a browser claim.
         // Prior to the coordinated release, only Consult Services is operational.
