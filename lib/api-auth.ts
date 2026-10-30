@@ -5,6 +5,7 @@ import { getPublicEnv, isAuthRequired } from "@/lib/env";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
 import { CONSULT_ORG_ID } from "@/lib/consult-workspace";
 import { query7ServiceUserAccess } from "@/lib/7service-user-access";
+import { shouldEnforceCustomerPilot } from "@/lib/customer-pilot";
 import { TENANT_SCHEMA_READY, getEffectiveTenantForUser } from "@/lib/tenant-runtime";
 
 const USER_ID_HEADER = "x-kairos-user-id";
@@ -95,12 +96,12 @@ export async function requireApiAuth(request: NextRequest): Promise<{
         // The customer pilot is restricted to one approved organization.
         // A global switch alone must not change the rights of other tenants.
         const pilotOrganizationId = process.env.SERVICE_7SERVICE_PILOT_ORG_ID ?? "";
-        const customerPilot = Boolean(
-          !admin.data &&
-          process.env.SERVICE_7SERVICE_ENFORCE_USER_ACCESS === "true" &&
-          isValidUuid(pilotOrganizationId) &&
-          organizationId === pilotOrganizationId
-        );
+        const customerPilot = shouldEnforceCustomerPilot({
+          enabled: process.env.SERVICE_7SERVICE_ENFORCE_USER_ACCESS === "true",
+          isPlatformAdmin: Boolean(admin.data),
+          activeOrganizationId: organizationId,
+          pilotOrganizationId,
+        });
         // An explicit local suspension always wins over a central grant.
         if (!admin.data && access.data && !access.data.active) {
           return { ok: false, response: NextResponse.json({ error: "Acesso local suspenso." }, { status: 403 }) };
