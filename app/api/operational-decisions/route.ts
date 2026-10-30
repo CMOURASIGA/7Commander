@@ -26,12 +26,10 @@ export async function POST(request:NextRequest){
  if(!body||!validInput(body.input)||body.synthetic!==true||body.mode!==intelligenceMode())return NextResponse.json({error:"Entrada inválida; somente dados sintéticos e modo explicitamente habilitado"},{status:400});
  const organizationId=await requireEffectiveTenant(auth.context.userId);
  const db=getSupabaseServerClient();if(!db)return NextResponse.json({error:"Banco indisponível"},{status:503});
- // Hard per-tenant and per-user limit on writes / provider calls. Never accept caller-supplied tenant.
- const start=new Date(Date.now()-60*60*1000).toISOString();
- const quota=await db.from("operational_decision_evaluations").select("id,created_by",{count:"exact",head:true})
-  .eq("organization_id",organizationId).gte("created_at",start);
- if(quota.error)return NextResponse.json({error:"Controle de limites indisponível"},{status:503});
- if((quota.count??0)>=10)return NextResponse.json({error:"Limite conservador de 10 avaliações por empresa/hora atingido"},{status:429});
+ // Atomic, tenant-scoped quota is reserved before any evaluation call.
+ const quota=await db.rpc("reserve_operational_decision_quota",{p_org:organizationId,p_limit:10});
+ if(quota.error)return NextResponse.json({error:"Cotas indisponíveis; migration 069 necessária"},{status:503});
+ if(quota.data!==true)return NextResponse.json({error:"Limite de avaliações por empresa atingido"},{status:429});
  if(intelligenceMode()==="observation"&&process.env.SEVEN_COMMANDER_JEV_COST_APPROVED!=="true")
   return NextResponse.json({error:"Observação Jev aguarda autorização financeira"},{status:503});
  // Only user-confirmed synthetic input; no entity fetching, business mutation or secret is sent.
