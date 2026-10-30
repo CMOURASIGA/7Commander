@@ -27,10 +27,10 @@ export async function POST(request:NextRequest){
  if(!validInput(input))return NextResponse.json({error:"Registro sem informações suficientes para classificação"},{status:422});
  const verdict=await simulationProvider.evaluate(input);
  const db=getSupabaseServerClient();if(!db)return NextResponse.json({error:"Banco indisponível"},{status:503});
- const recent=await db.from("operational_decision_evaluations").select("id",{count:"exact",head:true})
- .eq("organization_id",organizationId).gte("created_at",new Date(Date.now()-3600000).toISOString());
- if(recent.error)return NextResponse.json({error:"Controle de cotas indisponível"},{status:503});
- if((recent.count??0)>=10)return NextResponse.json({error:"Limite de avaliações por empresa atingido"},{status:429});
+ // Atomic, tenant-scoped quota is reserved before any evaluation call.
+ const quota=await db.rpc("reserve_operational_decision_quota",{p_org:organizationId,p_limit:10});
+ if(quota.error)return NextResponse.json({error:"Cotas indisponíveis; migration 069 necessária"},{status:503});
+ if(quota.data!==true)return NextResponse.json({error:"Limite de avaliações por empresa atingido"},{status:429});
  const stored=await db.from("operational_decision_evaluations").insert({
   organization_id:organizationId,module,entity_type:"source_record",source_id:id,
   verdict,provider:"simulation-v1",status:"pending_review",created_by:auth.context.userId
