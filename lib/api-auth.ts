@@ -87,7 +87,20 @@ export async function requireApiAuth(request: NextRequest): Promise<{
         // In the controlled customer pilot, central authorization can admit
         // a locally authenticated, active organization member even without an
         // internal Consult Services role. Central grant remains mandatory.
-        const customerPilot = process.env.SERVICE_7SERVICE_ENFORCE_USER_ACCESS === "true" && !admin.data;
+        const requestedOrg = normalizeHeaderValue(request.headers.get("x-7commander-organization-id"));
+        const isOrganizationRoute = request.nextUrl.pathname.startsWith("/api/organizations/");
+        const organizationId = TENANT_SCHEMA_READY
+          ? await getEffectiveTenantForUser(userId)
+          : CONSULT_ORG_ID;
+        // The customer pilot is restricted to one approved organization.
+        // A global switch alone must not change the rights of other tenants.
+        const pilotOrganizationId = process.env.SERVICE_7SERVICE_PILOT_ORG_ID ?? "";
+        const customerPilot = Boolean(
+          !admin.data &&
+          process.env.SERVICE_7SERVICE_ENFORCE_USER_ACCESS === "true" &&
+          isValidUuid(pilotOrganizationId) &&
+          organizationId === pilotOrganizationId
+        );
         // An explicit local suspension always wins over a central grant.
         if (!admin.data && access.data && !access.data.active) {
           return { ok: false, response: NextResponse.json({ error: "Acesso local suspenso." }, { status: 403 }) };
@@ -95,11 +108,7 @@ export async function requireApiAuth(request: NextRequest): Promise<{
         if (!admin.data && !access.data?.active && !customerPilot) return { ok: false, response: NextResponse.json({ error: "Usuario nao autorizado ou suspenso" }, { status: 403 }) };
         // Tenant identity comes from a verified membership, never a browser claim.
         // Prior to the coordinated release, only Consult Services is operational.
-        const requestedOrg = normalizeHeaderValue(request.headers.get("x-7commander-organization-id"));
-        const isOrganizationRoute = request.nextUrl.pathname.startsWith("/api/organizations/");
-        const organizationId = TENANT_SCHEMA_READY
-          ? await getEffectiveTenantForUser(userId)
-          : CONSULT_ORG_ID;
+
         // Customer routes must never bypass the central authorization check,
         // including /api/organizations/* endpoints.
         if (!isOrganizationRoute || customerPilot) {
