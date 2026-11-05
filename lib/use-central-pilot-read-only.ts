@@ -4,41 +4,37 @@ import { useEffect, useState } from "react";
 import { getClientAuthHeaders } from "@/lib/client-auth";
 
 /**
- * Presentation guard for the scoped INT-01 central pilot. Authorization is
- * still enforced by requireApiAuth and central-route-policy on the server.
- * While loading, avoid flashing write controls to the user.
+ * Presentation hints from an authenticated server-side capability check.
+ * Unknown and failed checks are read-only (fail closed). API guards remain
+ * the sole authority for any create, update, delete or tenant switch.
  */
-export function useCentralPilotReadOnly(): { readOnly: boolean; checking: boolean } {
-  const [state, setState] = useState<{ readOnly: boolean; checking: boolean }>({
-    readOnly: true,
-    checking: true,
+export function useCentralPilotReadOnly(): {
+  readOnly:boolean; checking:boolean; canSwitchCompany:boolean
+} {
+  const [state,setState]=useState({
+    readOnly:true,checking:true,canSwitchCompany:false,
   });
-
-  useEffect(() => {
-    let mounted = true;
-    const run = async () => {
+  useEffect(()=>{
+    let mounted=true;
+    void (async()=>{
       try {
-        const headers = getClientAuthHeaders();
-        const [sessionResponse, organizationsResponse] = await Promise.all([
-          fetch("/api/auth/central-session", { headers, cache: "no-store", credentials: "include" }),
-          fetch("/api/organizations/mine", { headers, cache: "no-store", credentials: "include" }),
-        ]);
-        if (!sessionResponse.ok || !organizationsResponse.ok) {
-          if (mounted) setState({ readOnly: false, checking: false });
-          return;
-        }
-        const session = await sessionResponse.json();
-        const organizations = await organizationsResponse.json();
-        const orgs = Array.isArray(organizations?.data) ? organizations.data : [];
-        const memberRole = orgs.some((org: { role?: string }) => org.role === "member");
-        if (mounted) setState({ readOnly: session?.ok === true && memberRole, checking: false });
+        const response=await fetch("/api/auth/ui-capabilities",{
+          headers:getClientAuthHeaders(),cache:"no-store",credentials:"same-origin",
+        });
+        if (!response.ok) throw new Error("Capabilities unavailable");
+        const body=await response.json() as {
+          readOnly?:boolean;canSwitchCompany?:boolean
+        };
+        if(mounted)setState({
+          readOnly:body.readOnly!==false,
+          checking:false,
+          canSwitchCompany:body.canSwitchCompany===true,
+        });
       } catch {
-        if (mounted) setState({ readOnly: false, checking: false });
+        if(mounted)setState({readOnly:true,checking:false,canSwitchCompany:false});
       }
-    };
-    void run();
-    return () => { mounted = false; };
-  }, []);
-
+    })();
+    return()=>{mounted=false};
+  },[]);
   return state;
 }
