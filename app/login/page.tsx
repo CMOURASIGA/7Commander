@@ -15,15 +15,9 @@ export default function LoginPage() {
     setError("");
     setBusy(true);
     try {
-      // Existing internal/local users continue with their normal login.
-      try {
-        await auth.signInWithPassword(email,password);
-        window.location.assign(nextPath);
-        return;
-      } catch {
-        // Only the explicitly enabled, server-verified central broker can
-        // exchange an approved identity for an existing local RLS account.
-      }
+      // Central identity first: establish BOTH central cookies and the linked local
+      // Supabase session in one login. Internal users without a central link
+      // retain the existing local login as a fallback.
       const response = await fetch("/api/auth/central-exchange", {
         method:"POST",
         credentials:"same-origin",
@@ -31,7 +25,14 @@ export default function LoginPage() {
         headers:{"Content-Type":"application/json"},
         body:JSON.stringify({email:email.trim(),password}),
       });
-      if (!response.ok) throw new Error("Credenciais inválidas ou acesso não habilitado.");
+      if (!response.ok) {
+        // The broker is fail-closed. A fallback local session for a linked
+        // customer still cannot access protected pages without central cookies.
+        await auth.signInWithPassword(email,password);
+        setPassword("");
+        window.location.assign(nextPath);
+        return;
+      }
       const payload = await response.json().catch(()=>null) as
         | {ok?:boolean;tokenHash?:string;localUserId?:string} | null;
       if (!payload?.ok || !payload.tokenHash || !payload.localUserId)
