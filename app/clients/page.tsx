@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { getClientAuthHeaders } from "@/lib/client-auth";
+import { useCentralPilotReadOnly } from "@/lib/use-central-pilot-read-only";
 import { PageIntro, SectionLabel, StatusPill, SurfaceCard } from "@/components/ui/workspace-primitives";
 
 type ClientItem = {
@@ -14,6 +15,7 @@ type ClientItem = {
 };
 
 export default function ClientsPage() {
+  const { readOnly, checking } = useCentralPilotReadOnly();
   const [clients, setClients] = useState<ClientItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -46,7 +48,7 @@ export default function ClientsPage() {
   }, []);
 
   async function handleSave() {
-    if (!form.name.trim() || saving) return;
+    if (readOnly || checking || !form.name.trim() || saving) return;
     setSaving(true);
     setStatusMessage(null);
     try {
@@ -82,6 +84,7 @@ export default function ClientsPage() {
   }
 
   function handleEdit(client: ClientItem) {
+    if (readOnly || checking) return;
     setEditingId(client.id);
     setStatusMessage(null);
     setForm({
@@ -93,6 +96,7 @@ export default function ClientsPage() {
   }
 
   async function handleDelete(clientId: string) {
+    if (readOnly || checking) return;
     setStatusMessage(null);
     try {
       const response = await fetch(`/api/clients/${clientId}`, {
@@ -133,7 +137,8 @@ export default function ClientsPage() {
         }
       />
 
-      <SurfaceCard>
+      {!checking && readOnly ? <p className="rounded-lg border border-(--border) p-3 text-sm" role="status">Acesso somente leitura: cadastro e manutenção de clientes indisponíveis para este perfil.</p> : null}
+      {!readOnly && !checking ? <SurfaceCard>
         <SectionLabel>
           {editingId ? "Editar cliente" : "Novo cliente"}
         </SectionLabel>
@@ -189,7 +194,8 @@ export default function ClientsPage() {
           ) : null}
         </div>
         {statusMessage ? <p className="mt-2 text-xs text-(--text-primary)">{statusMessage}</p> : null}
-      </SurfaceCard>
+      </SurfaceCard> : null}
+      {readOnly && statusMessage ? <p role="alert" className="text-sm">{statusMessage}</p> : null}
 
       <SurfaceCard>
         <SectionLabel>Lista operacional</SectionLabel>
@@ -213,7 +219,7 @@ export default function ClientsPage() {
                     {client.description || "Sem descricao."}
                   </p>
                 </div>
-                <div className="flex gap-2">
+                {!readOnly && !checking ? <div className="flex gap-2">
                   <button
                     type="button"
                     onClick={() => handleEdit(client)}
@@ -228,7 +234,7 @@ export default function ClientsPage() {
                   >
                     Remover
                   </button>
-                </div>
+                </div> : null}
               </div>
             ))}
           </div>
