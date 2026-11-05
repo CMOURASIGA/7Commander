@@ -103,17 +103,32 @@ export async function requireApiAuth(request: NextRequest): Promise<{
           activeOrganizationId: organizationId,
           pilotOrganizationId,
         });
+        // Product-linked rollout is separately opt-in. An active local
+        // membership cannot replace an explicit central client/company link.
+        let linkedTenant = false;
+        if (!admin.data && organizationId &&
+            process.env.SERVICE_7SERVICE_ENFORCE_USER_ACCESS === "true" &&
+            process.env.COMMANDER_CENTRAL_AUTH_ENABLED === "true" &&
+            process.env.SERVICE_7SERVICE_ENFORCE_LINKED_TENANTS === "true") {
+          const link = await db.from("central_client_company_links")
+            .select("commander_company_id").eq("commander_company_id", organizationId)
+            .eq("status", "ACTIVE").maybeSingle();
+          if (link.error) return {ok:false,response:NextResponse.json(
+            {error:"Verificação central indisponível"},{status:503})};
+          linkedTenant = Boolean(link.data);
+        }
+        const customerCentral = customerPilot || linkedTenant;
         // An explicit local suspension always wins over a central grant.
         if (!admin.data && access.data && !access.data.active) {
           return { ok: false, response: NextResponse.json({ error: "Acesso local suspenso." }, { status: 403 }) };
         }
-        if (!admin.data && !access.data?.active && !customerPilot) return { ok: false, response: NextResponse.json({ error: "Usuario nao autorizado ou suspenso" }, { status: 403 }) };
+        if (!admin.data && !access.data?.active && !customerCentral) return { ok: false, response: NextResponse.json({ error: "Usuario nao autorizado ou suspenso" }, { status: 403 }) };
         // Tenant identity comes from a verified membership, never a browser claim.
         // Prior to the coordinated release, only Consult Services is operational.
 
         // Customer routes must never bypass the central authorization check,
         // including /api/organizations/* endpoints.
-        if (!isOrganizationRoute || customerPilot) {
+        if (!isOrganizationRoute || customerCentral) {
           if (!organizationId) return { ok: false, response: NextResponse.json({ error: "Selecione uma organização autorizada." }, { status: 403 }) };
           if (requestedOrg && requestedOrg !== organizationId) {
             return { ok: false, response: NextResponse.json({ error: "Empresa informada difere da empresa ativa." }, { status: 403 }) };
@@ -125,7 +140,7 @@ export async function requireApiAuth(request: NextRequest): Promise<{
           // Disabled by default. Activate on the controlled develop pilot only
           // after 7Service M2M access endpoint, tenant mapping and local Auth
           // identity are verified. Platform admins remain internally authorized.
-          if (customerPilot) {
+          if (customerCentral) {
             // The old email-based authorization endpoint is forbidden in INT-01.
             // These inputs are all derived from verified local and central sessions.
             const decision = await authorizeCentralPilot(request, userId, organizationId);
