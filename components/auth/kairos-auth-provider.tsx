@@ -71,7 +71,6 @@ export function KairosAuthProvider({ required, children }: ProviderProps) {
         syncedUserIdRef.current = sessionUser.id;
       } else {
         clearClientAuthToken();
-        void fetch('/api/auth/local-session',{method:'DELETE',credentials:'same-origin'}).catch(()=>{});
         syncedUserIdRef.current = null;
       }
       setLoading(false);
@@ -83,7 +82,7 @@ export function KairosAuthProvider({ required, children }: ProviderProps) {
       setLoading(false);
     });
 
-    const subscription = client.auth.onAuthStateChange(async (_event, session) => {
+    const subscription = client.auth.onAuthStateChange(async (event, session) => {
       const currentUser = session?.user ?? null;
       const token = session?.access_token ?? "";
       setUser(currentUser);
@@ -143,6 +142,7 @@ export function KairosAuthProvider({ required, children }: ProviderProps) {
         const client = getSupabaseBrowserClient();
         if (!client) return;
         await client.auth.signOut();
+        await fetch('/api/auth/local-session',{method:'DELETE',credentials:'same-origin'}).catch(()=>{});
         clearClientAuthToken();
         setUser(null);
       },
