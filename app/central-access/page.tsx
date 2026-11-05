@@ -1,7 +1,6 @@
 "use client";
 
 import { FormEvent, useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
 import { useKairosAuth } from "@/components/auth/kairos-auth-provider";
 import { getClientAuthHeaders } from "@/lib/client-auth";
 
@@ -11,22 +10,23 @@ import { getClientAuthHeaders } from "@/lib/client-auth";
  * a central login; Commander RLS depends on the local auth.uid().
  */
 export default function ClientAccessPage() {
-  const router = useRouter();
   const auth = useKairosAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
+  const [phase, setPhase] = useState<"idle"|"authenticating"|"confirming"|"redirecting">("idle");
 
   useEffect(() => {
-    if (!auth.loading && !auth.user) router.replace("/login?mode=client");
-  }, [auth.loading, auth.user, router]);
+    if (!auth.loading && !auth.user) window.location.replace("/login");
+  }, [auth.loading, auth.user]);
 
   async function connect(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (busy || !auth.user) return;
     setBusy(true);
-    setMessage("");
+    setPhase("authenticating");
+    setMessage("Confirmando sua identidade no 7Service...");
     try {
       const headers = getClientAuthHeaders({ "Content-Type": "application/json" });
       const response = await fetch("/api/auth/central-session", {
@@ -46,6 +46,8 @@ export default function ClientAccessPage() {
         throw new Error("Não foi possível confirmar o vínculo com o 7Service.");
       }
       setPassword("");
+      setPhase("confirming");
+      setMessage("Identidade confirmada. Verificando sessão central...");
       const check = await fetch("/api/auth/central-session", {
         credentials: "same-origin",
         cache: "no-store",
@@ -55,12 +57,16 @@ export default function ClientAccessPage() {
       if (!check.ok || verified.ok !== true) {
         throw new Error("A sessão central não foi confirmada. Tente novamente.");
       }
-      router.replace("/");
-      router.refresh();
+      setPhase("redirecting");
+      setMessage("Acesso validado. Abrindo seu workspace...");
+      // Full navigation ensures the server middleware sees the freshly set
+      // central session cookie, without Next Router cache retaining this page.
+      window.location.assign("/");
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Falha de conexão central.");
     } finally {
       setBusy(false);
+      setPhase("idle");
     }
   }
 
@@ -77,9 +83,9 @@ export default function ClientAccessPage() {
         <label className="grid gap-1 text-sm">Senha do 7Service
           <input type="password" required autoComplete="current-password" value={password} onChange={e=>setPassword(e.target.value)} className="rounded-lg border p-3"/>
         </label>
-        {message ? <p role="alert" className="text-sm text-red-600">{message}</p> : null}
-        <button type="submit" disabled={busy} className="rounded-lg bg-blue-800 p-3 font-semibold text-white disabled:opacity-60">{busy?"Validando...":"Confirmar acesso central"}</button>
+        {message ? <p role="status" aria-live="polite" className={`text-sm ${message.includes("Acesso validado") || message.includes("Identidade confirmada") || message.includes("Confirmando") ? "text-(--text-primary)" : "text-red-600"}`}>{message}</p> : null}
+        <button type="submit" disabled={busy} className="rounded-lg bg-blue-800 p-3 font-semibold text-white disabled:opacity-60">{phase==="authenticating"?"Autenticando no 7Service...":phase==="confirming"?"Confirmando sessão...":phase==="redirecting"?"Abrindo workspace...":"Confirmar acesso central"}</button>
       </form>}
-    <button type="button" onClick={() => router.replace("/login?mode=client")} className="mt-5 text-sm underline">Voltar ao login</button>
+    <button type="button" onClick={() => window.location.assign("/login")} className="mt-5 text-sm underline">Voltar ao login</button>
   </main>;
 }
