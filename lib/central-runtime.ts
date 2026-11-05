@@ -23,7 +23,11 @@ export async function authorizeCentralPilot(request:NextRequest,localUserId:stri
  const validSwitchOverride = process.env.SERVICE_7SERVICE_ENFORCE_LINKED_TENANTS==='true'
    && request.nextUrl.pathname==='/api/organizations/select'
    && request.method==='POST' && permissionOverride==='organizations.view';
- if(permissionOverride && !validSwitchOverride)return fail('INVALID_PERMISSION_OVERRIDE');
+ const validUiOverride = request.nextUrl.pathname==='/api/auth/ui-capabilities'
+   && request.method==='GET'
+   && ['projects.write','clients.write'].includes(permissionOverride??'');
+ if(permissionOverride && !validSwitchOverride && !validUiOverride)
+   return fail('INVALID_PERMISSION_OVERRIDE');
  const requiredLocalPermission=permissionOverride??permissionForRoute(request.nextUrl.pathname,request.method);
  if(!requiredLocalPermission)return fail('ROUTE_PERMISSION_UNMAPPED');
  const db=getSupabaseServerClient();if(!db)return fail('LOCAL_DB_UNAVAILABLE',503);
