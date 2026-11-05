@@ -1,28 +1,13 @@
-import { NextResponse } from "next/server";
-import { getSupabaseServerClient } from "@/lib/supabase/server";
-import { getDefaultUserId } from "@/lib/user-context";
-
+import { NextResponse } from 'next/server';
+import { getSupabaseServerClient } from '@/lib/supabase/server';
+/** Public connectivity probe: never return Postgres errors or infrastructure hints. */
 export async function GET() {
-  const supabase = getSupabaseServerClient();
-  if (!supabase) {
-    return NextResponse.json(
-      { ready: false, error: "Supabase nao configurado no ambiente server." },
-      { status: 500 },
-    );
-  }
-
-  const userId = getDefaultUserId();
-  const result = await supabase.from("conversations").select("id").eq("user_id", userId).limit(1);
-  if (result.error) {
-    return NextResponse.json(
-      {
-        ready: false,
-        error: result.error.message,
-        hint: "Verifique URL, service role key e se o schema SQL foi aplicado no Supabase.",
-      },
-      { status: 500 },
-    );
-  }
-
-  return NextResponse.json({ ready: true });
+ const db=getSupabaseServerClient();
+ if(!db)return NextResponse.json({ready:false},{status:503,headers:{'Cache-Control':'no-store'}});
+ try{
+  const {error}=await db.from('conversations').select('id').limit(1);
+  return NextResponse.json({ready:!error},{status:error?503:200,headers:{'Cache-Control':'no-store'}});
+ }catch{
+  return NextResponse.json({ready:false},{status:503,headers:{'Cache-Control':'no-store'}});
+ }
 }

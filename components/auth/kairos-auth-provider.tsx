@@ -21,6 +21,15 @@ type ProviderProps = {
   children: React.ReactNode;
 };
 
+/** Best-effort SSR synchronization; middleware fails closed if session cannot be validated. */
+async function syncServerLocalSession(accessToken: string) {
+  const result=await fetch('/api/auth/local-session',{
+    method:'POST',credentials:'same-origin',
+    headers:{Authorization:'Bearer '+accessToken},
+  });
+  if(!result.ok && result.status!==404)throw new Error('LOCAL_SSR_COOKIE_SYNC_FAILED');
+}
+
 async function syncProfile(user: User) {
   try {
     await fetch("/api/auth/profile", {
@@ -57,10 +66,12 @@ export function KairosAuthProvider({ required, children }: ProviderProps) {
       setUser(sessionUser);
       if (sessionUser && token) {
         setClientAuthToken(token, sessionUser.email ?? null);
+        await syncServerLocalSession(token);
         await syncProfile(sessionUser);
         syncedUserIdRef.current = sessionUser.id;
       } else {
         clearClientAuthToken();
+        void fetch('/api/auth/local-session',{method:'DELETE',credentials:'same-origin'}).catch(()=>{});
         syncedUserIdRef.current = null;
       }
       setLoading(false);
@@ -78,12 +89,14 @@ export function KairosAuthProvider({ required, children }: ProviderProps) {
       setUser(currentUser);
       if (currentUser && token) {
         setClientAuthToken(token, currentUser.email ?? null);
+        await syncServerLocalSession(token);
         if (syncedUserIdRef.current !== currentUser.id) {
           await syncProfile(currentUser);
           syncedUserIdRef.current = currentUser.id;
         }
       } else {
         clearClientAuthToken();
+        void fetch('/api/auth/local-session',{method:'DELETE',credentials:'same-origin'}).catch(()=>{});
         syncedUserIdRef.current = null;
       }
       setLoading(false);
@@ -123,6 +136,8 @@ export function KairosAuthProvider({ required, children }: ProviderProps) {
         if (!client) throw new Error("Cliente Supabase indisponivel.");
         const { error } = await client.auth.signInWithPassword({ email: email.trim(), password });
         if (error) throw new Error("E-mail ou senha incorretos, ou conta nao habilitada.");
+        const {data:{session}}=await client.auth.getSession();
+        if(session?.access_token)await syncServerLocalSession(session.access_token);
       },
       signOut: async () => {
         const client = getSupabaseBrowserClient();

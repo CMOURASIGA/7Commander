@@ -4,8 +4,9 @@ import { getDefaultUserId } from "@/lib/user-context";
 import { getPublicEnv, isAuthRequired } from "@/lib/env";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
 import { CONSULT_ORG_ID } from "@/lib/consult-workspace";
-import { query7ServiceUserAccess } from "@/lib/7service-user-access";
 import { shouldEnforceCustomerPilot } from "@/lib/customer-pilot";
+import { authorizeCentralPilot } from "@/lib/central-runtime";
+import { recordCentralDecision } from "@/lib/central-decision-audit";
 import { TENANT_SCHEMA_READY, getEffectiveTenantForUser } from "@/lib/tenant-runtime";
 
 const USER_ID_HEADER = "x-kairos-user-id";
@@ -97,7 +98,7 @@ export async function requireApiAuth(request: NextRequest): Promise<{
         // A global switch alone must not change the rights of other tenants.
         const pilotOrganizationId = process.env.SERVICE_7SERVICE_PILOT_ORG_ID ?? "";
         const customerPilot = shouldEnforceCustomerPilot({
-          enabled: process.env.SERVICE_7SERVICE_ENFORCE_USER_ACCESS === "true",
+          enabled: process.env.SERVICE_7SERVICE_ENFORCE_USER_ACCESS === "true" && process.env.COMMANDER_CENTRAL_AUTH_ENABLED === "true",
           isPlatformAdmin: Boolean(admin.data),
           activeOrganizationId: organizationId,
           pilotOrganizationId,
@@ -125,20 +126,24 @@ export async function requireApiAuth(request: NextRequest): Promise<{
           // after 7Service M2M access endpoint, tenant mapping and local Auth
           // identity are verified. Platform admins remain internally authorized.
           if (customerPilot) {
-            const verifiedEmail = userResult.data.user.email;
-            if (!verifiedEmail || !userResult.data.user.email_confirmed_at) return {
-              ok: false, response: NextResponse.json({ error: "E-mail autenticado necessário." }, { status: 403 }),
+            // The old email-based authorization endpoint is forbidden in INT-01.
+            // These inputs are all derived from verified local and central sessions.
+            const decision = await authorizeCentralPilot(request, userId, organizationId);
+            const logged = await recordCentralDecision({
+              userId, companyId: organizationId,
+              route: request.nextUrl.pathname, method: request.method,
+              allowed: decision.allowed, reasonCode: decision.reasonCode,
+            });
+            // Failure to audit any positive decision fails closed.
+            if (!logged && decision.allowed) return {
+              ok: false,
+              response: NextResponse.json({ error: "Auditoria central indisponível." }, {status:503}),
             };
-            try {
-              const decision = await query7ServiceUserAccess(organizationId, verifiedEmail);
-              if (!decision.allowed) return {
-                ok: false, response: NextResponse.json({ error: "Acesso não liberado pela Consult Services." }, { status: 403 }),
-              };
-            } catch {
-              return {
-                ok: false, response: NextResponse.json({ error: "Validação central indisponível." }, { status: 503 }),
-              };
-            }
+            if (!decision.allowed) return {
+              ok: false,
+              response: NextResponse.json({ error: "Acesso central negado.", code: decision.reasonCode },
+                {status:decision.status, headers:{"Cache-Control":"no-store"}}),
+            };
           }
         }
         const isPrivileged = Boolean(admin.data);

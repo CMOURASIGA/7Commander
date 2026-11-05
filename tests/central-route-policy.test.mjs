@@ -1,0 +1,14 @@
+import {test} from 'node:test';import assert from 'node:assert/strict';
+import {permissionForRoute,localRolePermissions} from '../lib/central-route-policy.mjs';
+test('unknown routes fail closed',()=>assert.equal(permissionForRoute('/api/surprise','GET'),null));
+test('admin-only API routes are unmapped to customer',()=>assert.equal(permissionForRoute('/api/admin/users','GET'),null));
+test('select organization permission is server defined',()=>assert.equal(permissionForRoute('/api/organizations/select','POST'),'organizations.select'));
+test('client cannot pass permission in querystring',()=>assert.equal(permissionForRoute('/api/projects?permission=projects.delete','GET'),null));
+test('GET projects is read only',()=>assert.equal(permissionForRoute('/api/projects','GET'),'projects.view'));
+test('mutation projects needs write',()=>assert.equal(permissionForRoute('/api/projects','POST'),'projects.write'));
+test('DELETE projects needs delete',()=>assert.equal(permissionForRoute('/api/projects/abc','DELETE'),'projects.delete'));
+test('GET can never imply delete',()=>assert.notEqual(permissionForRoute('/api/projects','GET'),permissionForRoute('/api/projects','DELETE')));
+test('member role cannot write',()=>assert.equal(localRolePermissions.member.includes('projects.write'),false));
+test('owner role can delete',()=>assert.equal(localRolePermissions.owner.includes('projects.delete'),true));
+test('methods without explicit allowance fail closed',()=>assert.equal(permissionForRoute('/api/projects','TRACE'),null));
+test('privileged platform routes are not customer routes',()=>assert.equal(permissionForRoute('/api/platform/companies','GET'),null));
