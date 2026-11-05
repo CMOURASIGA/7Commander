@@ -19,9 +19,9 @@ test("INT-01 client mutations are hidden for read-only pilot", () => {
   assert.match(text, /!readOnly && !checking \? <div className="flex gap-2"/);
 });
 
-test("INT-01 company selector respects read-only central pilot", () => {
+test("INT-01 company selector requires server-derived switch permission", () => {
   const text = source("app/organizations/page.tsx");
-  assert.match(text, /if\(readOnly \|\| checking \|\| !orgs\.some/);
+  assert.match(text, /if\(!canSwitchCompany \|\| checking \|\| !orgs\.some/);
   assert.match(text, /Empresa ativa confirmada/);
 });
 
@@ -33,6 +33,6 @@ test("INT-01 project create and management controls are hidden", () => {
 
 test("INT-01 UI guard does not replace server authorization", () => {
   const text = source("lib/use-central-pilot-read-only.ts");
-  assert.match(text, /\/api\/auth\/central-session/);
-  assert.match(text, /\/api\/organizations\/mine/);
+  assert.match(text, /\/api\/auth\/ui-capabilities/);
+  assert.match(text, /readOnly:true,checking:false,canSwitchCompany:false/);
 });
