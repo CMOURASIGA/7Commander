@@ -55,3 +55,11 @@ test("productive readiness rejects the QA pilot configuration",()=>{
  assert.match(ready,/!process\.env\.SERVICE_7SERVICE_PILOT_ORG_ID/);
  assert.match(ready,/status:503/);
 });
+
+test("logout revokes both local and central browser sessions",()=>{
+ const auth=source("components/auth/kairos-auth-provider.tsx");
+ assert.match(auth,/event === 'SIGNED_OUT'/);
+ assert.match(auth,/\/api\/auth\/local-session/);
+ assert.match(auth,/\/api\/auth\/central-session/);
+ assert.match(auth,/method:'DELETE'/);
+});
