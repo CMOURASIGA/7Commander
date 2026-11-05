@@ -1,0 +1,83 @@
+name: INT-01 reconcile main history into develop
+on:
+  push:
+    branches: [develop]
+    paths:
+      - docs/INT01_MERGE_TRIGGER.md
+permissions:
+  contents: write
+concurrency:
+  group: int01-reconcile-develop
+  cancel-in-progress: false
+jobs:
+  reconcile:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Checkout exact develop
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Review all main-only changes before preserving develop tree
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin main develop
+          test "$(git rev-parse HEAD)" = "$(git rev-parse origin/develop)" || { echo "Develop moved"; exit 1; }
+          base="$(git merge-base origin/main origin/develop)"
+          echo "Merge base: $base"
+          echo "Main-only commits: $(git rev-list --count origin/develop..origin/main)"
+          test "$(git rev-list --count origin/develop..origin/main)" -eq 6 || { echo "Main changed; review again"; exit 1; }
+          rejected=0
+          while IFS= read -r file; do
+            if git diff --quiet origin/main origin/develop -- "$file"; then
+              echo "IDENTICAL: $file"
+              continue
+            fi
+            case "$file" in
+              'app/api/planning/[id]/create-project/route.ts'|'app/layout.tsx'|'app/organizations/page.tsx'|'app/planning/page.tsx'|'components/layout/sidebar.tsx'|'lib/7service-authorization.ts')
+                echo "REVIEWED: $file (develop newer than main)"
+                ;;
+              *)
+                echo "::error::UNREVIEWED MAIN DIFFERENCE: $file"
+                rejected=1
+                ;;
+            esac
+          done < <(git diff --name-only "$base" origin/main)
+          test "$rejected" -eq 0 || exit 1
+          echo "All main-only tree differences reviewed."
+      - name: Reconcile ancestry preserving approved develop tree
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "consult-services-ci"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout -B develop origin/develop
+          before="$(git rev-parse HEAD^{tree})"
+          git merge -s ours --no-ff -m "merge(main into develop): preserve newer INT-01 implementation and reconcile history" origin/main
+          test "$before" = "$(git rev-parse HEAD^{tree})" || { echo "Tree changed unexpectedly"; exit 1; }
+          git merge-base --is-ancestor origin/main HEAD
+      - name: Install locked dependencies
+        run: npm ci
+      - name: INT-01 security, tenant isolation and SSO contracts
+        run: node --test tests/*.test.mjs
+      - name: Typecheck
+        run: npm run typecheck
+      - name: Lint
+        run: npm run lint
+      - name: Build
+        run: npm run build
+        env:
+          NEXT_TELEMETRY_DISABLED: '1'
+      - name: Update develop only if Git and all gates still pass
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin develop
+          git merge-base --is-ancestor origin/develop HEAD || { echo "Develop advanced"; exit 1; }
+          git push origin HEAD:refs/heads/develop
