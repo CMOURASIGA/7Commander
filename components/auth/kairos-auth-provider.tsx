@@ -133,10 +133,12 @@ export function KairosAuthProvider({ required, children }: ProviderProps) {
       signInWithPassword: async (email: string, password: string) => {
         const client = getSupabaseBrowserClient();
         if (!client) throw new Error("Cliente Supabase indisponivel.");
-        const { error } = await client.auth.signInWithPassword({ email: email.trim(), password });
-        if (error) throw new Error("E-mail ou senha incorretos, ou conta nao habilitada.");
-        const {data:{session}}=await client.auth.getSession();
-        if(session?.access_token)await syncServerLocalSession(session.access_token);
+        const { data, error } = await client.auth.signInWithPassword({ email: email.trim(), password });
+        if (error || !data.session?.access_token) throw new Error("E-mail ou senha incorretos, ou conta nao habilitada.");
+        // Use the returned session directly. A second getSession() during
+        // SIGNED_IN listeners can contend with Supabase's auth lock.
+        setClientAuthToken(data.session.access_token, data.user?.email ?? null);
+        await syncServerLocalSession(data.session.access_token);
       },
       signOut: async () => {
         const client = getSupabaseBrowserClient();
