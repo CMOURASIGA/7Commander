@@ -118,6 +118,9 @@ export async function requireApiAuth(request: NextRequest): Promise<{
           linkedTenant = Boolean(link.data);
         }
         const customerCentral = customerPilot || linkedTenant;
+        const authorizedLinkedSwitch = linkedTenant
+          && request.nextUrl.pathname === "/api/organizations/select"
+          && request.method === "POST";
         // An explicit local suspension always wins over a central grant.
         if (!admin.data && access.data && !access.data.active) {
           return { ok: false, response: NextResponse.json({ error: "Acesso local suspenso." }, { status: 403 }) };
@@ -140,7 +143,7 @@ export async function requireApiAuth(request: NextRequest): Promise<{
           // Disabled by default. Activate on the controlled develop pilot only
           // after 7Service M2M access endpoint, tenant mapping and local Auth
           // identity are verified. Platform admins remain internally authorized.
-          if (customerCentral) {
+          if (customerCentral && !authorizedLinkedSwitch) {
             // The old email-based authorization endpoint is forbidden in INT-01.
             // These inputs are all derived from verified local and central sessions.
             const decision = await authorizeCentralPilot(request, userId, organizationId);
@@ -167,10 +170,10 @@ export async function requireApiAuth(request: NextRequest): Promise<{
         const write = !["GET", "HEAD", "OPTIONS"].includes(method);
         // Until customer product roles are mapped to the local write RBAC,
         // centrally admitted users without a local role are read-only.
-        if (!isPrivileged && !access.data?.active && write && path !== "/api/auth/profile") {
+        if (!isPrivileged && !access.data?.active && write && path !== "/api/auth/profile" && !authorizedLinkedSwitch) {
           return { ok: false, response: NextResponse.json({ error: "Perfil local necessário para esta operação." }, { status: 403 }) };
         }
-        if (!isPrivileged && write && path !== "/api/auth/profile") {
+        if (!isPrivileged && write && path !== "/api/auth/profile" && !authorizedLinkedSwitch) {
           if (access.data?.role === "leitor" || (access.data?.role === "colaborador" && method === "DELETE")) {
             return { ok: false, response: NextResponse.json({ error: "Seu perfil nao permite esta operacao." }, { status: 403 }) };
           }
