@@ -2,9 +2,11 @@
 import {useEffect,useState} from "react";
 import Link from "next/link";
 import {getClientAuthHeaders} from "@/lib/client-auth";
+import {useCentralPilotReadOnly} from "@/lib/use-central-pilot-read-only";
 type Org={id:string;role:string;organization:{id:string;name:string;slug:string;status:string;branding?:unknown}|Array<{id:string;name:string}>};
 const KEY="7commander:active-organization";
 export default function OrganizationChooser(){
+ const {readOnly,checking}=useCentralPilotReadOnly();
  const [orgs,setOrgs]=useState<Org[]>([]);
  const [selected,setSelected]=useState("");
  const [error,setError]=useState("");
@@ -13,7 +15,7 @@ export default function OrganizationChooser(){
  const current=await fetch("/api/organizations/branding",{headers:getClientAuthHeaders(),cache:"no-store"}).then(x=>x.ok?x.json():null).catch(()=>null);
  if(active)setActiveCompany(typeof current?.data?.name==="string"?current.data.name:null);const cached=window.sessionStorage.getItem(KEY);setSelected(list.find(x=>x.id===cached)?.id??list[0]?.id??"");}catch(e){if(active)setError(e instanceof Error?e.message:"Falha de acesso.");}})();return()=>{active=false};},[]);
  async function choose(){
-  if(!orgs.some(x=>x.id===selected))return;
+  if(readOnly || checking || !orgs.some(x=>x.id===selected))return;
   try {
    setError("");
    const response=await fetch("/api/organizations/select",{method:"POST",headers:getClientAuthHeaders({"Content-Type":"application/json"}),body:JSON.stringify({organizationId:selected})});
@@ -28,5 +30,5 @@ export default function OrganizationChooser(){
    window.location.assign("/"); // Clears in-memory project and Kairos context after authorized switch.
   } catch(e){setError(e instanceof Error?e.message:"Erro ao selecionar empresa.");}
  }
- return <section className="mx-auto max-w-2xl space-y-4 rounded-xl border border-(--border) bg-(--bg-surface) p-6"><h1 className="text-xl font-semibold">Selecionar empresa</h1><p className="text-sm text-(--text-secondary)">Escolha uma das organizações às quais sua conta está vinculada.</p><p className="rounded-lg border border-(--border) p-3 text-sm font-medium">Empresa realmente ativa: {activeCompany??"não confirmada"}</p>{error&&<p role="alert">{error}</p>}{orgs.length===0&&!error?<p>Nenhuma empresa disponível para esta conta.</p>:<div className="space-y-2">{orgs.map(x=><label key={x.id} className="flex items-center gap-3 rounded-lg border border-(--border) p-3"><input type="radio" checked={selected===x.id} onChange={()=>setSelected(x.id)}/><span>{Array.isArray(x.organization)?x.organization[0]?.name:x.organization.name}</span><span className="ml-auto text-xs text-(--text-secondary)">{x.role}</span></label>)}</div>}<button type="button" disabled={!selected} onClick={choose} className="rounded-lg bg-(--accent) px-4 py-2 text-sm text-white disabled:opacity-50">Selecionar</button><p className="text-xs text-amber-700">A seleção exige autorização no servidor. Após escolher uma empresa, a página será recarregada e os módulos consultarão os dados da organização ativa.</p><p className="text-sm"><Link className="underline" href="/platform/companies">Administração de empresas (superadmin)</Link></p></section>;
+ return <section className="mx-auto max-w-2xl space-y-4 rounded-xl border border-(--border) bg-(--bg-surface) p-6"><h1 className="text-xl font-semibold">Selecionar empresa</h1><p className="text-sm text-(--text-secondary)">Escolha uma das organizações às quais sua conta está vinculada.</p><p className="rounded-lg border border-(--border) p-3 text-sm font-medium">Empresa realmente ativa: {activeCompany??"não confirmada"}</p>{error&&<p role="alert">{error}</p>}{orgs.length===0&&!error?<p>Nenhuma empresa disponível para esta conta.</p>:<div className="space-y-2">{orgs.map(x=><label key={x.id} className="flex items-center gap-3 rounded-lg border border-(--border) p-3"><input type="radio" checked={selected===x.id} onChange={()=>setSelected(x.id)}/><span>{Array.isArray(x.organization)?x.organization[0]?.name:x.organization.name}</span><span className="ml-auto text-xs text-(--text-secondary)">{x.role}</span></label>)}</div>}{!readOnly && !checking ? <button type="button" disabled={!selected} onClick={choose} className="rounded-lg bg-(--accent) px-4 py-2 text-sm text-white disabled:opacity-50">Selecionar</button> : null}{readOnly && !checking ? <p role="status" className="text-sm">Empresa ativa confirmada. Seu perfil permite consulta, mas não a troca de empresa.</p> : null}<p className="text-xs text-amber-700">A seleção exige autorização no servidor. Após escolher uma empresa, a página será recarregada e os módulos consultarão os dados da organização ativa.</p>{!readOnly && !checking ? <p className="text-sm"><Link className="underline" href="/platform/companies">Administração de empresas (superadmin)</Link></p> : null}</section>;
 }
