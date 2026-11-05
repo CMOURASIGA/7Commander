@@ -66,9 +66,13 @@ export async function POST(request: NextRequest) {
     let candidateOrgIds: string[] = [];
     if (linkedMode) {
       // Identify the central user without asking them to choose any company.
-      const self = await fetch(new URL("/api/v1/identity/self", centralOrigin), {
+      const verifiedOrigin = new URL(centralOrigin);
+      if (verifiedOrigin.protocol !== "https:" || verifiedOrigin.username ||
+          verifiedOrigin.password || verifiedOrigin.port || verifiedOrigin.pathname !== "/" ||
+          verifiedOrigin.search || verifiedOrigin.hash) return deny();
+      const self = await fetch(new URL("/api/v1/identity/self", verifiedOrigin), {
         headers: { Authorization: "Bearer " + session.access_token },
-        cache: "no-store", signal: AbortSignal.timeout(10000),
+        cache: "no-store", redirect: "error", signal: AbortSignal.timeout(8000),
       });
       const identity = await self.json().catch(() => null) as
         | {authorized?:boolean;identityId?:string} | null;
