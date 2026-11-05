@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Decision, DecisionStatus } from "@/types/decision";
 import { getClientAuthHeaders } from "@/lib/client-auth";
+import { useCentralPilotReadOnly } from "@/lib/use-central-pilot-read-only";
 import { MarkdownContent } from "@/components/ui/markdown-content";
 import { PageIntro, SectionLabel, StatusPill } from "@/components/ui/workspace-primitives";
 import { useConfirm } from "@/components/ui/confirm-dialog";
@@ -142,6 +143,7 @@ function KnowledgeContent({ content }: { content: string }) {
 }
 
 export default function ProjectsPage() {
+  const { readOnly, checking } = useCentralPilotReadOnly();
   const confirm = useConfirm();
   const [projects, setProjects] = useState<ProjectSummary[]>([]);
   const [clients, setClients] = useState<ClientSummary[]>([]);
@@ -265,6 +267,7 @@ export default function ProjectsPage() {
   }, []);
 
   async function handleArchiveProject(project: ProjectSummary) {
+    if (readOnly || checking) return;
     if (project.status === "arquivado") return;
     const approved = await confirm({title:`Arquivar projeto "${project.name}"?`,
       description:"O histórico permanecerá preservado. O projeto ficará marcado como arquivado.",
@@ -284,6 +287,7 @@ export default function ProjectsPage() {
   }
 
   async function handleDeleteProject(project: ProjectSummary) {
+    if (readOnly || checking) return;
     const ok=await confirm({title:`Excluir projeto "${project.name}"?`,
       description:"Exclusão irreversível: riscos deste projeto e seu quadro Kanban vazio serão apagados. Se houver tarefas, conversas, decisões ou conhecimento, a exclusão será bloqueada para preservar o histórico.",
       confirmLabel:"Excluir projeto",tone:"danger"});
@@ -305,6 +309,7 @@ export default function ProjectsPage() {
   }
 
   async function handleCreateProject() {
+    if (readOnly || checking) return;
     const name = newProjectName.trim();
     if (!name) return;
 
@@ -753,10 +758,10 @@ export default function ProjectsPage() {
               {projects.map(p=><option key={p.id} value={p.id}>{p.name}{p.clientName ? ` — ${p.clientName}` : ""}</option>)}
             </select>
           </label>
-          <button type="button" className="workspace-button-secondary text-xs" onClick={()=>setManageProjectsOpen(x=>!x)}
-            aria-expanded={manageProjectsOpen}>{manageProjectsOpen?"Fechar gerenciamento":"Gerenciar projetos"}</button>
+          {!readOnly && !checking ? <button type="button" className="workspace-button-secondary text-xs" onClick={()=>setManageProjectsOpen(x=>!x)}
+            aria-expanded={manageProjectsOpen}>{manageProjectsOpen?"Fechar gerenciamento":"Gerenciar projetos"}</button> : null}
         </div>
-        {manageProjectsOpen?<section className="mt-3 rounded-xl border border-(--border) p-4" aria-label="Gerenciamento de projetos">
+        {!readOnly && !checking && manageProjectsOpen?<section className="mt-3 rounded-xl border border-(--border) p-4" aria-label="Gerenciamento de projetos">
           <h4 className="text-sm font-semibold">Gerenciamento de projetos</h4>
           <p className="mt-1 text-xs text-(--text-secondary)">Exclusão é definitiva e somente permitida a administradores. Projetos com histórico operacional devem ser arquivados.</p>
           <div className="mt-3 space-y-2">
@@ -773,7 +778,7 @@ export default function ProjectsPage() {
             </div>)}
           </div>
         </section>:null}
-        <div className="mt-4 grid gap-2 md:grid-cols-[1fr_240px_auto]">
+        {!readOnly && !checking ? <div className="mt-4 grid gap-2 md:grid-cols-[1fr_240px_auto]">
           <input
             value={newProjectName}
             onChange={(event) => setNewProjectName(event.target.value)}
@@ -800,8 +805,8 @@ export default function ProjectsPage() {
           >
             {creatingProject ? "Criando..." : "Criar projeto"}
           </button>
-        </div>
-        {selectedProject ? (
+        </div> : null}
+        {!readOnly && !checking && selectedProject ? (
           <div className="mt-3 flex flex-wrap items-center gap-2 rounded-lg border border-(--border) bg-(--bg-muted) px-3 py-2 text-xs">
             <span className="font-semibold text-(--text-primary)">Projeto em edição: {selectedProject.name}</span>
             <span className="text-(--text-secondary)">Cliente: {selectedProject.clientName ?? "Não vinculado"}</span>
