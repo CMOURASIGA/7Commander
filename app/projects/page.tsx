@@ -813,9 +813,9 @@ export default function ProjectsPage() {
             <a href="#detalhes-projeto" className="ml-auto text-(--accent) underline">Editar vínculo e detalhes</a>
           </div>
         ) : null}
-        <ProjectRoutine
+        {!readOnly && <ProjectRoutine
           title="Ingestao de arquivos"
-          description="Envie documentos para extrair conhecimento e atualizar o contexto do projeto."
+          description={readOnly ? "Ingestão indisponível para acesso somente leitura." : "Envie documentos para extrair conhecimento e atualizar o contexto do projeto."}
           badge={ingestFile ? "arquivo selecionado" : undefined}
           isOpen={openRoutine === "ingestion"}
           onToggle={() => setOpenRoutine((current) => current === "ingestion" ? null : "ingestion")}
@@ -850,11 +850,11 @@ export default function ProjectsPage() {
             {ingesting ? "Processando..." : "Enviar e estruturar projeto"}
           </button>
           {ingestStatus ? <p className="text-xs text-(--text-primary)">{ingestStatus}</p> : null}
-        </ProjectRoutine>
+        </ProjectRoutine>}
 
         <ProjectRoutine
           title="Riscos do projeto"
-          description="Registre, acompanhe status e defina a mitigacao dos riscos operacionais."
+          description={readOnly ? "Consulte os riscos do projeto sem alterar registros." : "Registre, acompanhe status e defina a mitigacao dos riscos operacionais."}
           badge={risks.length ? `${risks.length} registros` : undefined}
           isOpen={openRoutine === "risks"}
           onToggle={() => setOpenRoutine((current) => current === "risks" ? null : "risks")}
@@ -973,7 +973,7 @@ export default function ProjectsPage() {
 
         <ProjectRoutine
           title="Conhecimento do projeto"
-          description="Consulte documentos processados e remova conhecimentos que nao forem mais relevantes."
+          description={readOnly ? "Consulte o conhecimento do projeto sem remover documentos." : "Consulte documentos processados e remova conhecimentos que nao forem mais relevantes."}
           badge={knowledgeItems.length ? `${knowledgeItems.length} documentos` : undefined}
           isOpen={openRoutine === "knowledge"}
           onToggle={() => setOpenRoutine((current) => current === "knowledge" ? null : "knowledge")}
@@ -1177,7 +1177,7 @@ export default function ProjectsPage() {
 
       <ProjectRoutine
         title="Decisoes do projeto"
-        description="Crie, acompanhe o status e consulte o historico das decisoes operacionais."
+        description={readOnly ? "Consulte o histórico das decisões operacionais." : "Crie, acompanhe o status e consulte o historico das decisoes operacionais."}
         badge={decisions.length ? `${decisions.length} registros` : undefined}
         isOpen={openRoutine === "decisions"}
         onToggle={() => setOpenRoutine((current) => current === "decisions" ? null : "decisions")}
