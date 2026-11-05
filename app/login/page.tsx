@@ -10,8 +10,8 @@ export default function LoginPage() {
   const [nextPath,setNextPath]=useState("/");
   const [clientMode,setClientMode]=useState(false);
   useEffect(()=>{const params=new URLSearchParams(window.location.search);const value=params.get("next")||"/";setNextPath(value.startsWith("/")&&!value.startsWith("//")?value:"/");setClientMode(params.get("mode")==="client")},[]);
-  useEffect(()=>{if(!auth.loading&&auth.user)router.replace(clientMode?"/client-access":nextPath)},[auth.loading,auth.user,clientMode,nextPath,router]);
-  async function submit(e:React.FormEvent){e.preventDefault();setError("");setBusy(true);try{await auth.signInWithPassword(email,password);router.replace(clientMode?"/client-access":nextPath)}catch(e){setError(clientMode?"O acesso ao Commander precisa ser ativado pelo administrador antes de vincular sua identidade do 7Service. Se sua conta já estiver ativa, confirme as credenciais locais.":(e instanceof Error?e.message:"Falha de acesso"))}finally{setBusy(false)}}
+  useEffect(()=>{if(!auth.loading&&auth.user)router.replace(clientMode?"/central-access":nextPath)},[auth.loading,auth.user,clientMode,nextPath,router]);
+  async function submit(e:React.FormEvent){e.preventDefault();setError("");setBusy(true);try{await auth.signInWithPassword(email,password);router.replace(clientMode?"/central-access":nextPath)}catch(e){setError(clientMode?"O acesso ao Commander precisa ser ativado pelo administrador antes de vincular sua identidade do 7Service. Se sua conta já estiver ativa, confirme as credenciais locais.":(e instanceof Error?e.message:"Falha de acesso"))}finally{setBusy(false)}}
   return <section className="mx-auto max-w-xl rounded-[1.8rem] border border-(--border) bg-(--bg-surface) p-8 shadow-[var(--shadow-card)]">
     <div className="flex justify-center"><BrandLockup align="center" size="lg"/></div>
     <div className="mt-6 text-center"><h1 className="text-2xl font-semibold">Entrar no 7Commander</h1><p className="mt-3 text-sm">Use o e-mail e a senha fornecidos pelo administrador da Consult Services.</p></div>
