@@ -104,6 +104,31 @@ export default function HomePage() {
   const [knowledge, setKnowledge] = useState<KnowledgeItem[]>([]);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const canLoadWorkspace = !auth.loading && (!auth.required || Boolean(auth.user));
+  // UI-only permission hint; API authorization remains authoritative.
+  // Never display mutating links until the current identity is confirmed.
+  const [canCreate, setCanCreate] = useState(false);
+  useEffect(() => {
+    if (!canLoadWorkspace) { setCanCreate(false); return; }
+    let mounted = true;
+    const check = async () => {
+      try {
+        const response = await fetch("/api/organizations/mine", {
+          headers: getClientAuthHeaders(), cache: "no-store", credentials: "same-origin",
+        });
+        if (!response.ok) { if (mounted) setCanCreate(false); return; }
+        const payload = await response.json().catch(() => ({}));
+        const members = Array.isArray(payload?.data) ? payload.data : [];
+        // Conservative UI rule. A granted API result is still required for writes.
+        const privileged = members.some((entry: { role?: string }) =>
+          entry.role === "owner" || entry.role === "admin" || entry.role === "manager"
+        );
+        if (mounted) setCanCreate(privileged);
+      } catch { if (mounted) setCanCreate(false); }
+    };
+    void check();
+    return () => { mounted = false; };
+  }, [canLoadWorkspace]);
+
 
   const counters = useMemo(() => {
     const totalProjects = projects.length;
@@ -191,18 +216,18 @@ export default function HomePage() {
         <p className="mt-2 text-[13px] text-(--text-secondary)">{subtitle}</p>
 
         <div className="mt-4 flex flex-wrap gap-2">
-          <Link
+          {canCreate && <Link
             href="/projects"
             className="workspace-button-primary rounded-lg px-3 py-2 text-[13px]"
           >
             Criar projeto
-          </Link>
-          <Link
+          </Link>}
+          {canCreate && <Link
             href="/clients"
             className="rounded-lg border border-(--border) bg-(--bg-surface) px-3 py-2 text-[13px] font-medium text-(--text-primary)"
           >
             Criar cliente
-          </Link>
+          </Link>}
           <Link
             href="/projects"
             className="rounded-lg border border-(--border) bg-(--bg-surface) px-3 py-2 text-[13px] font-medium text-(--text-primary)"
@@ -257,7 +282,7 @@ export default function HomePage() {
             <div className="workspace-empty-state mt-4 flex min-h-28 flex-col items-start justify-center">
               <p className="font-medium text-(--text-primary)">Nenhum projeto cadastrado.</p>
               <p className="mt-1 text-[13px]">Crie seu primeiro projeto para começar a acompanhar execução, decisões e riscos.</p>
-              <Link href="/projects" className="workspace-button-primary mt-3 text-xs">Criar primeiro projeto</Link>
+              {canCreate ? <Link href="/projects" className="workspace-button-primary mt-3 text-xs">Criar primeiro projeto</Link> : null}
             </div>
           ) : (
             <div>
