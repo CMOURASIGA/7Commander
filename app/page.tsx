@@ -103,6 +103,7 @@ export default function HomePage() {
   const [risks, setRisks] = useState<RiskItem[]>([]);
   const [knowledge, setKnowledge] = useState<KnowledgeItem[]>([]);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
+  const [workspaceDenied, setWorkspaceDenied] = useState(false);
   const canLoadWorkspace = !auth.loading && (!auth.required || Boolean(auth.user));
   // UI-only permission hint; API authorization remains authoritative.
   // Never display mutating links until the current identity is confirmed.
@@ -150,11 +151,16 @@ export default function HomePage() {
 
     async function bootstrap() {
       setStatusMessage(null);
+      setWorkspaceDenied(false);
       try {
         const activeResponse = await fetch("/api/projects/active", {
           headers: getClientAuthHeaders(),
         });
         const activePayload = await activeResponse.json().catch(() => ({}));
+        if (activeResponse.status === 401 || activeResponse.status === 403) {
+          setWorkspaceDenied(true);
+          throw new Error(activePayload?.error || "Acesso operacional não autorizado.");
+        }
         if (!activeResponse.ok) throw new Error(activePayload?.error || "Falha ao carregar projeto ativo.");
 
         const activeProject = (activePayload?.data ?? null) as ActiveProject | null;
@@ -208,6 +214,15 @@ export default function HomePage() {
 
   const userName = formatDisplayName(auth.user?.email ?? null);
   const subtitle = `${counters.activeProjects} projetos ativos e ${counters.riskyProjects} em risco agora.`;
+
+  if (workspaceDenied) return (
+    <section className="rounded-xl border border-(--border) bg-(--bg-surface) p-6" role="alert">
+      <h2 className="text-xl font-semibold">Acesso operacional ainda não confirmado</h2>
+      <p className="mt-3 text-sm">Sua identidade local foi autenticada, mas a autorização para acessar os dados da empresa não foi confirmada. Nenhuma operação de criação ou alteração está disponível.</p>
+      <p className="mt-2 text-sm">O administrador deve verificar os vínculos locais e a habilitação da autorização central do 7Service.</p>
+      {statusMessage ? <p className="mt-3 text-sm text-(--text-secondary)">{statusMessage}</p> : null}
+    </section>
+  );
 
   return (
     <section className="space-y-4">
