@@ -29,6 +29,22 @@ export async function middleware(request:NextRequest) {
   const localToken=request.cookies.get(LOCAL_ACCESS_COOKIE)?.value??'';
   const localId=await validUser(localToken,process.env.NEXT_PUBLIC_SUPABASE_URL,process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
   if(!localId)return redirect(request,'/login');
+  // Central authorization is scoped to the approved pilot tenant. Internal
+  // operators and other tenants keep their existing local session behavior.
+  // Never trust a tenant ID supplied by the browser.
+  const pilotId=process.env.SERVICE_7SERVICE_PILOT_ORG_ID??'';
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(pilotId))
+    return NextResponse.next();
+  const serviceKey=process.env.SUPABASE_SERVICE_ROLE_KEY;
+  const dbUrl=process.env.NEXT_PUBLIC_SUPABASE_URL;
+  if (!serviceKey||!dbUrl) return redirect(request,'/login');
+  try {
+    const db=createClient(dbUrl,serviceKey,{auth:{persistSession:false,autoRefreshToken:false,detectSessionInUrl:false}});
+    const memberships=await db.from('organization_members').select('organization_id,status')
+      .eq('user_id',localId).eq('organization_id',pilotId).eq('status','active').limit(1);
+    if (memberships.error) return redirect(request,'/login');
+    if (!memberships.data?.length) return NextResponse.next();
+  } catch { return redirect(request,'/login'); }
   const centralToken=request.cookies.get('__Host-commander_caccess')?.value??'';
   const centralId=await validUser(centralToken,process.env.SERVICE_7SERVICE_SUPABASE_URL,process.env.SERVICE_7SERVICE_SUPABASE_ANON_KEY);
   if(!centralId)return redirect(request,'/central-access');
