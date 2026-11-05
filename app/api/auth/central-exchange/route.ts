@@ -81,6 +81,10 @@ export async function POST(request: NextRequest) {
 
     const member = await resolveTenantMembership(localUserId, pilot);
     if (!member) return deny();
+    // A suspended local identity cannot be revived by an active central grant.
+    const localAccess = await db.from("internal_user_access")
+      .select("active").eq("user_id", localUserId).maybeSingle();
+    if (localAccess.error || localAccess.data?.active === false) return deny();
     const roleLinks = await db.from("central_product_role_links")
       .select("central_product_code,central_role_code,commander_role,allowed_permissions,status")
       .eq("central_product_code", "COMMANDER7").eq("status", "ACTIVE")
