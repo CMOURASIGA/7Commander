@@ -1,16 +1,15 @@
 "use client";
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
 import { BrandLockup } from "@/components/brand/brand-lockup";
 import { useKairosAuth } from "@/components/auth/kairos-auth-provider";
 export default function LoginPage() {
-  const auth=useKairosAuth();const router=useRouter();
+  const auth=useKairosAuth();
   const [email,setEmail]=useState("");const [password,setPassword]=useState("");
   const [error,setError]=useState("");const [busy,setBusy]=useState(false);
   const [nextPath,setNextPath]=useState("/");
   useEffect(()=>{const value=new URLSearchParams(window.location.search).get("next")||"/";setNextPath(value.startsWith("/")&&!value.startsWith("//")?value:"/")},[]);
-  useEffect(()=>{if(!auth.loading&&auth.user)router.replace(nextPath)},[auth.loading,auth.user,nextPath,router]);
-  async function submit(e:React.FormEvent){e.preventDefault();setError("");setBusy(true);try{await auth.signInWithPassword(email,password);router.replace(nextPath)}catch(e){setError(e instanceof Error?e.message:"Falha de acesso")}finally{setBusy(false)}}
+  useEffect(()=>{if(!auth.loading&&auth.user)window.location.replace(nextPath)},[auth.loading,auth.user,nextPath]);
+  async function submit(e:React.FormEvent){e.preventDefault();setError("");setBusy(true);try{await auth.signInWithPassword(email,password);window.location.assign(nextPath)}catch(e){setError(e instanceof Error?e.message:"Falha de acesso")}finally{setBusy(false)}}
   return <section className="mx-auto max-w-xl rounded-[1.8rem] border border-(--border) bg-(--bg-surface) p-8 shadow-[var(--shadow-card)]">
     <div className="flex justify-center"><BrandLockup align="center" size="lg"/></div>
     <div className="mt-6 text-center"><h1 className="text-2xl font-semibold">Entrar no 7Commander</h1><p className="mt-3 text-sm">Use o e-mail e a senha fornecidos pelo administrador da Consult Services.</p></div>
