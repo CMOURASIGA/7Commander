@@ -95,7 +95,10 @@ export function KairosAuthProvider({ required, children }: ProviderProps) {
         }
       } else {
         clearClientAuthToken();
-        void fetch('/api/auth/local-session',{method:'DELETE',credentials:'same-origin'}).catch(()=>{});
+        if (event === 'SIGNED_OUT') {
+          void fetch('/api/auth/local-session',{method:'DELETE',credentials:'same-origin'}).catch(()=>{});
+          void fetch('/api/auth/central-session',{method:'DELETE',credentials:'same-origin'}).catch(()=>{});
+        }
         syncedUserIdRef.current = null;
       }
       setLoading(false);
@@ -144,7 +147,10 @@ export function KairosAuthProvider({ required, children }: ProviderProps) {
         const client = getSupabaseBrowserClient();
         if (!client) return;
         await client.auth.signOut();
-        await fetch('/api/auth/local-session',{method:'DELETE',credentials:'same-origin'}).catch(()=>{});
+        await Promise.all([
+          fetch('/api/auth/local-session',{method:'DELETE',credentials:'same-origin'}).catch(()=>{}),
+          fetch('/api/auth/central-session',{method:'DELETE',credentials:'same-origin'}).catch(()=>{}),
+        ]);
         clearClientAuthToken();
         setUser(null);
       },
