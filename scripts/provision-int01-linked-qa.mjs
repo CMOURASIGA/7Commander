@@ -145,6 +145,9 @@ async function main() {
   if (!existingLinks.some(l=>l.status==='ACTIVE' && l.commander_user_id===userId)) {
     const approver=await commander.auth.admin.getUserById(e.QA_APPROVED_BY_LOCAL_USER_ID);
     ensure(!approver.error && approver.data.user,'Approver not a local Auth user');
+    const admin=await row(commander.from('platform_admins').select('user_id,active')
+      .eq('user_id',e.QA_APPROVED_BY_LOCAL_USER_ID),'Approver is not a platform administrator');
+    ensure(admin.active===true,'Approver administrator inactive');
     const inserted=await commander.from('central_identity_user_links').insert({
       central_identity_id:identity.id,commander_user_id:userId,status:'ACTIVE',
       proof_method:'ADMIN_REVIEWED',approved_by:e.QA_APPROVED_BY_LOCAL_USER_ID,
