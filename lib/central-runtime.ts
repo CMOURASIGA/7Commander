@@ -14,10 +14,17 @@ export type PilotDecision = {allowed:boolean;reasonCode:string;status:403|503|20
 const fail=(reasonCode:string,status:403|503=403):PilotDecision=>({allowed:false,reasonCode,status});
 
 /** Session + tenant + all three persisted links + central decision + local permission. */
-export async function authorizeCentralPilot(request:NextRequest,localUserId:string,tenantId:string):Promise<PilotDecision>{
+export async function authorizeCentralPilot(request:NextRequest,localUserId:string,tenantId:string,
+  permissionOverride?:string):Promise<PilotDecision>{
  if(process.env.COMMANDER_CENTRAL_AUTH_ENABLED!=='true')return fail('CENTRAL_INTEGRATION_DISABLED');
  if(!uuid.test(localUserId)||!uuid.test(tenantId))return fail('INVALID_TENANT_CONTEXT');
- const requiredLocalPermission=permissionForRoute(request.nextUrl.pathname,request.method);
+ // Only the server-side switch handler may check read permission on its
+ // destination tenant before changing profiles.active_organization_id.
+ const validSwitchOverride = process.env.SERVICE_7SERVICE_ENFORCE_LINKED_TENANTS==='true'
+   && request.nextUrl.pathname==='/api/organizations/select'
+   && request.method==='POST' && permissionOverride==='organizations.view';
+ if(permissionOverride && !validSwitchOverride)return fail('INVALID_PERMISSION_OVERRIDE');
+ const requiredLocalPermission=permissionOverride??permissionForRoute(request.nextUrl.pathname,request.method);
  if(!requiredLocalPermission)return fail('ROUTE_PERMISSION_UNMAPPED');
  const db=getSupabaseServerClient();if(!db)return fail('LOCAL_DB_UNAVAILABLE',503);
  try{
