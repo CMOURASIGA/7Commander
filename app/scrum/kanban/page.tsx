@@ -1,11 +1,20 @@
 "use client";
 import Link from "next/link";
 import {useEffect,useState} from "react";
-import {Eye,Pencil,MessageSquare,ChevronRight} from "lucide-react";
+
 import {useConfirm} from "@/components/ui/confirm-dialog";
 import {PageIntro,SurfaceCard} from "@/components/ui/workspace-primitives";
 import {ScrumSelectors,useScrumData,apiPost,Story,stages,transitions,dateBR,today} from "@/components/scrum/scrum-common";
 
+function ScrumIcon({kind,size=16,className=""}:{kind:"eye"|"pencil"|"message"|"chevron"|"trash";size?:number;className?:string}){
+ return <svg aria-hidden="true" className={className} width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+ {kind==="eye"?<><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/></>:null}
+ {kind==="pencil"?<><path d="m4 20 4.4-1 11-11a2 2 0 0 0-3-3l-11 11L4 20Z"/><path d="m14 7 3 3"/></>:null}
+ {kind==="message"?<path d="M5 4h14a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2H9l-5 3V6a2 2 0 0 1 1-2Z"/>:null}
+ {kind==="chevron"?<path d="m9 18 6-6-6-6"/>:null}
+ {kind==="trash"?<><path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14M10 10v7M14 10v7"/></>:null}
+ </svg>;
+}
 export default function ScrumKanbanPage(){
  const data=useScrumData();const confirm=useConfirm();
  const [saving,setSaving]=useState<string|null>(null);
@@ -88,9 +97,9 @@ export default function ScrumKanbanPage(){
         <p className="mt-1 text-[10px] text-(--text-secondary)">{dateBR(s.due_date)} · {s.story_points??"–"} pt</p>
         {s.blocked&&<span className="text-[10px] font-semibold text-(--danger)">Bloqueada</span>}
         <div className="mt-2 flex items-center gap-1">
-         <button type="button" className="rounded-md border border-(--border) p-1.5" title="Visualizar US e comentários" aria-label={"Visualizar "+s.title} onClick={()=>view(s)}><Eye size={14}/></button>
-         <button type="button" className="rounded-md border border-(--border) p-1.5" title="Editar US" aria-label={"Editar "+s.title} disabled={closed} onClick={()=>view(s,true)}><Pencil size={14}/></button>
-         <button type="button" className="rounded-md border border-(--border) p-1.5" title="Comentários" aria-label={"Comentar "+s.title} onClick={()=>view(s)}><MessageSquare size={14}/></button>
+         <button type="button" className="rounded-md border border-(--border) p-1.5" title="Visualizar US e comentários" aria-label={"Visualizar "+s.title} onClick={()=>view(s)}><ScrumIcon kind="eye" size={14}/></button>
+         <button type="button" className="rounded-md border border-(--border) p-1.5" title="Editar US" aria-label={"Editar "+s.title} disabled={closed} onClick={()=>view(s,true)}><ScrumIcon kind="pencil" size={14}/></button>
+         <button type="button" className="rounded-md border border-(--border) p-1.5" title="Comentários" aria-label={"Comentar "+s.title} onClick={()=>view(s)}><ScrumIcon kind="message" size={14}/></button>
         </div>
         {!closed&&transitions[key]?.length>0&&<select aria-label={"Alterar status de "+s.title} className="workspace-select mt-2 w-full text-[11px]" disabled={Boolean(saving)} value={key} onChange={e=>{const stage=e.target.value;setTransition({story:s,stage})}}>
          <option value={key}>Mover para…</option>{transitions[key].map(next=><option value={next} key={next}>{stages.find(x=>x[0]===next)?.[1]||next}</option>)}
@@ -121,7 +130,7 @@ export default function ScrumKanbanPage(){
   {transition&&<div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4"><div className="w-full max-w-md rounded-xl bg-(--bg-surface) p-5 shadow-xl" role="dialog" aria-modal="true" aria-label="Registrar mudança de status">
    <h2 className="font-semibold">Mover para {transition.stage.toUpperCase()}</h2><p className="mt-2 text-xs text-(--text-secondary)">{transition.stage==="review"?"A justificativa é obrigatória para solicitar REVIEW.":"Comentário opcional para registrar a decisão."} O registro será preservado no histórico e o responsável será notificado.</p>
    <textarea className="workspace-input mt-3 w-full" rows={4} value={reason} onChange={e=>setReason(e.target.value)} placeholder="O que precisa ser revisado?"/>
-   <div className="mt-3 flex justify-end gap-2"><button className="workspace-button-secondary px-3 py-2 text-xs" onClick={()=>{setTransition(null);setReason("")}}>Cancelar</button><button className="workspace-button-primary px-3 py-2 text-xs" disabled={(transition.stage==="review"&&!reason.trim())||Boolean(saving)} onClick={()=>void move(transition.story,transition.stage,reason)}>Confirmar status <ChevronRight size={12} className="inline"/></button></div>
+   <div className="mt-3 flex justify-end gap-2"><button className="workspace-button-secondary px-3 py-2 text-xs" onClick={()=>{setTransition(null);setReason("")}}>Cancelar</button><button className="workspace-button-primary px-3 py-2 text-xs" disabled={(transition.stage==="review"&&!reason.trim())||Boolean(saving)} onClick={()=>void move(transition.story,transition.stage,reason)}>Confirmar status <ScrumIcon kind="chevron" size={12} className="inline"/></button></div>
   </div></div>}
  </section>;
 }
