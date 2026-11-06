@@ -1,12 +1,21 @@
 "use client";
 import {useState} from "react";
-import {Eye,Pencil,Trash2} from "lucide-react";
+
 import {PageIntro,SurfaceCard} from "@/components/ui/workspace-primitives";
 import {useConfirm} from "@/components/ui/confirm-dialog";
 import {ScrumSelectors,useScrumData,apiPost,Story,stages,transitions,dateBR,dateOnly,today,addDays,daysBetween} from "@/components/scrum/scrum-common";
 type Form={title:string;description:string;acceptanceCriteria:string;priority:string;responsible:string;stage:string;startDate:string;dueDate:string;durationDays:string;storyPoints:string;blocked:boolean;blockerReason:string;sprintId:string};
 const empty=():Form=>({title:"",description:"",acceptanceCriteria:"",priority:"media",responsible:"",stage:"new",startDate:today(),dueDate:addDays(today(),3),durationDays:"3",storyPoints:"",blocked:false,blockerReason:"",sprintId:""});
 function fromStory(s:Story):Form{return {title:s.title,description:s.description,acceptanceCriteria:s.acceptance_criteria,priority:s.priority,responsible:s.responsible||"",stage:s.workflow_stage,startDate:dateOnly(s.start_date),dueDate:dateOnly(s.due_date),durationDays:String(s.duration_days||""),storyPoints:s.story_points===null?"":String(s.story_points),blocked:s.blocked,blockerReason:s.blocker_reason,sprintId:s.sprint_id||""}}
+function ScrumIcon({kind,size=16,className=""}:{kind:"eye"|"pencil"|"message"|"chevron"|"trash";size?:number;className?:string}){
+ return <svg aria-hidden="true" className={className} width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+ {kind==="eye"?<><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/></>:null}
+ {kind==="pencil"?<><path d="m4 20 4.4-1 11-11a2 2 0 0 0-3-3l-11 11L4 20Z"/><path d="m14 7 3 3"/></>:null}
+ {kind==="message"?<path d="M5 4h14a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2H9l-5 3V6a2 2 0 0 1 1-2Z"/>:null}
+ {kind==="chevron"?<path d="m9 18 6-6-6-6"/>:null}
+ {kind==="trash"?<><path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14M10 10v7M14 10v7"/></>:null}
+ </svg>;
+}
 export default function BacklogPage(){
  const data=useScrumData();const confirm=useConfirm();
  const [opened,setOpened]=useState<Story|null|undefined>(undefined);const [form,setForm]=useState<Form>(empty);const [saving,setSaving]=useState(false);const [commentText,setCommentText]=useState("");
@@ -53,7 +62,7 @@ export default function BacklogPage(){
          <div className="flex items-start justify-between gap-2"><h3 className="text-sm font-semibold">{s.title}</h3><span className="workspace-pill">{s.workflow_stage.toUpperCase()}</span></div>
          <p className="mt-2 line-clamp-3 text-sm text-(--text-secondary)">{s.description||"Sem descrição"}</p>
          <div className="mt-3 space-y-1 text-xs text-(--text-secondary)"><p>Prioridade: {s.priority} · Pontos: {s.story_points??"Não estimado"}</p><p>Responsável: {s.responsible||"Não atribuído"}</p><p>Entrega: {dateBR(s.due_date)}</p><p>{sprint?"Sprint: "+sprint.name:"Aguardando planejamento"}</p>{s.blocked&&<p className="text-(--danger)">Bloqueada: {s.blocker_reason||"Sem motivo"}</p>}</div>
-         <div className="mt-4 flex flex-wrap gap-2"><button title="Visualizar US" aria-label={"Visualizar "+s.title} className="workspace-button-secondary p-2" onClick={()=>edit(s,true)}><Eye size={15}/></button><button title="Editar US" aria-label={"Editar "+s.title} className="workspace-button-secondary p-2" onClick={()=>edit(s)}><Pencil size={15}/></button>{!locked&&!s.sprint_id&&!s.has_history&&s.workflow_stage==="new"&&<button title="Excluir US" aria-label={"Excluir "+s.title} className="workspace-button-danger p-2" onClick={()=>void remove(s)}><Trash2 size={15}/></button>}{locked&&<span className="workspace-pill">Histórico protegido</span>}</div>
+         <div className="mt-4 flex flex-wrap gap-2"><button title="Visualizar US" aria-label={"Visualizar "+s.title} className="workspace-button-secondary p-2" onClick={()=>edit(s,true)}><ScrumIcon kind="eye" size={15}/></button><button title="Editar US" aria-label={"Editar "+s.title} className="workspace-button-secondary p-2" onClick={()=>edit(s)}><ScrumIcon kind="pencil" size={15}/></button>{!locked&&!s.sprint_id&&!s.has_history&&s.workflow_stage==="new"&&<button title="Excluir US" aria-label={"Excluir "+s.title} className="workspace-button-danger p-2" onClick={()=>void remove(s)}><ScrumIcon kind="trash" size={15}/></button>}{locked&&<span className="workspace-pill">Histórico protegido</span>}</div>
        </article>
      })}</div>
      {!stories.length&&<p className="mt-4 text-sm text-(--text-secondary)">Nenhuma US neste filtro. Use Criar US para iniciar o backlog.</p>}
