@@ -27,7 +27,7 @@ export default function BacklogPage(){
    }catch(e){data.setError(e instanceof Error?e.message:"Falha ao salvar US")}finally{setSaving(false)}
  }
  async function remove(story:Story){
-   if(story.workflow_stage!=="new"){data.setError("US já movimentada no fluxo não pode ser excluída.");return}
+   if(story.has_history||story.workflow_stage!=="new"){data.setError("US já movimentada no fluxo não pode ser excluída.");return}
    if(story.sprint_id){data.setError("Retire a US da Sprint antes da exclusão. Sprints encerradas são imutáveis.");return}
    if(!await confirm({title:"Excluir US?",description:"A US será excluída definitivamente, incluindo seus comentários. Essa ação não poderá ser desfeita.",confirmLabel:"Excluir",tone:"danger"}))return;
    const title=window.prompt("Digite o título exato da US para confirmar:",story.title);
@@ -53,7 +53,7 @@ export default function BacklogPage(){
          <div className="flex items-start justify-between gap-2"><h3 className="text-sm font-semibold">{s.title}</h3><span className="workspace-pill">{s.workflow_stage.toUpperCase()}</span></div>
          <p className="mt-2 line-clamp-3 text-sm text-(--text-secondary)">{s.description||"Sem descrição"}</p>
          <div className="mt-3 space-y-1 text-xs text-(--text-secondary)"><p>Prioridade: {s.priority} · Pontos: {s.story_points??"Não estimado"}</p><p>Responsável: {s.responsible||"Não atribuído"}</p><p>Entrega: {dateBR(s.due_date)}</p><p>{sprint?"Sprint: "+sprint.name:"Aguardando planejamento"}</p>{s.blocked&&<p className="text-(--danger)">Bloqueada: {s.blocker_reason||"Sem motivo"}</p>}</div>
-         <div className="mt-4 flex flex-wrap gap-2"><button title="Visualizar US" aria-label={"Visualizar "+s.title} className="workspace-button-secondary p-2" onClick={()=>edit(s,true)}><Eye size={15}/></button><button title="Editar US" aria-label={"Editar "+s.title} className="workspace-button-secondary p-2" onClick={()=>edit(s)}><Pencil size={15}/></button>{!locked&&!s.sprint_id&&s.workflow_stage==="new"&&<button title="Excluir US" aria-label={"Excluir "+s.title} className="workspace-button-danger p-2" onClick={()=>void remove(s)}><Trash2 size={15}/></button>}{locked&&<span className="workspace-pill">Histórico protegido</span>}</div>
+         <div className="mt-4 flex flex-wrap gap-2"><button title="Visualizar US" aria-label={"Visualizar "+s.title} className="workspace-button-secondary p-2" onClick={()=>edit(s,true)}><Eye size={15}/></button><button title="Editar US" aria-label={"Editar "+s.title} className="workspace-button-secondary p-2" onClick={()=>edit(s)}><Pencil size={15}/></button>{!locked&&!s.sprint_id&&!s.has_history&&s.workflow_stage==="new"&&<button title="Excluir US" aria-label={"Excluir "+s.title} className="workspace-button-danger p-2" onClick={()=>void remove(s)}><Trash2 size={15}/></button>}{locked&&<span className="workspace-pill">Histórico protegido</span>}</div>
        </article>
      })}</div>
      {!stories.length&&<p className="mt-4 text-sm text-(--text-secondary)">Nenhuma US neste filtro. Use Criar US para iniciar o backlog.</p>}
