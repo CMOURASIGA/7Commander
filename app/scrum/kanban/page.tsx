@@ -1,6 +1,5 @@
 "use client";
-import Link from "next/link";
-import {useEffect,useState} from "react";
+import {useEffect,useRef,useState} from "react";
 
 import {useConfirm} from "@/components/ui/confirm-dialog";
 import {PageIntro,SurfaceCard} from "@/components/ui/workspace-primitives";
@@ -16,7 +15,7 @@ function ScrumIcon({kind,size=16,className=""}:{kind:"eye"|"pencil"|"message"|"c
  </svg>;
 }
 export default function ScrumKanbanPage(){
- const data=useScrumData();const confirm=useConfirm();
+ const data=useScrumData();const confirm=useConfirm();const openedFromUrl=useRef(false);
  const [saving,setSaving]=useState<string|null>(null);
  const [selected,setSelected]=useState<Story|null>(null);
  const [editing,setEditing]=useState(false);
@@ -34,9 +33,9 @@ export default function ScrumKanbanPage(){
   const params=new URLSearchParams(window.location.search);
   const projectId=params.get("projectId"),storyId=params.get("storyId");
   if(projectId&&data.projects.some(p=>p.id===projectId)&&data.projectId!==projectId){data.setProjectId(projectId);return}
-  if(storyId&&data.stories.length){
+  if(storyId&&data.stories.length&&!openedFromUrl.current){
    const story=data.stories.find(s=>s.id===storyId);
-   if(story&&!selected){setSelected(story);if(story.sprint_id)data.setSprintId(story.sprint_id)}
+   if(story&&!selected){openedFromUrl.current=true;setSelected(story);if(story.sprint_id)data.setSprintId(story.sprint_id)}
   }
  },[data.projects,data.projectId,data.stories,selected,data.setProjectId,data.setSprintId]);
  function view(story:Story,edit=false){
