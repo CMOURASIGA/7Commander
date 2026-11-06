@@ -14,6 +14,11 @@ const validDate = (s: unknown): s is string => typeof s === "string" && datePatt
 const response = (data: unknown, status=200) => NextResponse.json(data,{status,headers:noStore});
 const invalid = (message: string, status=400) => response({error:message},status);
 const stages = ["new","review","rework","ready","active","resolved","closed","rejected"];
+const transitions:Record<string,string[]>={
+  new:["review"],review:["ready","rework"],rework:["review"],
+  ready:["active","rejected","rework"],active:["resolved","rework"],
+  resolved:["closed","rework","rejected"],closed:[],rejected:[]
+};
 const states = ["planned","active","closed"];
 
 async function context(request: NextRequest, projectId: string, edit = false) {
@@ -87,6 +92,14 @@ export async function POST(request:NextRequest) {
     if(sprint.error||task.error||!sprint.data||!task.data)return invalid("Sprint ou atividade não pertence ao projeto.",404);
     if(sprint.data.status==="closed")return invalid("Sprint encerrada não pode receber alterações.",409);
     if(body.workflowStage!==undefined && !stages.includes(String(body.workflowStage)))return invalid("Etapa da US inválida.");
+    const previous=await db.from("scrum_sprint_tasks").select("workflow_stage")
+      .eq("sprint_id",sprintId).eq("task_id",taskId).eq("organization_id",organizationId).eq("project_id",projectId).maybeSingle();
+    if(previous.error)return invalid("Falha ao verificar etapa atual da US.",503);
+    if(body.workflowStage!==undefined){
+      const current=previous.data?.workflow_stage||"new",next=String(body.workflowStage);
+      if(!previous.data && next!=="new" || previous.data && next!==current && !transitions[current]?.includes(next))
+        return invalid("Transição Scrum não permitida: "+current+" → "+next,409);
+    }
     const start=body.startDate===null||body.startDate===""?null:body.startDate;
     const end=body.endDate===null||body.endDate===""?null:body.endDate;
     const duration=body.durationDays===null||body.durationDays===""?null:Number(body.durationDays);
