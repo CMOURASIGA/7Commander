@@ -92,7 +92,7 @@ export default function ScrumKanbanPage(){
          <button type="button" className="rounded-md border border-(--border) p-1.5" title="Editar US" aria-label={"Editar "+s.title} disabled={closed} onClick={()=>view(s,true)}><Pencil size={14}/></button>
          <button type="button" className="rounded-md border border-(--border) p-1.5" title="Comentários" aria-label={"Comentar "+s.title} onClick={()=>view(s)}><MessageSquare size={14}/></button>
         </div>
-        {!closed&&transitions[key]?.length>0&&<select aria-label={"Alterar status de "+s.title} className="workspace-select mt-2 w-full text-[11px]" disabled={Boolean(saving)} value={key} onChange={e=>{const stage=e.target.value;if(stage==="review")setTransition({story:s,stage});else void move(s,stage)}}>
+        {!closed&&transitions[key]?.length>0&&<select aria-label={"Alterar status de "+s.title} className="workspace-select mt-2 w-full text-[11px]" disabled={Boolean(saving)} value={key} onChange={e=>{const stage=e.target.value;setTransition({story:s,stage})}}>
          <option value={key}>Mover para…</option>{transitions[key].map(next=><option value={next} key={next}>{stages.find(x=>x[0]===next)?.[1]||next}</option>)}
         </select>}
        </article>)}</div>
@@ -118,10 +118,10 @@ export default function ScrumKanbanPage(){
    </div>
    {!closed&&<div className="mt-5 flex gap-2 border-t border-(--border) pt-3"><button className="workspace-button-secondary px-3 py-2 text-xs" onClick={()=>setEditing(!editing)}>{editing?"Visualizar":"Editar"}</button><button className="workspace-button-secondary px-3 py-2 text-xs" disabled={Boolean(saving)} onClick={()=>void returnBacklog(currentSelected||selected)}>Retornar ao backlog</button></div>}
   </aside></div>}
-  {transition&&<div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4"><div className="w-full max-w-md rounded-xl bg-(--bg-surface) p-5 shadow-xl" role="dialog" aria-modal="true" aria-label="Solicitar REVIEW">
-   <h2 className="font-semibold">Justificativa para REVIEW</h2><p className="mt-2 text-xs text-(--text-secondary)">Informe o motivo da revisão. Ele ficará registrado no histórico da US e será comunicado aos envolvidos.</p>
+  {transition&&<div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4"><div className="w-full max-w-md rounded-xl bg-(--bg-surface) p-5 shadow-xl" role="dialog" aria-modal="true" aria-label="Registrar mudança de status">
+   <h2 className="font-semibold">Mover para {transition.stage.toUpperCase()}</h2><p className="mt-2 text-xs text-(--text-secondary)">{transition.stage==="review"?"A justificativa é obrigatória para solicitar REVIEW.":"Comentário opcional para registrar a decisão."} O registro será preservado no histórico e o responsável será notificado.</p>
    <textarea className="workspace-input mt-3 w-full" rows={4} value={reason} onChange={e=>setReason(e.target.value)} placeholder="O que precisa ser revisado?"/>
-   <div className="mt-3 flex justify-end gap-2"><button className="workspace-button-secondary px-3 py-2 text-xs" onClick={()=>{setTransition(null);setReason("")}}>Cancelar</button><button className="workspace-button-primary px-3 py-2 text-xs" disabled={!reason.trim()||Boolean(saving)} onClick={()=>void move(transition.story,transition.stage,reason)}>Solicitar REVIEW <ChevronRight size={12} className="inline"/></button></div>
+   <div className="mt-3 flex justify-end gap-2"><button className="workspace-button-secondary px-3 py-2 text-xs" onClick={()=>{setTransition(null);setReason("")}}>Cancelar</button><button className="workspace-button-primary px-3 py-2 text-xs" disabled={(transition.stage==="review"&&!reason.trim())||Boolean(saving)} onClick={()=>void move(transition.story,transition.stage,reason)}>Confirmar status <ChevronRight size={12} className="inline"/></button></div>
   </div></div>}
  </section>;
 }
