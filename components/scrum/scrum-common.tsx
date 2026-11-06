@@ -7,7 +7,7 @@ export type Sprint={id:string;name:string;goal:string;status:"planned"|"active"|
 export type Story={id:string;project_id:string;sprint_id:string|null;title:string;description:string;acceptance_criteria:string;priority:string;responsible:string|null;workflow_stage:string;start_date:string|null;due_date:string|null;duration_days:number|null;story_points:number|null;blocked:boolean;blocker_reason:string;created_at:string;updated_at:string};
 export type Comment={id:string;story_id:string;author_email:string|null;content:string;created_at:string};
 export const stages=[["new","NEW"],["review","REVIEW"],["rework","REWORK"],["ready","READY"],["active","ACTIVE"],["resolved","RESOLVED"],["closed","CLOSED"],["rejected","REJECT"]] as const;
-export const transitions:Record<string,string[]>={new:["review"],review:["ready","rework"],rework:["review"],ready:["active","rejected","rework"],active:["resolved","rework"],resolved:["closed","rework","rejected"],closed:[],rejected:[]};
+export const transitions:Record<string,string[]>={new:["review"],review:["ready","rework"],rework:["review"],ready:["active","rejected","rework"],active:["resolved","rework"],resolved:["closed","rework","rejected"],closed:[],rejected:["new"]};
 export const dateOnly=(value:string|null|undefined)=>value?.slice(0,10)||"";
 export const dateBR=(value:string|null|undefined)=>{const s=dateOnly(value);return /^\d{4}-\d{2}-\d{2}$/.test(s)?s.slice(8,10)+"/"+s.slice(5,7)+"/"+s.slice(0,4):"Não definido";};
 export const today=()=>{const d=new Date();return [d.getFullYear(),String(d.getMonth()+1).padStart(2,"0"),String(d.getDate()).padStart(2,"0")].join("-")};
