@@ -8,7 +8,7 @@ import { CONSULT_ORG_ID } from "@/lib/consult-workspace";
 
 export const dynamic = "force-dynamic";
 const noStore = { "Cache-Control": "private, no-store, max-age=0" };
-const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const datePattern = /^\d{4}-\d{2}-\d{2}$/;
 const validDate = (s: unknown): s is string => typeof s === "string" && datePattern.test(s) && !Number.isNaN(Date.parse(s + "T12:00:00Z")) && new Date(s + "T12:00:00Z").toISOString().slice(0,10) === s;
 const response = (data: unknown, status=200) => NextResponse.json(data,{status,headers:noStore});
