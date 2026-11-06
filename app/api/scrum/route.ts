@@ -73,12 +73,19 @@ export async function POST(request:NextRequest) {
   if(body.action==="update_sprint"){
     if(!uuid.test(String(body.sprintId||"")) || !states.includes(String(body.status||"")))return invalid("Sprint ou status inválido.");
     const id=String(body.sprintId);
+    const current=await db.from("scrum_sprints").select("status").eq("id",id).eq("project_id",projectId).eq("organization_id",organizationId).maybeSingle();
+    if(current.error||!current.data)return invalid("Sprint não encontrada.",404);
+    if(current.data.status==="closed")return invalid("Sprint encerrada não pode ser reaberta ou modificada.",409);
+    if(body.status==="closed"&&current.data.status!=="active")return invalid("Ative a Sprint antes de encerrá-la.",409);
     const changed=await db.from("scrum_sprints").update({status:body.status,updated_at:new Date().toISOString()}).eq("id",id).eq("project_id",projectId).eq("organization_id",organizationId).select("id").maybeSingle();
     return changed.error?invalid("Erro ao atualizar Sprint: "+changed.error.code,409):!changed.data?invalid("Sprint não encontrada.",404):response({data:changed.data});
   }
   if(body.action==="unlink_task"){
     const sprintId=String(body.sprintId||""),taskId=String(body.taskId||"");
     if(!uuid.test(sprintId)||!uuid.test(taskId))return invalid("IDs inválidos.");
+    const guard=await db.from("scrum_sprints").select("status").eq("id",sprintId).eq("organization_id",organizationId).eq("project_id",projectId).maybeSingle();
+    if(guard.error||!guard.data)return invalid("Sprint não encontrada.",404);
+    if(guard.data.status==="closed")return invalid("Sprint encerrada: não é permitido remover suas US.",409);
     const deleted=await db.from("scrum_sprint_tasks").delete().eq("organization_id",organizationId).eq("project_id",projectId).eq("sprint_id",sprintId).eq("task_id",taskId).select("task_id");
     return deleted.error?invalid("Falha ao remover US da Sprint.",409):response({data:deleted.data});
   }
