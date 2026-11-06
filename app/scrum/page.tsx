@@ -5,7 +5,7 @@ import {PageIntro,SurfaceCard} from "@/components/ui/workspace-primitives";
 import {ScrumNav,ScrumSelectors,useScrumData,apiPost,today,addDays,dateBR} from "@/components/scrum/scrum-common";
 
 export default function ScrumPage(){
- const data=useScrumData();
+ const data=useScrumData();const confirm=useConfirm();
  const [drawer,setDrawer]=useState(false);const [saving,setSaving]=useState(false);
  const [form,setForm]=useState({name:"",goal:"",startDate:today(),endDate:addDays(today(),14)});
  const selected=data.sprints.find(s=>s.id===data.sprintId);
