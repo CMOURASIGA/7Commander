@@ -243,7 +243,7 @@ export default function ScrumPage(){
     {selected&&activeTab==="sprint"&&<SurfaceCard>
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div><h2 className="font-semibold">{selected.name}</h2><p className="mt-1 text-xs text-(--text-secondary)">{selected.goal||"Meta não definida"} · {dateOnly(selected.start_date)} a {dateOnly(selected.end_date)}</p></div>
-        <label className="text-xs">Estado <select className="workspace-select ml-2" value={selected.status} disabled={saving||selected.status==="closed"} onChange={e=>void send({action:"update_sprint",sprintId,status:e.target.value})}><option value="planned">Planejada</option><option value="active">Ativa</option><option value="closed">Encerrada</option></select></label>
+        <label className="text-xs">Estado <select className="workspace-select ml-2" value={selected.status} disabled={saving||selected.status==="closed"} onChange={e=>{const next=e.target.value;if(next==="closed"){void confirm({title:"Encerrar Sprint?",description:"O encerramento é definitivo. Os vínculos e registros das US ficarão protegidos e não poderão ser retirados.",confirmLabel:"Encerrar Sprint",tone:"danger"}).then(ok=>{if(ok)void send({action:"update_sprint",sprintId,status:next})})}else void send({action:"update_sprint",sprintId,status:next})}}><option value="planned">Planejada</option><option value="active">Ativa</option><option value="closed">Encerrada</option></select></label>
       </div>
       <div className="mt-4 grid grid-cols-2 gap-2 md:grid-cols-3 xl:grid-cols-6">
         {[["US",summary.total],["Concluídas",summary.finished],["Bloqueadas",summary.blocked],["Atrasadas",summary.overdue],["Restantes",summary.remaining],["Pontos",summary.points]].map(([label,n])=><div key={label} className="rounded-xl bg-(--bg-muted) p-3"><p className="text-xs text-(--text-secondary)">{label}</p><p className="mt-2 text-2xl font-semibold">{n}</p></div>)}
@@ -272,18 +272,7 @@ export default function ScrumPage(){
               {selected.status!=="closed"&&<button className="workspace-button-secondary px-3 py-2 text-xs" onClick={()=>void unlinkUs(item)}>Retirar da Sprint</button>}
               {selected.status==="closed"&&<span className="workspace-pill">Histórico protegido</span>}
             </div>
-            {selected.status!=="closed"&&<details className="mt-3 rounded-lg border border-(--border) p-3"><summary className="cursor-pointer text-xs font-semibold">Atualizar planejamento Scrum</summary>
-              <div className="mt-3 grid gap-2 sm:grid-cols-2">
-                <label className="text-xs">Início<input className="workspace-input mt-1 w-full" type="date" value={d.startDate} onChange={e=>updateDraft(item,{startDate:e.target.value})}/></label>
-                <label className="text-xs">Duração em dias<input className="workspace-input mt-1 w-full" type="number" value={d.duration} min={1} onChange={e=>updateDraft(item,{duration:e.target.value,endDate:d.startDate&&Number(e.target.value)>0?addDays(d.startDate,Number(e.target.value)):d.endDate})}/></label>
-                <label className="text-xs">Entrega<input className="workspace-input mt-1 w-full" type="date" value={d.endDate} onChange={e=>updateDraft(item,{endDate:e.target.value,duration:d.startDate&&e.target.value?String(period(d.startDate,e.target.value)):d.duration})}/></label>
-                <label className="text-xs">Story points<input className="workspace-input mt-1 w-full" type="number" min={0} step={0.5} value={d.points} onChange={e=>updateDraft(item,{points:e.target.value})}/></label>
-                <label className="text-xs">Etapa<select className="workspace-select mt-1 w-full" value={d.stage} onChange={e=>updateDraft(item,{stage:e.target.value})}>{workflow.map(([value,label])=><option key={value} value={value} disabled={value!==item.workflow_stage&&!allowed[item.workflow_stage]?.includes(value)}>{label}</option>)}</select></label>
-                <label className="flex items-center gap-2 text-xs"><input type="checkbox" checked={d.blocked} onChange={e=>updateDraft(item,{blocked:e.target.checked})}/> Impedimento ativo</label>
-                <label className="text-xs sm:col-span-2">Motivo<input className="workspace-input mt-1 w-full" value={d.blockerReason} onChange={e=>updateDraft(item,{blockerReason:e.target.value})}/></label>
-              </div>
-              <button className="workspace-button-primary mt-3 px-3 py-2 text-xs" disabled={saving} onClick={()=>void saveItem(item)}>Salvar acompanhamento</button>
-            </details>}
+
           </article>;
         })}
       </div>
@@ -302,6 +291,23 @@ export default function ScrumPage(){
             <label className="text-xs sm:col-span-2">Responsável<input className="workspace-input mt-1 w-full" type="email" value={drawerForm.responsible} onChange={e=>setDrawerForm(v=>({...v,responsible:e.target.value}))}/></label>
           </div>
           <div className="flex justify-end gap-2"><button className="workspace-button-secondary px-3 py-2 text-xs" onClick={()=>setDrawerTaskId(null)}>Cancelar</button><button className="workspace-button-primary px-3 py-2 text-xs" disabled={drawerSaving||!drawerForm.title.trim()} onClick={()=>void saveUs()}>Salvar alterações</button></div>
+          {items.filter(i=>i.task_id===drawerTaskId).map(item=>{
+            const d=draft(item);
+            return <div key={item.task_id} className="rounded-xl border border-(--border) bg-(--bg-muted) p-4">
+              <h3 className="font-semibold text-sm">Planejamento e acompanhamento Scrum</h3>
+              <p className="mt-1 text-xs text-(--text-secondary)">Etapa: {item.workflow_stage.toUpperCase()} · Sprint: {selected?.name||"Não selecionada"}</p>
+              <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                <label className="text-xs">Início planejado<input type="date" className="workspace-input mt-1 w-full" value={d.startDate} disabled={selected?.status==="closed"} onChange={e=>{const startDate=e.target.value;updateDraft(item,{startDate,endDate:startDate&&Number(d.duration)>0?addDays(startDate,Number(d.duration)):d.endDate})}}/></label>
+                <label className="text-xs">Prazo em dias corridos<input type="number" min="1" className="workspace-input mt-1 w-full" value={d.duration} disabled={selected?.status==="closed"} onChange={e=>updateDraft(item,{duration:e.target.value,endDate:d.startDate&&Number(e.target.value)>0?addDays(d.startDate,Number(e.target.value)):d.endDate})}/></label>
+                <label className="text-xs">Entrega prevista<input type="date" className="workspace-input mt-1 w-full" value={d.endDate} disabled={selected?.status==="closed"} onChange={e=>updateDraft(item,{endDate:e.target.value,duration:d.startDate&&e.target.value?String(period(d.startDate,e.target.value)):d.duration})}/></label>
+                <label className="text-xs">Story points<input type="number" min="0" step="0.5" className="workspace-input mt-1 w-full" value={d.points} disabled={selected?.status==="closed"} onChange={e=>updateDraft(item,{points:e.target.value})}/></label>
+                <label className="text-xs">Etapa<select className="workspace-select mt-1 w-full" value={d.stage} disabled={selected?.status==="closed"} onChange={e=>updateDraft(item,{stage:e.target.value})}>{workflow.map(([value,label])=><option key={value} value={value} disabled={value!==item.workflow_stage&&!allowed[item.workflow_stage]?.includes(value)}>{label}</option>)}</select></label>
+                <label className="flex items-center gap-2 text-xs"><input type="checkbox" checked={d.blocked} disabled={selected?.status==="closed"} onChange={e=>updateDraft(item,{blocked:e.target.checked})}/> Impedimento ativo</label>
+                <label className="text-xs sm:col-span-2">Motivo do impedimento<input className="workspace-input mt-1 w-full" value={d.blockerReason} disabled={selected?.status==="closed"} onChange={e=>updateDraft(item,{blockerReason:e.target.value})}/></label>
+              </div>
+              {selected?.status!=="closed"?<button type="button" className="workspace-button-primary mt-3 px-3 py-2 text-xs" disabled={saving} onClick={()=>void saveItem(item)}>Salvar acompanhamento Scrum</button>:<p className="mt-3 text-xs text-(--text-secondary)">Sprint encerrada: histórico somente leitura.</p>}
+            </div>;
+          })}
           <div className="border-t border-(--border) pt-4"><h3 className="font-semibold text-sm">Histórico de comentários</h3>
             {drawerComments.map(c=><div key={c.id} className="mt-3 rounded-lg bg-(--bg-muted) p-3"><p className="text-xs font-semibold">{c.authorEmail} · {new Date(c.createdAt).toLocaleString("pt-BR")}</p><p className="mt-2 whitespace-pre-wrap text-sm">{c.content}</p></div>)}
             <textarea className="workspace-input mt-3 w-full" rows={3} value={drawerComment} placeholder="Registrar acompanhamento..." onChange={e=>setDrawerComment(e.target.value)}/>
