@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireApiAuth } from "@/lib/api-auth";
 import { getProjectAccessRole, getProjectById, listProjects } from "@/services/project-service";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
-import { updateTaskCard } from "@/services/task-board-service";
+import { updateTaskCard, listTaskBoard } from "@/services/task-board-service";
 import { TENANT_SCHEMA_READY, requireEffectiveTenant } from "@/lib/tenant-runtime";
 import { CONSULT_ORG_ID } from "@/lib/consult-workspace";
 
@@ -115,6 +115,22 @@ export async function POST(request:NextRequest) {
     if(body.workflowStage!==undefined)row.workflow_stage=body.workflowStage;
     if(body.blocked!==undefined)row.blocked=body.blocked===true;
     if(body.blockerReason!==undefined)row.blocker_reason=typeof body.blockerReason==="string"?body.blockerReason.slice(0,1500):"";
+    // Scrum acceptance changes the original Kanban task, never a duplicate record.
+    const nextStage=String(body.workflowStage||"");
+    const priorStage=previous.data?.workflow_stage||"";
+    const statusColumn:Record<string,"todo"|"doing"|"done">={
+      active:"doing",closed:"done",rejected:"todo",rework:"todo"
+    };
+    if(nextStage && nextStage!==priorStage && statusColumn[nextStage]){
+      const board=await listTaskBoard({userId:ctx.auth.userId,userEmail:ctx.auth.userEmail,projectId});
+      const target=board?.columns.find(c=>c.key===statusColumn[nextStage]);
+      if(!target)return invalid("Coluna necessária indisponível no Kanban.",409);
+      const moved=await updateTaskCard({
+        userId:ctx.auth.userId,userEmail:ctx.auth.userEmail,
+        taskId,columnId:target.id,position:target.cards.length
+      });
+      if(!moved)return invalid("Não foi possível sincronizar o status com o Kanban.",409);
+    }
     // Persist dates in one shared Kanban record, not in a duplicated Scrum card.
     // A failure here prevents reporting the item as successfully planned.
     if(end!==null&&body.endDate!==undefined){
