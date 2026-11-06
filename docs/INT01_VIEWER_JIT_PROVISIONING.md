@@ -10,7 +10,7 @@ O 7Service é autoridade para identidade, assinatura e licença. O 7Commander ma
 5. Emitir sessão local apenas após a política central de leitura permitir a operação.
 
 ## Habilitação em QA
-- Aplicar migração database/migrations/074_int01_viewer_jit_provision.sql na base de testes. RPC é executável somente por service_role.
+- Aplicar migração database/migrations/076_int01_viewer_jit_provision.sql na base de testes. RPC é executável somente por service_role.
 - Configurar flags server-side COMMANDER_CENTRAL_AUTH_ENABLED=true, COMMANDER_CENTRAL_BROKER_ENABLED=true, SERVICE_7SERVICE_ENFORCE_USER_ACCESS=true.
 - Definir SERVICE_7SERVICE_PILOT_ORG_ID como UUID da organização CONSULT SERVICES previamente vinculada.
 - Definir COMMANDER_CENTRAL_PROVISION_ACTOR_ID como UUID de administrador Commander ativo e auditável.
