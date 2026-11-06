@@ -89,6 +89,21 @@ export async function POST(request:NextRequest) {
     const deleted=await db.from("scrum_sprint_tasks").delete().eq("organization_id",organizationId).eq("project_id",projectId).eq("sprint_id",sprintId).eq("task_id",taskId).select("task_id");
     return deleted.error?invalid("Falha ao remover US da Sprint.",409):response({data:deleted.data});
   }
+  if(body.action==="delete_us"){
+    const taskId=String(body.taskId||"");
+    if(!uuid.test(taskId))return invalid("US inválida.");
+    const task=await db.from("tasks").select("id,titulo").eq("id",taskId).eq("project_id",projectId).eq("organization_id",organizationId).maybeSingle();
+    if(task.error||!task.data)return invalid("US não encontrada.",404);
+    if(String(body.confirmTitle||"").trim()!==task.data.titulo.trim())return invalid("Confirmação de exclusão não corresponde ao título.",400);
+    const linked=await db.from("scrum_sprint_tasks").select("sprint_id").eq("task_id",taskId).eq("project_id",projectId).eq("organization_id",organizationId).limit(1);
+    if(linked.error)return invalid("Não foi possível conferir o histórico Scrum.",503);
+    if(linked.data?.length)return invalid("US vinculada a uma Sprint. Preserve o histórico e remova o vínculo somente se a Sprint não estiver encerrada.",409);
+    // Delete only the canonical Kanban task, never a separate Scrum copy.
+    const removed=await db.from("tasks").delete().eq("id",taskId).eq("project_id",projectId).eq("organization_id",organizationId).select("id");
+    if(removed.error)return invalid("Exclusão bloqueada por vínculos existentes ou restrições de integridade: "+removed.error.code,409);
+    if(!removed.data?.length)return invalid("US não encontrada.",404);
+    return response({data:{deleted:true}});
+  }
   if(body.action==="upsert_task"){
     const sprintId=String(body.sprintId||""),taskId=String(body.taskId||"");
     if(!uuid.test(sprintId)||!uuid.test(taskId))return invalid("IDs inválidos.");
