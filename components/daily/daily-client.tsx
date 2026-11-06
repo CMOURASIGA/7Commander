@@ -22,12 +22,6 @@ type TaskForm = {
   dailySelected: boolean;
 };
 
-const STATUS_LABEL: Record<DailyTask["status"], string> = {
-  aberta: "TO DO",
-  em_andamento: "DOING",
-  concluida: "DONE",
-};
-
 const EMPTY_FORM: TaskForm = {
   title: "",
   description: "",
