@@ -100,9 +100,9 @@ export async function POST(request:NextRequest) {
       if(!previous.data && next!=="new" || previous.data && next!==current && !transitions[current]?.includes(next))
         return invalid("Transição Scrum não permitida: "+current+" → "+next,409);
     }
-    const start=body.startDate===null||body.startDate===""?null:body.startDate;
-    const end=body.endDate===null||body.endDate===""?null:body.endDate;
-    const duration=body.durationDays===null||body.durationDays===""?null:Number(body.durationDays);
+    const start=body.startDate===undefined||body.startDate===null||body.startDate===""?null:body.startDate;
+    const end=body.endDate===undefined||body.endDate===null||body.endDate===""?null:body.endDate;
+    const duration=body.durationDays===undefined||body.durationDays===null||body.durationDays===""?null:Number(body.durationDays);
     if(start!==null&&!validDate(start)||end!==null&&!validDate(end)||start&&end&&end<start)return invalid("Datas de execução inválidas.");
     if(duration!==null&&(!Number.isInteger(duration)||duration<1||duration>3650))return invalid("Prazo deve ser de 1 a 3650 dias.");
     const points=body.storyPoints===null||body.storyPoints===""||body.storyPoints===undefined?null:Number(body.storyPoints);
