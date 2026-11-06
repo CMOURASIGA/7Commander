@@ -35,12 +35,14 @@ export async function GET(req:NextRequest){
   const context=await scope(req,projectId);
   if("error" in context)return context.error;
   const {db,org}=context;
-  const [stories,comments]=await Promise.all([
+  const [stories,comments,events]=await Promise.all([
     db.from("scrum_user_stories").select("*").eq("organization_id",org).eq("project_id",projectId).order("created_at",{ascending:false}).limit(500),
-    db.from("scrum_story_comments").select("id,story_id,author_email,content,created_at").eq("organization_id",org).eq("project_id",projectId).order("created_at",{ascending:true}).limit(1000)
+    db.from("scrum_story_comments").select("id,story_id,author_email,content,created_at").eq("organization_id",org).eq("project_id",projectId).order("created_at",{ascending:true}).limit(1000),
+    db.from("scrum_story_events").select("story_id,event_type,from_sprint,to_sprint").eq("organization_id",org).eq("project_id",projectId).limit(2000)
   ]);
-  if(stories.error||comments.error)return fail("Não foi possível consultar as US e seus comentários.",503);
-  return respond({data:{stories:stories.data,comments:comments.data}});
+  if(stories.error||comments.error||events.error)return fail("Não foi possível consultar as US e seu histórico.",503);
+  const history=new Set((events.data||[]).filter(e=>e.event_type!=="created"||e.from_sprint!==null||e.to_sprint!==null).map(e=>e.story_id));
+  return respond({data:{stories:(stories.data||[]).map(st=>({...st,has_history:history.has(st.id)})),comments:comments.data}});
 }
 export async function POST(req:NextRequest){
   const body=await req.json().catch(()=>null) as Record<string,unknown>|null;
