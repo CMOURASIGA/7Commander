@@ -87,7 +87,7 @@ export async function POST(req:NextRequest){
   if(points!==null&&(!Number.isFinite(points)||points<0||points>9999))return fail("Story points inválidos.");
   const requestedSprint=body.sprintId===undefined?current?.sprint_id||null:body.sprintId||null;
   if(requestedSprint!==null&&!uuid.test(String(requestedSprint)))return fail("Identificador da Sprint inválido.");
-  if(current?.sprint_id&&requestedSprint!==current.sprint_id)return fail("Uma US já vinculada deve retornar ao backlog antes de mudar de Sprint.",409);
+  if(current?.sprint_id&&requestedSprint!==null&&requestedSprint!==current.sprint_id)return fail("Uma US já vinculada deve retornar ao backlog antes de mudar de Sprint.",409);
   const target=await sprintState(db,org,projectId,requestedSprint?String(requestedSprint):null);
   if(target.error||target.status==="closed")return fail("A Sprint selecionada está encerrada ou indisponível.",409);
   const patch={
