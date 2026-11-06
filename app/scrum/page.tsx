@@ -2,7 +2,7 @@
 import {useState} from "react";
 import {useConfirm} from "@/components/ui/confirm-dialog";
 import {PageIntro,SurfaceCard} from "@/components/ui/workspace-primitives";
-import {ScrumNav,ScrumSelectors,useScrumData,apiPost,today,addDays,dateBR,stages} from "@/components/scrum/scrum-common";
+import {ScrumSelectors,useScrumData,apiPost,today,addDays,dateBR,stages} from "@/components/scrum/scrum-common";
 
 export default function ScrumPage(){
  const data=useScrumData();const confirm=useConfirm();
@@ -22,7 +22,6 @@ export default function ScrumPage(){
  setSaving(true);try{await apiPost("/api/scrum",{action:"update_sprint",projectId:data.projectId,sprintId:selected.id,status:value});await data.refresh()}catch(e){data.setError(e instanceof Error?e.message:"Falha ao mudar Sprint")}finally{setSaving(false)}}
  return <section className="space-y-4">
    <PageIntro eyebrow="Gestão de projetos" title="Scrum e Sprints" description="Painel gerencial de Sprints, histórias e impedimentos. As User Stories são independentes do Kanban de atividades." aside={<button className="workspace-button-primary rounded-lg px-4 py-2 text-sm" onClick={()=>setDrawer(true)}>+ Criar Sprint</button>}/>
-   <ScrumNav active="overview"/>
    <SurfaceCard><ScrumSelectors projects={data.projects} projectId={data.projectId} onProject={data.setProjectId} sprints={data.sprints} sprintId={data.sprintId} onSprint={data.setSprintId}/>{data.error&&<p role="alert" className="mt-3 text-sm text-(--danger)">{data.error}</p>}</SurfaceCard>
    {selected?<SurfaceCard>
      <div className="flex flex-wrap items-start justify-between gap-3"><div><h2 className="font-semibold">{selected.name}</h2><p className="mt-1 text-sm text-(--text-secondary)">Meta: {selected.goal||"Não definida"} · {dateBR(selected.start_date)} a {dateBR(selected.end_date)}</p></div>
