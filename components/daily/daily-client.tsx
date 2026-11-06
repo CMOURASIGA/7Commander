@@ -50,6 +50,22 @@ export function DailyClient() {
   const [saving, setSaving] = useState(false);
   const [commentText, setCommentText] = useState("");
   const [commentSaving, setCommentSaving] = useState(false);
+  const [movingId,setMovingId]=useState<string|null>(null);
+  const stages=[{key:"aberta",label:"TO DO"},{key:"em_andamento",label:"DOING"},{key:"concluida",label:"DONE"}] as const;
+  function dateLabel(value:string|null){const m=/^(\d{4})-(\d{2})-(\d{2})/.exec(value||"");return m?m[3]+"/"+m[2]+"/"+m[1]:value?"Data inválida":"Sem prazo";}
+  function overdue(t:DailyTask){if(t.status==="concluida")return false;const date=/^(\d{4}-\d{2}-\d{2})/.exec(t.dueDate||"")?.[1];if(!date)return false;const now=new Date();return date<[now.getFullYear(),String(now.getMonth()+1).padStart(2,"0"),String(now.getDate()).padStart(2,"0")].join("-")}
+  async function moveFromDaily(t:DailyTask,next:DailyTask["status"]){
+    if(next===t.status||movingId)return;setMovingId(t.id);setError(null);
+    try{
+      const response=await fetch("/api/projects/"+encodeURIComponent(t.projectId)+"/tasks",{headers:getClientAuthHeaders(),cache:"no-store"});
+      const json=await response.json().catch(()=>({}));if(!response.ok)throw new Error(json.error||"Falha ao buscar Kanban.");
+      const column=json.data?.columns?.find((c:{key:string})=>c.key===(next==="concluida"?"done":next==="em_andamento"?"doing":"todo"));
+      if(!column)throw new Error("Coluna não disponível.");
+      const changed=await fetch("/api/tasks/"+encodeURIComponent(t.id),{method:"PATCH",headers:getClientAuthHeaders({"Content-Type":"application/json"}),body:JSON.stringify({columnId:column.id,position:column.cards?.length||0})});
+      const result=await changed.json().catch(()=>({}));if(!changed.ok)throw new Error(result.error||"Falha ao mover card.");
+      await loadDaily();
+    }catch(e){setError(e instanceof Error?e.message:"Falha ao mover card.");}finally{setMovingId(null);}
+  }
 
   async function loadDaily() {
     setLoading(true);
@@ -197,22 +213,39 @@ export function DailyClient() {
           </div>
         ) : null}
         {!loading && daily.tasks.length > 0 ? (
-          <div className="mt-4 grid gap-3 lg:grid-cols-2">
-            {daily.tasks.map((task) => (
-              <button key={task.id} type="button" onClick={() => void openTask(task)} className="rounded-xl border border-(--border) bg-(--bg-muted) p-4 text-left transition hover:border-(--accent) hover:bg-(--accent-ghost)">
-                <div className="flex flex-wrap items-start justify-between gap-2">
-                  <h4 className="font-semibold text-(--text-primary)">{task.title}</h4>
-                  <span className="workspace-pill">{STATUS_LABEL[task.status]}</span>
+          <>
+            <div className="mt-4 grid grid-cols-2 gap-2 md:grid-cols-4">
+              {[
+                {label:"Acompanhadas",n:daily.tasks.length},
+                {label:"Em execução",n:daily.tasks.filter(t=>t.status==="em_andamento").length},
+                {label:"Concluídas",n:daily.tasks.filter(t=>t.status==="concluida").length},
+                {label:"Atrasadas",n:daily.tasks.filter(overdue).length}
+              ].map(m=><div key={m.label} className="rounded-xl bg-(--bg-muted) p-3"><p className="text-xs text-(--text-secondary)">{m.label}</p><p className="mt-2 text-2xl font-semibold">{m.n}</p></div>)}
+            </div>
+            <div className="mt-4 grid gap-3 lg:grid-cols-3">
+              {stages.map(stage=><section key={stage.key} className="min-h-40 rounded-xl border border-(--border) bg-(--bg-muted) p-3">
+                <div className="flex items-center justify-between gap-2"><h4 className="text-sm font-semibold">{stage.label}</h4><span className="workspace-pill">{daily.tasks.filter(t=>t.status===stage.key).length}</span></div>
+                <div className="mt-3 space-y-3">
+                  {daily.tasks.filter(t=>t.status===stage.key).map(t=><article key={t.id} className="rounded-xl border border-(--border) bg-(--bg-surface) p-3">
+                    <button type="button" className="w-full text-left" onClick={()=>void openTask(t)}>
+                      <h5 className="text-sm font-semibold">{t.title}</h5>
+                      <p className="mt-1 text-xs text-(--text-secondary)">{t.projectName} · {t.source==="both"?"Daily e Sprint":t.source==="sprint"?"Sprint ativa":"Daily manual"}</p>
+                      <p className="mt-2 text-xs text-(--text-secondary)">Responsável: {t.responsible||"Não atribuído"}</p>
+                      <p className="mt-1 text-xs text-(--text-secondary)">Prioridade: {t.priority} · Entrega: {dateLabel(t.dueDate)}</p>
+                      {t.workflowStage&&<p className="mt-1 text-xs text-(--text-secondary)">Scrum: {t.workflowStage.toUpperCase()}</p>}
+                      {t.blocked&&<p className="mt-1 text-xs font-semibold text-(--danger)">Impedimento ativo</p>}
+                      {overdue(t)&&<p className="mt-1 text-xs font-semibold text-(--danger)">Prazo vencido</p>}
+                    </button>
+                    <label className="mt-3 block text-xs text-(--text-secondary)">Mover no Kanban
+                      <select className="workspace-select mt-1 w-full" value={t.status} disabled={movingId!==null} onChange={e=>void moveFromDaily(t,e.target.value as DailyTask["status"])}>
+                        {stages.map(st=><option key={st.key} value={st.key}>{st.label}</option>)}
+                      </select>
+                    </label>
+                  </article>)}
                 </div>
-                {task.description ? <p className="mt-2 text-sm leading-6 text-(--text-secondary)">{task.description}</p> : null}
-                <div className="mt-3 flex flex-wrap gap-2 text-xs text-(--text-secondary)">
-                  <span>Prioridade: {task.priority}</span>
-                  {task.responsible ? <span>Responsavel: {task.responsible}</span> : null}
-                  {task.dueDate ? <span>Prazo: {new Date(`${task.dueDate}T00:00:00`).toLocaleDateString("pt-BR")}</span> : null}
-                </div>
-              </button>
-            ))}
-          </div>
+              </section>)}
+            </div>
+          </>
         ) : null}
       </SurfaceCard>
 
