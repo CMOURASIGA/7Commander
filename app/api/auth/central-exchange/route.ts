@@ -7,6 +7,7 @@ import { evaluateCommanderCentralAccess } from "@/lib/commander-central-policy.m
 import { localRolePermissions } from "@/lib/central-route-policy.mjs";
 import { resolveTenantMembership } from "@/lib/tenant-context";
 import { setCentralCookies } from "@/lib/central-session";
+import { provisionCentralViewerOnLogin } from "@/lib/central-viewer-provision";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -81,8 +82,15 @@ export async function POST(request: NextRequest) {
       const linked = await db.from("central_identity_user_links")
         .select("central_identity_id,commander_user_id,status")
         .eq("central_identity_id",identityId).eq("status","ACTIVE").limit(2);
-      if (linked.error || linked.data?.length !== 1) return deny();
-      localUserId = linked.data[0].commander_user_id;
+      if (linked.error || (linked.data?.length ?? 0) > 1) return deny();
+      localUserId = linked.data?.[0]?.commander_user_id ?? "";
+      if (!localUserId) localUserId = await provisionCentralViewerOnLogin({
+        db,origin:centralOrigin,accessToken:session.access_token,
+        identityId,email:session.user.email??"",
+        emailVerified:Boolean(session.user.email_confirmed_at),
+        companyId:process.env.SERVICE_7SERVICE_PILOT_ORG_ID??"",
+      }) ?? "";
+      if (!uuid.test(localUserId)) return deny();
       if (!uuid.test(localUserId)) return deny();
       const [memberships, profile] = await Promise.all([
         db.from("organization_members").select("organization_id")
@@ -123,9 +131,15 @@ export async function POST(request: NextRequest) {
         .select("central_identity_id,commander_user_id,status")
         .eq("central_identity_id",currentDecision.identityId).eq("status","ACTIVE").limit(2);
       if (!linkedMode) {
-        if (!links || links.error || links.data?.length !== 1) continue;
-        identityId = links.data[0].central_identity_id;
-        localUserId = links.data[0].commander_user_id;
+        if (!links || links.error || (links.data?.length??0)>1) continue;
+        identityId = currentDecision.identityId;
+        localUserId = links.data?.[0]?.commander_user_id ?? "";
+        if (!localUserId) localUserId = await provisionCentralViewerOnLogin({
+          db,origin:centralOrigin,accessToken:session.access_token,
+          identityId,email:session.user.email??"",
+          emailVerified:Boolean(session.user.email_confirmed_at),
+          companyId:orgId,
+        }) ?? "";
       }
       if (!uuid.test(localUserId)) continue;
       const member = await resolveTenantMembership(localUserId,orgId);
