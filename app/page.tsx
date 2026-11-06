@@ -103,7 +103,33 @@ export default function HomePage() {
   const [risks, setRisks] = useState<RiskItem[]>([]);
   const [knowledge, setKnowledge] = useState<KnowledgeItem[]>([]);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
+  const [workspaceDenied, setWorkspaceDenied] = useState(false);
   const canLoadWorkspace = !auth.loading && (!auth.required || Boolean(auth.user));
+  // UI-only permission hint; API authorization remains authoritative.
+  // Never display mutating links until the current identity is confirmed.
+  const [canCreate, setCanCreate] = useState(false);
+  useEffect(() => {
+    if (!canLoadWorkspace) { setCanCreate(false); return; }
+    let mounted = true;
+    const check = async () => {
+      try {
+        const response = await fetch("/api/organizations/mine", {
+          headers: getClientAuthHeaders(), cache: "no-store", credentials: "same-origin",
+        });
+        if (!response.ok) { if (mounted) setCanCreate(false); return; }
+        const payload = await response.json().catch(() => ({}));
+        const members = Array.isArray(payload?.data) ? payload.data : [];
+        // Conservative UI rule. A granted API result is still required for writes.
+        const privileged = members.some((entry: { role?: string }) =>
+          entry.role === "owner" || entry.role === "admin" || entry.role === "manager"
+        );
+        if (mounted) setCanCreate(privileged);
+      } catch { if (mounted) setCanCreate(false); }
+    };
+    void check();
+    return () => { mounted = false; };
+  }, [canLoadWorkspace]);
+
 
   const counters = useMemo(() => {
     const totalProjects = projects.length;
@@ -125,11 +151,16 @@ export default function HomePage() {
 
     async function bootstrap() {
       setStatusMessage(null);
+      setWorkspaceDenied(false);
       try {
         const activeResponse = await fetch("/api/projects/active", {
           headers: getClientAuthHeaders(),
         });
         const activePayload = await activeResponse.json().catch(() => ({}));
+        if (activeResponse.status === 401 || activeResponse.status === 403) {
+          setWorkspaceDenied(true);
+          throw new Error(activePayload?.error || "Acesso operacional não autorizado.");
+        }
         if (!activeResponse.ok) throw new Error(activePayload?.error || "Falha ao carregar projeto ativo.");
 
         const activeProject = (activePayload?.data ?? null) as ActiveProject | null;
@@ -184,6 +215,15 @@ export default function HomePage() {
   const userName = formatDisplayName(auth.user?.email ?? null);
   const subtitle = `${counters.activeProjects} projetos ativos e ${counters.riskyProjects} em risco agora.`;
 
+  if (workspaceDenied) return (
+    <section className="rounded-xl border border-(--border) bg-(--bg-surface) p-6" role="alert">
+      <h2 className="text-xl font-semibold">Acesso operacional ainda não confirmado</h2>
+      <p className="mt-3 text-sm">Sua identidade local foi autenticada, mas a autorização para acessar os dados da empresa não foi confirmada. Nenhuma operação de criação ou alteração está disponível.</p>
+      <p className="mt-2 text-sm">O administrador deve verificar os vínculos locais e a habilitação da autorização central do 7Service.</p>
+      {statusMessage ? <p className="mt-3 text-sm text-(--text-secondary)">{statusMessage}</p> : null}
+    </section>
+  );
+
   return (
     <section className="space-y-4">
       <div className="rounded-xl border border-(--border) bg-(--bg-surface) p-5">
@@ -191,18 +231,18 @@ export default function HomePage() {
         <p className="mt-2 text-[13px] text-(--text-secondary)">{subtitle}</p>
 
         <div className="mt-4 flex flex-wrap gap-2">
-          <Link
+          {canCreate && <Link
             href="/projects"
             className="workspace-button-primary rounded-lg px-3 py-2 text-[13px]"
           >
             Criar projeto
-          </Link>
-          <Link
+          </Link>}
+          {canCreate && <Link
             href="/clients"
             className="rounded-lg border border-(--border) bg-(--bg-surface) px-3 py-2 text-[13px] font-medium text-(--text-primary)"
           >
             Criar cliente
-          </Link>
+          </Link>}
           <Link
             href="/projects"
             className="rounded-lg border border-(--border) bg-(--bg-surface) px-3 py-2 text-[13px] font-medium text-(--text-primary)"
@@ -257,7 +297,7 @@ export default function HomePage() {
             <div className="workspace-empty-state mt-4 flex min-h-28 flex-col items-start justify-center">
               <p className="font-medium text-(--text-primary)">Nenhum projeto cadastrado.</p>
               <p className="mt-1 text-[13px]">Crie seu primeiro projeto para começar a acompanhar execução, decisões e riscos.</p>
-              <Link href="/projects" className="workspace-button-primary mt-3 text-xs">Criar primeiro projeto</Link>
+              {canCreate ? <Link href="/projects" className="workspace-button-primary mt-3 text-xs">Criar primeiro projeto</Link> : null}
             </div>
           ) : (
             <div>

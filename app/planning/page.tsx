@@ -20,6 +20,7 @@ export default function PlanningPage(){
  const[owner,setOwner]=useState(""),[nextAction,setNextAction]=useState("");
  const[stage,setStage]=useState("novo"),[prospectId,setProspectId]=useState(""),[prospects,setProspects]=useState<Array<{id:string;title:string}>>([]);
  const[active,setActive]=useState<RecordItem|null>(null),[status,setStatus]=useState<string|null>(null);
+ const[history,setHistory]=useState<Array<{version:number;action:string;created_at:string;actor_id:string}>>([]);
  const[publicQuery,setPublicQuery]=useState(""),[publicConfirmed,setPublicConfirmed]=useState(false);
  const[reqCategory,setReqCategory]=useState("funcional"),[reqAcceptance,setReqAcceptance]=useState(""),[reqSource,setReqSource]=useState(""),[reqPriority,setReqPriority]=useState("media");
  const[findings,setFindings]=useState<Array<{recordId:string;severity:string;detail:string}>>([]);
@@ -38,8 +39,8 @@ export default function PlanningPage(){
   const r=await fetch("/api/projects",{headers:getClientAuthHeaders(),cache:"no-store"});const j=await r.json();
   if(mounted&&r.ok)setProjects((j.data??[]).map((p:{id:string;name:string})=>({id:p.id,name:p.name})));
  }catch{}}void fetchProjects();return()=>{mounted=false}},[]);
- function reset(){setActive(null);setTitle("");setDescription("");setSourceUrl("");setOwner("");setNextAction("");setStage("novo");setProspectId("");setReqCategory("funcional");setReqAcceptance("");setReqSource("");setReqPriority("media");}
- function edit(item:RecordItem){setActive(item);setTitle(item.title);setDescription(item.description);setSourceUrl(item.source_url||"");setOwner(String(item.payload.owner||""));setNextAction(String(item.payload.nextAction||""));setStage(String(item.payload.stage||"novo"));setProspectId(String(item.payload.prospectId||""));setReqCategory(String(item.payload.category||"funcional"));setReqAcceptance(String(item.payload.acceptance||""));setReqSource(String(item.payload.source||""));setReqPriority(String(item.payload.priority||"media"));setStatus(null);}
+ function reset(){setHistory([]);setActive(null);setTitle("");setDescription("");setSourceUrl("");setOwner("");setNextAction("");setStage("novo");setProspectId("");setReqCategory("funcional");setReqAcceptance("");setReqSource("");setReqPriority("media");}
+ function edit(item:RecordItem){setHistory([]);setActive(item);setTitle(item.title);setDescription(item.description);setSourceUrl(item.source_url||"");setOwner(String(item.payload.owner||""));setNextAction(String(item.payload.nextAction||""));setStage(String(item.payload.stage||"novo"));setProspectId(String(item.payload.prospectId||""));setReqCategory(String(item.payload.category||"funcional"));setReqAcceptance(String(item.payload.acceptance||""));setReqSource(String(item.payload.source||""));setReqPriority(String(item.payload.priority||"media"));setStatus(null);}
  async function reviewRequirements(){
   if(!projectId){setStatus("Selecione um projeto para revisar requisitos.");return;}
   setBusy(true);setStatus("Analisando requisitos por regras determinísticas...");
@@ -60,7 +61,7 @@ export default function PlanningPage(){
  }
  async function convertProspect(){
   if(!active||kind!=="prospect"||active.status!=="won")return;
-  if(!window.confirm(`Converter "${active.title}" em cliente? Esta ação cria um registro na base de clientes da Consult Services.`))return;
+  if(!window.confirm(`Converter "${active.title}" em cliente? Esta ação cria um cliente na empresa atualmente selecionada.`))return;
   setBusy(true);setStatus("Convertendo prospect...");
   try{
    const r=await fetch(`/api/planning/${active.id}/convert`,{method:"POST",headers:getClientAuthHeaders()});
@@ -68,6 +69,17 @@ export default function PlanningPage(){
    setStatus(j.data?.already_converted?"Prospect já convertido.":"Cliente criado com sucesso.");
    reset();await load();
   }catch(e){setStatus(e instanceof Error?e.message:"Falha na conversão");}finally{setBusy(false);}
+ }
+ async function showHistory(){
+  if(!active)return;
+  setBusy(true);setStatus("");
+  try{
+   const r=await fetch(`/api/planning/${active.id}/history`,{headers:getClientAuthHeaders(),cache:"no-store"});
+   const j=await r.json().catch(()=>({}));
+   if(!r.ok)throw Error(j.error||"Falha ao consultar o histórico.");
+   setHistory(j.data||[]);
+  }catch(e){setStatus(e instanceof Error?e.message:"Falha no histórico.");}
+  finally{setBusy(false);}
  }
  async function createProjectFromPlanning(){
   if(!active||kind!=="opportunity"||!["approved","won"].includes(active.status))return;
@@ -78,6 +90,9 @@ export default function PlanningPage(){
    const j=await r.json().catch(()=>({}));
    if(!r.ok)throw Error(j.error||"Não foi possível criar o projeto.");
    setStatus(j.data?.alreadyCreated?"Este planejamento já possui um projeto.":"Projeto criado e vinculado ao planejamento.");
+   if (typeof j.data?.projectId === "string") {
+     setActive(current=>current?{...current,project_id:j.data.projectId}:current);
+   }
    await load();
   }catch(e){setStatus(e instanceof Error?e.message:"Falha ao concluir o planejamento.");}
   finally{setBusy(false);}
@@ -101,7 +116,7 @@ export default function PlanningPage(){
  }
  const info=kinds.find(x=>x.value===kind)!;
  return <div className="mx-auto max-w-6xl space-y-5 p-4 md:p-6">
-  <header><p className="text-sm text-(--text-secondary)">Consult Services · Workspace compartilhado</p>
+  <header><p className="text-sm text-(--text-secondary)">Planejamento da empresa selecionada</p>
    <h1 className="text-2xl font-semibold">Planejamento e oportunidades</h1>
    <p className="mt-1 text-sm text-(--text-secondary)">Prospects, requisitos e análise de soluções com revisão humana e histórico versionado.</p>
    <div className="mt-3 flex flex-wrap gap-4"><Link className="text-sm underline" href="/planning/workflows">Fluxo de análise e checkpoints →</Link><Link className="text-sm underline" href="/planning/coverage">Matriz requisito × alternativa →</Link><Link className="text-sm underline" href="/planning/backlog">Backlog aprovado →</Link></div>
@@ -178,10 +193,13 @@ export default function PlanningPage(){
       <button disabled={busy} className="workspace-button-secondary px-3 py-2" onClick={()=>void save("approved")}>Aprovar</button>
       <button disabled={busy} className="workspace-button-secondary px-3 py-2" onClick={()=>void save("rejected")}>Rejeitar</button>
       {(kind==="opportunity"||kind==="prospect")?<button disabled={busy} className="workspace-button-secondary px-3 py-2" onClick={()=>void save("won")}>Marcar ganho</button>:null}</>:null}
-      {active&&kind==="opportunity"&&["approved","won"].includes(active.status)?<button disabled={busy} className="workspace-button-primary px-3 py-2" onClick={()=>void createProjectFromPlanning()}>Concluir planejamento e gerar projeto</button>:null}
+      {active&&kind==="opportunity"&&["approved","won"].includes(active.status)&&!active.project_id?<button disabled={busy} className="workspace-button-primary px-3 py-2" onClick={()=>void createProjectFromPlanning()}>Concluir planejamento e gerar projeto</button>:null}
+      {active&&kind==="opportunity"&&active.project_id?<><Link href="/projects" className="workspace-button-secondary px-3 py-2">Ver projeto vinculado</Link><Link href={`/planning/backlog?projectId=${encodeURIComponent(active.project_id)}`} className="workspace-button-secondary px-3 py-2">Preparar Kanban deste projeto</Link></>:null}
       {active&&kind==="prospect"&&active.status==="won"?<button disabled={busy} className="workspace-button-primary px-3 py-2" onClick={()=>void convertProspect()}>Converter em cliente</button>:null}
+      {active?<button type="button" className="workspace-button-secondary px-3 py-2" disabled={busy} onClick={()=>void showHistory()}>Ver histórico e aprovações</button>:null}
       {active?<button className="workspace-button-secondary px-3 py-2" disabled={busy} onClick={reset}>Cancelar edição</button>:null}
      </div>
+     {history.length>0?<div className="rounded-lg border border-(--border) p-3"><h3 className="font-semibold">Histórico de alterações e aprovações</h3><ul className="mt-2 space-y-1 text-sm">{history.map((h,i)=><li key={h.version+"-"+i}>Versão {h.version} · {h.action} · {new Date(h.created_at).toLocaleString("pt-BR")}</li>)}</ul></div>:null}
      {status?<p role="status" aria-live="polite" className="rounded-lg border border-(--border) p-3 text-sm">{status}</p>:null}
     </div>
    </section>

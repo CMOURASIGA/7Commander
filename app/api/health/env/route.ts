@@ -1,19 +1,10 @@
-import { NextResponse } from "next/server";
-import { validatePublicEnv, validateServerEnv } from "@/lib/env";
-
+import { NextResponse } from 'next/server';
+import { validatePublicEnv, validateServerEnv } from '@/lib/env';
+/** Public health only exposes aggregate readiness, never names of environment variables. */
 export async function GET() {
-  const missingPublic = validatePublicEnv();
-  const missingServer = validateServerEnv();
-
-  return NextResponse.json({
-    ready: missingServer.length === 0,
-    publicEnv: {
-      ready: missingPublic.length === 0,
-      missing: missingPublic,
-    },
-    serverEnv: {
-      ready: missingServer.length === 0,
-      missing: missingServer,
-    },
-  });
+ const ready = validatePublicEnv().length === 0 && validateServerEnv().length === 0;
+ return NextResponse.json({ ready }, {
+  status: ready ? 200 : 503,
+  headers: { 'Cache-Control': 'no-store' },
+ });
 }

@@ -4,6 +4,9 @@ import { getDefaultUserId } from "@/lib/user-context";
 import { getPublicEnv, isAuthRequired } from "@/lib/env";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
 import { CONSULT_ORG_ID } from "@/lib/consult-workspace";
+import { shouldEnforceCustomerPilot } from "@/lib/customer-pilot";
+import { authorizeCentralPilot } from "@/lib/central-runtime";
+import { recordCentralDecision } from "@/lib/central-decision-audit";
 import { TENANT_SCHEMA_READY, getEffectiveTenantForUser } from "@/lib/tenant-runtime";
 
 const USER_ID_HEADER = "x-kairos-user-id";
@@ -83,15 +86,52 @@ export async function requireApiAuth(request: NextRequest): Promise<{
         const admin = await db.from("platform_admins").select("active").eq("user_id", userId).eq("active", true).maybeSingle();
         const access = await db.from("internal_user_access").select("active,role").eq("user_id", userId).maybeSingle();
         if (admin.error || access.error) return { ok: false, response: NextResponse.json({ error: "Verificacao de acesso indisponivel" }, { status: 503 }) };
-        if (!admin.data && !access.data?.active) return { ok: false, response: NextResponse.json({ error: "Usuario nao autorizado ou suspenso" }, { status: 403 }) };
-        // Tenant identity comes from a verified membership, never a browser claim.
-        // Prior to the coordinated release, only Consult Services is operational.
+        // In the controlled customer pilot, central authorization can admit
+        // a locally authenticated, active organization member even without an
+        // internal Consult Services role. Central grant remains mandatory.
         const requestedOrg = normalizeHeaderValue(request.headers.get("x-7commander-organization-id"));
         const isOrganizationRoute = request.nextUrl.pathname.startsWith("/api/organizations/");
         const organizationId = TENANT_SCHEMA_READY
           ? await getEffectiveTenantForUser(userId)
           : CONSULT_ORG_ID;
-        if (!isOrganizationRoute) {
+        // The customer pilot is restricted to one approved organization.
+        // A global switch alone must not change the rights of other tenants.
+        const pilotOrganizationId = process.env.SERVICE_7SERVICE_PILOT_ORG_ID ?? "";
+        const customerPilot = shouldEnforceCustomerPilot({
+          enabled: process.env.SERVICE_7SERVICE_ENFORCE_USER_ACCESS === "true" && process.env.COMMANDER_CENTRAL_AUTH_ENABLED === "true",
+          isPlatformAdmin: Boolean(admin.data),
+          activeOrganizationId: organizationId,
+          pilotOrganizationId,
+        });
+        // Product-linked rollout is separately opt-in. An active local
+        // membership cannot replace an explicit central client/company link.
+        let linkedTenant = false;
+        if (!admin.data && organizationId &&
+            process.env.SERVICE_7SERVICE_ENFORCE_USER_ACCESS === "true" &&
+            process.env.COMMANDER_CENTRAL_AUTH_ENABLED === "true" &&
+            process.env.SERVICE_7SERVICE_ENFORCE_LINKED_TENANTS === "true") {
+          const link = await db.from("central_client_company_links")
+            .select("commander_company_id").eq("commander_company_id", organizationId)
+            .eq("status", "ACTIVE").maybeSingle();
+          if (link.error) return {ok:false,response:NextResponse.json(
+            {error:"Verificação central indisponível"},{status:503})};
+          linkedTenant = Boolean(link.data);
+        }
+        const customerCentral = customerPilot || linkedTenant;
+        const authorizedLinkedSwitch = linkedTenant
+          && request.nextUrl.pathname === "/api/organizations/select"
+          && request.method === "POST";
+        // An explicit local suspension always wins over a central grant.
+        if (!admin.data && access.data && !access.data.active) {
+          return { ok: false, response: NextResponse.json({ error: "Acesso local suspenso." }, { status: 403 }) };
+        }
+        if (!admin.data && !access.data?.active && !customerCentral) return { ok: false, response: NextResponse.json({ error: "Usuario nao autorizado ou suspenso" }, { status: 403 }) };
+        // Tenant identity comes from a verified membership, never a browser claim.
+        // Prior to the coordinated release, only Consult Services is operational.
+
+        // Customer routes must never bypass the central authorization check,
+        // including /api/organizations/* endpoints.
+        if (!isOrganizationRoute || customerCentral) {
           if (!organizationId) return { ok: false, response: NextResponse.json({ error: "Selecione uma organização autorizada." }, { status: 403 }) };
           if (requestedOrg && requestedOrg !== organizationId) {
             return { ok: false, response: NextResponse.json({ error: "Empresa informada difere da empresa ativa." }, { status: 403 }) };
@@ -100,12 +140,40 @@ export async function requireApiAuth(request: NextRequest): Promise<{
             .eq("organization_id",organizationId).eq("user_id",userId).eq("status","active").maybeSingle();
           if(membership.error)return {ok:false,response:NextResponse.json({error:"Verificação empresarial indisponível"},{status:503})};
           if(!membership.data)return {ok:false,response:NextResponse.json({error:"Empresa não autorizada"},{status:403})};
+          // Disabled by default. Activate on the controlled develop pilot only
+          // after 7Service M2M access endpoint, tenant mapping and local Auth
+          // identity are verified. Platform admins remain internally authorized.
+          if (customerCentral && !authorizedLinkedSwitch) {
+            // The old email-based authorization endpoint is forbidden in INT-01.
+            // These inputs are all derived from verified local and central sessions.
+            const decision = await authorizeCentralPilot(request, userId, organizationId);
+            const logged = await recordCentralDecision({
+              userId, companyId: organizationId,
+              route: request.nextUrl.pathname, method: request.method,
+              allowed: decision.allowed, reasonCode: decision.reasonCode,
+            });
+            // Failure to audit any positive decision fails closed.
+            if (!logged && decision.allowed) return {
+              ok: false,
+              response: NextResponse.json({ error: "Auditoria central indisponível." }, {status:503}),
+            };
+            if (!decision.allowed) return {
+              ok: false,
+              response: NextResponse.json({ error: "Acesso central negado.", code: decision.reasonCode },
+                {status:decision.status, headers:{"Cache-Control":"no-store"}}),
+            };
+          }
         }
         const isPrivileged = Boolean(admin.data);
         const method = request.method.toUpperCase();
         const path = request.nextUrl.pathname;
         const write = !["GET", "HEAD", "OPTIONS"].includes(method);
-        if (!isPrivileged && write && path !== "/api/auth/profile") {
+        // Until customer product roles are mapped to the local write RBAC,
+        // centrally admitted users without a local role are read-only.
+        if (!isPrivileged && !access.data?.active && write && path !== "/api/auth/profile" && !authorizedLinkedSwitch) {
+          return { ok: false, response: NextResponse.json({ error: "Perfil local necessário para esta operação." }, { status: 403 }) };
+        }
+        if (!isPrivileged && write && path !== "/api/auth/profile" && !authorizedLinkedSwitch) {
           if (access.data?.role === "leitor" || (access.data?.role === "colaborador" && method === "DELETE")) {
             return { ok: false, response: NextResponse.json({ error: "Seu perfil nao permite esta operacao." }, { status: 403 }) };
           }

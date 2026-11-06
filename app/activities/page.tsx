@@ -241,7 +241,13 @@ export default function ActivitiesPage() {
   }, []);
 
   useEffect(() => {
-    if (!activeProjectId) return;
+    if (!activeProjectId) {
+      // An empty organization has no board to fetch. Avoid an endless spinner.
+      setBoard(null);
+      setAccessRole("none");
+      setLoading(false);
+      return;
+    }
     setSelectedTaskId(null);
     setTaskDetail(null);
     void loadBoard(activeProjectId);

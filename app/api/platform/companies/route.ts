@@ -54,3 +54,39 @@ export async function PATCH(request: NextRequest) {
   if (updated.error) return NextResponse.json({ error: "Falha ao salvar whitelabel." }, { status: 500 });
   return NextResponse.json({ data: updated.data }, { headers: noStore });
 }
+
+export async function DELETE(request: NextRequest) {
+ const {response,db}=await authorize(request);
+ if(response||!db)return response;
+ const body=await request.json().catch(()=>null);
+ const id=typeof body?.id==="string"?body.id:"";
+ if(!/^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(id))
+  return NextResponse.json({error:"Empresa inválida."},{status:400});
+ if(body.confirmation!=="DESATIVAR")
+  return NextResponse.json({error:"Confirme a operação digitando DESATIVAR."},{status:400});
+ const org=await db.from("organizations").select("id,name,status").eq("id",id).maybeSingle();
+ if(org.error||!org.data)return NextResponse.json({error:"Empresa não encontrada."},{status:404});
+ if(["43973606-0c05-4934-a057-9f2710899eba","bce0fe84-eb14-4e9d-9815-1cb22cde3e5a"].includes(id))
+  return NextResponse.json({error:"Empresas principais protegidas. Desativação requer procedimento administrativo específico."},{status:403});
+ // Soft-deactivation preserves every record and membership. Tenant access is denied by
+ // resolveTenantMembership while organizations.status is inactive. Never delete rows.
+ const profile=await db.from("profiles").select("user_id",{count:"exact",head:true}).eq("active_organization_id",id);
+ if(profile.error)return NextResponse.json({error:"Não foi possível verificar empresas selecionadas."},{status:503});
+ if((profile.count??0)>0)return NextResponse.json({error:"Há usuários com esta empresa selecionada. Ajuste o acesso antes de desativar."},{status:409});
+ const saved=await db.from("organizations").update({status:"inactive"}).eq("id",id).eq("status","active").select("id,status").maybeSingle();
+ if(saved.error||!saved.data)return NextResponse.json({error:"Empresa não foi desativada ou já está inativa."},{status:409});
+ return NextResponse.json({data:saved.data},{headers:noStore});
+}
+
+export async function PUT(request: NextRequest) {
+ const {response,db}=await authorize(request);
+ if(response||!db)return response;
+ const body=await request.json().catch(()=>null);
+ const id=typeof body?.id==="string"?body.id:"";
+ if(!/^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(id)||body?.confirmation!=="REATIVAR")
+  return NextResponse.json({error:"Empresa inválida ou confirmação incorreta."},{status:400});
+ const saved=await db.from("organizations").update({status:"active"})
+  .eq("id",id).eq("status","inactive").select("id,status").maybeSingle();
+ if(saved.error||!saved.data)return NextResponse.json({error:"Empresa não encontrada ou já está ativa."},{status:409});
+ return NextResponse.json({data:saved.data},{headers:noStore});
+}

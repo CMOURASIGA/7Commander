@@ -9,7 +9,7 @@ export default function BacklogPage(){
  const[decisions,setDecisions]=useState<R[]>([]),[requirements,setRequirements]=useState<R[]>([]);
  const[decisionId,setDecisionId]=useState(""),[requirementId,setRequirementId]=useState("");
  const[busy,setBusy]=useState(false),[status,setStatus]=useState("");
- useEffect(()=>{void(async()=>{const r=await fetch("/api/projects",{headers:getClientAuthHeaders()});if(!r.ok)return;const j=await r.json();setProjects(j.data??[])})()},[]);
+ useEffect(()=>{void(async()=>{const r=await fetch("/api/projects",{headers:getClientAuthHeaders()});if(!r.ok)return;const j=await r.json();setProjects(j.data??[]);const requested=new URLSearchParams(window.location.search).get("projectId");if(requested&&(j.data??[]).some((p:P)=>p.id===requested))setProjectId(requested)})()},[]);
  useEffect(()=>{let alive=true;setDecisionId("");setRequirementId("");setRequirements([]);setDecisions([]);
  if(!projectId)return;void(async()=>{try{
   const query=(kind:string)=>fetch(`/api/planning?kind=${kind}&projectId=${encodeURIComponent(projectId)}`,{headers:getClientAuthHeaders()}).then(r=>r.json());

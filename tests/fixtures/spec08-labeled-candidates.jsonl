@@ -1,0 +1,108 @@
+# SPEC 08 — Casos de referência sintéticos
+# 105 casos gerados por variação controlada: 7 módulos x 15 cenários.
+# Não constituem benchmark Jev real; demandam rotulagem e comparação humana.
+{"id":"projects-01","module":"projects","title":"Caso sintético 1","description":"Registro rotineiro fictício documentado e atualizado.","expected_review":false,"expected_critical":false}
+{"id":"projects-02","module":"projects","title":"Caso sintético 2","description":"Tarefa atrasada e sem responsável definido no cenário fictício.","expected_review":true,"expected_critical":false}
+{"id":"projects-03","module":"projects","title":"Caso sintético 3","description":"Falha crítica de segurança e indisponibilidade do serviço fictício.","expected_review":true,"expected_critical":true}
+{"id":"projects-04","module":"projects","title":"Caso sintético 4","description":"Registro incompleto, requer qualificação humana.","expected_review":true,"expected_critical":false}
+{"id":"projects-05","module":"projects","title":"Caso sintético 5","description":"Informação ambígua sem evidência suficiente.","expected_review":true,"expected_critical":false}
+{"id":"projects-06","module":"projects","title":"Caso sintético 6","description":"Registro rotineiro fictício documentado e atualizado.","expected_review":false,"expected_critical":false}
+{"id":"projects-07","module":"projects","title":"Caso sintético 7","description":"Tarefa atrasada e sem responsável definido no cenário fictício.","expected_review":true,"expected_critical":false}
+{"id":"projects-08","module":"projects","title":"Caso sintético 8","description":"Falha crítica de segurança e indisponibilidade do serviço fictício.","expected_review":true,"expected_critical":true}
+{"id":"projects-09","module":"projects","title":"Caso sintético 9","description":"Registro incompleto, requer qualificação humana.","expected_review":true,"expected_critical":false}
+{"id":"projects-10","module":"projects","title":"Caso sintético 10","description":"Informação ambígua sem evidência suficiente.","expected_review":true,"expected_critical":false}
+{"id":"projects-11","module":"projects","title":"Caso sintético 11","description":"Registro rotineiro fictício documentado e atualizado.","expected_review":false,"expected_critical":false}
+{"id":"projects-12","module":"projects","title":"Caso sintético 12","description":"Tarefa atrasada e sem responsável definido no cenário fictício.","expected_review":true,"expected_critical":false}
+{"id":"projects-13","module":"projects","title":"Caso sintético 13","description":"Falha crítica de segurança e indisponibilidade do serviço fictício.","expected_review":true,"expected_critical":true}
+{"id":"projects-14","module":"projects","title":"Caso sintético 14","description":"Registro incompleto, requer qualificação humana.","expected_review":true,"expected_critical":false}
+{"id":"projects-15","module":"projects","title":"Caso sintético 15","description":"Informação ambígua sem evidência suficiente.","expected_review":true,"expected_critical":false}
+{"id":"kanban-01","module":"kanban","title":"Caso sintético 1","description":"Registro rotineiro fictício documentado e atualizado.","expected_review":false,"expected_critical":false}
+{"id":"kanban-02","module":"kanban","title":"Caso sintético 2","description":"Tarefa atrasada e sem responsável definido no cenário fictício.","expected_review":true,"expected_critical":false}
+{"id":"kanban-03","module":"kanban","title":"Caso sintético 3","description":"Falha crítica de segurança e indisponibilidade do serviço fictício.","expected_review":true,"expected_critical":true}
+{"id":"kanban-04","module":"kanban","title":"Caso sintético 4","description":"Registro incompleto, requer qualificação humana.","expected_review":true,"expected_critical":false}
+{"id":"kanban-05","module":"kanban","title":"Caso sintético 5","description":"Informação ambígua sem evidência suficiente.","expected_review":true,"expected_critical":false}
+{"id":"kanban-06","module":"kanban","title":"Caso sintético 6","description":"Registro rotineiro fictício documentado e atualizado.","expected_review":false,"expected_critical":false}
+{"id":"kanban-07","module":"kanban","title":"Caso sintético 7","description":"Tarefa atrasada e sem responsável definido no cenário fictício.","expected_review":true,"expected_critical":false}
+{"id":"kanban-08","module":"kanban","title":"Caso sintético 8","description":"Falha crítica de segurança e indisponibilidade do serviço fictício.","expected_review":true,"expected_critical":true}
+{"id":"kanban-09","module":"kanban","title":"Caso sintético 9","description":"Registro incompleto, requer qualificação humana.","expected_review":true,"expected_critical":false}
+{"id":"kanban-10","module":"kanban","title":"Caso sintético 10","description":"Informação ambígua sem evidência suficiente.","expected_review":true,"expected_critical":false}
+{"id":"kanban-11","module":"kanban","title":"Caso sintético 11","description":"Registro rotineiro fictício documentado e atualizado.","expected_review":false,"expected_critical":false}
+{"id":"kanban-12","module":"kanban","title":"Caso sintético 12","description":"Tarefa atrasada e sem responsável definido no cenário fictício.","expected_review":true,"expected_critical":false}
+{"id":"kanban-13","module":"kanban","title":"Caso sintético 13","description":"Falha crítica de segurança e indisponibilidade do serviço fictício.","expected_review":true,"expected_critical":true}
+{"id":"kanban-14","module":"kanban","title":"Caso sintético 14","description":"Registro incompleto, requer qualificação humana.","expected_review":true,"expected_critical":false}
+{"id":"kanban-15","module":"kanban","title":"Caso sintético 15","description":"Informação ambígua sem evidência suficiente.","expected_review":true,"expected_critical":false}
+{"id":"risks-01","module":"risks","title":"Caso sintético 1","description":"Registro rotineiro fictício documentado e atualizado.","expected_review":false,"expected_critical":false}
+{"id":"risks-02","module":"risks","title":"Caso sintético 2","description":"Tarefa atrasada e sem responsável definido no cenário fictício.","expected_review":true,"expected_critical":false}
+{"id":"risks-03","module":"risks","title":"Caso sintético 3","description":"Falha crítica de segurança e indisponibilidade do serviço fictício.","expected_review":true,"expected_critical":true}
+{"id":"risks-04","module":"risks","title":"Caso sintético 4","description":"Registro incompleto, requer qualificação humana.","expected_review":true,"expected_critical":false}
+{"id":"risks-05","module":"risks","title":"Caso sintético 5","description":"Informação ambígua sem evidência suficiente.","expected_review":true,"expected_critical":false}
+{"id":"risks-06","module":"risks","title":"Caso sintético 6","description":"Registro rotineiro fictício documentado e atualizado.","expected_review":false,"expected_critical":false}
+{"id":"risks-07","module":"risks","title":"Caso sintético 7","description":"Tarefa atrasada e sem responsável definido no cenário fictício.","expected_review":true,"expected_critical":false}
+{"id":"risks-08","module":"risks","title":"Caso sintético 8","description":"Falha crítica de segurança e indisponibilidade do serviço fictício.","expected_review":true,"expected_critical":true}
+{"id":"risks-09","module":"risks","title":"Caso sintético 9","description":"Registro incompleto, requer qualificação humana.","expected_review":true,"expected_critical":false}
+{"id":"risks-10","module":"risks","title":"Caso sintético 10","description":"Informação ambígua sem evidência suficiente.","expected_review":true,"expected_critical":false}
+{"id":"risks-11","module":"risks","title":"Caso sintético 11","description":"Registro rotineiro fictício documentado e atualizado.","expected_review":false,"expected_critical":false}
+{"id":"risks-12","module":"risks","title":"Caso sintético 12","description":"Tarefa atrasada e sem responsável definido no cenário fictício.","expected_review":true,"expected_critical":false}
+{"id":"risks-13","module":"risks","title":"Caso sintético 13","description":"Falha crítica de segurança e indisponibilidade do serviço fictício.","expected_review":true,"expected_critical":true}
+{"id":"risks-14","module":"risks","title":"Caso sintético 14","description":"Registro incompleto, requer qualificação humana.","expected_review":true,"expected_critical":false}
+{"id":"risks-15","module":"risks","title":"Caso sintético 15","description":"Informação ambígua sem evidência suficiente.","expected_review":true,"expected_critical":false}
+{"id":"commercial-01","module":"commercial","title":"Caso sintético 1","description":"Registro rotineiro fictício documentado e atualizado.","expected_review":false,"expected_critical":false}
+{"id":"commercial-02","module":"commercial","title":"Caso sintético 2","description":"Tarefa atrasada e sem responsável definido no cenário fictício.","expected_review":true,"expected_critical":false}
+{"id":"commercial-03","module":"commercial","title":"Caso sintético 3","description":"Falha crítica de segurança e indisponibilidade do serviço fictício.","expected_review":true,"expected_critical":true}
+{"id":"commercial-04","module":"commercial","title":"Caso sintético 4","description":"Registro incompleto, requer qualificação humana.","expected_review":true,"expected_critical":false}
+{"id":"commercial-05","module":"commercial","title":"Caso sintético 5","description":"Informação ambígua sem evidência suficiente.","expected_review":true,"expected_critical":false}
+{"id":"commercial-06","module":"commercial","title":"Caso sintético 6","description":"Registro rotineiro fictício documentado e atualizado.","expected_review":false,"expected_critical":false}
+{"id":"commercial-07","module":"commercial","title":"Caso sintético 7","description":"Tarefa atrasada e sem responsável definido no cenário fictício.","expected_review":true,"expected_critical":false}
+{"id":"commercial-08","module":"commercial","title":"Caso sintético 8","description":"Falha crítica de segurança e indisponibilidade do serviço fictício.","expected_review":true,"expected_critical":true}
+{"id":"commercial-09","module":"commercial","title":"Caso sintético 9","description":"Registro incompleto, requer qualificação humana.","expected_review":true,"expected_critical":false}
+{"id":"commercial-10","module":"commercial","title":"Caso sintético 10","description":"Informação ambígua sem evidência suficiente.","expected_review":true,"expected_critical":false}
+{"id":"commercial-11","module":"commercial","title":"Caso sintético 11","description":"Registro rotineiro fictício documentado e atualizado.","expected_review":false,"expected_critical":false}
+{"id":"commercial-12","module":"commercial","title":"Caso sintético 12","description":"Tarefa atrasada e sem responsável definido no cenário fictício.","expected_review":true,"expected_critical":false}
+{"id":"commercial-13","module":"commercial","title":"Caso sintético 13","description":"Falha crítica de segurança e indisponibilidade do serviço fictício.","expected_review":true,"expected_critical":true}
+{"id":"commercial-14","module":"commercial","title":"Caso sintético 14","description":"Registro incompleto, requer qualificação humana.","expected_review":true,"expected_critical":false}
+{"id":"commercial-15","module":"commercial","title":"Caso sintético 15","description":"Informação ambígua sem evidência suficiente.","expected_review":true,"expected_critical":false}
+{"id":"decisions-01","module":"decisions","title":"Caso sintético 1","description":"Registro rotineiro fictício documentado e atualizado.","expected_review":false,"expected_critical":false}
+{"id":"decisions-02","module":"decisions","title":"Caso sintético 2","description":"Tarefa atrasada e sem responsável definido no cenário fictício.","expected_review":true,"expected_critical":false}
+{"id":"decisions-03","module":"decisions","title":"Caso sintético 3","description":"Falha crítica de segurança e indisponibilidade do serviço fictício.","expected_review":true,"expected_critical":true}
+{"id":"decisions-04","module":"decisions","title":"Caso sintético 4","description":"Registro incompleto, requer qualificação humana.","expected_review":true,"expected_critical":false}
+{"id":"decisions-05","module":"decisions","title":"Caso sintético 5","description":"Informação ambígua sem evidência suficiente.","expected_review":true,"expected_critical":false}
+{"id":"decisions-06","module":"decisions","title":"Caso sintético 6","description":"Registro rotineiro fictício documentado e atualizado.","expected_review":false,"expected_critical":false}
+{"id":"decisions-07","module":"decisions","title":"Caso sintético 7","description":"Tarefa atrasada e sem responsável definido no cenário fictício.","expected_review":true,"expected_critical":false}
+{"id":"decisions-08","module":"decisions","title":"Caso sintético 8","description":"Falha crítica de segurança e indisponibilidade do serviço fictício.","expected_review":true,"expected_critical":true}
+{"id":"decisions-09","module":"decisions","title":"Caso sintético 9","description":"Registro incompleto, requer qualificação humana.","expected_review":true,"expected_critical":false}
+{"id":"decisions-10","module":"decisions","title":"Caso sintético 10","description":"Informação ambígua sem evidência suficiente.","expected_review":true,"expected_critical":false}
+{"id":"decisions-11","module":"decisions","title":"Caso sintético 11","description":"Registro rotineiro fictício documentado e atualizado.","expected_review":false,"expected_critical":false}
+{"id":"decisions-12","module":"decisions","title":"Caso sintético 12","description":"Tarefa atrasada e sem responsável definido no cenário fictício.","expected_review":true,"expected_critical":false}
+{"id":"decisions-13","module":"decisions","title":"Caso sintético 13","description":"Falha crítica de segurança e indisponibilidade do serviço fictício.","expected_review":true,"expected_critical":true}
+{"id":"decisions-14","module":"decisions","title":"Caso sintético 14","description":"Registro incompleto, requer qualificação humana.","expected_review":true,"expected_critical":false}
+{"id":"decisions-15","module":"decisions","title":"Caso sintético 15","description":"Informação ambígua sem evidência suficiente.","expected_review":true,"expected_critical":false}
+{"id":"knowledge-01","module":"knowledge","title":"Caso sintético 1","description":"Registro rotineiro fictício documentado e atualizado.","expected_review":false,"expected_critical":false}
+{"id":"knowledge-02","module":"knowledge","title":"Caso sintético 2","description":"Tarefa atrasada e sem responsável definido no cenário fictício.","expected_review":true,"expected_critical":false}
+{"id":"knowledge-03","module":"knowledge","title":"Caso sintético 3","description":"Falha crítica de segurança e indisponibilidade do serviço fictício.","expected_review":true,"expected_critical":true}
+{"id":"knowledge-04","module":"knowledge","title":"Caso sintético 4","description":"Registro incompleto, requer qualificação humana.","expected_review":true,"expected_critical":false}
+{"id":"knowledge-05","module":"knowledge","title":"Caso sintético 5","description":"Informação ambígua sem evidência suficiente.","expected_review":true,"expected_critical":false}
+{"id":"knowledge-06","module":"knowledge","title":"Caso sintético 6","description":"Registro rotineiro fictício documentado e atualizado.","expected_review":false,"expected_critical":false}
+{"id":"knowledge-07","module":"knowledge","title":"Caso sintético 7","description":"Tarefa atrasada e sem responsável definido no cenário fictício.","expected_review":true,"expected_critical":false}
+{"id":"knowledge-08","module":"knowledge","title":"Caso sintético 8","description":"Falha crítica de segurança e indisponibilidade do serviço fictício.","expected_review":true,"expected_critical":true}
+{"id":"knowledge-09","module":"knowledge","title":"Caso sintético 9","description":"Registro incompleto, requer qualificação humana.","expected_review":true,"expected_critical":false}
+{"id":"knowledge-10","module":"knowledge","title":"Caso sintético 10","description":"Informação ambígua sem evidência suficiente.","expected_review":true,"expected_critical":false}
+{"id":"knowledge-11","module":"knowledge","title":"Caso sintético 11","description":"Registro rotineiro fictício documentado e atualizado.","expected_review":false,"expected_critical":false}
+{"id":"knowledge-12","module":"knowledge","title":"Caso sintético 12","description":"Tarefa atrasada e sem responsável definido no cenário fictício.","expected_review":true,"expected_critical":false}
+{"id":"knowledge-13","module":"knowledge","title":"Caso sintético 13","description":"Falha crítica de segurança e indisponibilidade do serviço fictício.","expected_review":true,"expected_critical":true}
+{"id":"knowledge-14","module":"knowledge","title":"Caso sintético 14","description":"Registro incompleto, requer qualificação humana.","expected_review":true,"expected_critical":false}
+{"id":"knowledge-15","module":"knowledge","title":"Caso sintético 15","description":"Informação ambígua sem evidência suficiente.","expected_review":true,"expected_critical":false}
+{"id":"notifications-01","module":"notifications","title":"Caso sintético 1","description":"Registro rotineiro fictício documentado e atualizado.","expected_review":false,"expected_critical":false}
+{"id":"notifications-02","module":"notifications","title":"Caso sintético 2","description":"Tarefa atrasada e sem responsável definido no cenário fictício.","expected_review":true,"expected_critical":false}
+{"id":"notifications-03","module":"notifications","title":"Caso sintético 3","description":"Falha crítica de segurança e indisponibilidade do serviço fictício.","expected_review":true,"expected_critical":true}
+{"id":"notifications-04","module":"notifications","title":"Caso sintético 4","description":"Registro incompleto, requer qualificação humana.","expected_review":true,"expected_critical":false}
+{"id":"notifications-05","module":"notifications","title":"Caso sintético 5","description":"Informação ambígua sem evidência suficiente.","expected_review":true,"expected_critical":false}
+{"id":"notifications-06","module":"notifications","title":"Caso sintético 6","description":"Registro rotineiro fictício documentado e atualizado.","expected_review":false,"expected_critical":false}
+{"id":"notifications-07","module":"notifications","title":"Caso sintético 7","description":"Tarefa atrasada e sem responsável definido no cenário fictício.","expected_review":true,"expected_critical":false}
+{"id":"notifications-08","module":"notifications","title":"Caso sintético 8","description":"Falha crítica de segurança e indisponibilidade do serviço fictício.","expected_review":true,"expected_critical":true}
+{"id":"notifications-09","module":"notifications","title":"Caso sintético 9","description":"Registro incompleto, requer qualificação humana.","expected_review":true,"expected_critical":false}
+{"id":"notifications-10","module":"notifications","title":"Caso sintético 10","description":"Informação ambígua sem evidência suficiente.","expected_review":true,"expected_critical":false}
+{"id":"notifications-11","module":"notifications","title":"Caso sintético 11","description":"Registro rotineiro fictício documentado e atualizado.","expected_review":false,"expected_critical":false}
+{"id":"notifications-12","module":"notifications","title":"Caso sintético 12","description":"Tarefa atrasada e sem responsável definido no cenário fictício.","expected_review":true,"expected_critical":false}
+{"id":"notifications-13","module":"notifications","title":"Caso sintético 13","description":"Falha crítica de segurança e indisponibilidade do serviço fictício.","expected_review":true,"expected_critical":true}
+{"id":"notifications-14","module":"notifications","title":"Caso sintético 14","description":"Registro incompleto, requer qualificação humana.","expected_review":true,"expected_critical":false}
+{"id":"notifications-15","module":"notifications","title":"Caso sintético 15","description":"Informação ambígua sem evidência suficiente.","expected_review":true,"expected_critical":false}

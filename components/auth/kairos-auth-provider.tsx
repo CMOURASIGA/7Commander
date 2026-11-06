@@ -21,6 +21,15 @@ type ProviderProps = {
   children: React.ReactNode;
 };
 
+/** Best-effort SSR synchronization; middleware fails closed if session cannot be validated. */
+async function syncServerLocalSession(accessToken: string) {
+  const result=await fetch('/api/auth/local-session',{
+    method:'POST',credentials:'same-origin',
+    headers:{Authorization:'Bearer '+accessToken},
+  });
+  if(!result.ok && result.status!==404)throw new Error('LOCAL_SSR_COOKIE_SYNC_FAILED');
+}
+
 async function syncProfile(user: User) {
   try {
     await fetch("/api/auth/profile", {
@@ -57,6 +66,7 @@ export function KairosAuthProvider({ required, children }: ProviderProps) {
       setUser(sessionUser);
       if (sessionUser && token) {
         setClientAuthToken(token, sessionUser.email ?? null);
+        await syncServerLocalSession(token);
         await syncProfile(sessionUser);
         syncedUserIdRef.current = sessionUser.id;
       } else {
@@ -72,18 +82,23 @@ export function KairosAuthProvider({ required, children }: ProviderProps) {
       setLoading(false);
     });
 
-    const subscription = client.auth.onAuthStateChange(async (_event, session) => {
+    const subscription = client.auth.onAuthStateChange(async (event, session) => {
       const currentUser = session?.user ?? null;
       const token = session?.access_token ?? "";
       setUser(currentUser);
       if (currentUser && token) {
         setClientAuthToken(token, currentUser.email ?? null);
+        await syncServerLocalSession(token);
         if (syncedUserIdRef.current !== currentUser.id) {
           await syncProfile(currentUser);
           syncedUserIdRef.current = currentUser.id;
         }
       } else {
         clearClientAuthToken();
+        if (event === 'SIGNED_OUT') {
+          void fetch('/api/auth/local-session',{method:'DELETE',credentials:'same-origin'}).catch(()=>{});
+          void fetch('/api/auth/central-session',{method:'DELETE',credentials:'same-origin'}).catch(()=>{});
+        }
         syncedUserIdRef.current = null;
       }
       setLoading(false);
@@ -121,13 +136,21 @@ export function KairosAuthProvider({ required, children }: ProviderProps) {
       signInWithPassword: async (email: string, password: string) => {
         const client = getSupabaseBrowserClient();
         if (!client) throw new Error("Cliente Supabase indisponivel.");
-        const { error } = await client.auth.signInWithPassword({ email: email.trim(), password });
-        if (error) throw new Error("E-mail ou senha incorretos, ou conta nao habilitada.");
+        const { data, error } = await client.auth.signInWithPassword({ email: email.trim(), password });
+        if (error || !data.session?.access_token) throw new Error("E-mail ou senha incorretos, ou conta nao habilitada.");
+        // Use the returned session directly. A second getSession() during
+        // SIGNED_IN listeners can contend with Supabase's auth lock.
+        setClientAuthToken(data.session.access_token, data.user?.email ?? null);
+        await syncServerLocalSession(data.session.access_token);
       },
       signOut: async () => {
         const client = getSupabaseBrowserClient();
         if (!client) return;
         await client.auth.signOut();
+        await Promise.all([
+          fetch('/api/auth/local-session',{method:'DELETE',credentials:'same-origin'}).catch(()=>{}),
+          fetch('/api/auth/central-session',{method:'DELETE',credentials:'same-origin'}).catch(()=>{}),
+        ]);
         clearClientAuthToken();
         setUser(null);
       },
