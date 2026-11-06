@@ -191,6 +191,13 @@ export default function ScrumPage(){
           return <article key={item.task_id} className="rounded-xl border border-(--border) bg-(--bg-surface) p-4">
             <div className="flex flex-wrap items-center justify-between gap-2"><h3 className="font-medium">{task.titulo}</h3><span className="workspace-pill">{task.status}</span></div>
             <p className="mt-1 text-xs text-(--text-secondary)">Responsável: {task.responsavel||"Não atribuído"} · Abertura do card: {dateOnly(task.created_at)} · Prazo no Kanban: {dateOnly(task.due_date)||"Não definido"}</p>
+            <div className="mt-3 flex flex-wrap gap-2 text-xs">
+              <span className="workspace-pill">Etapa: {item.workflow_stage.toUpperCase()}</span>
+              <span className="workspace-pill">Pontos: {item.story_points??"Não estimado"}</span>
+              <span className="workspace-pill">Duração: {item.duration_days??"Não definida"} dias</span>
+              <span className="workspace-pill">{item.planned_end_date ? (dateOnly(item.planned_end_date)<iso(new Date())&&item.workflow_stage!=="closed"?"Atrasada":(period(iso(new Date()),dateOnly(item.planned_end_date))+" dias até a entrega")) : "Sem entrega prevista"}</span>
+              {item.blocked&&<span className="rounded-full bg-(--danger-soft) px-3 py-1 font-semibold text-(--danger)">Impedimento ativo</span>}
+            </div>
             <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
               <label className="text-xs">Início planejado<input type="date" className="workspace-input mt-1 w-full" value={d.startDate} disabled={selected.status==="closed"} onChange={e=>{const start=e.target.value;updateDraft(item,{startDate:start,endDate:start&&Number(d.duration)>0?addDays(start,Number(d.duration)):d.endDate})}}/></label>
               <label className="text-xs">Prazo em dias<input type="number" min="1" max="3650" className="workspace-input mt-1 w-full" value={d.duration} disabled={selected.status==="closed"} onChange={e=>{const duration=e.target.value;updateDraft(item,{duration,endDate:d.startDate&&Number(duration)>0?addDays(d.startDate,Number(duration)):d.endDate})}}/></label>
