@@ -40,7 +40,7 @@ export async function getDailySnapshot(userId:string,userEmail?:string|null):Pro
   let sprintMap=new Map<string,{blocked:boolean;workflowStage:string}>();
   if(!sprints.error && sprints.data?.length){
     const links=await db.from("scrum_sprint_tasks").select("task_id,blocked,workflow_stage")
-      .eq("organization_id",orgId).in("sprint_id",sprints.data.map(s=>s.id));
+      .eq("organization_id",orgId).in("sprint_id",sprints.data.map(s=>s.id)).neq("workflow_stage","rejected");
     if(links.error)throw new Error("Falha ao consultar atividades das Sprints.");
     sprintMap=new Map((links.data||[]).map(r=>[r.task_id,{blocked:r.blocked,workflowStage:r.workflow_stage}]));
   } else if(sprints.error && !["42P01","PGRST205","PGRST116"].includes(sprints.error.code||"")) {
