@@ -10,6 +10,7 @@ type Task={id:string;titulo:string;descricao:string|null;status:string;prioridad
 type Item={sprint_id:string;task_id:string;planned_start_date:string|null;planned_end_date:string|null;duration_days:number|null;story_points:number|null;workflow_stage:string;blocked:boolean;blocker_reason:string};
 type Snapshot={sprints:Sprint[];tasks:Task[];items:Item[]};
 const workflow=[["new","NEW"],["review","REVIEW"],["rework","REWORK"],["ready","READY"],["active","ACTIVE"],["resolved","RESOLVED"],["closed","CLOSED"],["rejected","REJECT"]] as const;
+const allowed:Record<string,string[]>={new:["review"],review:["ready","rework"],rework:["review"],ready:["active","rejected","rework"],active:["resolved","rework"],resolved:["closed","rework","rejected"],closed:[],rejected:[]};
 const iso=(date:Date)=>[date.getFullYear(),String(date.getMonth()+1).padStart(2,"0"),String(date.getDate()).padStart(2,"0")].join("-");
 const dateOnly=(s:string|null)=>s?.slice(0,10)||"";
 const addDays=(start:string,days:number)=>{const d=new Date(start+"T12:00:00Z");if(Number.isNaN(d.getTime()))return "";d.setUTCDate(d.getUTCDate()+days-1);return d.toISOString().slice(0,10)};
@@ -125,13 +126,13 @@ export default function ScrumPage(){
           const d=draft(item);
           return <article key={item.task_id} className="rounded-xl border border-(--border) bg-(--bg-surface) p-4">
             <div className="flex flex-wrap items-center justify-between gap-2"><h3 className="font-medium">{task.titulo}</h3><span className="workspace-pill">{task.status}</span></div>
-            <p className="mt-1 text-xs text-(--text-secondary)">Responsável: {task.responsavel||"Não atribuído"} · Prazo no Kanban: {dateOnly(task.due_date)||"Não definido"}</p>
+            <p className="mt-1 text-xs text-(--text-secondary)">Responsável: {task.responsavel||"Não atribuído"} · Abertura do card: {dateOnly(task.created_at)} · Prazo no Kanban: {dateOnly(task.due_date)||"Não definido"}</p>
             <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
               <label className="text-xs">Início planejado<input type="date" className="workspace-input mt-1 w-full" value={d.startDate} disabled={selected.status==="closed"} onChange={e=>{const start=e.target.value;updateDraft(item,{startDate:start,endDate:start&&Number(d.duration)>0?addDays(start,Number(d.duration)):d.endDate})}}/></label>
               <label className="text-xs">Prazo em dias<input type="number" min="1" max="3650" className="workspace-input mt-1 w-full" value={d.duration} disabled={selected.status==="closed"} onChange={e=>{const duration=e.target.value;updateDraft(item,{duration,endDate:d.startDate&&Number(duration)>0?addDays(d.startDate,Number(duration)):d.endDate})}}/></label>
               <label className="text-xs">Entrega prevista<input type="date" className="workspace-input mt-1 w-full" value={d.endDate} disabled={selected.status==="closed"} min={d.startDate||undefined} onChange={e=>updateDraft(item,{endDate:e.target.value,duration:d.startDate&&e.target.value?String(period(d.startDate,e.target.value)):d.duration})}/></label>
               <label className="text-xs">Story points<input type="number" min="0" step="0.5" className="workspace-input mt-1 w-full" value={d.points} disabled={selected.status==="closed"} onChange={e=>updateDraft(item,{points:e.target.value})}/></label>
-              <label className="text-xs">Etapa Scrum<select className="workspace-select mt-1 w-full" value={d.stage} disabled={selected.status==="closed"} onChange={e=>updateDraft(item,{stage:e.target.value})}>{workflow.map(([value,label])=><option key={value} value={value}>{label}</option>)}</select></label>
+              <label className="text-xs">Etapa Scrum<select className="workspace-select mt-1 w-full" value={d.stage} disabled={selected.status==="closed"} onChange={e=>updateDraft(item,{stage:e.target.value})}>{workflow.map(([value,label])=><option key={value} value={value} disabled={value!==item.workflow_stage && !allowed[item.workflow_stage]?.includes(value)}>{label}</option>)}</select></label>
               <label className="flex items-center gap-2 text-xs"><input type="checkbox" checked={d.blocked} disabled={selected.status==="closed"} onChange={e=>updateDraft(item,{blocked:e.target.checked})}/> Impedimento ativo</label>
               <label className="text-xs sm:col-span-2">Motivo do impedimento<input className="workspace-input mt-1 w-full" value={d.blockerReason} disabled={selected.status==="closed"} onChange={e=>updateDraft(item,{blockerReason:e.target.value})}/></label>
             </div>
