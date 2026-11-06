@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { getClientAuthHeaders } from "@/lib/client-auth";
 import { PageIntro, SurfaceCard } from "@/components/ui/workspace-primitives";
 
@@ -28,6 +29,9 @@ export default function ScrumPage(){
   const [form,setForm]=useState({name:"",goal:"",startDate:iso(new Date()),endDate:addDays(iso(new Date()),14)});
   const [drafts,setDrafts]=useState<Record<string,{startDate:string;endDate:string;duration:string;points:string;stage:string;blocked:boolean;blockerReason:string}>>({});
   const [taskToAdd,setTaskToAdd]=useState("");
+  const [newUs,setNewUs]=useState({title:"",description:"",priority:"media" as "baixa"|"media"|"alta"|"critica",startDate:iso(new Date()),duration:"3",endDate:addDays(iso(new Date()),3),points:""});
+  const [creatingUs,setCreatingUs]=useState(false);
+  const [createdNotice,setCreatedNotice]=useState("");
 
   useEffect(()=>{let live=true;void (async()=>{try{
     const r=await fetch("/api/scrum",{headers:getClientAuthHeaders(),cache:"no-store"});
@@ -48,7 +52,18 @@ export default function ScrumPage(){
   const selected=useMemo(()=>snapshot.sprints.find(s=>s.id===sprintId),[snapshot.sprints,sprintId]);
   const items=useMemo(()=>snapshot.items.filter(i=>i.sprint_id===sprintId),[snapshot.items,sprintId]);
   const pool=useMemo(()=>snapshot.tasks.filter(t=>!items.some(i=>i.task_id===t.id)),[snapshot.tasks,items]);
-  const summary=useMemo(()=>({total:items.length,finished:items.filter(i=>i.workflow_stage==="closed").length,blocked:items.filter(i=>i.blocked).length,points:items.reduce((n,i)=>n+Number(i.story_points||0),0)}),[items]);
+  const summary=useMemo(()=>{
+    const today=iso(new Date());
+    return {
+      total:items.length,
+      finished:items.filter(i=>i.workflow_stage==="closed").length,
+      blocked:items.filter(i=>i.blocked).length,
+      points:items.reduce((n,i)=>n+Number(i.story_points||0),0),
+      completedPoints:items.filter(i=>i.workflow_stage==="closed").reduce((n,i)=>n+Number(i.story_points||0),0),
+      overdue:items.filter(i=>i.workflow_stage!=="closed" && dateOnly(i.planned_end_date)!=="" && dateOnly(i.planned_end_date)<today).length,
+      remaining:items.filter(i=>i.workflow_stage!=="closed" && i.workflow_stage!=="rejected").length,
+    };
+  },[items]);
 
   async function send(payload:Record<string,unknown>){
     setSaving(true);setMessage("");
@@ -60,6 +75,34 @@ export default function ScrumPage(){
     finally{setSaving(false)}
   }
   async function createSprint(){if(!form.name.trim())return;await send({action:"create_sprint",...form});}
+  async function createUs(){
+    if(!projectId||!selected||selected.status==="closed"||!newUs.title.trim()||creatingUs)return;
+    setCreatingUs(true);setMessage("");setCreatedNotice("");
+    let createdId="";
+    try {
+      if(!newUs.startDate||!newUs.endDate||newUs.endDate<newUs.startDate)throw new Error("Informe um período válido para a US.");
+      const r=await fetch("/api/projects/"+encodeURIComponent(projectId)+"/tasks",{
+        method:"POST",headers:getClientAuthHeaders({"Content-Type":"application/json"}),
+        body:JSON.stringify({title:newUs.title.trim(),description:newUs.description.trim(),priority:newUs.priority,columnKey:"todo",dueDate:newUs.endDate})
+      });
+      const j=await r.json().catch(()=>({}));
+      if(!r.ok||!j.data?.id)throw new Error(j.error||"Não foi possível criar o card no Kanban.");
+      createdId=j.data.id;
+      const link=await fetch("/api/scrum",{
+        method:"POST",headers:getClientAuthHeaders({"Content-Type":"application/json"}),
+        body:JSON.stringify({action:"upsert_task",projectId,sprintId:selected.id,taskId:createdId,workflowStage:"new",startDate:newUs.startDate,endDate:newUs.endDate,durationDays:Number(newUs.duration),storyPoints:newUs.points?Number(newUs.points):null})
+      });
+      const linked=await link.json().catch(()=>({}));
+      if(!link.ok)throw new Error(linked.error||"Falha ao vincular a US à Sprint.");
+      setNewUs(f=>({...f,title:"",description:"",points:""}));
+      setCreatedNotice("US criada no Kanban e vinculada à Sprint.");
+      await load();
+    }catch(e){
+      const reason=e instanceof Error?e.message:"Falha ao criar a US.";
+      setMessage(createdId?"O card foi criado no Kanban, mas não vinculado à Sprint. Selecione-o em Adicionar US do Kanban. Detalhe: "+reason:reason);
+      if(createdId)await load();
+    }finally{setCreatingUs(false)}
+  }
   function draft(item:Item){
     return drafts[item.task_id]??{startDate:dateOnly(item.planned_start_date),endDate:dateOnly(item.planned_end_date),duration:item.duration_days?.toString()||"",points:item.story_points?.toString()||"",stage:item.workflow_stage,blocked:item.blocked,blockerReason:item.blocker_reason||""};
   }
@@ -108,15 +151,36 @@ export default function ScrumPage(){
           </select>
         </label>
       </div>
-      <div className="mt-4 grid grid-cols-2 gap-2 md:grid-cols-4">
-        {[["US na Sprint",summary.total],["Resolvidas",summary.finished],["Bloqueadas",summary.blocked],["Story Points",summary.points]].map(([label,n])=><div key={label} className="rounded-xl bg-(--bg-muted) p-3"><p className="text-xs text-(--text-secondary)">{label}</p><p className="mt-2 text-2xl font-semibold">{n}</p></div>)}
+      <div className="mt-4 grid grid-cols-2 gap-2 md:grid-cols-3 xl:grid-cols-6">
+        {[["US na Sprint",summary.total],["Concluídas",summary.finished],["Bloqueadas",summary.blocked],["Atrasadas",summary.overdue],["Restantes",summary.remaining],["Story Points",summary.points]].map(([label,n])=><div key={label} className="rounded-xl bg-(--bg-muted) p-3"><p className="text-xs text-(--text-secondary)">{label}</p><p className="mt-2 text-2xl font-semibold">{n}</p></div>)}
       </div>
+      <div className="mt-3 rounded-lg bg-(--bg-muted) p-3">
+        <div className="flex items-center justify-between gap-2 text-xs"><span>Progresso da Sprint por US concluídas</span><strong>{summary.total?Math.round(summary.finished/summary.total*100):0}%</strong></div>
+        <div className="mt-2 h-2 overflow-hidden rounded-full bg-(--border)"><div className="h-full rounded-full bg-(--accent)" style={{width:(summary.total?summary.finished/summary.total*100:0)+"%"}}/></div>
+        <p className="mt-2 text-xs text-(--text-secondary)">Story points concluídos: {summary.completedPoints} de {summary.points}. Métricas calculadas exclusivamente a partir das US vinculadas.</p>
+      </div>
+      {selected.status!=="closed"&&<div className="mt-4 rounded-xl border border-(--border) bg-(--bg-muted) p-4">
+        <h3 className="font-semibold text-sm">Criar US nesta Sprint</h3>
+        <p className="mt-1 text-xs text-(--text-secondary)">O card será criado também no Kanban do projeto, sem duplicação.</p>
+        <div className="mt-3 grid gap-3 sm:grid-cols-2">
+          <label className="text-xs">Título da US<input className="workspace-input mt-1 w-full" value={newUs.title} maxLength={180} placeholder="Ex.: Validar integração com ERP" onChange={e=>setNewUs(f=>({...f,title:e.target.value}))}/></label>
+          <label className="text-xs">Prioridade<select className="workspace-select mt-1 w-full" value={newUs.priority} onChange={e=>setNewUs(f=>({...f,priority:e.target.value as typeof f.priority}))}><option value="baixa">Baixa</option><option value="media">Média</option><option value="alta">Alta</option><option value="critica">Crítica</option></select></label>
+          <label className="text-xs sm:col-span-2">Descrição e critérios de aceite<textarea className="workspace-input mt-1 w-full" rows={3} value={newUs.description} onChange={e=>setNewUs(f=>({...f,description:e.target.value}))}/></label>
+          <label className="text-xs">Início previsto<input className="workspace-input mt-1 w-full" type="date" value={newUs.startDate} onChange={e=>{const value=e.target.value;setNewUs(f=>({...f,startDate:value,endDate:value&&Number(f.duration)>0?addDays(value,Number(f.duration)):f.endDate}))}}/></label>
+          <label className="text-xs">Duração (dias corridos)<input className="workspace-input mt-1 w-full" type="number" min="1" max="3650" value={newUs.duration} onChange={e=>{const value=e.target.value;setNewUs(f=>({...f,duration:value,endDate:f.startDate&&Number(value)>0?addDays(f.startDate,Number(value)):f.endDate}))}}/></label>
+          <label className="text-xs">Entrega prevista<input className="workspace-input mt-1 w-full" type="date" min={newUs.startDate} value={newUs.endDate} onChange={e=>{const value=e.target.value;setNewUs(f=>({...f,endDate:value,duration:f.startDate&&value?String(period(f.startDate,value)):f.duration}))}}/></label>
+          <label className="text-xs">Story points (opcional)<input className="workspace-input mt-1 w-full" type="number" min="0" step="0.5" value={newUs.points} onChange={e=>setNewUs(f=>({...f,points:e.target.value}))}/></label>
+        </div>
+        <button type="button" className="workspace-button-primary mt-3 px-4 py-2 text-sm" disabled={creatingUs||saving||!newUs.title.trim()||!newUs.startDate||!newUs.endDate||!newUs.duration} onClick={()=>void createUs()}>{creatingUs?"Criando US...":"Criar US e incluir na Sprint"}</button>
+        {createdNotice&&<p role="status" className="mt-2 text-xs text-(--success)">{createdNotice}</p>}
+      </div>}
       {selected.status!=="closed"&&<div className="mt-4 flex flex-wrap items-end gap-2">
         <label className="min-w-52 flex-1 text-xs">Adicionar US do Kanban
           <select className="workspace-select mt-1 w-full" value={taskToAdd} onChange={e=>setTaskToAdd(e.target.value)}>
             <option value="">Selecione uma atividade</option>{pool.map(task=><option key={task.id} value={task.id}>{task.titulo}</option>)}
           </select>
         </label>
+        <Link href="/activities" className="workspace-button-secondary px-4 py-2 text-sm">Abrir Kanban</Link>
         <button className="workspace-button-primary px-4 py-2 text-sm" disabled={!taskToAdd||saving} onClick={()=>void send({action:"upsert_task",sprintId,taskId:taskToAdd,workflowStage:"new"}).then(ok=>{if(ok)setTaskToAdd("")})}>Vincular à Sprint</button>
       </div>}
       <div className="mt-4 space-y-3">
