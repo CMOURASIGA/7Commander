@@ -8,7 +8,7 @@ import {CONSULT_ORG_ID} from "@/lib/consult-workspace";
 export const dynamic="force-dynamic";
 const uuid=/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const stages=["new","review","rework","ready","active","resolved","closed","rejected"];
-const transitions:Record<string,string[]>={new:["review"],review:["ready","rework"],rework:["review"],ready:["active","rework","rejected"],active:["resolved","rework"],resolved:["closed","rework","rejected"],closed:[],rejected:[]};
+const transitions:Record<string,string[]>={new:["review"],review:["ready","rework"],rework:["review"],ready:["active","rework","rejected"],active:["resolved","rework"],resolved:["closed","rework","rejected"],closed:[],rejected:["new"]};
 const validDate=(x:unknown)=>typeof x==="string"&&/^\d{4}-\d{2}-\d{2}$/.test(x)&&!isNaN(Date.parse(x+"T12:00:00Z"))&&new Date(x+"T12:00:00Z").toISOString().slice(0,10)===x;
 const respond=(data:unknown,status=200)=>NextResponse.json(data,{status,headers:{"Cache-Control":"private,no-store"}});
 const fail=(error:string,status=400)=>respond({error},status);
@@ -95,7 +95,7 @@ export async function POST(req:NextRequest){
     acceptance_criteria:String(body.acceptanceCriteria===undefined?current?.acceptance_criteria||"":body.acceptanceCriteria||"").slice(0,10000),
     priority,responsible:String(body.responsible===undefined?current?.responsible||"":body.responsible||"").slice(0,250)||null,
     workflow_stage:stage,start_date:start,due_date:due,duration_days:days,story_points:points,
-    sprint_id:requestedSprint,blocked:body.blocked===undefined?Boolean(current?.blocked):body.blocked===true,
+    sprint_id:stage==="rejected"?null:requestedSprint,blocked:body.blocked===undefined?Boolean(current?.blocked):body.blocked===true,
     blocker_reason:String(body.blockerReason===undefined?current?.blocker_reason||"":body.blockerReason||"").slice(0,1500),
     updated_at:new Date().toISOString()
   };
