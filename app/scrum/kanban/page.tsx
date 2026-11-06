@@ -5,7 +5,7 @@ import {useConfirm} from "@/components/ui/confirm-dialog";
 import {PageIntro,SurfaceCard} from "@/components/ui/workspace-primitives";
 import {ScrumNav,ScrumSelectors,useScrumData,apiPost,Story,stages,transitions,dateBR,today} from "@/components/scrum/scrum-common";
 export default function ScrumKanbanPage(){
- const data=useScrumData();const [saving,setSaving]=useState<string|null>(null);const [selected,setSelected]=useState<Story|null>(null);
+ const data=useScrumData();const confirm=useConfirm();const [saving,setSaving]=useState<string|null>(null);const [selected,setSelected]=useState<Story|null>(null);
  const sprint=data.sprints.find(s=>s.id===data.sprintId);
  const stories=data.stories.filter(s=>s.sprint_id===data.sprintId);
  const closed=sprint?.status==="closed";
