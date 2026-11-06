@@ -224,7 +224,12 @@ export default function ProjectsPage() {
       if (!response.ok) throw new Error(payload?.error || "Erro ao carregar projetos.");
       const list = (payload?.data ?? []) as ProjectSummary[];
       setProjects(list);
-      setActiveProjectId(current => current && list.some(p=>p.id===current) ? current : (payload?.meta?.activeProjectId ?? null));
+      // Deep link from the management dashboard. Only select an authorized, listed project.
+      const requestedId = new URLSearchParams(window.location.search).get("projectId");
+      setActiveProjectId(current => {
+        if (requestedId && list.some(p => p.id === requestedId)) return requestedId;
+        return current && list.some(p => p.id === current) ? current : (payload?.meta?.activeProjectId ?? null);
+      });
     } catch(error) {
       setProjectStatus(error instanceof Error ? error.message : "Não foi possível atualizar a lista de projetos.");
     }
