@@ -16,7 +16,7 @@ export default function ScrumKanbanPage(){
   catch(e){data.setError(e instanceof Error?e.message:"Não foi possível movimentar a US")}finally{setSaving(null)}
  }
  async function returnBacklog(story:Story){
-  if(closed||!window.confirm("Retirar esta US da Sprint? Ela permanecerá no backlog e manterá seus comentários."))return;
+  if(closed||!await confirm({title:"Retirar US da Sprint?",description:"A US voltará para o Backlog, mantendo dados e comentários. Sprints encerradas não permitem esta ação.",confirmLabel:"Retornar ao backlog"}))return;
   setSaving(story.id);
   try{await apiPost("/api/scrum/stories",{action:"update",projectId:data.projectId,storyId:story.id,sprintId:null});await data.refresh();setSelected(null)}
   catch(e){data.setError(e instanceof Error?e.message:"Não foi possível retornar a US ao backlog.")}finally{setSaving(null)}
