@@ -18,7 +18,7 @@ export default function ScrumPage(){
  try{await apiPost("/api/scrum",{action:"create_sprint",projectId:data.projectId,...form});setDrawer(false);setForm(f=>({...f,name:"",goal:""}));await data.refresh();}
  catch(e){data.setError(e instanceof Error?e.message:"Falha ao criar Sprint.");}finally{setSaving(false)}}
  async function changeStatus(value:string){if(!selected)return;
- if(value==="closed"&&!window.confirm("Encerrar Sprint definitivamente? As US vinculadas permanecerão protegidas."))return;
+ if(value==="closed"&&!await confirm({title:"Encerrar Sprint?",description:"A Sprint será encerrada definitivamente. Todas as US vinculadas ficarão protegidas contra alterações e exclusões.",confirmLabel:"Encerrar Sprint",tone:"danger"}))return;
  setSaving(true);try{await apiPost("/api/scrum",{action:"update_sprint",projectId:data.projectId,sprintId:selected.id,status:value});await data.refresh()}catch(e){data.setError(e instanceof Error?e.message:"Falha ao mudar Sprint")}finally{setSaving(false)}}
  return <section className="space-y-4">
    <PageIntro eyebrow="Gestão de projetos" title="Scrum e Sprints" description="Painel gerencial de Sprints, histórias e impedimentos. As User Stories são independentes do Kanban de atividades." aside={<button className="workspace-button-primary rounded-lg px-4 py-2 text-sm" onClick={()=>setDrawer(true)}>+ Criar Sprint</button>}/>
