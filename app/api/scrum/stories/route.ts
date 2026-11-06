@@ -60,6 +60,10 @@ export async function POST(req:NextRequest){
 
   if(action==="delete"){
     if(current?.sprint_id)return fail("Remova a US da Sprint antes de excluir. Sprints encerradas não permitem remoção.",409);
+    if(current.workflow_stage!=="new")return fail("US com execução iniciada não pode ser excluída.",409);
+    const history=await db.from("scrum_story_events").select("event_type,from_stage,to_stage,from_sprint,to_sprint").eq("story_id",storyId).eq("organization_id",org);
+    if(history.error)return fail("Histórico indisponível: exclusão bloqueada por segurança.",503);
+    if((history.data||[]).some(e=>e.event_type!=="created"||e.to_sprint!==null||e.from_sprint!==null))return fail("US com movimentação ou vínculo anterior não pode ser excluída.",409);
     if(String(body.confirmTitle||"").trim()!==current.title)return fail("Confirmação divergente.",400);
     const deleted=await db.from("scrum_user_stories").delete().eq("id",storyId).eq("project_id",projectId).eq("organization_id",org).select("id");
     return deleted.error?fail("Exclusão bloqueada: "+deleted.error.code,409):respond({data:{deleted:Boolean(deleted.data?.length)}});
@@ -86,6 +90,9 @@ export async function POST(req:NextRequest){
   if(days!==null&&(!Number.isInteger(days)||days<1||days>3650))return fail("Duração inválida.");
   if(points!==null&&(!Number.isFinite(points)||points<0||points>9999))return fail("Story points inválidos.");
   const requestedSprint=body.sprintId===undefined?current?.sprint_id||null:body.sprintId||null;
+  const transitionComment=typeof body.transitionComment==="string"?body.transitionComment.trim():"";
+  if(transitionComment.length>4000)return fail("Comentário excede 4000 caracteres.");
+  if(stage==="review"&&stage!==current?.workflow_stage&&!transitionComment)return fail("Informe o motivo da solicitação de REVIEW.",400);
   if(requestedSprint!==null&&!uuid.test(String(requestedSprint)))return fail("Identificador da Sprint inválido.");
   if(current?.sprint_id&&requestedSprint!==null&&requestedSprint!==current.sprint_id)return fail("Uma US já vinculada deve retornar ao backlog antes de mudar de Sprint.",409);
   const target=await sprintState(db,org,projectId,requestedSprint?String(requestedSprint):null);
@@ -97,10 +104,11 @@ export async function POST(req:NextRequest){
     workflow_stage:stage,start_date:start,due_date:due,duration_days:days,story_points:points,
     sprint_id:stage==="rejected"?null:requestedSprint,blocked:body.blocked===undefined?Boolean(current?.blocked):body.blocked===true,
     blocker_reason:String(body.blockerReason===undefined?current?.blocker_reason||"":body.blockerReason||"").slice(0,1500),
+    last_actor_email:auth.userEmail||"",transition_comment:transitionComment,
     updated_at:new Date().toISOString()
   };
   const result=action==="create"?
-    await db.from("scrum_user_stories").insert({...patch,project_id:projectId,organization_id:org,workflow_stage:"new"}).select("id").single():
+    await db.from("scrum_user_stories").insert({...patch,project_id:projectId,organization_id:org,created_by_email:auth.userEmail||"",workflow_stage:"new"}).select("id").single():
     await db.from("scrum_user_stories").update(patch).eq("id",storyId).eq("organization_id",org).eq("project_id",projectId).select("id").single();
   if(result.error)return fail("Não foi possível salvar a US: "+result.error.code,409);
   return respond({data:result.data},action==="create"?201:200);
