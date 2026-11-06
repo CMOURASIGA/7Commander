@@ -9,6 +9,7 @@ import { DEFAULT_CLIENT_BRAND, getClientBrandSettings, ClientBrandSettings } fro
 const NAV_ITEMS = [
   { section: "Principal", href: "/", label: "Inicio", icon: "home" as const },
   { section: "Principal", href: "/daily", label: "Daily", icon: "daily" as const },
+  { section: "Principal", href: "/scrum", label: "Scrum e Sprints", icon: "planning" as const },
   { section: "Dados", href: "/clients", label: "Clientes", icon: "clients" as const },
   { section: "Dados", href: "/planning", label: "Planejamento", icon: "planning" as const },
   { section: "Dados", href: "/projects", label: "Projetos", icon: "projects" as const },
