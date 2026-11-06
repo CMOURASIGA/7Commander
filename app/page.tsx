@@ -24,9 +24,24 @@ type Task = {
   responsible?: string | null;
 };
 type Board = { columns: Array<{ cards: Task[] }> };
-type Risk = { id: string; title: string; status: "aberto" | "em_mitigacao" | "mitigado" | "encerrado" };
+type Risk = { id: string; title: string; impact?: string | null; status: "aberto" | "em_mitigacao" | "mitigado" | "encerrado" };
 type Detail = { board: Board | null; risks: Risk[]; tasksError: boolean; risksError: boolean };
 type ProjectAttention = { project: Project; task: Task; days: number };
+type ManagementStatus = "Indisponível" | "Sem planejamento" | "Crítico" | "Atenção" | "Em dia";
+function managementStatus(info: { incomplete: boolean; total: number; delayed: number; soon: number; risks: Risk[]; unassigned: number }): ManagementStatus {
+  if (info.incomplete) return "Indisponível";
+  if (info.total === 0) return "Sem planejamento";
+  if (info.delayed > 0 || info.risks.some(r => openRisk(r) && /cr[ií]tic[oa]|muito alto/i.test(r.impact || ""))) return "Crítico";
+  if (info.soon > 0 || info.unassigned > 0 || info.risks.some(openRisk)) return "Atenção";
+  return "Em dia";
+}
+const managementTone: Record<ManagementStatus, string> = {
+  "Indisponível": "bg-(--bg-muted) text-(--text-secondary)",
+  "Sem planejamento": "bg-(--warning-soft) text-(--warning)",
+  "Crítico": "bg-(--danger-soft) text-(--danger)",
+  "Atenção": "bg-(--warning-soft) text-(--warning)",
+  "Em dia": "bg-(--success-soft) text-(--success)",
+};
 
 const isOpen = (task: Task) => task.columnKey !== "done" && task.status !== "concluida";
 const openRisk = (risk: Risk) => risk.status === "aberto" || risk.status === "em_mitigacao";
@@ -141,7 +156,7 @@ export default function HomePage() {
     const summaries = active.map(project => {
       const detail = details[project.id];
       const cards = detail?.board?.columns.flatMap(col => col.cards) ?? [];
-      const risks = detail?.risks.filter(openRisk).length ?? 0;
+      const openRisks = detail?.risks.filter(openRisk).length ?? 0;
       const open = cards.filter(isOpen);
       const delayed = open.filter(task => {
         const due = dueKey(task.dueDate);
@@ -151,14 +166,17 @@ export default function HomePage() {
         const due = dueKey(task.dueDate);
         return due !== null && due >= referenceDate && daysUntil(due, referenceDate) <= 7;
       });
-      risky += risks > 0 ? 1 : 0;
+      risky += openRisks > 0 ? 1 : 0;
       overdue += delayed.length;
       dueSoon += soon.length;
       for (const task of [...delayed, ...soon]) {
         const due = dueKey(task.dueDate);
         if (due) attention.push({ project, task, days: daysUntil(due, referenceDate) });
       }
-      return { project, risks, delayed: delayed.length, soon: soon.length, open: open.length, unassigned: open.filter(task => !task.responsible?.trim()).length, incomplete: !detail || detail.tasksError || detail.risksError };
+      const unassigned = open.filter(task => !task.responsible?.trim()).length;
+      const incomplete = !detail || detail.tasksError || detail.risksError;
+      const health = managementStatus({ incomplete, total: cards.length, delayed: delayed.length, soon: soon.length, risks: detail?.risks ?? [], unassigned });
+      return { project, risks: openRisks, delayed: delayed.length, soon: soon.length, open: open.length, unassigned, incomplete, health };
     });
     attention.sort((a,b) => a.days - b.days);
     return { risky, overdue, dueSoon, attention: attention.slice(0, 6), summaries };
@@ -216,8 +234,15 @@ export default function HomePage() {
     <article className="rounded-xl border border-(--border) bg-(--bg-surface) p-4">
       <div className="flex flex-wrap items-center justify-between gap-2"><h3 className="font-medium text-(--text-primary)">Projetos em acompanhamento</h3><Link href="/projects" className="card-link">Ver todos</Link></div>
       {loading ? <p className="mt-4 text-[13px]">Carregando projetos...</p> : active.length === 0 ? <p className="mt-4 text-[13px] text-(--text-secondary)">Nenhum projeto ativo cadastrado.</p> : <div className="mt-3 divide-y divide-(--border)">
-        {analysis.summaries.map(({ project, risks, delayed, soon, open, unassigned, incomplete }) => <div key={project.id} className="py-4">
-          <div className="flex flex-wrap items-center justify-between gap-2"><p className="text-[13px] font-medium text-(--text-primary)">{project.name}</p><span className="rounded-full bg-(--success-soft) px-3 py-1 text-[12px] text-(--success)">Ativo</span></div>
+        {analysis.summaries.map(({ project, risks, delayed, soon, open, unassigned, incomplete, health }) => <div key={project.id} className="py-4">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <p className="text-[13px] font-medium text-(--text-primary)">{project.name}</p>
+            <div className="flex flex-wrap items-center gap-2">
+              <span className={["rounded-full px-3 py-1 text-[12px]", managementTone[health]] .join(" ")}>{health}</span>
+              <span className="rounded-full bg-(--success-soft) px-3 py-1 text-[12px] text-(--success)">Ativo</span>
+              <Link href={"/projects?projectId=" + encodeURIComponent(project.id)} className="rounded-lg border border-(--border) bg-(--bg-surface) px-3 py-2 text-[12px] font-medium text-(--text-primary) hover:bg-(--bg-muted)" aria-label={"Abrir projeto " + project.name}>Abrir projeto</Link>
+            </div>
+          </div>
           <p className="mt-1 text-[12px] text-(--text-secondary)">Cliente: {project.clientName || "Não vinculado"}</p>
           <p className="mt-2 text-[13px] text-(--text-secondary)">{project.objective || project.context || "Sem objetivo definido."}</p>
           <p className="mt-2 text-[12px] text-(--text-tertiary)">{incomplete ? "Indicadores parcialmente indisponíveis" : open + " abertas · " + delayed + " atrasadas · " + soon + " vencem em 7 dias · " + risks + " riscos abertos · " + unassigned + " sem responsável"}</p>
