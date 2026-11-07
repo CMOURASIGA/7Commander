@@ -13,7 +13,7 @@ export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 const noStore = { "Cache-Control": "private, no-store, max-age=0" };
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-const deny = () => NextResponse.json({ ok: false, code: "ACCESS_NOT_AUTHORIZED" }, { status: 403, headers: noStore });
+const deny = (stage = 'policy') => { console.warn('[INT01 BROKER] denied:', stage); return NextResponse.json({ ok: false, code: 'ACCESS_NOT_AUTHORIZED' }, { status: 403, headers: noStore }); };
 
 /**
  * Explicitly linked central identity => existing Commander Auth account.
@@ -57,10 +57,10 @@ export async function POST(request: NextRequest) {
     });
     const result = await auth.auth.signInWithPassword({ email: input.email.trim(), password: input.password });
     const session = result.data.session;
-    if (result.error || !session?.access_token || !session.user) return deny();
+    if (result.error || !session?.access_token || !session.user) return deny('central-login');
 
     const db = getSupabaseServerClient();
-    if (!db) return deny();
+    if (!db) return deny('local-db-unavailable');
     const centralOrigin = process.env.SERVICE_7SERVICE_ORIGIN ?? "";
     let localUserId = "";
     let identityId = "";
@@ -77,7 +77,7 @@ export async function POST(request: NextRequest) {
       });
       const identity = await self.json().catch(() => null) as
         | {authorized?:boolean;identityId?:string} | null;
-      if (!self.ok || !identity?.authorized || !uuid.test(identity.identityId ?? "")) return deny();
+      if (!self.ok || !identity?.authorized || !uuid.test(identity.identityId ?? "")) return deny('central-identity-self-' + self.status);
       identityId = identity.identityId!;
       const linked = await db.from("central_identity_user_links")
         .select("central_identity_id,commander_user_id,status")
@@ -90,8 +90,7 @@ export async function POST(request: NextRequest) {
         emailVerified:Boolean(session.user.email_confirmed_at),
         companyId:process.env.SERVICE_7SERVICE_PILOT_ORG_ID??"",
       }) ?? "";
-      if (!uuid.test(localUserId)) return deny();
-      if (!uuid.test(localUserId)) return deny();
+      if (!uuid.test(localUserId)) return deny('jit-user-not-provisioned');
       const [memberships, profile] = await Promise.all([
         db.from("organization_members").select("organization_id")
           .eq("user_id",localUserId).eq("status","active").limit(51),
@@ -174,7 +173,7 @@ export async function POST(request: NextRequest) {
       matchedRole=member.role;
       break;
     }
-    if (!selectedOrg || !decision || !matchedCompany || !matchedRole) return deny();
+    if (!selectedOrg || !decision || !matchedCompany || !matchedRole) return deny('central-local-policy');
 
     // A suspended local user may never be revived by a central grant.
     const localAccess=await db.from("internal_user_access")
@@ -209,6 +208,6 @@ export async function POST(request: NextRequest) {
     setCentralCookies(response, session);
     return response;
   } catch {
-    return deny(); // no raw provider errors or identity details
+    return deny('unexpected'); // no raw provider errors or identity details
   }
 }
