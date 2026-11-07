@@ -105,10 +105,12 @@ export async function POST(req:NextRequest){
   if(current?.sprint_id&&requestedSprint!==null&&requestedSprint!==current.sprint_id)return fail("Uma US já vinculada deve retornar ao backlog antes de mudar de Sprint.",409);
   const target=await sprintState(db,org,projectId,requestedSprint?String(requestedSprint):null);
   if(target.error||target.status==="closed")return fail("A Sprint selecionada está encerrada ou indisponível.",409);
+  const sortOrder=body.sortOrder===undefined?Number(current?.sort_order||0):Number(body.sortOrder);
+  if(!Number.isInteger(sortOrder)||sortOrder<0||sortOrder>1000000)return fail("Ordem inválida.");
   const patch={
     title,description:String(body.description===undefined?current?.description||"":body.description||"").slice(0,10000),
     acceptance_criteria:String(body.acceptanceCriteria===undefined?current?.acceptance_criteria||"":body.acceptanceCriteria||"").slice(0,10000),
-    feature_id:featureId,priority,responsible:String(body.responsible===undefined?current?.responsible||"":body.responsible||"").slice(0,250)||null,
+    feature_id:featureId,sort_order:sortOrder,priority,responsible:String(body.responsible===undefined?current?.responsible||"":body.responsible||"").slice(0,250)||null,
     workflow_stage:stage,start_date:start,due_date:due,duration_days:days,story_points:points,
     sprint_id:requestedSprint,blocked:body.blocked===undefined?Boolean(current?.blocked):body.blocked===true,
     blocker_reason:String(body.blockerReason===undefined?current?.blocker_reason||"":body.blockerReason||"").slice(0,1500),
