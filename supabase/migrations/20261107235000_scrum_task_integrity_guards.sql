@@ -4,7 +4,11 @@ begin
  story_ref:=case when tg_op='DELETE' then old.story_id else new.story_id end;
  project_ref:=case when tg_op='DELETE' then old.project_id else new.project_id end;
  org_ref:=case when tg_op='DELETE' then old.organization_id else new.organization_id end;
- if case when tg_op='DELETE' then old.item_type<>'task' else new.item_type<>'task' end then return case when tg_op='DELETE' then old else new end; end if;
+ if tg_op='DELETE' then
+   if old.item_type<>'task' then return old; end if;
+ else
+   if new.item_type<>'task' then return new; end if;
+ end if;
  select u.workflow_stage,s.status into story_status,sprint_state
  from public.scrum_user_stories u left join public.scrum_sprints s on s.id=u.sprint_id
  where u.id=story_ref and u.project_id=project_ref and u.organization_id=org_ref;
