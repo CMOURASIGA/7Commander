@@ -70,6 +70,12 @@ export async function middleware(request:NextRequest) {
     }
     if(!company.data?.central_client_id||!membership.data)
       return redirect(request,'/central-access?reason=denied');
+    // Product-linked access outside the pilot stays disabled until explicitly
+    // enabled by release governance. Linking a user alone is not activation.
+    const linkedRollout=process.env.SERVICE_7SERVICE_ENFORCE_LINKED_TENANTS==='true';
+    const pilotId=process.env.SERVICE_7SERVICE_PILOT_ORG_ID??'';
+    if(!linkedRollout && (!UUID.test(pilotId)||orgId!==pilotId))
+      return redirect(request,'/central-access?reason=denied');
 
     const centralToken=request.cookies.get('__Host-commander_caccess')?.value??'';
     const centralUrl=process.env.SERVICE_7SERVICE_SUPABASE_URL;
