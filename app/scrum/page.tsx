@@ -15,6 +15,13 @@ export default function ScrumPage(){
  const blocked=linked.filter(st=>st.blocked).length;
  const finished=linked.filter(st=>st.workflow_stage==="closed").length;
  const backlogged=data.stories.filter(st=>!st.sprint_id).length;
+ const estimated=linked.reduce((n,st)=>n+Number(st.story_points||0),0);
+ const avgPoints=linked.filter(st=>st.story_points!==null).length?estimated/linked.filter(st=>st.story_points!==null).length:0;
+ const complexity=avgPoints===0?"Sem estimativa":avgPoints<=1.5?"Baixa":avgPoints<=2.75?"Média":"Alta";
+ const delivered=linked.filter(st=>st.actual_end_date);
+ const onTime=delivered.filter(st=>st.due_date&&st.actual_end_date!<=st.due_date).length;
+ const late=delivered.filter(st=>st.due_date&&st.actual_end_date!>st.due_date).length;
+ const plannedCount=linked.filter(st=>st.due_date).length;
  async function submit(){if(!data.projectId||saving||!form.name.trim())return;setSaving(true);data.setError("");
  try{await apiPost("/api/scrum",{action:"create_sprint",projectId:data.projectId,...form});setDrawer(false);setForm(f=>({...f,name:"",goal:""}));await data.refresh();}
  catch(e){data.setError(e instanceof Error?e.message:"Falha ao criar Sprint.");}finally{setSaving(false)}}
@@ -32,6 +39,23 @@ export default function ScrumPage(){
      <div className="mt-4"><div className="flex justify-between text-xs"><span>Progresso por US concluída</span><strong>{linked.length?Math.round(finished/linked.length*100):0}%</strong></div><div className="mt-2 h-2 rounded-full bg-(--border)"><div className="h-2 rounded-full bg-(--accent)" style={{width:(linked.length?finished/linked.length*100:0)+"%"}}/></div></div>
      <div className="mt-4 grid gap-3 md:grid-cols-2"><div className="rounded-lg border border-(--border) p-3"><p className="font-medium text-sm">Atenção da equipe</p><p className="mt-2 text-sm">{overdue} US atrasadas e {blocked} bloqueadas nesta Sprint.</p></div><div className="rounded-lg border border-(--border) p-3"><p className="font-medium text-sm">Próximas decisões</p><p className="mt-2 text-sm">{linked.filter(s=>s.workflow_stage==="resolved").length} US aguardando validação; {backlogged} US disponíveis no backlog.</p></div></div>
 
+     <div className="mt-5 border-t border-(--border) pt-4">
+       <h3 className="text-sm font-semibold">Indicadores de planejamento e execução</h3>
+       <div className="mt-3 grid gap-3 md:grid-cols-3">
+         <div className="rounded-lg border border-(--border) p-3"><p className="text-xs text-(--text-secondary)">Complexidade estimada da Sprint</p><p className="mt-1 text-xl font-semibold">{complexity}</p><p className="text-xs">Média de {avgPoints.toFixed(1)} pontos por US estimada · {estimated} pontos previstos</p></div>
+         <div className="rounded-lg border border-(--border) p-3"><p className="text-xs text-(--text-secondary)">Entregas realizadas</p><p className="mt-1 text-xl font-semibold">{delivered.length} / {plannedCount}</p><p className="text-xs">US com data real / US com data prevista</p></div>
+         <div className="rounded-lg border border-(--border) p-3"><p className="text-xs text-(--text-secondary)">Pontualidade das entregas</p><p className="mt-1 text-xl font-semibold">{onTime} no prazo · {late} atrasadas</p><p className="text-xs">Calculado a partir das datas previstas e reais</p></div>
+       </div>
+       <div className="mt-4 grid gap-4 md:grid-cols-2">
+         <div><p className="text-xs font-medium">Distribuição de complexidade das US</p>
+           {[1,2,3,4].map(n=><div key={n} className="mt-2 flex items-center gap-2 text-xs"><span className="w-14">Pontos {n}</span><div className="h-3 flex-1 overflow-hidden rounded-full bg-(--bg-muted)"><div className="h-3 rounded-full bg-(--accent)" style={{width:(linked.length?100*linked.filter(st=>Number(st.story_points)===n).length/linked.length:0)+"%"}}/></div><span className="w-6 text-right">{linked.filter(st=>Number(st.story_points)===n).length}</span></div>)}
+         </div>
+         <div><p className="text-xs font-medium">Entregas previstas e efetivas</p>
+           {([["Previstas",plannedCount],["Realizadas",delivered.length],["No prazo",onTime],["Atrasadas",late]] as const).map(([label,n])=><div key={label} className="mt-2 flex items-center gap-2 text-xs"><span className="w-20">{label}</span><div className="h-3 flex-1 overflow-hidden rounded-full bg-(--bg-muted)"><div className="h-3 rounded-full bg-(--accent)" style={{width:(plannedCount?100*n/plannedCount:0)+"%"}}/></div><span className="w-6 text-right">{n}</span></div>)}
+         </div>
+       </div>
+       <p className="mt-3 text-xs text-(--text-secondary)">Complexidade: média até 1,5 = baixa; acima de 1,5 até 2,75 = média; acima de 2,75 = alta. Critério configurado para esta versão, não é uma classificação oficial do Scrum.</p>
+     </div>
      <div className="mt-4 flex flex-wrap items-center gap-2">
        <Link href={"/scrum/kanban?projectId="+encodeURIComponent(data.projectId)+"&sprintId="+encodeURIComponent(selected.id)} className="workspace-button-primary rounded-lg px-4 py-2 text-sm">Abrir Kanban da Sprint</Link>
        <Link href={"/scrum/backlog?projectId="+encodeURIComponent(data.projectId)} className="workspace-button-secondary rounded-lg px-4 py-2 text-sm">Gerenciar backlog</Link>
