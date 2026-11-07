@@ -7,19 +7,19 @@ import { BRAND_LOGO_URL, BRAND_NAME, BRAND_SUBTITLE } from "@/lib/brand";
 import { DEFAULT_CLIENT_BRAND, getClientBrandSettings, ClientBrandSettings } from "@/lib/brand-settings";
 
 const NAV_ITEMS = [
-  { section: "Principal", href: "/", label: "Inicio", icon: "home" as const },
-  { section: "Principal", href: "/daily", label: "Daily", icon: "daily" as const },
-  { section: "Principal", href: "/scrum", label: "Scrum e Sprints", icon: "planning" as const },
-  { section: "Principal", href: "/scrum/backlog", label: "Backlog de US", icon: "activities" as const },
-  { section: "Principal", href: "/scrum/kanban", label: "Kanban de US", icon: "daily" as const },
-  { section: "Dados", href: "/clients", label: "Clientes", icon: "clients" as const },
-  { section: "Dados", href: "/planning", label: "Planejamento", icon: "planning" as const },
-  { section: "Dados", href: "/projects", label: "Projetos", icon: "projects" as const },
-  { section: "Dados", href: "/activities", label: "Atividades", icon: "activities" as const },
-  { section: "Dados", href: "/memory", label: "Memoria", icon: "memory" as const },
-  { section: "Sistema", href: "/operational-decisions", label: "Central de Decisões", icon: "planning" as const },
-  { section: "Sistema", href: "/help", label: "Ajuda", icon: "help" as const },
-  { section: "Sistema", href: "/settings", label: "Configuracoes", icon: "settings" as const },
+  { section: "Principal", href: "/", label: "Início", icon: "home" as const, level: 0 },
+  { section: "Dados", href: "/clients", label: "Clientes", icon: "clients" as const, level: 0 },
+  { section: "Dados", href: "/planning", label: "Prospect", icon: "planning" as const, level: 0 },
+  { section: "Dados", href: "/projects", label: "Projetos", icon: "projects" as const, level: 0 },
+  { section: "Dados", href: "/activities", label: "Atividades", icon: "activities" as const, level: 1 },
+  { section: "Operacional", href: "/scrum", label: "Scrum e Sprints", icon: "planning" as const, level: 0 },
+  { section: "Operacional", href: "/scrum/backlog", label: "Backlog de US", icon: "activities" as const, level: 1 },
+  { section: "Operacional", href: "/scrum/kanban", label: "Kanban de US", icon: "daily" as const, level: 1 },
+  { section: "Operacional", href: "/daily", label: "Daily", icon: "daily" as const, level: 0 },
+  { section: "Sistema", href: "/operational-decisions", label: "Central de Decisões", icon: "planning" as const, level: 0 },
+  { section: "Sistema", href: "/memory", label: "Memória", icon: "memory" as const, level: 0 },
+  { section: "Sistema", href: "/help", label: "Ajuda", icon: "help" as const, level: 0 },
+  { section: "Sistema", href: "/settings", label: "Configurações", icon: "settings" as const, level: 0 },
 ];
 type IconName = (typeof NAV_ITEMS)[number]["icon"];
 const ICON_PATHS: Record<IconName, React.ReactNode> = {
@@ -46,7 +46,7 @@ export function Sidebar({ isMobileOpen, onCloseMobile }: SidebarProps) {
     <aside className={["sidebar-shell overflow-y-auto md:min-h-screen md:self-stretch", isMobileOpen ? "is-open" : ""].join(" ")} style={{ width: 256, maxWidth: "82vw" }}>
       <div className="relative px-4 pt-4 pb-0"><div className="flex h-[144px] w-full items-center justify-center overflow-hidden rounded-xl bg-white px-1 py-1 shadow-sm"><img src={clientBrand.logoUrl || BRAND_LOGO_URL} alt={clientBrand.clientName || "Consult Services Tecnologia"} className="max-h-[132px] w-[99%] object-contain object-center" /></div><button type="button" onClick={onCloseMobile} className="sidebar-close absolute right-6 top-6 md:hidden" aria-label="Fechar menu">×</button></div>
       <div className="relative border-b border-white/15 px-4 pb-6 pt-6"><p className="sidebar-product-name">{BRAND_NAME}</p><p className="sidebar-product-subtitle">{BRAND_SUBTITLE}</p></div>
-      <nav className="relative flex flex-col gap-5 px-3 py-4">{sections.map((section) => <div key={section}><p className="sidebar-section-label mb-2 px-2">{section}</p><div className="flex flex-col gap-1">{NAV_ITEMS.filter((item) => item.section === section).map((item) => { const isActive = item.href === "/" || item.href === "/scrum" ? pathname === item.href : pathname.startsWith(item.href); return <Link key={item.href} href={item.href} title={item.label} aria-current={isActive ? "page" : undefined} onClick={onCloseMobile} className={["sidebar-nav-link flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors", isActive ? "sidebar-nav-link-active shadow-sm" : "", item.href.startsWith("/scrum/") ? "ml-4 border-l border-white/20 text-[13px]" : ""].join(" ")}><NavIcon name={item.icon} /><span>{item.label}</span></Link>; })}</div></div>)}</nav>
+      <nav className="relative flex flex-col gap-5 px-3 py-4">{sections.map((section) => <div key={section}><p className="sidebar-section-label mb-2 px-2">{section}</p><div className="flex flex-col gap-1">{NAV_ITEMS.filter((item) => item.section === section).map((item) => { const isActive = item.href === "/" || item.href === "/scrum" ? pathname === item.href : pathname.startsWith(item.href); return <Link key={item.href} href={item.href} title={item.label} aria-current={isActive ? "page" : undefined} onClick={onCloseMobile} className={["sidebar-nav-link flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors", isActive ? "sidebar-nav-link-active shadow-sm" : "", item.level === 1 ? "ml-5 border-l border-white/20 pl-4 text-[13px]" : ""].join(" ")}><NavIcon name={item.icon} /><span>{item.label}</span></Link>; })}</div></div>)}</nav>
     </aside>
   </>;
 }
