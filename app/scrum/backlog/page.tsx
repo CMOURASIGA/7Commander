@@ -4,10 +4,20 @@ import {PageIntro,SurfaceCard} from "@/components/ui/workspace-primitives";
 import {useConfirm} from "@/components/ui/confirm-dialog";
 import {ScrumSelectors,useScrumData,apiGet,apiPost,Story,BacklogItem,ProjectMember,stages,transitions,dateBR,dateOnly,today,addDays,daysBetween} from "@/components/scrum/scrum-common";
 
-type Row={id:string;type:"epic"|"feature"|"story"|"task";title:string;state:string;depth:number;order:number;story?:Story;item?:BacklogItem;ancestorIds:string[]};
+type Row={id:string;type:"epic"|"feature"|"story"|"task";title:string;state:string;depth:number;order:number;number:string;story?:Story;item?:BacklogItem;ancestorIds:string[]};
 type Form={title:string;description:string;acceptanceCriteria:string;priority:string;responsible:string;stage:string;startDate:string;dueDate:string;durationDays:string;storyPoints:string;blocked:boolean;blockerReason:string;sprintId:string;actualEndDate:string;featureId:string;parentId:string;storyId:string;sortOrder:string};
 const initial=():Form=>({title:"",description:"",acceptanceCriteria:"",priority:"media",responsible:"",stage:"new",startDate:today(),dueDate:addDays(today(),3),durationDays:"3",storyPoints:"",blocked:false,blockerReason:"",sprintId:"",actualEndDate:"",featureId:"",parentId:"",storyId:"",sortOrder:"0"});
 function fromStory(s:Story):Form{return {...initial(),title:s.title,description:s.description,acceptanceCriteria:s.acceptance_criteria,priority:s.priority,responsible:s.responsible||"",stage:s.workflow_stage,startDate:dateOnly(s.start_date),dueDate:dateOnly(s.due_date),durationDays:s.duration_days===null?"":String(s.duration_days),storyPoints:s.story_points===null?"":String(s.story_points),blocked:s.blocked,blockerReason:s.blocker_reason,sprintId:s.sprint_id||"",actualEndDate:dateOnly(s.actual_end_date),featureId:s.feature_id||"",sortOrder:String(s.sort_order||0)}}
+function WorkItemIcon({type}:{type:Row["type"]}){
+ const color={epic:"bg-violet-100 text-violet-700",feature:"bg-fuchsia-100 text-fuchsia-700",story:"bg-sky-100 text-sky-700",task:"bg-emerald-100 text-emerald-700"}[type];
+ return <span className={"inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-md "+color}>
+ <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+ {type==="epic"?<><path d="m3 7 4.5 4 4.5-7 4.5 7L21 7l-2 12H5L3 7Z"/><path d="M5 19h14"/></>:null}
+ {type==="feature"?<><rect x="3" y="3" width="8" height="8" rx="1"/><rect x="13" y="3" width="8" height="8" rx="1"/><rect x="3" y="13" width="8" height="8" rx="1"/><rect x="13" y="13" width="8" height="8" rx="1"/></>:null}
+ {type==="story"?<><path d="M12 6c-2.5-1.5-5-1.5-9-1v14c4-.5 6.5-.5 9 1 2.5-1.5 5-1.5 9-1V5c-4-.5-6.5-.5-9 1Z"/><path d="M12 6v14"/></>:null}
+ {type==="task"?<><rect x="3" y="3" width="18" height="18" rx="3"/><path d="m7 12 3 3 7-7"/></>:null}
+ </svg></span>;
+}
 function Icon({kind}:{kind:"view"|"edit"|"delete"|"add"}){return <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">{kind==="view"?<><path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/></>:kind==="edit"?<><path d="m4 20 4-1 11-11-3-3L5 16l-1 4Z"/><path d="m14 6 3 3"/></>:kind==="delete"?<><path d="M4 6h16M9 6V4h6v2M7 6l1 14h8l1-14M10 10v7M14 10v7"/></>:<path d="M12 4v16M4 12h16"/>}</svg>}
 const types={epic:"Epic",feature:"Feature",story:"User Story",task:"Task"} as const;
 export default function BacklogPage(){
@@ -22,20 +32,33 @@ export default function BacklogPage(){
  const order=(a:{sort_order?:number;created_at?:string},b:{sort_order?:number;created_at?:string})=>(a.sort_order||0)-(b.sort_order||0)||(a.created_at||"").localeCompare(b.created_at||"");
  const rows=useMemo(()=>{
   const result:Row[]=[];const visited=new Set<string>();
-  function pushItem(it:BacklogItem,depth:number,parents:string[]){if(visited.has(it.id))return;visited.add(it.id);result.push({id:it.id,type:it.item_type,title:it.title,state:it.state,depth,order:it.sort_order,item:it,ancestorIds:parents})}
-  function pushStory(st:Story,depth:number,parents:string[]){result.push({id:st.id,type:"story",title:st.title,state:st.workflow_stage,depth,order:st.sort_order||0,story:st,ancestorIds:parents});items.filter(t=>t.item_type==="task"&&t.story_id===st.id).sort(order).forEach(t=>pushItem(t,depth+1,[...parents,st.id]))}
-  items.filter(i=>i.item_type==="epic").sort(order).forEach(epic=>{
-   pushItem(epic,0,[]);
-   items.filter(i=>i.item_type==="feature"&&i.parent_id===epic.id).sort(order).forEach(feature=>{
-    pushItem(feature,1,[epic.id]);
-    data.stories.filter(s=>s.feature_id===feature.id).sort(order).forEach(s=>pushStory(s,2,[epic.id,feature.id]))
-   })
+  function pushItem(it:BacklogItem,depth:number,parents:string[],number:string){
+   if(visited.has(it.id))return;visited.add(it.id);
+   result.push({id:it.id,type:it.item_type,title:it.title,state:it.state,depth,order:it.sort_order,number,item:it,ancestorIds:parents});
+  }
+  function pushStory(st:Story,depth:number,parents:string[],number:string){
+   result.push({id:st.id,type:"story",title:st.title,state:st.workflow_stage,depth,order:st.sort_order||0,number,story:st,ancestorIds:parents});
+   items.filter(t=>t.item_type==="task"&&t.story_id===st.id).sort(order).forEach((t,index)=>pushItem(t,depth+1,[...parents,st.id],number+"."+(index+1)));
+  }
+  const roots:({kind:"epic";item:BacklogItem}|{kind:"story";story:Story})[]=[
+   ...items.filter(i=>i.item_type==="epic").map(item=>({kind:"epic" as const,item})),
+   ...data.stories.filter(st=>!st.feature_id||!items.some(i=>i.id===st.feature_id)).map(story=>({kind:"story" as const,story}))
+  ];
+  roots.sort((a,b)=>order(a.kind==="epic"?a.item:a.story,b.kind==="epic"?b.item:b.story));
+  roots.forEach((root,index)=>{
+   const number=String(index+1);
+   if(root.kind==="story"){pushStory(root.story,0,[],number);return}
+   const epic=root.item;pushItem(epic,0,[],number);
+   items.filter(i=>i.item_type==="feature"&&i.parent_id===epic.id).sort(order).forEach((feature,fi)=>{
+    const fn=number+"."+(fi+1);pushItem(feature,1,[epic.id],fn);
+    data.stories.filter(st=>st.feature_id===feature.id).sort(order).forEach((st,si)=>pushStory(st,2,[epic.id,feature.id],fn+"."+(si+1)));
+   });
   });
-  data.stories.filter(s=>!s.feature_id||!items.some(i=>i.id===s.feature_id)).sort(order).forEach(s=>pushStory(s,0,[]));
   return result;
  },[items,data.stories]);
  const visible=rows.filter(r=>{
-  const matchesText=!query||r.title.toLowerCase().includes(query.toLowerCase());
+  const term=query.trim().toLowerCase().replace(/^#/,"");
+  const matchesText=!term||r.title.toLowerCase().includes(term)||r.number===term||r.number.startsWith(term+".");
   const matchesType=typeFilter==="all"||r.type===typeFilter;
   const matchesState=stateFilter==="all"||r.state===stateFilter;
   const matchesSprint=sprintFilter==="all"||(r.story?sprintFilter==="unassigned"?!r.story.sprint_id:r.story.sprint_id===sprintFilter:true);
@@ -73,13 +96,14 @@ export default function BacklogPage(){
  }
  async function addComment(){if(!opened?.story||!comment.trim()||saving)return;setSaving(true);try{await apiPost("/api/scrum/stories",{action:"comment",projectId:data.projectId,storyId:opened.id,content:comment});setComment("");await data.refresh()}catch(e){setError(e instanceof Error?e.message:"Erro ao comentar.")}finally{setSaving(false)}}
  const epics=items.filter(i=>i.item_type==="epic"),features=items.filter(i=>i.item_type==="feature");
+ const memberName=(email:string|null|undefined)=>!email?"Não atribuído":members.find(m=>m.email.toLowerCase()===email.toLowerCase())?.name||"Nome não cadastrado";
  const allComments=opened?.story?data.comments.filter(c=>c.story_id===opened.id):[];
  return <section className="space-y-3">
   <PageIntro eyebrow="Scrum e Sprints" title="Backlog do projeto" description="Hierarquia Epic → Feature → User Story → Task. Gerencie e priorize os itens independentemente de Sprint." aside={<div className="flex flex-wrap gap-2">{(["epic","feature","story","task"] as const).map(t=><button key={t} className="workspace-button-secondary rounded-lg px-3 py-2 text-xs" onClick={()=>open(null,t)}>+ {types[t]}</button>)}</div>}/>
   <SurfaceCard>
    <label className="block text-xs font-medium">Projeto<select className="workspace-select mt-1 w-full" value={data.projectId} onChange={e=>data.setProjectId(e.target.value)}><option value="">Selecione</option>{data.projects.map(p=><option value={p.id} key={p.id}>{p.name}</option>)}</select></label>
    <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
-    <input className="workspace-input w-full text-sm" value={query} onChange={e=>setQuery(e.target.value)} placeholder="Pesquisar título"/>
+    <input className="workspace-input w-full text-sm" value={query} onChange={e=>setQuery(e.target.value)} placeholder="Pesquisar título ou ordem (ex.: 1.2)"/>
     <select className="workspace-select" aria-label="Filtrar tipo" value={typeFilter} onChange={e=>setTypeFilter(e.target.value)}><option value="all">Todos os tipos</option>{(["epic","feature","story","task"] as const).map(t=><option key={t} value={t}>{types[t]}</option>)}</select>
     <select className="workspace-select" aria-label="Filtrar status" value={stateFilter} onChange={e=>setStateFilter(e.target.value)}><option value="all">Todos os status</option>{stages.map(([v,label])=><option key={v} value={v}>{label}</option>)}</select>
     <select className="workspace-select" aria-label="Filtrar Sprint" value={sprintFilter} onChange={e=>setSprintFilter(e.target.value)}><option value="all">Todas as Sprints</option><option value="unassigned">Sem Sprint</option>{data.sprints.map(s=><option key={s.id} value={s.id}>{s.name}</option>)}</select>
@@ -91,14 +115,14 @@ export default function BacklogPage(){
    <div className="overflow-x-auto"><table className="w-full min-w-[680px] border-collapse text-sm">
     <thead><tr className="border-b border-(--border) text-left text-xs text-(--text-secondary)"><th className="p-2 w-16">Ordem</th><th className="p-2 w-36">Work Item Type</th><th className="p-2">Title</th><th className="p-2 w-44">Responsável</th><th className="p-2 w-28">Status</th><th className="p-2 w-32">Ações</th></tr></thead>
     <tbody>{visible.map(r=><tr key={r.type+":"+r.id} className="border-b border-(--border) hover:bg-(--bg-muted)">
-     <td className="p-2 text-xs text-(--text-secondary)">{r.order}</td>
-     <td className="p-2 text-xs font-medium"><span className="inline-flex items-center gap-1.5">{r.type==="epic"?<span className="text-orange-600">◆</span>:r.type==="feature"?<span className="text-violet-600">⬡</span>:r.type==="story"?<span className="text-sky-600">▣</span>:<span className="text-emerald-600">☑</span>}{types[r.type]}</span></td>
+     <td className="p-2 text-xs text-(--text-secondary)">{r.number}</td>
+     <td className="p-2 text-xs font-medium"><span className="inline-flex items-center gap-1.5"><WorkItemIcon type={r.type}/>{types[r.type]}</span></td>
      <td className="p-2"><div className="flex items-center gap-2" style={{paddingLeft:r.depth*18}}>
       {(r.type==="epic"||r.type==="feature"||r.type==="story")?<button type="button" className="shrink-0 text-xs" aria-label={collapsed.includes(r.id)?"Expandir":"Recolher"} onClick={()=>setCollapsed(c=>c.includes(r.id)?c.filter(x=>x!==r.id):[...c,r.id])}>{collapsed.includes(r.id)?"▸":"▾"}</button>:<span className="w-3"/>}
       <span className={r.type==="epic"?"font-semibold":""}>{r.title}</span>
       {(r.type==="epic"||r.type==="feature"||r.type==="story")&&<button type="button" title="Adicionar filho" className="rounded-md border border-(--border) p-1" onClick={()=>open(null,r.type==="epic"?"feature":r.type==="feature"?"story":"task",false,r.type==="epic"?{parentId:r.id}:r.type==="feature"?{featureId:r.id}:{storyId:r.id})}><Icon kind="add"/></button>}
      </div></td>
-     <td className="p-2 text-xs"><div className="flex items-center gap-1.5">{(r.story?.responsible||r.item?.responsible)?<span className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-(--bg-muted) text-[10px] font-bold">{(members.find(m=>m.email===(r.story?.responsible||r.item?.responsible))?.name||r.story?.responsible||r.item?.responsible||"?").slice(0,1).toUpperCase()}</span>:null}<span className="truncate" title={r.story?.responsible||r.item?.responsible||""}>{members.find(m=>m.email===(r.story?.responsible||r.item?.responsible))?.name||r.story?.responsible||r.item?.responsible||"Não atribuído"}</span></div></td>
+     <td className="p-2 text-xs"><div className="flex items-center gap-2">{(r.story?.responsible||r.item?.responsible)?<span className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-sky-100 text-[11px] font-semibold text-sky-800">{memberName(r.story?.responsible||r.item?.responsible).slice(0,1).toUpperCase()}</span>:null}<span className="truncate" title={memberName(r.story?.responsible||r.item?.responsible)}>{memberName(r.story?.responsible||r.item?.responsible)}</span></div></td>
      <td className="p-2 text-xs">{r.state.toUpperCase()}</td>
      <td className="p-2"><div className="flex gap-1">
       <button title="Visualizar" aria-label={"Visualizar "+r.title} className="rounded-md border border-(--border) p-1.5" onClick={()=>open(r,r.type,true)}><Icon kind="view"/></button>
@@ -120,7 +144,7 @@ export default function BacklogPage(){
       <div className="grid grid-cols-2 gap-3">
        <label className="text-xs">Prioridade<select className="workspace-select mt-1 w-full" value={form.priority} onChange={e=>setForm(f=>({...f,priority:e.target.value}))}>{["baixa","media","alta","critica"].map(p=><option key={p} value={p}>{p}</option>)}</select></label>
        <label className="text-xs">Status<select className="workspace-select mt-1 w-full" value={form.stage} onChange={e=>setForm(f=>({...f,stage:e.target.value}))}>{stages.map(([v,label])=><option key={v} value={v} disabled={Boolean(opened?.story&&v!==opened.story.workflow_stage&&!transitions[opened.story.workflow_stage]?.includes(v))}>{label}</option>)}</select></label>
-       <label className="text-xs col-span-2">Responsável<select className="workspace-select mt-1 w-full" value={form.responsible} onChange={e=>setForm(f=>({...f,responsible:e.target.value}))}><option value="">Não atribuído</option>{members.map(m=><option key={m.email} value={m.email}>{m.name} ({m.email})</option>)}</select></label>
+       <label className="text-xs col-span-2">Responsável<select className="workspace-select mt-1 w-full" value={form.responsible} onChange={e=>setForm(f=>({...f,responsible:e.target.value}))}><option value="">Não atribuído</option>{members.map(m=><option key={m.email} value={m.email}>{m.name}</option>)}</select></label>
        <label className="text-xs">Início<input type="date" className="workspace-input mt-1 w-full" value={form.startDate} onChange={e=>setForm(f=>({...f,startDate:e.target.value,dueDate:e.target.value&&Number(f.durationDays)>0?addDays(e.target.value,Number(f.durationDays)):f.dueDate}))}/></label>
        <label className="text-xs">Prazo (dias corridos)<input type="number" min="1" className="workspace-input mt-1 w-full" value={form.durationDays} onChange={e=>setForm(f=>({...f,durationDays:e.target.value,dueDate:f.startDate&&Number(e.target.value)>0?addDays(f.startDate,Number(e.target.value)):f.dueDate}))}/></label>
        <label className="text-xs">Entrega<input type="date" className="workspace-input mt-1 w-full" value={form.dueDate} onChange={e=>setForm(f=>({...f,dueDate:e.target.value,durationDays:f.startDate&&e.target.value?String(daysBetween(f.startDate,e.target.value)):f.durationDays}))}/></label>
@@ -133,8 +157,8 @@ export default function BacklogPage(){
       {opened?.story&&form.stage==="review"&&opened.story.workflow_stage!=="review"&&<label className="block text-xs">Justificativa obrigatória para REVIEW<textarea className="workspace-input mt-1 w-full" value={transitionComment} onChange={e=>setTransitionComment(e.target.value)}/></label>}
     </>}
     {mode==="task"&&<label className="block text-xs">User Story pai<select className="workspace-select mt-1 w-full" value={form.storyId} onChange={e=>setForm(f=>({...f,storyId:e.target.value}))}><option value="">Selecione a US</option>{data.stories.map(st=><option value={st.id} key={st.id}>{st.title}</option>)}</select></label>}
-    {mode==="task"&&<label className="block text-xs">Responsável<select className="workspace-select mt-1 w-full" value={form.responsible} onChange={e=>setForm(f=>({...f,responsible:e.target.value}))}><option value="">Não atribuído</option>{members.map(m=><option value={m.email} key={m.email}>{m.name} ({m.email})</option>)}</select></label>}
-    <div className="grid grid-cols-2 gap-3"><label className="text-xs">Ordem<input type="number" min="0" className="workspace-input mt-1 w-full" value={form.sortOrder} onChange={e=>setForm(f=>({...f,sortOrder:e.target.value}))}/></label>{mode!=="story"&&<label className="text-xs">Status<select className="workspace-select mt-1 w-full" value={form.stage} onChange={e=>setForm(f=>({...f,stage:e.target.value}))}>{(mode==="task"?[["todo","TO DO"],["doing","DOING"],["done","DONE"]] as const:stages).map(([v,label])=><option key={v} value={v} disabled={mode==="task"?(opened?.item?!(v===opened.item.state||(opened.item.state==="todo"&&v==="doing")||(opened.item.state==="doing"&&(v==="done"||v==="todo"))||(opened.item.state==="done"&&v==="doing")):v!=="todo"):false}>{label}</option>)}</select></label>}</div>
+    {mode==="task"&&<label className="block text-xs">Responsável<select className="workspace-select mt-1 w-full" value={form.responsible} onChange={e=>setForm(f=>({...f,responsible:e.target.value}))}><option value="">Não atribuído</option>{members.map(m=><option value={m.email} key={m.email}>{m.name}</option>)}</select></label>}
+    <div className="grid grid-cols-2 gap-3"><p className="text-xs text-(--text-secondary)">A ordem é calculada automaticamente pela hierarquia dos itens.</p>{mode!=="story"&&<label className="text-xs">Status<select className="workspace-select mt-1 w-full" value={form.stage} onChange={e=>setForm(f=>({...f,stage:e.target.value}))}>{(mode==="task"?[["todo","TO DO"],["doing","DOING"],["done","DONE"]] as const:stages).map(([v,label])=><option key={v} value={v} disabled={mode==="task"?(opened?.item?!(v===opened.item.state||(opened.item.state==="todo"&&v==="doing")||(opened.item.state==="doing"&&(v==="done"||v==="todo"))||(opened.item.state==="done"&&v==="doing")):v!=="todo"):false}>{label}</option>)}</select></label>}</div>
    </fieldset>
    {!readOnly&&!isLocked&&<button className="workspace-button-primary mt-4 px-4 py-2 text-sm" disabled={saving||!form.title.trim()||mode==="feature"&&!form.parentId||mode==="task"&&!form.storyId} onClick={()=>void submit()}>{saving?"Salvando...":"Salvar "+types[mode]}</button>}
    {error&&<p role="alert" className="mt-3 text-sm text-(--danger)">{error}</p>}
