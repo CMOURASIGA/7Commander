@@ -26,12 +26,19 @@ export default function LoginPage() {
         body:JSON.stringify({email:email.trim(),password}),
       });
       if (!response.ok) {
-        // The broker is fail-closed. A fallback local session for a linked
-        // customer still cannot access protected pages without central cookies.
-        await auth.signInWithPassword(email,password);
-        setPassword("");
-        window.location.assign(nextPath);
-        return;
+        // Existing independent operators can continue using local Auth. A
+        // centrally entitled customer must not see a misleading "user missing"
+        // message when the broker fails before JIT provisioning.
+        try {
+          await auth.signInWithPassword(email,password);
+          setPassword("");
+          window.location.assign(nextPath);
+          return;
+        } catch {
+          if (response.status === 403)
+            throw new Error("Acesso central validado parcialmente, mas o provisionamento do Commander não foi concluído. Contate o administrador. Não crie outro cadastro.");
+          throw new Error("Não foi possível autenticar sua conta. Confirme o endereço e tente novamente.");
+        }
       }
       const payload = await response.json().catch(()=>null) as
         | {ok?:boolean;tokenHash?:string;localUserId?:string} | null;
