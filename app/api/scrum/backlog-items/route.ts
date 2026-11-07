@@ -63,6 +63,7 @@ export async function POST(req:NextRequest){
  }
  const state=String(body.state??item?.state??(itemType==="task"?"todo":"new"));
  if(!(itemType==="task"?["todo","doing","done"]:["new","ready","active","resolved","closed","review","rejected"]).includes(state))return bad("Status inválido.");
+ if(action==="create"&&itemType==="task"&&state!=="todo")return bad("Toda Task deve iniciar em TO DO.");
  const responsible=String(body.responsible??item?.responsible??"").trim().toLowerCase();
  if(responsible){
   const member=await db.from("project_members").select("id").eq("organization_id",org).eq("project_id",projectId).ilike("member_email",responsible).limit(1);
