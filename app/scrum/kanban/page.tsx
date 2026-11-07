@@ -3,7 +3,7 @@ import {useEffect,useRef,useState} from "react";
 
 import {useConfirm} from "@/components/ui/confirm-dialog";
 import {PageIntro,SurfaceCard} from "@/components/ui/workspace-primitives";
-import {ScrumSelectors,useScrumData,apiPost,Story,stages,transitions,dateBR,today} from "@/components/scrum/scrum-common";
+import {ScrumSelectors,useScrumData,apiGet,apiPost,Story,BacklogItem,ProjectMember,stages,transitions,dateBR,today} from "@/components/scrum/scrum-common";
 
 function ScrumIcon({kind,size=16,className=""}:{kind:"eye"|"pencil"|"message"|"chevron"|"trash";size?:number;className?:string}){
  return <svg aria-hidden="true" className={className} width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
@@ -17,9 +17,13 @@ function ScrumIcon({kind,size=16,className=""}:{kind:"eye"|"pencil"|"message"|"c
 export default function ScrumKanbanPage(){
  const data=useScrumData();const confirm=useConfirm();const openedFromUrl=useRef(false);
  const [saving,setSaving]=useState<string|null>(null);
+ const [mode,setMode]=useState<"stories"|"tasks">("stories");
+ const [tasks,setTasks]=useState<BacklogItem[]>([]);
+ const [members,setMembers]=useState<ProjectMember[]>([]);
+ const [taskFilter,setTaskFilter]=useState("all");
  const [selected,setSelected]=useState<Story|null>(null);
  const [editing,setEditing]=useState(false);
- const [editForm,setEditForm]=useState({title:"",description:"",acceptanceCriteria:"",responsible:"",priority:"media"});
+ const [editForm,setEditForm]=useState({title:"",description:"",acceptanceCriteria:"",responsible:"",priority:"media",startDate:"",dueDate:"",actualEndDate:"",durationDays:"",storyPoints:"",blocked:false,blockerReason:""});
  const [comment,setComment]=useState("");
  const [showEmpty,setShowEmpty]=useState(true);
  const [search,setSearch]=useState("");
@@ -28,11 +32,18 @@ export default function ScrumKanbanPage(){
  const [blockedOnly,setBlockedOnly]=useState(false);
  const [transition,setTransition]=useState<{story:Story;stage:string}|null>(null);
  const [reason,setReason]=useState("");
+ useEffect(()=>{let live=true;if(!data.projectId){setTasks([]);setMembers([]);return}
+  void Promise.all([apiGet("/api/scrum/backlog-items?projectId="+encodeURIComponent(data.projectId)),apiGet("/api/scrum/project-members?projectId="+encodeURIComponent(data.projectId))]).then(([a,b])=>{if(live){setTasks((a as BacklogItem[]).filter(t=>t.item_type==="task"));setMembers(b as ProjectMember[])}}).catch(()=>{});
+  return()=>{live=false}
+ },[data.projectId]);
+ const refreshTasks=async()=>{const a=await apiGet("/api/scrum/backlog-items?projectId="+encodeURIComponent(data.projectId));setTasks((a as BacklogItem[]).filter(t=>t.item_type==="task"))};
  const sprint=data.sprints.find(s=>s.id===data.sprintId);
  const stories=data.stories.filter(s=>s.sprint_id===data.sprintId);
  const filtered=stories.filter(s=>(!search||s.title.toLowerCase().includes(search.toLowerCase()))&&(priority==="all"||s.priority===priority)&&(assignee==="all"||s.responsible===assignee)&&(blockedOnly?s.blocked:true));
+ const relatedTasks=tasks.filter(t=>stories.some(us=>us.id===t.story_id)).filter(t=>taskFilter==="all"||t.story_id===taskFilter);
  const closed=sprint?.status==="closed";
  const columns=stages.filter(([key])=>showEmpty||filtered.some(s=>s.workflow_stage===key));
+ const taskColumns=(["todo","doing","done"] as const).filter(key=>showEmpty||relatedTasks.some(t=>t.state===key));
  const currentSelected=selected?data.stories.find(s=>s.id===selected.id)||selected:null;
  useEffect(()=>{
   const params=new URLSearchParams(window.location.search);
@@ -46,12 +57,12 @@ export default function ScrumKanbanPage(){
  },[data.projects,data.projectId,data.stories,selected,data.setProjectId,data.setSprintId]);
  function view(story:Story,edit=false){
   setSelected(story);setEditing(edit);setComment("");setReason("");
-  setEditForm({title:story.title,description:story.description,acceptanceCriteria:story.acceptance_criteria,responsible:story.responsible||"",priority:story.priority});
+  setEditForm({title:story.title,description:story.description,acceptanceCriteria:story.acceptance_criteria,responsible:story.responsible||"",priority:story.priority,startDate:story.start_date||"",dueDate:story.due_date||"",actualEndDate:story.actual_end_date||"",durationDays:story.duration_days===null?"":String(story.duration_days),storyPoints:story.story_points===null?"":String(story.story_points),blocked:story.blocked,blockerReason:story.blocker_reason});
  }
  async function saveStory(){
   if(!currentSelected||closed||saving)return;
   setSaving(currentSelected.id);data.setError("");
-  try{await apiPost("/api/scrum/stories",{action:"update",projectId:data.projectId,storyId:currentSelected.id,...editForm});
+  try{await apiPost("/api/scrum/stories",{action:"update",projectId:data.projectId,storyId:currentSelected.id,...editForm,storyPoints:editForm.storyPoints||null,durationDays:editForm.durationDays||null,actualEndDate:editForm.actualEndDate||null});
    await data.refresh();setEditing(false)}
   catch(e){data.setError(e instanceof Error?e.message:"Falha ao salvar US")}
   finally{setSaving(null)}
@@ -62,6 +73,14 @@ export default function ScrumKanbanPage(){
   try{await apiPost("/api/scrum/stories",{action:"comment",projectId:data.projectId,storyId:currentSelected.id,content:comment.trim()});setComment("");await data.refresh()}
   catch(e){data.setError(e instanceof Error?e.message:"Falha ao comentar")}
   finally{setSaving(null)}
+ }
+ async function moveTask(task:BacklogItem,newStatus:string){
+  if(closed||saving||task.state===newStatus)return;
+  setSaving(task.id);data.setError("");
+  try{
+   await apiPost("/api/scrum/backlog-items",{action:"update",projectId:data.projectId,id:task.id,itemType:"task",title:task.title,state:newStatus});
+   await Promise.all([refreshTasks(),data.refresh()]);
+  }catch(e){data.setError(e instanceof Error?e.message:"Falha ao mover Task.")}finally{setSaving(null)}
  }
  async function move(story:Story,stage:string,transitionComment=""){
   if(closed||saving||stage===story.workflow_stage||!transitions[story.workflow_stage]?.includes(stage))return;
@@ -81,10 +100,11 @@ export default function ScrumKanbanPage(){
  }
  const counts={total:stories.length,done:stories.filter(s=>s.workflow_stage==="closed").length,blocked:stories.filter(s=>s.blocked).length,overdue:stories.filter(s=>s.workflow_stage!=="closed"&&s.due_date&&s.due_date<today()).length};
  return <section className="space-y-3">
-  <PageIntro eyebrow="Scrum e Sprints" title="Kanban de US" description="Visualização compacta do fluxo de User Stories. Todas as ações mantêm histórico, e REVIEW exige justificativa." />
+  <PageIntro eyebrow="Scrum e Sprints" title="Kanban Scrum" description="Acompanhe User Stories e Tasks em quadros separados. REVIEW exige justificativa e o avanço de Tasks atualiza a US." aside={<div className="flex gap-2"><button className={mode==="stories"?"workspace-button-primary rounded-lg px-3 py-2 text-sm":"workspace-button-secondary rounded-lg px-3 py-2 text-sm"} onClick={()=>setMode("stories")}>User Stories</button><button className={mode==="tasks"?"workspace-button-primary rounded-lg px-3 py-2 text-sm":"workspace-button-secondary rounded-lg px-3 py-2 text-sm"} onClick={()=>setMode("tasks")}>Tasks</button></div>}/>
   <SurfaceCard>
    <ScrumSelectors projects={data.projects} projectId={data.projectId} onProject={data.setProjectId} sprints={data.sprints} sprintId={data.sprintId} onSprint={data.setSprintId}/>
-   <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+   {mode==="tasks"&&<label className="mt-3 block text-xs">Filtrar Tasks por US<select className="workspace-select mt-1 w-full" value={taskFilter} onChange={e=>setTaskFilter(e.target.value)}><option value="all">Todas as US da Sprint</option>{stories.map(us=><option key={us.id} value={us.id}>{us.title}</option>)}</select></label>}
+   {mode==="stories"&&<div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
      <input className="workspace-input w-full text-sm" placeholder="Pesquisar US" value={search} onChange={e=>setSearch(e.target.value)}/>
      <select className="workspace-select" aria-label="Filtrar prioridade" value={priority} onChange={e=>setPriority(e.target.value)}><option value="all">Todas as prioridades</option>{["baixa","media","alta","critica"].map(p=><option value={p} key={p}>{p}</option>)}</select>
      <select className="workspace-select" aria-label="Filtrar responsável" value={assignee} onChange={e=>setAssignee(e.target.value)}><option value="all">Todos os responsáveis</option>{[...new Set(stories.map(s=>s.responsible).filter((v):v is string=>Boolean(v)))].map(p=><option value={p} key={p}>{p}</option>)}</select>
@@ -94,11 +114,23 @@ export default function ScrumKanbanPage(){
     <label className="flex items-center gap-2 text-xs"><input type="checkbox" checked={!showEmpty} onChange={e=>setShowEmpty(!e.target.checked)}/> Ocultar colunas vazias</label></div>
    {data.error&&<p role="alert" className="mt-3 text-sm text-(--danger)">{data.error}</p>}
   </SurfaceCard>
-  <div className="grid grid-cols-2 gap-2 md:grid-cols-4">{[["US na Sprint",counts.total],["Aprovadas",counts.done],["Bloqueadas",counts.blocked],["Atrasadas",counts.overdue]].map(([label,value])=><div key={label} className="rounded-xl border border-(--border) bg-(--bg-surface) p-2.5"><p className="text-[11px] text-(--text-secondary)">{label}</p><p className="mt-1 text-xl font-semibold">{value}</p></div>)}</div>
+  {mode==="tasks"?<div className="grid grid-cols-3 gap-2">{[["Tasks",relatedTasks.length],["Em andamento",relatedTasks.filter(t=>t.state==="doing").length],["Concluídas",relatedTasks.filter(t=>t.state==="done").length]].map(([label,n])=><div key={label} className="rounded-lg border border-(--border) bg-(--bg-surface) p-3"><p className="text-xs text-(--text-secondary)">{label}</p><p className="text-xl font-semibold">{n}</p></div>)}</div>:<div className="grid grid-cols-2 gap-2 md:grid-cols-4">{[["US na Sprint",counts.total],["Aprovadas",counts.done],["Bloqueadas",counts.blocked],["Atrasadas",counts.overdue]].map(([label,value])=><div key={label} className="rounded-xl border border-(--border) bg-(--bg-surface) p-2.5"><p className="text-[11px] text-(--text-secondary)">{label}</p><p className="mt-1 text-xl font-semibold">{value}</p></div>)}</div>
   <SurfaceCard>
    {!sprint?<p className="p-3 text-sm">Selecione uma Sprint.</p>:<>
     {closed&&<p className="mb-2 rounded-lg bg-(--bg-muted) p-2 text-xs">Sprint encerrada: somente leitura.</p>}
-    <div className="overflow-x-auto">
+    {mode==="tasks"?<div className="grid gap-3 md:grid-cols-3">
+      {taskColumns.map(key=><div key={key} className="min-h-48 rounded-xl border border-(--border) bg-(--bg-muted) p-3">
+       <div className="mb-3 flex justify-between text-sm font-semibold"><span>{key==="todo"?"TO DO":key==="doing"?"DOING":"DONE"}</span><span>{relatedTasks.filter(t=>t.state===key).length}</span></div>
+       <div className="space-y-2">{relatedTasks.filter(t=>t.state===key).map(t=><article key={t.id} className="rounded-lg border border-(--border) bg-(--bg-surface) p-3">
+         <h3 className="text-sm font-semibold">{t.title}</h3><p className="mt-1 text-xs text-(--text-secondary)">US: {stories.find(us=>us.id===t.story_id)?.title||"Não encontrada"}</p>
+         <p className="mt-1 text-xs">Responsável: {members.find(m=>m.email===t.responsible)?.name||t.responsible||"Não atribuído"}</p>
+         {t.actual_end_date&&<p className="text-xs">Conclusão: {dateBR(t.actual_end_date)}</p>}
+         {!closed&&<select className="workspace-select mt-2 w-full text-xs" aria-label={"Status de "+t.title} disabled={Boolean(saving)} value={t.state} onChange={e=>void moveTask(t,e.target.value)}>
+          <option value="todo">TO DO</option><option value="doing">DOING</option><option value="done" disabled={t.state==="todo"}>DONE</option>
+         </select>}
+       </article>)}</div>
+      </div>)}
+     </div>:<div className="overflow-x-auto">
      <div className="grid gap-1.5" style={{gridTemplateColumns:"repeat("+Math.max(columns.length,1)+", minmax(135px, 1fr))",minWidth:columns.length>5?"980px":"auto"}}>
       {columns.map(([key,label])=><section key={key} className="min-w-0 rounded-lg border border-(--border) bg-(--bg-muted) p-1.5">
        <div className="flex items-center justify-between gap-1 px-1 py-1"><h3 className="truncate text-[11px] font-bold">{label}</h3><span className="workspace-pill">{filtered.filter(s=>s.workflow_stage===key).length}</span></div>
@@ -118,8 +150,8 @@ export default function ScrumKanbanPage(){
        </article>)}</div>
       </section>)}
      </div>
-    </div>
-    {!showEmpty&&columns.length===0&&<p className="p-3 text-xs">Nenhuma US vinculada a esta Sprint.</p>}
+    </div>}
+    {mode==="stories"&&!showEmpty&&columns.length===0&&<p className="p-3 text-xs">Nenhuma US vinculada a esta Sprint.</p>}
    </>}
   </SurfaceCard>
   {selected&&<div className="fixed inset-0 z-50"><button aria-label="Fechar painel" className="absolute inset-0 bg-black/40" onClick={()=>setSelected(null)}/><aside className="relative ml-auto h-dvh w-full max-w-xl overflow-y-auto border-l border-(--border) bg-(--bg-surface) p-5 shadow-2xl" role="dialog" aria-modal="true" aria-label="User Story">
@@ -128,10 +160,27 @@ export default function ScrumKanbanPage(){
     <label className="block text-xs">Título<input className="workspace-input mt-1 w-full" value={editForm.title} onChange={e=>setEditForm(f=>({...f,title:e.target.value}))}/></label>
     <label className="block text-xs">Descrição<textarea rows={4} className="workspace-input mt-1 w-full" value={editForm.description} onChange={e=>setEditForm(f=>({...f,description:e.target.value}))}/></label>
     <label className="block text-xs">Critérios de aceite<textarea rows={3} className="workspace-input mt-1 w-full" value={editForm.acceptanceCriteria} onChange={e=>setEditForm(f=>({...f,acceptanceCriteria:e.target.value}))}/></label>
-    <label className="block text-xs">Responsável<input className="workspace-input mt-1 w-full" value={editForm.responsible} onChange={e=>setEditForm(f=>({...f,responsible:e.target.value}))}/></label>
+    <label className="block text-xs">Responsável<select className="workspace-select mt-1 w-full" value={editForm.responsible} onChange={e=>setEditForm(f=>({...f,responsible:e.target.value}))}><option value="">Não atribuído</option>{members.map(m=><option key={m.email} value={m.email}>{m.name} ({m.email})</option>)}</select></label>
     <label className="block text-xs">Prioridade<select className="workspace-select mt-1 w-full" value={editForm.priority} onChange={e=>setEditForm(f=>({...f,priority:e.target.value}))}>{["baixa","media","alta","critica"].map(p=><option key={p} value={p}>{p}</option>)}</select></label>
+    <div className="grid grid-cols-2 gap-3">
+      <label className="text-xs">Início<input type="date" className="workspace-input mt-1 w-full" value={editForm.startDate} onChange={e=>setEditForm(f=>({...f,startDate:e.target.value}))}/></label>
+      <label className="text-xs">Entrega prevista<input type="date" className="workspace-input mt-1 w-full" value={editForm.dueDate} onChange={e=>setEditForm(f=>({...f,dueDate:e.target.value}))}/></label>
+      <label className="text-xs">Data real<input type="date" className="workspace-input mt-1 w-full" value={editForm.actualEndDate} onChange={e=>setEditForm(f=>({...f,actualEndDate:e.target.value}))}/></label>
+      <label className="text-xs">Prazo (dias)<input type="number" min="1" className="workspace-input mt-1 w-full" value={editForm.durationDays} onChange={e=>setEditForm(f=>({...f,durationDays:e.target.value}))}/></label>
+      <label className="text-xs">Story points<select className="workspace-select mt-1 w-full" value={editForm.storyPoints} onChange={e=>setEditForm(f=>({...f,storyPoints:e.target.value}))}><option value="">Não estimado</option>{[1,2,3,4].map(n=><option value={n} key={n}>{n}</option>)}</select></label>
+      <label className="text-xs">Status<select className="workspace-select mt-1 w-full" value={currentSelected?.workflow_stage||"new"} disabled><option>{currentSelected?.workflow_stage.toUpperCase()}</option></select></label>
+      <label className="flex items-center gap-2 text-xs"><input type="checkbox" checked={editForm.blocked} onChange={e=>setEditForm(f=>({...f,blocked:e.target.checked}))}/> Impedimento ativo</label>
+      <label className="text-xs">Motivo do impedimento<input className="workspace-input mt-1 w-full" value={editForm.blockerReason} onChange={e=>setEditForm(f=>({...f,blockerReason:e.target.value}))}/></label>
+    </div>
     <button className="workspace-button-primary px-3 py-2 text-xs" disabled={Boolean(saving)||!editForm.title.trim()} onClick={()=>void saveStory()}>Salvar alterações</button>
    </div>:<div className="mt-4 space-y-2 text-sm"><h3 className="text-base font-semibold">{currentSelected?.title}</h3><p className="whitespace-pre-wrap">{currentSelected?.description||"Sem descrição"}</p><p>Critérios de aceite: {currentSelected?.acceptance_criteria||"Não definidos"}</p><p>Etapa: {currentSelected?.workflow_stage.toUpperCase()}</p><p>Responsável: {currentSelected?.responsible||"Não atribuído"}</p><p>Entrega: {dateBR(currentSelected?.due_date)}</p></div>}
+   <section className="mt-5 border-t border-(--border) pt-3">
+     <h3 className="text-sm font-semibold">Tasks vinculadas à US</h3>
+     <p className="mt-1 text-xs text-(--text-secondary)">{tasks.filter(t=>t.story_id===selected.id&&t.state==="done").length} de {tasks.filter(t=>t.story_id===selected.id).length} concluídas</p>
+     <div className="mt-3 h-2 rounded-full bg-(--bg-muted)"><div className="h-2 rounded-full bg-(--accent)" style={{width:(tasks.filter(t=>t.story_id===selected.id).length?100*tasks.filter(t=>t.story_id===selected.id&&t.state==="done").length/tasks.filter(t=>t.story_id===selected.id).length:0)+"%"}}/></div>
+     {tasks.filter(t=>t.story_id===selected.id).map(t=><div key={t.id} className="mt-2 flex items-center justify-between gap-3 rounded-lg border border-(--border) p-2"><span className="text-xs">{t.title}</span><span className="text-xs font-semibold">{t.state.toUpperCase()}</span></div>)}
+     {!tasks.some(t=>t.story_id===selected.id)&&<p className="mt-2 text-xs text-(--text-secondary)">Nenhuma Task cadastrada.</p>}
+   </section>
    <div className="mt-5 border-t border-(--border) pt-3"><h3 className="text-sm font-semibold">Histórico de comentários</h3>
     {data.comments.filter(c=>c.story_id===selected.id).map(c=><div className="mt-2 rounded-lg bg-(--bg-muted) p-3 text-xs" key={c.id}><p className="text-(--text-secondary)">{c.author_email} · {new Date(c.created_at).toLocaleString("pt-BR")}</p><p className="mt-1 whitespace-pre-wrap">{c.content}</p></div>)}
     {!closed&&<><textarea rows={3} className="workspace-input mt-3 w-full" placeholder="Registrar decisão, impedimento ou atualização…" value={comment} onChange={e=>setComment(e.target.value)}/><button className="workspace-button-secondary mt-2 px-3 py-2 text-xs" disabled={Boolean(saving)||!comment.trim()} onClick={()=>void addComment()}>Adicionar comentário</button></>}
