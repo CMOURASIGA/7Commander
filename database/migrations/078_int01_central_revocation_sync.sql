@@ -14,7 +14,7 @@ CREATE OR REPLACE FUNCTION public.int01_sync_central_membership(
 ) RETURNS boolean
 LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog, public
 AS $$
-DECLARE v_status text;
+DECLARE v_status text; v_role text;
 BEGIN
   IF auth.role() <> 'service_role' THEN
     RAISE EXCEPTION 'Service role required' USING ERRCODE='42501';
@@ -29,8 +29,10 @@ BEGIN
     RAISE EXCEPTION 'Central links required' USING ERRCODE='42501';
   END IF;
   PERFORM pg_advisory_xact_lock(hashtextextended(p_user::text||p_company::text,0));
-  SELECT status INTO v_status FROM public.organization_members
+  SELECT status,role INTO v_status,v_role FROM public.organization_members
     WHERE user_id=p_user AND organization_id=p_company FOR UPDATE;
+  -- Central VIEWER synchronization can never suspend or reactivate an elevated local role.
+  IF v_role IS DISTINCT FROM 'member' THEN RETURN false; END IF;
   IF p_authorized THEN
     -- Only undo a suspension recorded by this integration, never a manual block.
     IF v_status='suspended' AND EXISTS (
