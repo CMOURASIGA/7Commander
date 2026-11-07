@@ -22,16 +22,22 @@ export default function ScrumKanbanPage(){
  const [editForm,setEditForm]=useState({title:"",description:"",acceptanceCriteria:"",responsible:"",priority:"media"});
  const [comment,setComment]=useState("");
  const [showEmpty,setShowEmpty]=useState(true);
+ const [search,setSearch]=useState("");
+ const [priority,setPriority]=useState("all");
+ const [assignee,setAssignee]=useState("all");
+ const [blockedOnly,setBlockedOnly]=useState(false);
  const [transition,setTransition]=useState<{story:Story;stage:string}|null>(null);
  const [reason,setReason]=useState("");
  const sprint=data.sprints.find(s=>s.id===data.sprintId);
  const stories=data.stories.filter(s=>s.sprint_id===data.sprintId);
+ const filtered=stories.filter(s=>(!search||s.title.toLowerCase().includes(search.toLowerCase()))&&(priority==="all"||s.priority===priority)&&(assignee==="all"||s.responsible===assignee)&&(blockedOnly?s.blocked:true));
  const closed=sprint?.status==="closed";
- const columns=stages.filter(([key])=>showEmpty||stories.some(s=>s.workflow_stage===key));
+ const columns=stages.filter(([key])=>showEmpty||filtered.some(s=>s.workflow_stage===key));
  const currentSelected=selected?data.stories.find(s=>s.id===selected.id)||selected:null;
  useEffect(()=>{
   const params=new URLSearchParams(window.location.search);
-  const projectId=params.get("projectId"),storyId=params.get("storyId");
+  const projectId=params.get("projectId"),storyId=params.get("storyId"),sprintId=params.get("sprintId");
+  if(sprintId&&data.sprints.some(s=>s.id===sprintId)&&data.sprintId!==sprintId)data.setSprintId(sprintId);
   if(projectId&&data.projects.some(p=>p.id===projectId)&&data.projectId!==projectId){data.setProjectId(projectId);return}
   if(storyId&&data.stories.length&&!openedFromUrl.current){
    const story=data.stories.find(s=>s.id===storyId);
@@ -78,19 +84,25 @@ export default function ScrumKanbanPage(){
   <PageIntro eyebrow="Scrum e Sprints" title="Kanban de US" description="Visualização compacta do fluxo de User Stories. Todas as ações mantêm histórico, e REVIEW exige justificativa." />
   <SurfaceCard>
    <ScrumSelectors projects={data.projects} projectId={data.projectId} onProject={data.setProjectId} sprints={data.sprints} sprintId={data.sprintId} onSprint={data.setSprintId}/>
+   <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+     <input className="workspace-input w-full text-sm" placeholder="Pesquisar US" value={search} onChange={e=>setSearch(e.target.value)}/>
+     <select className="workspace-select" aria-label="Filtrar prioridade" value={priority} onChange={e=>setPriority(e.target.value)}><option value="all">Todas as prioridades</option>{["baixa","media","alta","critica"].map(p=><option value={p} key={p}>{p}</option>)}</select>
+     <select className="workspace-select" aria-label="Filtrar responsável" value={assignee} onChange={e=>setAssignee(e.target.value)}><option value="all">Todos os responsáveis</option>{[...new Set(stories.map(s=>s.responsible).filter((v):v is string=>Boolean(v)))].map(p=><option value={p} key={p}>{p}</option>)}</select>
+     <label className="flex items-center gap-2 text-xs"><input type="checkbox" checked={blockedOnly} onChange={e=>setBlockedOnly(e.target.checked)}/> Somente impedidas</label>
+   </div>
    <div className="mt-3 flex flex-wrap items-center justify-between gap-2"><p className="text-xs text-(--text-secondary)">{sprint?"Sprint: "+sprint.name+" · "+sprint.status:"Selecione uma Sprint"}</p>
     <label className="flex items-center gap-2 text-xs"><input type="checkbox" checked={!showEmpty} onChange={e=>setShowEmpty(!e.target.checked)}/> Ocultar colunas vazias</label></div>
    {data.error&&<p role="alert" className="mt-3 text-sm text-(--danger)">{data.error}</p>}
   </SurfaceCard>
   <div className="grid grid-cols-2 gap-2 md:grid-cols-4">{[["US na Sprint",counts.total],["Aprovadas",counts.done],["Bloqueadas",counts.blocked],["Atrasadas",counts.overdue]].map(([label,value])=><div key={label} className="rounded-xl border border-(--border) bg-(--bg-surface) p-2.5"><p className="text-[11px] text-(--text-secondary)">{label}</p><p className="mt-1 text-xl font-semibold">{value}</p></div>)}</div>
-  <SurfaceCard className="p-2">
+  <SurfaceCard>
    {!sprint?<p className="p-3 text-sm">Selecione uma Sprint.</p>:<>
     {closed&&<p className="mb-2 rounded-lg bg-(--bg-muted) p-2 text-xs">Sprint encerrada: somente leitura.</p>}
     <div className="overflow-x-auto">
-     <div className="grid gap-1.5" style={{gridTemplateColumns:"repeat("+Math.max(columns.length,1)+", minmax(135px, 1fr))",minWidth:columns.length>5?"1080px":"auto"}}>
+     <div className="grid gap-1.5" style={{gridTemplateColumns:"repeat("+Math.max(columns.length,1)+", minmax(135px, 1fr))",minWidth:columns.length>5?"980px":"auto"}}>
       {columns.map(([key,label])=><section key={key} className="min-w-0 rounded-lg border border-(--border) bg-(--bg-muted) p-1.5">
-       <div className="flex items-center justify-between gap-1 px-1 py-1"><h3 className="truncate text-[11px] font-bold">{label}</h3><span className="workspace-pill">{stories.filter(s=>s.workflow_stage===key).length}</span></div>
-       <div className="mt-1 space-y-1.5">{stories.filter(s=>s.workflow_stage===key).map(s=><article key={s.id} className="rounded-lg border border-(--border) bg-(--bg-surface) p-2">
+       <div className="flex items-center justify-between gap-1 px-1 py-1"><h3 className="truncate text-[11px] font-bold">{label}</h3><span className="workspace-pill">{filtered.filter(s=>s.workflow_stage===key).length}</span></div>
+       <div className="mt-1 space-y-1.5">{filtered.filter(s=>s.workflow_stage===key).map(s=><article key={s.id} className="rounded-lg border border-(--border) bg-(--bg-surface) p-2">
         <p className="line-clamp-2 text-[11px] font-semibold leading-4" title={s.title}>{s.title}</p>
         <p className="mt-1 truncate text-[10px] text-(--text-secondary)" title={s.responsible||""}>{s.responsible||"Sem responsável"}</p>
         <p className="mt-1 text-[10px] text-(--text-secondary)">{dateBR(s.due_date)} · {s.story_points??"–"} pt</p>
