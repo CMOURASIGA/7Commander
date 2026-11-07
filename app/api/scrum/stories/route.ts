@@ -90,7 +90,14 @@ export async function POST(req:NextRequest){
   const days=body.durationDays===undefined?current?.duration_days??null:body.durationDays===""||body.durationDays===null?null:Number(body.durationDays);
   const points=body.storyPoints===undefined?current?.story_points??null:body.storyPoints===""||body.storyPoints===null?null:Number(body.storyPoints);
   if(days!==null&&(!Number.isInteger(days)||days<1||days>3650))return fail("Duração inválida.");
-  if(points!==null&&(!Number.isFinite(points)||points<0||points>9999))return fail("Story points inválidos.");
+  if(points!==null&&![1,2,3,4].includes(points))return fail("Story points devem ser 1, 2, 3 ou 4.");
+  const actualEnd=body.actualEndDate===undefined?current?.actual_end_date||null:body.actualEndDate||null;
+  if(actualEnd!==null&&!validDate(actualEnd))return fail("Data real inválida.");
+  const responsible=String(body.responsible===undefined?current?.responsible||"":body.responsible||"").trim().toLowerCase();
+  if(responsible){
+    const members=await db.from("project_members").select("id").eq("project_id",projectId).eq("organization_id",org).ilike("member_email",responsible).limit(1);
+    if(members.error||!members.data?.length)return fail("Responsável não tem acesso ao projeto.",400);
+  }
   const requestedSprint=body.sprintId===undefined?current?.sprint_id||null:body.sprintId||null;
   const featureId=body.featureId===undefined?current?.feature_id||null:body.featureId||null;
   if(featureId!==null){
@@ -110,7 +117,7 @@ export async function POST(req:NextRequest){
   const patch={
     title,description:String(body.description===undefined?current?.description||"":body.description||"").slice(0,10000),
     acceptance_criteria:String(body.acceptanceCriteria===undefined?current?.acceptance_criteria||"":body.acceptanceCriteria||"").slice(0,10000),
-    feature_id:featureId,sort_order:sortOrder,priority,responsible:String(body.responsible===undefined?current?.responsible||"":body.responsible||"").slice(0,250)||null,
+    feature_id:featureId,sort_order:sortOrder,priority,responsible:responsible||null,actual_end_date:stage==="closed"||stage==="resolved"?actualEnd||new Date().toISOString().slice(0,10):actualEnd,
     workflow_stage:stage,start_date:start,due_date:due,duration_days:days,story_points:points,
     sprint_id:requestedSprint,blocked:body.blocked===undefined?Boolean(current?.blocked):body.blocked===true,
     blocker_reason:String(body.blockerReason===undefined?current?.blocker_reason||"":body.blockerReason||"").slice(0,1500),
