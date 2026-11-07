@@ -8,7 +8,7 @@ import {CONSULT_ORG_ID} from "@/lib/consult-workspace";
 export const dynamic="force-dynamic";
 const uuid=/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const stages=["new","review","rework","ready","active","resolved","closed","rejected"];
-const transitions:Record<string,string[]>={new:["review"],review:["ready","rework"],rework:["review"],ready:["active","rework","rejected"],active:["resolved","rework"],resolved:["closed","rework","rejected"],closed:[],rejected:["new"]};
+const transitions:Record<string,string[]>={new:["ready"],ready:["active","review"],review:["ready"],active:["resolved"],resolved:["closed","rejected"],rejected:["ready"],closed:[],rework:["ready"]};
 const validDate=(x:unknown)=>typeof x==="string"&&/^\d{4}-\d{2}-\d{2}$/.test(x)&&!isNaN(Date.parse(x+"T12:00:00Z"))&&new Date(x+"T12:00:00Z").toISOString().slice(0,10)===x;
 const respond=(data:unknown,status=200)=>NextResponse.json(data,{status,headers:{"Cache-Control":"private,no-store"}});
 const fail=(error:string,status=400)=>respond({error},status);
@@ -92,6 +92,12 @@ export async function POST(req:NextRequest){
   if(days!==null&&(!Number.isInteger(days)||days<1||days>3650))return fail("Duração inválida.");
   if(points!==null&&(!Number.isFinite(points)||points<0||points>9999))return fail("Story points inválidos.");
   const requestedSprint=body.sprintId===undefined?current?.sprint_id||null:body.sprintId||null;
+  const featureId=body.featureId===undefined?current?.feature_id||null:body.featureId||null;
+  if(featureId!==null){
+    if(!uuid.test(String(featureId)))return fail("Feature inválida.");
+    const feature=await db.from("scrum_backlog_items").select("id").eq("id",featureId).eq("item_type","feature").eq("project_id",projectId).eq("organization_id",org).maybeSingle();
+    if(feature.error||!feature.data)return fail("Feature não encontrada no projeto.",404);
+  }
   const transitionComment=typeof body.transitionComment==="string"?body.transitionComment.trim():"";
   if(transitionComment.length>4000)return fail("Comentário excede 4000 caracteres.");
   if(stage==="review"&&stage!==current?.workflow_stage&&!transitionComment)return fail("Informe o motivo da solicitação de REVIEW.",400);
@@ -102,9 +108,9 @@ export async function POST(req:NextRequest){
   const patch={
     title,description:String(body.description===undefined?current?.description||"":body.description||"").slice(0,10000),
     acceptance_criteria:String(body.acceptanceCriteria===undefined?current?.acceptance_criteria||"":body.acceptanceCriteria||"").slice(0,10000),
-    priority,responsible:String(body.responsible===undefined?current?.responsible||"":body.responsible||"").slice(0,250)||null,
+    feature_id:featureId,priority,responsible:String(body.responsible===undefined?current?.responsible||"":body.responsible||"").slice(0,250)||null,
     workflow_stage:stage,start_date:start,due_date:due,duration_days:days,story_points:points,
-    sprint_id:stage==="rejected"?null:requestedSprint,blocked:body.blocked===undefined?Boolean(current?.blocked):body.blocked===true,
+    sprint_id:requestedSprint,blocked:body.blocked===undefined?Boolean(current?.blocked):body.blocked===true,
     blocker_reason:String(body.blockerReason===undefined?current?.blocker_reason||"":body.blockerReason||"").slice(0,1500),
     last_actor_email:auth.userEmail||"",transition_comment:transitionComment,
     updated_at:new Date().toISOString()
