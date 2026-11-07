@@ -61,11 +61,17 @@ export async function POST(req:NextRequest){
   const p=await db.from("scrum_user_stories").select("id,sprint_id").eq("id",storyId).eq("organization_id",org).eq("project_id",projectId).maybeSingle();
   if(p.error||!p.data)return bad("US não encontrada.",404);
  }
- const state=String(body.state??item?.state??"new");
- if(!["new","ready","active","resolved","closed","review","rejected"].includes(state))return bad("Estado inválido.");
+ const state=String(body.state??item?.state??(itemType==="task"?"todo":"new"));
+ if(!(itemType==="task"?["todo","doing","done"]:["new","ready","active","resolved","closed","review","rejected"]).includes(state))return bad("Status inválido.");
+ const responsible=String(body.responsible??item?.responsible??"").trim().toLowerCase();
+ if(responsible){
+  const member=await db.from("project_members").select("id").eq("organization_id",org).eq("project_id",projectId).ilike("member_email",responsible).limit(1);
+  if(member.error||!member.data?.length)return bad("Responsável não participa do projeto.");
+ }
+
  const rank=body.sortOrder===undefined?Number(item?.sort_order||0):Number(body.sortOrder);
  if(!Number.isInteger(rank)||rank<0||rank>1000000)return bad("Ordem inválida.");
- const patch={title,description:String(body.description??item?.description??"").slice(0,10000),state,parent_id:parentId,story_id:storyId,sort_order:rank,updated_at:new Date().toISOString()};
+ const patch={title,responsible:responsible||null,actual_end_date:itemType==="task"&&state==="done"?new Date().toISOString().slice(0,10):state==="todo"||state==="doing"?null:item?.actual_end_date||null,description:String(body.description??item?.description??"").slice(0,10000),state,parent_id:parentId,story_id:storyId,sort_order:rank,updated_at:new Date().toISOString()};
  const result=action==="create"?
   await db.from("scrum_backlog_items").insert({...patch,organization_id:org,project_id:projectId,item_type:itemType}).select("id").single():
   await db.from("scrum_backlog_items").update(patch).eq("id",id).eq("organization_id",org).eq("project_id",projectId).select("id").single();
