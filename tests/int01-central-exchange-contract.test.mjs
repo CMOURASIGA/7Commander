@@ -50,3 +50,14 @@ test("VIEWER first-login provisioning requires central grant, pilot flag and ser
  assert.match(migration, /GRANT EXECUTE ON FUNCTION/);
  assert.match(migration, /TO service_role/);
 });
+
+test("VIEWER JIT UUID validation accepts canonical five groups", () => {
+ const source = load("lib/central-viewer-provision.ts");
+ const match = source.match(/const uuid = \/(.*)\/i;/);
+ assert.ok(match, "JIT UUID validation must exist");
+ const uuid = new RegExp(match[1], "i");
+ assert.equal(uuid.test("95aa4cdc-009e-48a9-b683-4a8d9f42ed5f"), true);
+ assert.equal(uuid.test("43973606-0c05-4934-a057-9f2710899eba"), true);
+ assert.equal(uuid.test("699e3b96-b213-4b0f-abb7-900f57bd3e69"), true);
+ assert.equal(uuid.test("95aa4cdc-009e-48a9-4a8d9f42ed5f"), false);
+});
