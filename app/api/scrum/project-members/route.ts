@@ -20,6 +20,13 @@ export async function GET(req:NextRequest){
  const emails=[...new Set([auth.context.userEmail,...(members.data||[]).filter(m=>["active","accepted","ativo"].includes(String(m.status||"").toLowerCase())).map(m=>m.member_email)].filter((e):e is string=>typeof e==="string"&&e.includes("@")).map(e=>e.trim().toLowerCase()))];
  const profiles=emails.length?await db.from("profiles").select("email,nome").in("email",emails):{data:[],error:null};
  if(profiles.error)return NextResponse.json({error:"Falha ao consultar nomes dos membros."},{status:503});
- const nameMap=new Map((profiles.data||[]).map(p=>[String(p.email||"").toLowerCase(),p.nome]));
- return NextResponse.json({data:emails.map(email=>({email,name:String(nameMap.get(email)||email)}))},{headers:{"Cache-Control":"private,no-store"}});
+ const internal=emails.length?await db.from("internal_user_access").select("email,nome").in("email",emails):{data:[],error:null};
+ if(internal.error)return NextResponse.json({error:"Falha ao consultar nomes internos."},{status:503});
+ const nameMap=new Map<string,string>();
+ for(const person of [...(internal.data||[]),...(profiles.data||[])]){
+  const email=String(person.email||"").trim().toLowerCase();
+  const name=String(person.nome||"").trim();
+  if(email&&name)nameMap.set(email,name);
+ }
+ return NextResponse.json({data:emails.map(email=>({email,name:nameMap.get(email)||"Nome não cadastrado",hasName:nameMap.has(email)}))},{headers:{"Cache-Control":"private,no-store"}});
 }
