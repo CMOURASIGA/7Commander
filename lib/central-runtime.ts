@@ -52,7 +52,20 @@ export async function authorizeCentralPilot(request:NextRequest,localUserId:stri
      centralAccessToken:centralSession.accessToken,
      clientId:company.data.central_client_id,productCode,
    });
-   if(!centralDecision.allowed)return fail(centralDecision.reasonCode,centralDecision.reasonCode==='CENTRAL_UNAVAILABLE'?503:403);
+   if(!centralDecision.allowed) {
+     // Keep direct Supabase RLS in sync with an authoritative central revocation.
+     // Transient network errors fail this request closed but never permanently
+     // suspend an otherwise valid local membership.
+     if (['ACCESS_NOT_GRANTED','SUBSCRIPTION_INACTIVE','MEMBERSHIP_INACTIVE',
+          'IDENTITY_INACTIVE','CLIENT_INACTIVE','PRODUCT_UNAVAILABLE']
+         .includes(centralDecision.reasonCode)) {
+       const sync=await db.rpc('int01_sync_central_membership',{
+         p_user:localUserId,p_company:tenantId,p_authorized:false,
+       });
+       if(sync.error) console.error('[INT01] central revocation RLS sync failed');
+     }
+     return fail(centralDecision.reasonCode,centralDecision.reasonCode==='CENTRAL_UNAVAILABLE'?503:403);
+   }
    // A valid token issued to a different account cannot authorize the local user.
    // The decision endpoint independently resolves the token's identities.id.
    if(centralDecision.identityId!==identityLink.data.central_identity_id)return fail('CENTRAL_IDENTITY_MISMATCH');
