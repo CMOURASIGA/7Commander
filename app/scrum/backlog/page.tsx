@@ -2,22 +2,23 @@
 import {useCallback,useEffect,useMemo,useState} from "react";
 import {PageIntro,SurfaceCard} from "@/components/ui/workspace-primitives";
 import {useConfirm} from "@/components/ui/confirm-dialog";
-import {ScrumSelectors,useScrumData,apiGet,apiPost,Story,BacklogItem,stages,transitions,dateBR,dateOnly,today,addDays,daysBetween} from "@/components/scrum/scrum-common";
+import {ScrumSelectors,useScrumData,apiGet,apiPost,Story,BacklogItem,ProjectMember,stages,transitions,dateBR,dateOnly,today,addDays,daysBetween} from "@/components/scrum/scrum-common";
 
 type Row={id:string;type:"epic"|"feature"|"story"|"task";title:string;state:string;depth:number;order:number;story?:Story;item?:BacklogItem;ancestorIds:string[]};
-type Form={title:string;description:string;acceptanceCriteria:string;priority:string;responsible:string;stage:string;startDate:string;dueDate:string;durationDays:string;storyPoints:string;blocked:boolean;blockerReason:string;sprintId:string;featureId:string;parentId:string;storyId:string;sortOrder:string};
-const initial=():Form=>({title:"",description:"",acceptanceCriteria:"",priority:"media",responsible:"",stage:"new",startDate:today(),dueDate:addDays(today(),3),durationDays:"3",storyPoints:"",blocked:false,blockerReason:"",sprintId:"",featureId:"",parentId:"",storyId:"",sortOrder:"0"});
-function fromStory(s:Story):Form{return {...initial(),title:s.title,description:s.description,acceptanceCriteria:s.acceptance_criteria,priority:s.priority,responsible:s.responsible||"",stage:s.workflow_stage,startDate:dateOnly(s.start_date),dueDate:dateOnly(s.due_date),durationDays:s.duration_days===null?"":String(s.duration_days),storyPoints:s.story_points===null?"":String(s.story_points),blocked:s.blocked,blockerReason:s.blocker_reason,sprintId:s.sprint_id||"",featureId:s.feature_id||"",sortOrder:String(s.sort_order||0)}}
+type Form={title:string;description:string;acceptanceCriteria:string;priority:string;responsible:string;stage:string;startDate:string;dueDate:string;durationDays:string;storyPoints:string;blocked:boolean;blockerReason:string;sprintId:string;actualEndDate:string;featureId:string;parentId:string;storyId:string;sortOrder:string};
+const initial=():Form=>({title:"",description:"",acceptanceCriteria:"",priority:"media",responsible:"",stage:"new",startDate:today(),dueDate:addDays(today(),3),durationDays:"3",storyPoints:"",blocked:false,blockerReason:"",sprintId:"",actualEndDate:"",featureId:"",parentId:"",storyId:"",sortOrder:"0"});
+function fromStory(s:Story):Form{return {...initial(),title:s.title,description:s.description,acceptanceCriteria:s.acceptance_criteria,priority:s.priority,responsible:s.responsible||"",stage:s.workflow_stage,startDate:dateOnly(s.start_date),dueDate:dateOnly(s.due_date),durationDays:s.duration_days===null?"":String(s.duration_days),storyPoints:s.story_points===null?"":String(s.story_points),blocked:s.blocked,blockerReason:s.blocker_reason,sprintId:s.sprint_id||"",actualEndDate:dateOnly(s.actual_end_date),featureId:s.feature_id||"",sortOrder:String(s.sort_order||0)}}
 function Icon({kind}:{kind:"view"|"edit"|"delete"|"add"}){return <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">{kind==="view"?<><path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/></>:kind==="edit"?<><path d="m4 20 4-1 11-11-3-3L5 16l-1 4Z"/><path d="m14 6 3 3"/></>:kind==="delete"?<><path d="M4 6h16M9 6V4h6v2M7 6l1 14h8l1-14M10 10v7M14 10v7"/></>:<path d="M12 4v16M4 12h16"/>}</svg>}
 const types={epic:"Epic",feature:"Feature",story:"User Story",task:"Task"} as const;
 export default function BacklogPage(){
  const data=useScrumData();const confirm=useConfirm();
- const [items,setItems]=useState<BacklogItem[]>([]);const [opened,setOpened]=useState<Row|null>(null);const [drawerOpen,setDrawerOpen]=useState(false);const [readOnly,setReadOnly]=useState(false);
+ const [items,setItems]=useState<BacklogItem[]>([]);const [members,setMembers]=useState<ProjectMember[]>([]);const [opened,setOpened]=useState<Row|null>(null);const [drawerOpen,setDrawerOpen]=useState(false);const [readOnly,setReadOnly]=useState(false);
  const [form,setForm]=useState<Form>(initial);const [saving,setSaving]=useState(false);const [comment,setComment]=useState("");const [transitionComment,setTransitionComment]=useState("");
  const [query,setQuery]=useState("");const [typeFilter,setTypeFilter]=useState("all");const [stateFilter,setStateFilter]=useState("all");const [sprintFilter,setSprintFilter]=useState("all");const [collapsed,setCollapsed]=useState<string[]>([]);
  const [error,setError]=useState("");
  const loadItems=useCallback(async()=>{if(!data.projectId){setItems([]);return;}try{const rows=await apiGet("/api/scrum/backlog-items?projectId="+encodeURIComponent(data.projectId));setItems(rows as BacklogItem[])}catch(e){setError(e instanceof Error?e.message:"Erro ao carregar hierarquia.")}},[data.projectId]);
  useEffect(()=>{void loadItems()},[loadItems]);
+ useEffect(()=>{let live=true;if(!data.projectId){setMembers([]);return}void apiGet("/api/scrum/project-members?projectId="+encodeURIComponent(data.projectId)).then((v:ProjectMember[])=>{if(live)setMembers(v)}).catch(()=>{if(live)setMembers([])});return()=>{live=false}},[data.projectId]);
  const order=(a:{sort_order?:number;created_at?:string},b:{sort_order?:number;created_at?:string})=>(a.sort_order||0)-(b.sort_order||0)||(a.created_at||"").localeCompare(b.created_at||"");
  const rows=useMemo(()=>{
   const result:Row[]=[];const visited=new Set<string>();
@@ -44,8 +45,8 @@ export default function BacklogPage(){
  function open(row:Row|null,type:Row["type"],view=false,defaults?:Partial<Form>){
   setOpened(row);setDrawerOpen(true);setReadOnly(view);setComment("");setTransitionComment("");setError("");
   if(row?.story)setForm(fromStory(row.story));
-  else if(row?.item)setForm({...initial(),title:row.title,description:row.item.description,stage:row.state,parentId:row.item.parent_id||"",storyId:row.item.story_id||"",sortOrder:String(row.item.sort_order)});
-  else setForm({...initial(),...defaults});
+  else if(row?.item)setForm({...initial(),title:row.title,description:row.item.description,responsible:row.item.responsible||"",actualEndDate:dateOnly(row.item.actual_end_date),stage:row.state,parentId:row.item.parent_id||"",storyId:row.item.story_id||"",sortOrder:String(row.item.sort_order)});
+  else setForm({...initial(),stage:type==="task"?"todo":"new",...defaults});
   setMode(type);
  }
  const [mode,setMode]=useState<Row["type"]>("story");
@@ -55,8 +56,8 @@ export default function BacklogPage(){
   if(mode==="story"&&opened?.story&&form.stage==="review"&&opened.story.workflow_stage!=="review"&&!transitionComment.trim()){setError("O motivo é obrigatório ao solicitar REVIEW.");return}
   setSaving(true);setError("");
   try{
-   if(mode==="story")await apiPost("/api/scrum/stories",{action:opened?"update":"create",projectId:data.projectId,storyId:opened?.id,title:form.title,description:form.description,acceptanceCriteria:form.acceptanceCriteria,priority:form.priority,responsible:form.responsible,stage:form.stage,startDate:form.startDate||null,dueDate:form.dueDate||null,durationDays:form.durationDays||null,storyPoints:form.storyPoints||null,blocked:form.blocked,blockerReason:form.blockerReason,sprintId:form.sprintId||null,featureId:form.featureId||null,transitionComment,sortOrder:Number(form.sortOrder)||0});
-   else await apiPost("/api/scrum/backlog-items",{action:opened?"update":"create",projectId:data.projectId,id:opened?.id,itemType:mode,title:form.title,description:form.description,state:form.stage,parentId:form.parentId||null,storyId:form.storyId||null,sortOrder:Number(form.sortOrder)||0});
+   if(mode==="story")await apiPost("/api/scrum/stories",{action:opened?"update":"create",projectId:data.projectId,storyId:opened?.id,title:form.title,description:form.description,acceptanceCriteria:form.acceptanceCriteria,priority:form.priority,responsible:form.responsible,stage:form.stage,startDate:form.startDate||null,dueDate:form.dueDate||null,durationDays:form.durationDays||null,storyPoints:form.storyPoints||null,blocked:form.blocked,blockerReason:form.blockerReason,sprintId:form.sprintId||null,featureId:form.featureId||null,actualEndDate:form.actualEndDate||null,transitionComment,sortOrder:Number(form.sortOrder)||0});
+   else await apiPost("/api/scrum/backlog-items",{action:opened?"update":"create",projectId:data.projectId,id:opened?.id,itemType:mode,title:form.title,description:form.description,state:form.stage,responsible:form.responsible||null,parentId:form.parentId||null,storyId:form.storyId||null,sortOrder:Number(form.sortOrder)||0});
    setDrawerOpen(false);await Promise.all([data.refresh(),loadItems()]);
   }catch(e){setError(e instanceof Error?e.message:"Não foi possível salvar.");}finally{setSaving(false)}
  }
@@ -88,15 +89,16 @@ export default function BacklogPage(){
   </SurfaceCard>
   <SurfaceCard>
    <div className="overflow-x-auto"><table className="w-full min-w-[680px] border-collapse text-sm">
-    <thead><tr className="border-b border-(--border) text-left text-xs text-(--text-secondary)"><th className="p-2 w-16">Ordem</th><th className="p-2 w-36">Work Item Type</th><th className="p-2">Title</th><th className="p-2 w-28">State</th><th className="p-2 w-32">Ações</th></tr></thead>
+    <thead><tr className="border-b border-(--border) text-left text-xs text-(--text-secondary)"><th className="p-2 w-16">Ordem</th><th className="p-2 w-36">Work Item Type</th><th className="p-2">Title</th><th className="p-2 w-44">Responsável</th><th className="p-2 w-28">Status</th><th className="p-2 w-32">Ações</th></tr></thead>
     <tbody>{visible.map(r=><tr key={r.type+":"+r.id} className="border-b border-(--border) hover:bg-(--bg-muted)">
      <td className="p-2 text-xs text-(--text-secondary)">{r.order}</td>
-     <td className="p-2 text-xs font-medium">{types[r.type]}</td>
+     <td className="p-2 text-xs font-medium"><span className="inline-flex items-center gap-1.5">{r.type==="epic"?<span className="text-orange-600">◆</span>:r.type==="feature"?<span className="text-violet-600">⬡</span>:r.type==="story"?<span className="text-sky-600">▣</span>:<span className="text-emerald-600">☑</span>}{types[r.type]}</span></td>
      <td className="p-2"><div className="flex items-center gap-2" style={{paddingLeft:r.depth*18}}>
       {(r.type==="epic"||r.type==="feature"||r.type==="story")?<button type="button" className="shrink-0 text-xs" aria-label={collapsed.includes(r.id)?"Expandir":"Recolher"} onClick={()=>setCollapsed(c=>c.includes(r.id)?c.filter(x=>x!==r.id):[...c,r.id])}>{collapsed.includes(r.id)?"▸":"▾"}</button>:<span className="w-3"/>}
       <span className={r.type==="epic"?"font-semibold":""}>{r.title}</span>
       {(r.type==="epic"||r.type==="feature"||r.type==="story")&&<button type="button" title="Adicionar filho" className="rounded-md border border-(--border) p-1" onClick={()=>open(null,r.type==="epic"?"feature":r.type==="feature"?"story":"task",false,r.type==="epic"?{parentId:r.id}:r.type==="feature"?{featureId:r.id}:{storyId:r.id})}><Icon kind="add"/></button>}
      </div></td>
+     <td className="p-2 text-xs"><div className="flex items-center gap-1.5">{(r.story?.responsible||r.item?.responsible)?<span className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-(--bg-muted) text-[10px] font-bold">{(members.find(m=>m.email===(r.story?.responsible||r.item?.responsible))?.name||r.story?.responsible||r.item?.responsible||"?").slice(0,1).toUpperCase()}</span>:null}<span className="truncate" title={r.story?.responsible||r.item?.responsible||""}>{members.find(m=>m.email===(r.story?.responsible||r.item?.responsible))?.name||r.story?.responsible||r.item?.responsible||"Não atribuído"}</span></div></td>
      <td className="p-2 text-xs">{r.state.toUpperCase()}</td>
      <td className="p-2"><div className="flex gap-1">
       <button title="Visualizar" aria-label={"Visualizar "+r.title} className="rounded-md border border-(--border) p-1.5" onClick={()=>open(r,r.type,true)}><Icon kind="view"/></button>
@@ -118,11 +120,12 @@ export default function BacklogPage(){
       <div className="grid grid-cols-2 gap-3">
        <label className="text-xs">Prioridade<select className="workspace-select mt-1 w-full" value={form.priority} onChange={e=>setForm(f=>({...f,priority:e.target.value}))}>{["baixa","media","alta","critica"].map(p=><option key={p} value={p}>{p}</option>)}</select></label>
        <label className="text-xs">Status<select className="workspace-select mt-1 w-full" value={form.stage} onChange={e=>setForm(f=>({...f,stage:e.target.value}))}>{stages.map(([v,label])=><option key={v} value={v} disabled={Boolean(opened?.story&&v!==opened.story.workflow_stage&&!transitions[opened.story.workflow_stage]?.includes(v))}>{label}</option>)}</select></label>
-       <label className="text-xs col-span-2">Responsável (email)<input type="email" className="workspace-input mt-1 w-full" value={form.responsible} onChange={e=>setForm(f=>({...f,responsible:e.target.value}))}/></label>
+       <label className="text-xs col-span-2">Responsável<select className="workspace-select mt-1 w-full" value={form.responsible} onChange={e=>setForm(f=>({...f,responsible:e.target.value}))}><option value="">Não atribuído</option>{members.map(m=><option key={m.email} value={m.email}>{m.name} ({m.email})</option>)}</select></label>
        <label className="text-xs">Início<input type="date" className="workspace-input mt-1 w-full" value={form.startDate} onChange={e=>setForm(f=>({...f,startDate:e.target.value,dueDate:e.target.value&&Number(f.durationDays)>0?addDays(e.target.value,Number(f.durationDays)):f.dueDate}))}/></label>
        <label className="text-xs">Prazo (dias corridos)<input type="number" min="1" className="workspace-input mt-1 w-full" value={form.durationDays} onChange={e=>setForm(f=>({...f,durationDays:e.target.value,dueDate:f.startDate&&Number(e.target.value)>0?addDays(f.startDate,Number(e.target.value)):f.dueDate}))}/></label>
        <label className="text-xs">Entrega<input type="date" className="workspace-input mt-1 w-full" value={form.dueDate} onChange={e=>setForm(f=>({...f,dueDate:e.target.value,durationDays:f.startDate&&e.target.value?String(daysBetween(f.startDate,e.target.value)):f.durationDays}))}/></label>
-       <label className="text-xs">Story points<input type="number" min="0" step=".5" className="workspace-input mt-1 w-full" value={form.storyPoints} onChange={e=>setForm(f=>({...f,storyPoints:e.target.value}))}/></label>
+       <label className="text-xs">Story points<select className="workspace-select mt-1 w-full" value={form.storyPoints} onChange={e=>setForm(f=>({...f,storyPoints:e.target.value}))}><option value="">Não estimado</option>{[1,2,3,4].map(n=><option key={n} value={n}>{n} {n===1?"(baixa)":n===2?"(moderada)":n===3?"(alta)":"(muito alta)"}</option>)}</select></label>
+       <label className="text-xs">Data real de conclusão<input type="date" className="workspace-input mt-1 w-full" value={form.actualEndDate} onChange={e=>setForm(f=>({...f,actualEndDate:e.target.value}))}/></label>
        <label className="text-xs col-span-2">Sprint (opcional)<select className="workspace-select mt-1 w-full" value={form.sprintId} disabled={Boolean(opened?.story?.sprint_id)} onChange={e=>setForm(f=>({...f,sprintId:e.target.value}))}><option value="">Sem Sprint</option>{data.sprints.filter(s=>s.status!=="closed"||s.id===form.sprintId).map(s=><option key={s.id} value={s.id}>{s.name}</option>)}</select></label>
        <label className="text-xs flex items-center gap-2"><input type="checkbox" checked={form.blocked} onChange={e=>setForm(f=>({...f,blocked:e.target.checked}))}/> Impedimento</label>
        <label className="text-xs">Motivo<input className="workspace-input mt-1 w-full" value={form.blockerReason} onChange={e=>setForm(f=>({...f,blockerReason:e.target.value}))}/></label>
@@ -130,7 +133,8 @@ export default function BacklogPage(){
       {opened?.story&&form.stage==="review"&&opened.story.workflow_stage!=="review"&&<label className="block text-xs">Justificativa obrigatória para REVIEW<textarea className="workspace-input mt-1 w-full" value={transitionComment} onChange={e=>setTransitionComment(e.target.value)}/></label>}
     </>}
     {mode==="task"&&<label className="block text-xs">User Story pai<select className="workspace-select mt-1 w-full" value={form.storyId} onChange={e=>setForm(f=>({...f,storyId:e.target.value}))}><option value="">Selecione a US</option>{data.stories.map(st=><option value={st.id} key={st.id}>{st.title}</option>)}</select></label>}
-    <div className="grid grid-cols-2 gap-3"><label className="text-xs">Ordem<input type="number" min="0" className="workspace-input mt-1 w-full" value={form.sortOrder} onChange={e=>setForm(f=>({...f,sortOrder:e.target.value}))}/></label>{mode!=="story"&&<label className="text-xs">Estado<select className="workspace-select mt-1 w-full" value={form.stage} onChange={e=>setForm(f=>({...f,stage:e.target.value}))}>{stages.map(([v,label])=><option key={v} value={v}>{label}</option>)}</select></label>}</div>
+    {mode==="task"&&<label className="block text-xs">Responsável<select className="workspace-select mt-1 w-full" value={form.responsible} onChange={e=>setForm(f=>({...f,responsible:e.target.value}))}><option value="">Não atribuído</option>{members.map(m=><option value={m.email} key={m.email}>{m.name} ({m.email})</option>)}</select></label>}
+    <div className="grid grid-cols-2 gap-3"><label className="text-xs">Ordem<input type="number" min="0" className="workspace-input mt-1 w-full" value={form.sortOrder} onChange={e=>setForm(f=>({...f,sortOrder:e.target.value}))}/></label>{mode!=="story"&&<label className="text-xs">Estado<select className="workspace-select mt-1 w-full" value={form.stage} onChange={e=>setForm(f=>({...f,stage:e.target.value}))}>{(mode==="task"?[["todo","TO DO"],["doing","DOING"],["done","DONE"]] as const:stages).map(([v,label])=><option key={v} value={v}>{label}</option>)}</select></label>}</div>
    </fieldset>
    {!readOnly&&!isLocked&&<button className="workspace-button-primary mt-4 px-4 py-2 text-sm" disabled={saving||!form.title.trim()||mode==="feature"&&!form.parentId||mode==="task"&&!form.storyId} onClick={()=>void submit()}>{saving?"Salvando...":"Salvar "+types[mode]}</button>}
    {error&&<p role="alert" className="mt-3 text-sm text-(--danger)">{error}</p>}
