@@ -125,7 +125,7 @@ export async function middleware(request:NextRequest) {
     }
     // Only a centrally verified VIEWER can recover an AUTO-suspended local
     // membership. Manual suspensions have no marker and remain suspended.
-    if(membership.data.status==='suspended'&&decision.roleCodes?.includes('VIEWER')) {
+    if(membership.data.status==='suspended'&&decision?.roleCodes?.includes('VIEWER')) {
       const sync=await db.rpc('int01_sync_central_membership',{
         p_user:localId,p_company:orgId,p_authorized:true,
       });
