@@ -1,10 +1,10 @@
 alter table public.scrum_user_stories add column if not exists actual_end_date date;
 alter table public.scrum_backlog_items add column if not exists responsible text;
 alter table public.scrum_backlog_items add column if not exists actual_end_date date;
+alter table public.scrum_backlog_items drop constraint if exists scrum_backlog_items_state_check;
 update public.scrum_backlog_items set state='todo' where item_type='task' and state='new';
 update public.scrum_backlog_items set state='doing' where item_type='task' and state='active';
 update public.scrum_backlog_items set state='done' where item_type='task' and state in ('resolved','closed');
-alter table public.scrum_backlog_items drop constraint if exists scrum_backlog_items_state_check;
 alter table public.scrum_backlog_items add constraint scrum_backlog_items_state_check check (
   (item_type='task' and state in ('todo','doing','done')) or
   (item_type in ('epic','feature') and state in ('new','ready','active','resolved','closed','review','rejected'))
