@@ -92,8 +92,8 @@ export async function POST(request: NextRequest) {
       }) ?? "";
       if (!uuid.test(localUserId)) return deny('jit-user-not-provisioned');
       const [memberships, profile] = await Promise.all([
-        db.from("organization_members").select("organization_id")
-          .eq("user_id",localUserId).eq("status","active").limit(51),
+        db.from("organization_members").select("organization_id,status")
+          .eq("user_id",localUserId).in("status",["active","suspended"]).limit(51),
         db.from("profiles").select("active_organization_id")
           .eq("user_id",localUserId).maybeSingle(),
       ]);
@@ -141,6 +141,18 @@ export async function POST(request: NextRequest) {
         }) ?? "";
       }
       if (!uuid.test(localUserId)) continue;
+      // Reinstatement requires an ACTIVE central product grant and a suspension
+      // previously created by INT-01 itself. Manual suspensions are never undone.
+      const suspended=await db.from("organization_members").select("status")
+        .eq("user_id",localUserId).eq("organization_id",orgId).maybeSingle();
+      if (suspended.error || !suspended.data) continue;
+      if (suspended.data.status === "suspended") {
+        if (!currentDecision.roleCodes.includes("VIEWER")) continue;
+        const reactivated=await db.rpc("int01_sync_central_membership",{
+          p_user:localUserId,p_company:orgId,p_authorized:true,
+        });
+        if (reactivated.error || reactivated.data!==true) continue;
+      }
       const member = await resolveTenantMembership(localUserId,orgId);
       if (!member) continue;
       const roleLinks = await db.from("central_product_role_links")
