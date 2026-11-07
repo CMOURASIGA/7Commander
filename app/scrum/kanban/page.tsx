@@ -18,12 +18,12 @@ export default function ScrumKanbanPage(){
  const data=useScrumData();const confirm=useConfirm();const openedFromUrl=useRef(false);
  const [saving,setSaving]=useState<string|null>(null);
  const [mode,setMode]=useState<"stories"|"tasks">("stories");
- const [tasks,setTasks]=useState<BacklogItem[]>([]);
+ const [tasks,setTasks]=useState<BacklogItem[]>([]);const [features,setFeatures]=useState<BacklogItem[]>([]);
  const [members,setMembers]=useState<ProjectMember[]>([]);
  const [taskFilter,setTaskFilter]=useState("all");
  const [selected,setSelected]=useState<Story|null>(null);
  const [editing,setEditing]=useState(false);
- const [editForm,setEditForm]=useState({title:"",description:"",acceptanceCriteria:"",responsible:"",priority:"media",startDate:"",dueDate:"",actualEndDate:"",durationDays:"",storyPoints:"",blocked:false,blockerReason:""});
+ const [editForm,setEditForm]=useState({title:"",description:"",acceptanceCriteria:"",responsible:"",priority:"media",featureId:"",startDate:"",dueDate:"",actualEndDate:"",durationDays:"",storyPoints:"",blocked:false,blockerReason:""});
  const [comment,setComment]=useState("");
  const [showEmpty,setShowEmpty]=useState(true);
  const [search,setSearch]=useState("");
@@ -32,8 +32,8 @@ export default function ScrumKanbanPage(){
  const [blockedOnly,setBlockedOnly]=useState(false);
  const [transition,setTransition]=useState<{story:Story;stage:string}|null>(null);
  const [reason,setReason]=useState("");
- useEffect(()=>{let live=true;if(!data.projectId){setTasks([]);setMembers([]);return}
-  void Promise.all([apiGet("/api/scrum/backlog-items?projectId="+encodeURIComponent(data.projectId)),apiGet("/api/scrum/project-members?projectId="+encodeURIComponent(data.projectId))]).then(([a,b])=>{if(live){setTasks((a as BacklogItem[]).filter(t=>t.item_type==="task"));setMembers(b as ProjectMember[])}}).catch(()=>{});
+ useEffect(()=>{let live=true;if(!data.projectId){setTasks([]);setFeatures([]);setMembers([]);return}
+  void Promise.all([apiGet("/api/scrum/backlog-items?projectId="+encodeURIComponent(data.projectId)),apiGet("/api/scrum/project-members?projectId="+encodeURIComponent(data.projectId))]).then(([a,b])=>{if(live){setTasks((a as BacklogItem[]).filter(t=>t.item_type==="task"));setFeatures((a as BacklogItem[]).filter(t=>t.item_type==="feature"));setMembers(b as ProjectMember[])}}).catch(()=>{});
   return()=>{live=false}
  },[data.projectId]);
  const refreshTasks=async()=>{const a=await apiGet("/api/scrum/backlog-items?projectId="+encodeURIComponent(data.projectId));setTasks((a as BacklogItem[]).filter(t=>t.item_type==="task"))};
@@ -57,12 +57,12 @@ export default function ScrumKanbanPage(){
  },[data.projects,data.projectId,data.stories,selected,data.setProjectId,data.setSprintId]);
  function view(story:Story,edit=false){
   setSelected(story);setEditing(edit);setComment("");setReason("");
-  setEditForm({title:story.title,description:story.description,acceptanceCriteria:story.acceptance_criteria,responsible:story.responsible||"",priority:story.priority,startDate:story.start_date||"",dueDate:story.due_date||"",actualEndDate:story.actual_end_date||"",durationDays:story.duration_days===null?"":String(story.duration_days),storyPoints:story.story_points===null?"":String(story.story_points),blocked:story.blocked,blockerReason:story.blocker_reason});
+  setEditForm({title:story.title,description:story.description,acceptanceCriteria:story.acceptance_criteria,responsible:story.responsible||"",priority:story.priority,featureId:story.feature_id||"",startDate:story.start_date||"",dueDate:story.due_date||"",actualEndDate:story.actual_end_date||"",durationDays:story.duration_days===null?"":String(story.duration_days),storyPoints:story.story_points===null?"":String(story.story_points),blocked:story.blocked,blockerReason:story.blocker_reason});
  }
  async function saveStory(){
   if(!currentSelected||closed||saving)return;
   setSaving(currentSelected.id);data.setError("");
-  try{await apiPost("/api/scrum/stories",{action:"update",projectId:data.projectId,storyId:currentSelected.id,...editForm,storyPoints:editForm.storyPoints||null,durationDays:editForm.durationDays||null,actualEndDate:editForm.actualEndDate||null});
+  try{await apiPost("/api/scrum/stories",{action:"update",projectId:data.projectId,storyId:currentSelected.id,...editForm,storyPoints:editForm.storyPoints||null,featureId:editForm.featureId||null,durationDays:editForm.durationDays||null,actualEndDate:editForm.actualEndDate||null});
    await data.refresh();setEditing(false)}
   catch(e){data.setError(e instanceof Error?e.message:"Falha ao salvar US")}
   finally{setSaving(null)}
@@ -161,6 +161,8 @@ export default function ScrumKanbanPage(){
     <label className="block text-xs">Descrição<textarea rows={4} className="workspace-input mt-1 w-full" value={editForm.description} onChange={e=>setEditForm(f=>({...f,description:e.target.value}))}/></label>
     <label className="block text-xs">Critérios de aceite<textarea rows={3} className="workspace-input mt-1 w-full" value={editForm.acceptanceCriteria} onChange={e=>setEditForm(f=>({...f,acceptanceCriteria:e.target.value}))}/></label>
     <label className="block text-xs">Responsável<select className="workspace-select mt-1 w-full" value={editForm.responsible} onChange={e=>setEditForm(f=>({...f,responsible:e.target.value}))}><option value="">Não atribuído</option>{members.map(m=><option key={m.email} value={m.email}>{m.name} ({m.email})</option>)}</select></label>
+    <label className="block text-xs">Feature<select className="workspace-select mt-1 w-full" value={editForm.featureId} onChange={e=>setEditForm(f=>({...f,featureId:e.target.value}))}><option value="">Sem Feature</option>{features.map(t=><option value={t.id} key={t.id}>{t.title}</option>)}</select></label>
+    <p className="text-xs text-(--text-secondary)">Sprint: {sprint?.name||"Não vinculada"}</p>
     <label className="block text-xs">Prioridade<select className="workspace-select mt-1 w-full" value={editForm.priority} onChange={e=>setEditForm(f=>({...f,priority:e.target.value}))}>{["baixa","media","alta","critica"].map(p=><option key={p} value={p}>{p}</option>)}</select></label>
     <div className="grid grid-cols-2 gap-3">
       <label className="text-xs">Início<input type="date" className="workspace-input mt-1 w-full" value={editForm.startDate} onChange={e=>setEditForm(f=>({...f,startDate:e.target.value}))}/></label>
@@ -173,7 +175,7 @@ export default function ScrumKanbanPage(){
       <label className="text-xs">Motivo do impedimento<input className="workspace-input mt-1 w-full" value={editForm.blockerReason} onChange={e=>setEditForm(f=>({...f,blockerReason:e.target.value}))}/></label>
     </div>
     <button className="workspace-button-primary px-3 py-2 text-xs" disabled={Boolean(saving)||!editForm.title.trim()} onClick={()=>void saveStory()}>Salvar alterações</button>
-   </div>:<div className="mt-4 space-y-2 text-sm"><h3 className="text-base font-semibold">{currentSelected?.title}</h3><p className="whitespace-pre-wrap">{currentSelected?.description||"Sem descrição"}</p><p>Critérios de aceite: {currentSelected?.acceptance_criteria||"Não definidos"}</p><p>Etapa: {currentSelected?.workflow_stage.toUpperCase()}</p><p>Responsável: {currentSelected?.responsible||"Não atribuído"}</p><p>Entrega: {dateBR(currentSelected?.due_date)}</p></div>}
+   </div>:<div className="mt-4 space-y-2 text-sm"><h3 className="text-base font-semibold">{currentSelected?.title}</h3><p className="whitespace-pre-wrap">{currentSelected?.description||"Sem descrição"}</p><p>Critérios de aceite: {currentSelected?.acceptance_criteria||"Não definidos"}</p><p>Etapa: {currentSelected?.workflow_stage.toUpperCase()}</p><p>Responsável: {currentSelected?.responsible||"Não atribuído"}</p><p>Entrega prevista: {dateBR(currentSelected?.due_date)}</p><p>Entrega real: {dateBR(currentSelected?.actual_end_date)}</p><p>Story points: {currentSelected?.story_points??"Não estimado"}</p><p>Feature: {features.find(t=>t.id===currentSelected?.feature_id)?.title||"Sem Feature"}</p><p>Prioridade: {currentSelected?.priority}</p><p>Impedimento: {currentSelected?.blocked?currentSelected.blocker_reason||"Ativo":"Não"}</p></div>}
    <section className="mt-5 border-t border-(--border) pt-3">
      <h3 className="text-sm font-semibold">Tasks vinculadas à US</h3>
      <p className="mt-1 text-xs text-(--text-secondary)">{tasks.filter(t=>t.story_id===selected.id&&t.state==="done").length} de {tasks.filter(t=>t.story_id===selected.id).length} concluídas</p>
