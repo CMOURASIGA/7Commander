@@ -12,6 +12,7 @@ export async function POST(req:NextRequest){
  if(!modes.some(x=>x===mode))return respond({error:"Análise não reconhecida."},400);
  const context=await getReportScope(auth.context,projectId);
  if("error" in context)return respond({error:context.error},context.status);
+ if(!["owner","editor"].includes(context.role))return respond({error:"Análise interna restrita."},403);
  try{
   const data=await loadReportData(context.db,context.organizationId,projectId,"internal");
   const selected=body?.sprintId?data.scrum.sprints.find(s=>s.id===body.sprintId):null;
