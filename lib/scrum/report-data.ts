@@ -7,7 +7,7 @@ export type ReportAudience="client"|"internal";
 export type ScrumReportStory={id:string;sprint_id:string|null;title:string;workflow_stage:string;story_points:number|null;due_date:string|null;actual_end_date:string|null;blocked:boolean;blocker_reason:string;responsible:string|null};
 export type ScrumReportTask={id:string;story_id:string|null;title:string;state:string;responsible:string|null};
 export type ScrumReportSprint={id:string;name:string;goal:string;status:string;start_date:string;end_date:string;stories:number;closed:number;resolved:number;active:number;blocked:number;overdue:number;points_planned:number;points_done:number;delivery_planned:number;delivery_actual:number;delivery_on_time:number;delivery_late:number};
-export type ReportData={project:{id:string;name:string};generated_at:string;scope:"current_snapshot";kanban:{total:number;todo:number;doing:number;done:number;overdue:number};governance:{risks_open:number;decisions_pending:number;client_risks:{title:string;status:string}[];client_decisions:{title:string;status:string}[]};scrum:{enabled:boolean;sprints:ScrumReportSprint[];backlog_stories:number;stories_total:number;tasks_total:number;tasks_done:number};internal?:{stories:ScrumReportStory[];tasks:ScrumReportTask[]}};
+export type ReportData={project:{id:string;name:string};generated_at:string;scope:"current_snapshot";kanban:{total:number;todo:number;doing:number;done:number;overdue:number;completed_titles:string[]};governance:{risks_open:number;decisions_pending:number;client_risks:{title:string;status:string}[];client_decisions:{title:string;status:string}[]};scrum:{enabled:boolean;sprints:ScrumReportSprint[];backlog_stories:number;stories_total:number;tasks_total:number;tasks_done:number};internal?:{stories:ScrumReportStory[];tasks:ScrumReportTask[]}};
 const uuid=/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 type DB=NonNullable<ReturnType<typeof getSupabaseServerClient>>;
 export async function getReportScope(auth:{userId:string;userEmail:string},projectId:string,write=false){
@@ -26,7 +26,7 @@ export async function loadReportData(db:DB,org:string,projectId:string,audience:
   db.from("scrum_sprints").select("id,name,goal,status,start_date,end_date").eq("project_id",projectId).eq("organization_id",org).order("start_date",{ascending:false}).limit(100),
   db.from("scrum_user_stories").select("id,sprint_id,title,workflow_stage,story_points,due_date,actual_end_date,blocked,blocker_reason,responsible").eq("project_id",projectId).eq("organization_id",org).limit(1000),
   db.from("scrum_backlog_items").select("id,story_id,title,state,responsible").eq("project_id",projectId).eq("organization_id",org).eq("item_type","task").limit(2000),
-  db.from("tasks").select("id,status,due_date").eq("project_id",projectId).eq("organization_id",org).limit(2000),
+  db.from("tasks").select("id,titulo,status,due_date").eq("project_id",projectId).eq("organization_id",org).limit(2000),
   db.from("risks").select("titulo,status").eq("project_id",projectId).eq("organization_id",org).limit(500),
   db.from("decisions").select("titulo,status").eq("project_id",projectId).eq("organization_id",org).limit(500),
  ]);
@@ -57,6 +57,7 @@ export async function loadReportData(db:DB,org:string,projectId:string,audience:
   generated_at:new Date().toISOString(),scope:"current_snapshot",
   kanban:{
    total:kanbanRows.length,
+   completed_titles:kanbanRows.filter(t=>["concluida","done"].includes(t.status)).slice(0,12).map(t=>t.titulo),
    todo:kanbanRows.filter(t=>t.status==="aberta"||t.status==="todo"||t.status==="to_do").length,
    doing:kanbanRows.filter(t=>t.status==="em_andamento"||t.status==="doing").length,
    done:kanbanRows.filter(t=>t.status==="concluida"||t.status==="done").length,
