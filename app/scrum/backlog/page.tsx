@@ -1,4 +1,5 @@
 "use client";
+import {ScrumKairosActions} from "@/components/scrum/scrum-kairos-actions";
 import {useCallback,useEffect,useMemo,useState} from "react";
 import {PageIntro,SurfaceCard} from "@/components/ui/workspace-primitives";
 import {useConfirm} from "@/components/ui/confirm-dialog";
@@ -132,6 +133,7 @@ export default function BacklogPage(){
     </tr>)}</tbody>
    </table>{!visible.length&&<p className="p-4 text-sm text-(--text-secondary)">Nenhum item encontrado. Ajuste os filtros ou cadastre um Epic.</p>}</div>
   </SurfaceCard>
+  <ScrumKairosActions projectId={data.projectId} compact/>
   {drawerOpen&&<div className="fixed inset-0 z-50"><button className="absolute inset-0 bg-black/40" aria-label="Fechar" onClick={()=>setDrawerOpen(false)}/><aside role="dialog" aria-modal="true" aria-label={types[mode]} className="relative ml-auto h-dvh w-full max-w-2xl overflow-y-auto border-l border-(--border) bg-(--bg-surface) p-5 shadow-2xl">
    <div className="flex items-center justify-between border-b border-(--border) pb-3"><h2 className="text-lg font-semibold">{opened?"Gerenciar":"Criar"} {types[mode]}</h2><button className="workspace-button-secondary px-3 py-2 text-xs" onClick={()=>setDrawerOpen(false)}>Fechar</button></div>
    <fieldset disabled={readOnly||saving||isLocked} className="mt-4 space-y-3">
