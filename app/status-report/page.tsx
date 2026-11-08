@@ -57,6 +57,11 @@ function reportDocument(project:Project, cards:Card[], risks:Risk[], decisions:D
   <div class="actions"><button onclick="window.print()">Salvar como PDF / Imprimir</button></div>
   </main></body></html>`;
 }
+function historicalDocument(data:ReportData,audience:ReportAudience,narrative:AiAnalysis|null,issued:string){
+ const rows=data.scrum.sprints.map(sp=>'<div class="item"><div><b>'+htmlEscape(sp.name)+'</b><p>Período: '+htmlEscape(sp.start_date)+' a '+htmlEscape(sp.end_date)+'</p><p>US concluídas: '+sp.closed+'/'+sp.stories+' · Story points: '+sp.points_done+'/'+sp.points_planned+' · Atrasadas: '+sp.overdue+'</p></div><span>'+htmlEscape(sp.status)+'</span></div>').join("");
+ const internal=audience==="internal"&&data.internal?'<section class="panel"><h2>Detalhamento interno</h2>'+data.internal.stories.map(st=>'<div class="item"><div>'+htmlEscape(st.title)+'</div><span>'+htmlEscape(st.workflow_stage)+' · '+htmlEscape(st.responsible||"Não atribuído")+'</span></div>').join("")+'</section>':"";
+ return '<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>Emissão arquivada · '+htmlEscape(data.project.name)+'</title><style>'+css+'</style></head><body><main class="wrap"><header class="hero"><h3>7COMMANDER · EMISSÃO ARQUIVADA</h3><h1>'+htmlEscape(data.project.name)+'</h1><p>'+htmlEscape(audience==="internal"?"Status Report Gerencial":"Status Report Executivo")+'</p><p>Emitido: '+htmlEscape(issued)+'</p></header><div class="note">Documento histórico. Os dados abaixo são aqueles preservados na emissão e não serão recalculados ao abrir este arquivo.</div><section class="metrics"><div class="metric"><small>ATIVIDADES</small><strong>'+data.kanban.total+'</strong></div><div class="metric"><small>CONCLUÍDAS</small><strong>'+data.kanban.done+'</strong></div><div class="metric"><small>RISCOS ATIVOS</small><strong>'+data.governance.risks_open+'</strong></div><div class="metric"><small>DECISÕES PENDENTES</small><strong>'+data.governance.decisions_pending+'</strong></div></section><section class="panel"><h2>Histórico das Sprints</h2>'+(rows||'<p>Projeto sem Sprints registradas.</p>')+'</section><section class="panel"><h2>Entregas operacionais</h2>'+data.kanban.completed_titles.map(t=>'<div class="item">'+htmlEscape(t)+'</div>').join("")+'</section><section class="panel"><h2>Riscos e decisões</h2>'+data.governance.client_risks.map(r=>'<div class="item">'+htmlEscape(r.title)+' · '+htmlEscape(r.status)+'</div>').join("")+data.governance.client_decisions.map(d=>'<div class="item">'+htmlEscape(d.title)+' · '+htmlEscape(d.status)+'</div>').join("")+'</section>'+(narrative?'<section class="panel"><h2>Leitura Kairos registrada</h2><p>'+htmlEscape(narrative.executiveSummary)+'</p><p>'+htmlEscape(narrative.riskAnalysis)+'</p><p>'+htmlEscape(narrative.nextSteps)+'</p></section>':"")+internal+'<footer class="foot">7Commander · Emissão registrada</footer><div class="actions"><button onclick="window.print()">Imprimir ou salvar PDF</button></div></main></body></html>';
+}
 export default function StatusReportPage() {
  const [projects,setProjects]=useState<Project[]>([]);
  const [projectId,setProjectId]=useState("");
@@ -67,6 +72,9 @@ export default function StatusReportPage() {
  const [history,setHistory]=useState<Array<{id:string;audience:string;created_at:string;generated_by_email:string|null}>>([]);
  const [historyId,setHistoryId]=useState("");
  const [historyData,setHistoryData]=useState<ReportData|null>(null);
+ const [historyAudience,setHistoryAudience]=useState<ReportAudience>("client");
+ const [historyNarrative,setHistoryNarrative]=useState<AiAnalysis|null>(null);
+ const [historyIssued,setHistoryIssued]=useState("");
  const [issuing,setIssuing]=useState(false);
  const [risks,setRisks]=useState<Risk[]>([]);
  const [decisions,setDecisions]=useState<Decision[]>([]);
@@ -114,12 +122,22 @@ export default function StatusReportPage() {
   }catch(e){setStatus(e instanceof Error?e.message:"Falha ao registrar emissão.");}finally{setIssuing(false)}
  }
  async function openHistory(id:string){
-  setHistoryId(id);setHistoryData(null);
+  setHistoryId(id);setHistoryData(null);setHistoryNarrative(null);
   if(!id)return;
   try{const r=await fetch("/api/status-report/history?projectId="+encodeURIComponent(projectId)+"&id="+encodeURIComponent(id),{headers:getClientAuthHeaders(),cache:"no-store"});
   const j=await r.json();if(!r.ok)throw Error(j.error||"Emissão indisponível.");
   setHistoryData(j.data?.report_data||null);
+  setHistoryAudience(j.data?.audience==="internal"?"internal":"client");
+  setHistoryNarrative(j.data?.narrative||null);
+  setHistoryIssued(j.data?.created_at||"");
   }catch(e){setStatus(e instanceof Error?e.message:"Falha ao consultar histórico.");}
+ }
+ async function exportHistory(){
+  if(!historyData)return;
+  const html=historicalDocument(historyData,historyAudience,historyNarrative,historyIssued);
+  const blob=new Blob([html],{type:"text/html;charset=utf-8"});
+  const url=URL.createObjectURL(blob);
+  const link=document.createElement("a");link.href=url;link.download="status-report-arquivado-"+historyId+".html";link.click();URL.revokeObjectURL(url);
  }
  async function download(){if(!documentHtml||!project)return;let html=documentHtml;try {const image=await fetch("/api/status-report/logo",{headers:getClientAuthHeaders()});if(!image.ok)throw Error("Não foi possível incorporar a logo.");const {dataUri}=await image.json();if(typeof dataUri!=="string"||!dataUri.startsWith("data:image/"))throw Error("Logo indisponível.");html=html.replace(BRAND_LOGO_URL,dataUri);}catch{setStatus("Falha ao incorporar a logo. Exportação interrompida para evitar documento incompleto.");return;}const blob=new Blob([html],{type:"text/html;charset=utf-8"});const url=URL.createObjectURL(blob);const link=document.createElement("a");link.href=url;link.download=`status-report-${project.id}-${new Date().toISOString().slice(0,10)}.html`;link.click();URL.revokeObjectURL(url);}
  return <main className="space-y-4">
@@ -136,7 +154,7 @@ export default function StatusReportPage() {
  <p role="status" className="text-xs text-(--text-secondary)">{scrumStatus}</p>
  <section className="rounded-xl border border-(--border) bg-(--bg-surface) p-4"><h2 className="font-semibold">Histórico de emissões</h2><p className="mt-1 text-xs text-(--text-secondary)">Os indicadores são preservados no momento da emissão. A visualização histórica abaixo resume o snapshot armazenado.</p>
  <select aria-label="Consultar emissão" className="mt-2 w-full rounded border border-(--border) p-2 text-sm" value={historyId} onChange={e=>void openHistory(e.target.value)}><option value="">Selecione uma emissão anterior</option>{history.map(h=><option value={h.id} key={h.id}>{new Date(h.created_at).toLocaleString("pt-BR")} · {h.audience==="client"?"Cliente":"Interno"} · {h.generated_by_email||"Usuário"}</option>)}</select>
- {historyData&&<div className="mt-3 rounded-lg bg-(--bg-muted) p-3 text-sm"><p><b>Projeto:</b> {historyData.project.name} · <b>Emitido:</b> {new Date(historyData.generated_at).toLocaleString("pt-BR")}</p><p><b>Kanban:</b> {historyData.kanban.done} concluídas de {historyData.kanban.total} atividades</p><p><b>Sprints:</b> {historyData.scrum.sprints.length} · <b>US:</b> {historyData.scrum.stories_total} · <b>Tasks concluídas:</b> {historyData.scrum.tasks_done}/{historyData.scrum.tasks_total}</p></div>}
+ {historyData&&<div className="mt-3 rounded-lg bg-(--bg-muted) p-3 text-sm"><p><b>Projeto:</b> {historyData.project.name} · <b>Emitido:</b> {new Date(historyData.generated_at).toLocaleString("pt-BR")}</p><p><b>Kanban:</b> {historyData.kanban.done} concluídas de {historyData.kanban.total} atividades</p><p><b>Sprints:</b> {historyData.scrum.sprints.length} · <b>US:</b> {historyData.scrum.stories_total} · <b>Tasks concluídas:</b> {historyData.scrum.tasks_done}/{historyData.scrum.tasks_total}</p><button type="button" onClick={()=>void exportHistory()} className="workspace-button-secondary mt-3 rounded-lg px-3 py-2 text-sm">Exportar emissão arquivada</button></div>}
  </section>
  <p role="status" className="text-sm text-(--text-secondary)">{busy?"Consolidando dados...":status}</p><p role="status" className="text-sm text-(--text-secondary)">{analysisStatus}</p>
  {documentHtml?<iframe title="Prévia do Status Report" srcDoc={documentHtml} sandbox="allow-scripts" className="h-[900px] w-full rounded-xl border border-(--border) bg-white"/>:<div className="rounded-xl border border-(--border) p-10 text-center text-sm">Nenhuma prévia disponível.</div>}
