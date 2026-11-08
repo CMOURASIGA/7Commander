@@ -2,6 +2,7 @@
 import {useEffect,useState} from "react";
 import {getClientAuthHeaders} from "@/lib/client-auth";
 import {useKairosPanel} from "@/components/kairos/kairos-context";
+import {MarkdownContent} from "@/components/ui/markdown-content";
 type Mode="health"|"planning"|"daily"|"review"|"retrospective";
 const modes:{id:Mode;name:string;help:string}[]=[
  {id:"health",name:"Saúde da Sprint",help:"Riscos, atrasos, impedimentos e prioridades"},
@@ -42,6 +43,6 @@ export function ScrumKairosActions({projectId,sprintId,compact=false,sprints=[]}
   <div className="mt-3 flex flex-wrap items-end gap-2"><label className="min-w-[210px] flex-1 text-xs">Tipo de análise<select className="workspace-select mt-1 w-full" value={mode} onChange={e=>setMode(e.target.value as Mode)}>{modes.map(m=><option key={m.id} value={m.id}>{m.name}</option>)}</select></label><button className="workspace-button-primary rounded-lg px-4 py-2 text-xs" disabled={!projectId||loading||(!effectiveSprintId&&mode!=="planning")} onClick={()=>void analyze()}>{loading?"Analisando...":"Analisar com Kairos"}</button></div>
   {!compact&&<p className="mt-2 text-xs text-(--text-secondary)">{modes.find(m=>m.id===mode)?.help}</p>}
   {error&&<p role="alert" className="mt-3 text-xs text-(--danger)">{error}</p>}
-  {analysis&&<div className="mt-3 rounded-lg bg-(--bg-muted) p-3"><p className="text-xs font-semibold">{source}</p><p className="mt-2 whitespace-pre-wrap text-sm">{analysis}</p><button className="workspace-button-secondary mt-3 rounded-lg px-3 py-2 text-xs" onClick={()=>openPanel({projectId,seedMessage:"Quero aprofundar esta análise Scrum, conferindo as evidências e ações sugeridas:\n"+analysis.slice(0,2800)})}>Discutir análise no Kairos</button></div>}
+  {analysis&&<div className="mt-3 rounded-lg bg-(--bg-muted) p-3"><p className="text-xs font-semibold">{source}</p><MarkdownContent content={analysis} className="mt-3 kairos-analysis-markdown"/><button className="workspace-button-secondary mt-3 rounded-lg px-3 py-2 text-xs" onClick={()=>openPanel({projectId,seedMessage:"Quero aprofundar esta análise Scrum, conferindo as evidências e ações sugeridas:\n"+analysis.slice(0,2800)})}>Discutir análise no Kairos</button></div>}
  </section>;
 }
