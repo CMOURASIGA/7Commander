@@ -18,7 +18,7 @@ export async function getReportScope(auth:{userId:string;userEmail:string|null},
  if(role==="none"||(write&&!["owner","editor"].includes(role)))return {error:"Permissão insuficiente.",status:403} as const;
  const db=getSupabaseServerClient();if(!db)return {error:"Banco indisponível.",status:503} as const;
  const organizationId=TENANT_SCHEMA_READY?await requireEffectiveTenant(auth.userId):CONSULT_ORG_ID;
- return {db,organizationId,project} as const;
+ return {db,organizationId,project,role} as const;
 }
 export async function loadReportData(db:DB,org:string,projectId:string,audience:ReportAudience):Promise<ReportData>{
  const [project,sprints,stories,tasks,kanban,risks,decisions]=await Promise.all([
