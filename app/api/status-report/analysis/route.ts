@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireApiAuth } from "@/lib/api-auth";
-import { getReportScope } from "@/lib/scrum/report-data";
+import { getReportScope,loadReportData } from "@/lib/scrum/report-data";
 import { getOpenAIClient } from "@/lib/openai";
 import { KAIROS_PM_REPORT_POLICY } from "@/lib/kairos-pm-report-policy";
 
@@ -35,6 +35,8 @@ export async function POST(request: NextRequest) {
   ]);
   if (tasksResult.error || risksResult.error || decisionsResult.error) return NextResponse.json({error:"Dados do projeto indisponíveis."},{status:503});
   const tasks = tasksResult.data||[], risks=risksResult.data||[], decisions=decisionsResult.data||[];
+  let scrum;
+  try{scrum=await loadReportData(db,tenant,id,audience)}catch{return NextResponse.json({error:"Métricas do Scrum indisponíveis; análise não gerada."},{status:503})}
   let events: Array<{action_type:string; task_id:string; created_at:string}> = [];
   if (mode==="period" && tasks.length) {
     const endExclusive = new Date(Date.parse(end+"T00:00:00Z")+86400000).toISOString();
@@ -60,6 +62,14 @@ export async function POST(request: NextRequest) {
     decisoesAtuais:decisions.map(x=>audience==="internal"?({titulo:x.titulo,status:x.status,impacto:x.impacto,contexto:x.contexto}):({titulo:x.titulo,status:x.status})),
     eventosNoPeriodo:events.map(x=>({tipo:x.action_type,data:x.created_at})),
     registrosCriadosNoPeriodo:periodMetrics,
+    scrumAtual:{
+      sprints:scrum.scrum.sprints,
+      usSemSprint:scrum.scrum.backlog_stories,
+      totalUS:scrum.scrum.stories_total,
+      tasksConcluidas:scrum.scrum.tasks_done,
+      tasksTotais:scrum.scrum.tasks_total
+    },
+    kanbanResumo:scrum.kanban,
     avisos:["Não equiparar quantidade de cartões a percentual de escopo.","Não inferir estado passado de registros atuais.","Não tratar ausência de histórico como ausência de trabalho."]
   };
   const openai = getOpenAIClient();
@@ -68,7 +78,7 @@ export async function POST(request: NextRequest) {
     const result = await openai.responses.create({
       model:"gpt-4o-mini",
       input:[
-        {role:"system",content:KAIROS_PM_REPORT_POLICY+"\nProduza exclusivamente JSON com três campos string: executiveSummary, riskAnalysis, nextSteps. Português executivo, cada campo com 2 a 5 frases objetivas. Use apenas os dados recebidos. Evite enumerar riscos genéricos, integre riscos semelhantes e indique mitigação existente ou ausente. Diferencie riscos reais de lacunas. Não invente fatos, evolução histórica ou estimativa. Nenhum comando de escrita."},
+        {role:"system",content:KAIROS_PM_REPORT_POLICY+"\nProduza exclusivamente JSON com três campos string: executiveSummary, riskAnalysis, nextSteps. Português executivo, cada campo com 2 a 5 frases objetivas. Use apenas os dados recebidos. Evite enumerar riscos genéricos, integre riscos semelhantes e indique mitigação existente ou ausente. Diferencie riscos reais de lacunas. Descreva Sprints e entregas quando existirem e separe-as do Kanban operacional. Não invente fatos, evolução histórica ou estimativa. Nenhum comando de escrita."},
         {role:"user",content:JSON.stringify(scope).slice(0,45000)}
       ],
     });
