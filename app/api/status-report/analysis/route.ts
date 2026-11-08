@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireApiAuth } from "@/lib/api-auth";
-import { getSupabaseServerClient } from "@/lib/supabase/server";
-import { getEffectiveTenantForUser } from "@/lib/tenant-runtime";
+import { getReportScope,loadReportData } from "@/lib/scrum/report-data";
 import { getOpenAIClient } from "@/lib/openai";
 import { KAIROS_PM_REPORT_POLICY } from "@/lib/kairos-pm-report-policy";
 
@@ -17,13 +16,15 @@ export async function POST(request: NextRequest) {
   const input = await request.json().catch(() => null);
   const id = typeof input?.projectId === "string" ? input.projectId : "";
   const mode = input?.mode === "period" ? "period" : "current";
+  const audience = input?.audience === "internal" ? "internal" : "client";
   const start = input?.start, end = input?.end;
   if (!UUID.test(id) || (mode==="period" && (typeof start!=="string" || typeof end!=="string" || !DATE.test(start) || !DATE.test(end) || start>end || !Number.isFinite(Date.parse(start+"T00:00:00Z")) || !Number.isFinite(Date.parse(end+"T00:00:00Z"))))) {
     return NextResponse.json({error:"Projeto ou período inválido."},{status:400});
   }
-  const db = getSupabaseServerClient();
-  const tenant = await getEffectiveTenantForUser(auth.context.userId);
-  if (!db || !tenant) return NextResponse.json({error:"Empresa autenticada indisponível."},{status:403});
+  const scopeContext=await getReportScope(auth.context,id);
+  if("error" in scopeContext)return NextResponse.json({error:scopeContext.error},{status:scopeContext.status});
+  if(audience==="internal"&&!["owner","editor"].includes(scopeContext.role))return NextResponse.json({error:"Análise interna restrita."},{status:403});
+  const db=scopeContext.db,tenant=scopeContext.organizationId;
   const projectResult = await db.from("projects").select("id,nome,objetivo,descricao").eq("id",id).eq("organization_id",tenant).maybeSingle();
   if (projectResult.error || !projectResult.data) return NextResponse.json({error:"Projeto sem acesso."},{status:404});
   const project = projectResult.data;
@@ -34,6 +35,8 @@ export async function POST(request: NextRequest) {
   ]);
   if (tasksResult.error || risksResult.error || decisionsResult.error) return NextResponse.json({error:"Dados do projeto indisponíveis."},{status:503});
   const tasks = tasksResult.data||[], risks=risksResult.data||[], decisions=decisionsResult.data||[];
+  let scrum;
+  try{scrum=await loadReportData(db,tenant,id,audience)}catch{return NextResponse.json({error:"Métricas do Scrum indisponíveis; análise não gerada."},{status:503})}
   let events: Array<{action_type:string; task_id:string; created_at:string}> = [];
   if (mode==="period" && tasks.length) {
     const endExclusive = new Date(Date.parse(end+"T00:00:00Z")+86400000).toISOString();
@@ -52,13 +55,21 @@ export async function POST(request: NextRequest) {
   const period = mode==="current" ? "Situação atual" : start+" a "+end;
   const scope = {
     projeto:project.nome, objetivo:project.objetivo||project.descricao||"Não registrado",
-    periodo:period,
+    periodo:period,publico:audience,
     criterio:mode==="current"?"Fotografia operacional atual, sem inferência histórica":"Eventos registrados no intervalo; situação dos riscos e tarefas é atual, não retrospectiva",
-    atividadesAtuais:tasks.map(x=>({titulo:x.titulo,status:x.status,prioridade:x.prioridade,prazo:x.due_date,responsavel:x.responsavel})),
-    riscosAtuais:risks.map(x=>({titulo:x.titulo,status:x.status,impacto:x.impacto,probabilidade:x.probabilidade,mitigacao:x.mitigacao,responsavel:x.responsavel})),
-    decisoesAtuais:decisions.map(x=>({titulo:x.titulo,status:x.status,impacto:x.impacto,contexto:x.contexto})),
+    atividadesAtuais:tasks.map(x=>audience==="internal"?({titulo:x.titulo,status:x.status,prioridade:x.prioridade,prazo:x.due_date,responsavel:x.responsavel}):({titulo:x.titulo,status:x.status,prazo:x.due_date})),
+    riscosAtuais:risks.map(x=>audience==="internal"?({titulo:x.titulo,status:x.status,impacto:x.impacto,probabilidade:x.probabilidade,mitigacao:x.mitigacao,responsavel:x.responsavel}):({titulo:x.titulo,status:x.status})),
+    decisoesAtuais:decisions.map(x=>audience==="internal"?({titulo:x.titulo,status:x.status,impacto:x.impacto,contexto:x.contexto}):({titulo:x.titulo,status:x.status})),
     eventosNoPeriodo:events.map(x=>({tipo:x.action_type,data:x.created_at})),
     registrosCriadosNoPeriodo:periodMetrics,
+    scrumAtual:{
+      sprints:scrum.scrum.sprints,
+      usSemSprint:scrum.scrum.backlog_stories,
+      totalUS:scrum.scrum.stories_total,
+      tasksConcluidas:scrum.scrum.tasks_done,
+      tasksTotais:scrum.scrum.tasks_total
+    },
+    kanbanResumo:scrum.kanban,
     avisos:["Não equiparar quantidade de cartões a percentual de escopo.","Não inferir estado passado de registros atuais.","Não tratar ausência de histórico como ausência de trabalho."]
   };
   const openai = getOpenAIClient();
@@ -67,7 +78,7 @@ export async function POST(request: NextRequest) {
     const result = await openai.responses.create({
       model:"gpt-4o-mini",
       input:[
-        {role:"system",content:KAIROS_PM_REPORT_POLICY+"\nProduza exclusivamente JSON com três campos string: executiveSummary, riskAnalysis, nextSteps. Português executivo, cada campo com 2 a 5 frases objetivas. Use apenas os dados recebidos. Evite enumerar riscos genéricos, integre riscos semelhantes e indique mitigação existente ou ausente. Diferencie riscos reais de lacunas. Não invente fatos, evolução histórica ou estimativa. Nenhum comando de escrita."},
+        {role:"system",content:KAIROS_PM_REPORT_POLICY+"\nProduza exclusivamente JSON com três campos string: executiveSummary, riskAnalysis, nextSteps. Português executivo, cada campo com 2 a 5 frases objetivas. Use apenas os dados recebidos. Evite enumerar riscos genéricos, integre riscos semelhantes e indique mitigação existente ou ausente. Diferencie riscos reais de lacunas. Descreva Sprints e entregas quando existirem e separe-as do Kanban operacional. Não invente fatos, evolução histórica ou estimativa. Nenhum comando de escrita."},
         {role:"user",content:JSON.stringify(scope).slice(0,45000)}
       ],
     });

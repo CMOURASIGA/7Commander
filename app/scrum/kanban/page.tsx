@@ -1,4 +1,5 @@
 "use client";
+import {ScrumKairosActions} from "@/components/scrum/scrum-kairos-actions";
 import {useEffect,useRef,useState} from "react";
 
 import {useConfirm} from "@/components/ui/confirm-dialog";
@@ -154,6 +155,7 @@ export default function ScrumKanbanPage(){
     {mode==="stories"&&!showEmpty&&columns.length===0&&<p className="p-3 text-xs">Nenhuma US vinculada a esta Sprint.</p>}
    </>}
   </SurfaceCard>
+  <ScrumKairosActions projectId={data.projectId} sprintId={data.sprintId} compact/>
   {selected&&<div className="fixed inset-0 z-50"><button aria-label="Fechar painel" className="absolute inset-0 bg-black/40" onClick={()=>setSelected(null)}/><aside className="relative ml-auto h-dvh w-full max-w-xl overflow-y-auto border-l border-(--border) bg-(--bg-surface) p-5 shadow-2xl" role="dialog" aria-modal="true" aria-label="User Story">
    <div className="flex items-center justify-between border-b border-(--border) pb-3"><h2 className="font-semibold">{editing?"Editar User Story":"Detalhes da User Story"}</h2><button className="workspace-button-secondary px-3 py-2 text-xs" onClick={()=>setSelected(null)}>Fechar</button></div>
    {editing&&!closed?<div className="mt-4 space-y-3">

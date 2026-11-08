@@ -1,4 +1,5 @@
 "use client";
+import {ScrumKairosActions} from "@/components/scrum/scrum-kairos-actions";
 import Link from "next/link";
 import {useState} from "react";
 import {useConfirm} from "@/components/ui/confirm-dialog";
@@ -61,6 +62,7 @@ export default function ScrumPage(){
        <Link href={"/scrum/backlog?projectId="+encodeURIComponent(data.projectId)} className="workspace-button-secondary rounded-lg px-4 py-2 text-sm">Gerenciar backlog</Link>
      </div>
     </SurfaceCard>:<SurfaceCard><p className="text-sm text-(--text-secondary)">{data.loading?"Carregando...":"Selecione ou crie uma Sprint para acompanhar seus indicadores."}</p></SurfaceCard>}
+   <ScrumKairosActions projectId={data.projectId} sprintId={data.sprintId}/>
    {drawer&&<div className="fixed inset-0 z-50"><button aria-label="Fechar" className="absolute inset-0 bg-black/40" onClick={()=>setDrawer(false)}/><aside role="dialog" aria-modal="true" aria-label="Criar Sprint" className="relative ml-auto h-dvh w-full max-w-xl overflow-y-auto border-l border-(--border) bg-(--bg-surface) p-5 shadow-2xl"><div className="flex justify-between gap-2 border-b border-(--border) pb-4"><h2 className="font-semibold text-lg">Criar Sprint</h2><button className="workspace-button-secondary px-3 py-2 text-sm" onClick={()=>setDrawer(false)}>Fechar</button></div><div className="mt-4 space-y-4">
      <label className="block text-sm">Nome<input className="workspace-input mt-1 w-full" value={form.name} onChange={e=>setForm(f=>({...f,name:e.target.value}))}/></label>
      <label className="block text-sm">Meta da Sprint<textarea className="workspace-input mt-1 w-full" rows={4} value={form.goal} onChange={e=>setForm(f=>({...f,goal:e.target.value}))}/></label>

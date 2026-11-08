@@ -348,6 +348,36 @@ a {
   text-decoration-color: color-mix(in srgb, var(--accent) 35%, white);
 }
 
+/* Respostas do Kairos: hierarquia visual consistente em chat, voz, painel e Scrum. */
+.workspace-markdown {
+  overflow-wrap: anywhere;
+}
+.workspace-markdown strong { font-weight: 700; color: var(--text-primary); }
+.workspace-markdown em { font-style: italic; }
+.workspace-markdown h3 { font-size: 1.03rem; }
+.workspace-markdown h4 { font-size: 0.94rem; }
+.workspace-markdown h5,
+.workspace-markdown h6 { font-size: 0.88rem; }
+.workspace-markdown ul { list-style-type: disc; }
+.workspace-markdown ol { list-style-type: decimal; }
+.workspace-markdown li::marker { color: var(--accent); font-weight: 650; }
+.workspace-markdown li { padding-left: 0.2rem; }
+.kairos-analysis-markdown {
+  font-size: 0.9rem;
+  line-height: 1.7;
+  max-width: 90ch;
+}
+.kairos-analysis-markdown > * + * { margin-top: 0.95rem; }
+.kairos-analysis-markdown h3,
+.kairos-analysis-markdown h4,
+.kairos-analysis-markdown h5 {
+  padding-left: 0.8rem;
+  border-left: 3px solid var(--accent);
+}
+.kairos-analysis-markdown h5 { font-size: 0.98rem; }
+.kairos-analysis-markdown ol,
+.kairos-analysis-markdown ul { padding-left: 1.6rem; }
+
 /* ---------------------------------------------------------------------- */
 /* Navegacao responsiva: gaveta no mobile, rail de icones no tablet        */
 /* ---------------------------------------------------------------------- */

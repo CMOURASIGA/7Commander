@@ -13,7 +13,7 @@ type Block =
   | { type: "blockquote"; text: string };
 
 function renderInline(text: string) {
-  const tokens = text.split(/(\*\*[^*]+\*\*|`[^`]+`|\[[^\]]+\]\([^)]+\))/g);
+  const tokens = text.split(/(\*\*[^*]+\*\*|\*[^*\n]+\*|`[^`]+`|\[[^\]]+\]\([^)]+\))/g);
 
   return tokens.map((token, index) => {
     if (!token) return null;
@@ -21,6 +21,11 @@ function renderInline(text: string) {
     const boldMatch = token.match(/^\*\*([^*]+)\*\*$/);
     if (boldMatch) {
       return <strong key={index}>{boldMatch[1]}</strong>;
+    }
+
+    const italicMatch = token.match(/^\*([^*\n]+)\*$/);
+    if (italicMatch) {
+      return <em key={index}>{italicMatch[1]}</em>;
     }
 
     const codeMatch = token.match(/^`([^`]+)`$/);
@@ -33,13 +38,13 @@ function renderInline(text: string) {
     }
 
     const linkMatch = token.match(/^\[([^\]]+)\]\(([^)]+)\)$/);
-    if (linkMatch) {
+    if (linkMatch && /^https?:\/\//i.test(linkMatch[2])) {
       return (
         <a
           key={index}
           href={linkMatch[2]}
           target="_blank"
-          rel="noreferrer"
+          rel="noopener noreferrer"
           className="workspace-markdown-link"
         >
           {linkMatch[1]}
@@ -145,7 +150,7 @@ export function MarkdownContent({ content, className }: MarkdownContentProps) {
     <div className={["workspace-markdown", className].filter(Boolean).join(" ")}>
       {blocks.map((block, index) => {
         if (block.type === "heading") {
-          const headingLevel = Math.min(block.level + 2, 6);
+          const headingLevel = Math.min(block.level + 2, 5);
           const HeadingTag = (
             {
               3: "h3",
