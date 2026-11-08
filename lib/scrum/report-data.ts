@@ -10,7 +10,7 @@ export type ScrumReportSprint={id:string;name:string;goal:string;status:string;s
 export type ReportData={project:{id:string;name:string};generated_at:string;scope:"current_snapshot";kanban:{total:number;todo:number;doing:number;done:number;overdue:number;completed_titles:string[]};governance:{risks_open:number;decisions_pending:number;client_risks:{title:string;status:string}[];client_decisions:{title:string;status:string}[]};scrum:{enabled:boolean;sprints:ScrumReportSprint[];backlog_stories:number;stories_total:number;tasks_total:number;tasks_done:number};internal?:{stories:ScrumReportStory[];tasks:ScrumReportTask[]}};
 const uuid=/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 type DB=NonNullable<ReturnType<typeof getSupabaseServerClient>>;
-export async function getReportScope(auth:{userId:string;userEmail:string},projectId:string,write=false){
+export async function getReportScope(auth:{userId:string;userEmail:string|null},projectId:string,write=false){
  if(!uuid.test(projectId))return {error:"Projeto inválido.",status:400} as const;
  const project=await getProjectById({projectId,userId:auth.userId,userEmail:auth.userEmail});
  if(!project)return {error:"Projeto indisponível.",status:404} as const;
