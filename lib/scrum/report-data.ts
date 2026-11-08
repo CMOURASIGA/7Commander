@@ -7,7 +7,7 @@ export type ReportAudience="client"|"internal";
 export type ScrumReportStory={id:string;sprint_id:string|null;title:string;workflow_stage:string;story_points:number|null;due_date:string|null;actual_end_date:string|null;blocked:boolean;blocker_reason:string;responsible:string|null};
 export type ScrumReportTask={id:string;story_id:string|null;title:string;state:string;responsible:string|null};
 export type ScrumReportSprint={id:string;name:string;goal:string;status:string;start_date:string;end_date:string;stories:number;closed:number;resolved:number;active:number;blocked:number;overdue:number;points_planned:number;points_done:number;delivery_planned:number;delivery_actual:number;delivery_on_time:number;delivery_late:number};
-export type ReportData={project:{id:string;name:string};generated_at:string;scope:"current_snapshot";kanban:{total:number;todo:number;doing:number;done:number;overdue:number};scrum:{enabled:boolean;sprints:ScrumReportSprint[];backlog_stories:number;stories_total:number;tasks_total:number;tasks_done:number};internal?:{stories:ScrumReportStory[];tasks:ScrumReportTask[]}};
+export type ReportData={project:{id:string;name:string};generated_at:string;scope:"current_snapshot";kanban:{total:number;todo:number;doing:number;done:number;overdue:number};governance:{risks_open:number;decisions_pending:number;client_risks:{title:string;status:string}[];client_decisions:{title:string;status:string}[]};scrum:{enabled:boolean;sprints:ScrumReportSprint[];backlog_stories:number;stories_total:number;tasks_total:number;tasks_done:number};internal?:{stories:ScrumReportStory[];tasks:ScrumReportTask[]}};
 const uuid=/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 type DB=NonNullable<ReturnType<typeof getSupabaseServerClient>>;
 export async function getReportScope(auth:{userId:string;userEmail:string},projectId:string,write=false){
@@ -21,14 +21,16 @@ export async function getReportScope(auth:{userId:string;userEmail:string},proje
  return {db,organizationId,project} as const;
 }
 export async function loadReportData(db:DB,org:string,projectId:string,audience:ReportAudience):Promise<ReportData>{
- const [project,sprints,stories,tasks,kanban]=await Promise.all([
+ const [project,sprints,stories,tasks,kanban,risks,decisions]=await Promise.all([
   db.from("projects").select("id,nome").eq("id",projectId).eq("organization_id",org).single(),
   db.from("scrum_sprints").select("id,name,goal,status,start_date,end_date").eq("project_id",projectId).eq("organization_id",org).order("start_date",{ascending:false}).limit(100),
   db.from("scrum_user_stories").select("id,sprint_id,title,workflow_stage,story_points,due_date,actual_end_date,blocked,blocker_reason,responsible").eq("project_id",projectId).eq("organization_id",org).limit(1000),
   db.from("scrum_backlog_items").select("id,story_id,title,state,responsible").eq("project_id",projectId).eq("organization_id",org).eq("item_type","task").limit(2000),
   db.from("tasks").select("id,status,due_date").eq("project_id",projectId).eq("organization_id",org).limit(2000),
+  db.from("risks").select("titulo,status").eq("project_id",projectId).eq("organization_id",org).limit(500),
+  db.from("decisions").select("titulo,status").eq("project_id",projectId).eq("organization_id",org).limit(500),
  ]);
- if([project,sprints,stories,tasks,kanban].some(r=>r.error))throw Error("Dados de projetos, Scrum ou Kanban indisponíveis.");
+ if([project,sprints,stories,tasks,kanban,risks,decisions].some(r=>r.error))throw Error("Dados de projetos, Scrum ou Kanban indisponíveis.");
  const allStories=(stories.data||[]) as ScrumReportStory[];
  const allTasks=(tasks.data||[]) as ScrumReportTask[];
  const kanbanRows=kanban.data||[];
@@ -59,6 +61,12 @@ export async function loadReportData(db:DB,org:string,projectId:string,audience:
    doing:kanbanRows.filter(t=>t.status==="em_andamento"||t.status==="doing").length,
    done:kanbanRows.filter(t=>t.status==="concluida"||t.status==="done").length,
    overdue:kanbanRows.filter(t=>t.due_date&&t.due_date<now&&!["concluida","done"].includes(t.status)).length
+  },
+  governance:{
+   risks_open:(risks.data||[]).filter(r=>["aberto","em_mitigacao"].includes(r.status)).length,
+   decisions_pending:(decisions.data||[]).filter(d=>["aberta","em_andamento"].includes(d.status)).length,
+   client_risks:(risks.data||[]).filter(r=>["aberto","em_mitigacao"].includes(r.status)).slice(0,15).map(r=>({title:r.titulo,status:r.status})),
+   client_decisions:(decisions.data||[]).filter(d=>["aberta","em_andamento"].includes(d.status)).slice(0,15).map(d=>({title:d.titulo,status:d.status}))
   },
   scrum:{enabled:metrics.length>0,sprints:metrics,backlog_stories:allStories.filter(st=>!st.sprint_id).length,stories_total:allStories.length,tasks_total:allTasks.length,tasks_done:allTasks.filter(t=>t.state==="done").length},
   ...(audience==="internal"?{internal:{stories:allStories,tasks:allTasks}}:{})
