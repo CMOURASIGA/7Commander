@@ -9,7 +9,7 @@ type Form={title:string;description:string;acceptanceCriteria:string;priority:st
 const initial=():Form=>({title:"",description:"",acceptanceCriteria:"",priority:"media",responsible:"",stage:"new",startDate:today(),dueDate:addDays(today(),3),durationDays:"3",storyPoints:"",blocked:false,blockerReason:"",sprintId:"",actualEndDate:"",featureId:"",parentId:"",storyId:"",sortOrder:"0"});
 function fromStory(s:Story):Form{return {...initial(),title:s.title,description:s.description,acceptanceCriteria:s.acceptance_criteria,priority:s.priority,responsible:s.responsible||"",stage:s.workflow_stage,startDate:dateOnly(s.start_date),dueDate:dateOnly(s.due_date),durationDays:s.duration_days===null?"":String(s.duration_days),storyPoints:s.story_points===null?"":String(s.story_points),blocked:s.blocked,blockerReason:s.blocker_reason,sprintId:s.sprint_id||"",actualEndDate:dateOnly(s.actual_end_date),featureId:s.feature_id||"",sortOrder:String(s.sort_order||0)}}
 function WorkItemIcon({type}:{type:Row["type"]}){
- const color={epic:"bg-violet-100 text-violet-700",feature:"bg-fuchsia-100 text-fuchsia-700",story:"bg-sky-100 text-sky-700",task:"bg-emerald-100 text-emerald-700"}[type];
+ const color={epic:"bg-amber-100 text-amber-700",feature:"bg-fuchsia-100 text-fuchsia-700",story:"bg-sky-100 text-sky-700",task:"bg-emerald-100 text-emerald-700"}[type];
  return <span className={"inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-md "+color}>
  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
  {type==="epic"?<><path d="m3 7 4.5 4 4.5-7 4.5 7L21 7l-2 12H5L3 7Z"/><path d="M5 19h14"/></>:null}
