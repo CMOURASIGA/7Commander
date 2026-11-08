@@ -9,6 +9,7 @@ export async function GET(req:NextRequest){
  const audience:ReportAudience=req.nextUrl.searchParams.get("audience")==="internal"?"internal":"client";
  const context=await getReportScope(auth.context,projectId);
  if("error" in context)return out({error:context.error},context.status);
+ if(audience==="internal"&&!["owner","editor"].includes(context.role))return out({error:"Relatório interno restrito."},403);
  try{return out({data:await loadReportData(context.db,context.organizationId,projectId,audience)})}
  catch{return out({error:"Dados de Scrum e Kanban indisponíveis; relatório não gerado."},503)}
 }
