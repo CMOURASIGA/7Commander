@@ -111,15 +111,16 @@ export default function StatusReportPage() {
  const cards=useMemo(()=>board?.columns.flatMap(x=>x.cards)||[],[board]);
  const issueDate=new Date().toLocaleDateString("pt-BR");
  const documentHtml=project&&board&&scrumReport?reportDocument(project,cards,audience==="client"?risks.map(r=>({...r,owner:null,mitigation:null})):risks,decisions,period,issueDate,analysis,periodEvents,periodMetrics,audience,scrumReport):"";
- async function issue(){
-  if(!projectId||!scrumReport||!documentHtml||issuing)return;
+ async function issue():Promise<string|null>{
+  if(!projectId||!scrumReport||!documentHtml||issuing)return null;
   setIssuing(true);setStatus("Registrando emissão...");
   try{
    const r=await fetch("/api/status-report/history",{method:"POST",headers:getClientAuthHeaders({"Content-Type":"application/json"}),body:JSON.stringify({projectId,audience,mode:periodMode,start,end,narrative:analysis}),cache:"no-store"});
    const j=await r.json();if(!r.ok)throw Error(j.error||"Falha ao registrar emissão.");
    setStatus("Emissão registrada no histórico: "+j.data.id);
    setHistory(h=>[j.data,...h]);setHistoryId(j.data.id);
-  }catch(e){setStatus(e instanceof Error?e.message:"Falha ao registrar emissão.");}finally{setIssuing(false)}
+   return j.data.id as string;
+  }catch(e){setStatus(e instanceof Error?e.message:"Falha ao registrar emissão.");return null;}finally{setIssuing(false)}
  }
  async function openHistory(id:string){
   setHistoryId(id);setHistoryData(null);setHistoryNarrative(null);
@@ -139,7 +140,7 @@ export default function StatusReportPage() {
   const url=URL.createObjectURL(blob);
   const link=document.createElement("a");link.href=url;link.download="status-report-arquivado-"+historyId+".html";link.click();URL.revokeObjectURL(url);
  }
- async function download(){if(!documentHtml||!project)return;let html=documentHtml;try {const image=await fetch("/api/status-report/logo",{headers:getClientAuthHeaders()});if(!image.ok)throw Error("Não foi possível incorporar a logo.");const {dataUri}=await image.json();if(typeof dataUri!=="string"||!dataUri.startsWith("data:image/"))throw Error("Logo indisponível.");html=html.replace(BRAND_LOGO_URL,dataUri);}catch{setStatus("Falha ao incorporar a logo. Exportação interrompida para evitar documento incompleto.");return;}const blob=new Blob([html],{type:"text/html;charset=utf-8"});const url=URL.createObjectURL(blob);const link=document.createElement("a");link.href=url;link.download=`status-report-${project.id}-${new Date().toISOString().slice(0,10)}.html`;link.click();URL.revokeObjectURL(url);}
+ async function download(){if(!documentHtml||!project)return;const issuedId=await issue();if(!issuedId)return;let html=documentHtml;try {const image=await fetch("/api/status-report/logo",{headers:getClientAuthHeaders()});if(!image.ok)throw Error("Não foi possível incorporar a logo.");const {dataUri}=await image.json();if(typeof dataUri!=="string"||!dataUri.startsWith("data:image/"))throw Error("Logo indisponível.");html=html.replace(BRAND_LOGO_URL,dataUri);}catch{setStatus("Falha ao incorporar a logo. Exportação interrompida para evitar documento incompleto.");return;}const blob=new Blob([html],{type:"text/html;charset=utf-8"});const url=URL.createObjectURL(blob);const link=document.createElement("a");link.href=url;link.download=`status-report-${project.id}-${new Date().toISOString().slice(0,10)}.html`;link.click();URL.revokeObjectURL(url);}
  return <main className="space-y-4">
  <header className="flex flex-wrap items-center justify-between gap-3"><div><p className="text-xs uppercase tracking-wider text-(--text-secondary)">7Commander · Kairos</p><h1 className="text-2xl font-semibold">Status Report do Projeto</h1><p className="text-sm text-(--text-secondary)">Relatório executivo para cliente ou gerencial para equipe, com dados de Scrum e Kanban.</p></div><Link className="rounded-lg border border-(--border) px-3 py-2 text-sm" href="/projects">Voltar aos projetos</Link></header>
  <section className="grid gap-3 rounded-xl border border-(--border) bg-(--bg-surface) p-4 md:grid-cols-[2fr_1fr_auto]">
@@ -158,6 +159,6 @@ export default function StatusReportPage() {
  </section>
  <p role="status" className="text-sm text-(--text-secondary)">{busy?"Consolidando dados...":status}</p><p role="status" className="text-sm text-(--text-secondary)">{analysisStatus}</p>
  {documentHtml?<iframe title="Prévia do Status Report" srcDoc={documentHtml} sandbox="allow-scripts" className="h-[900px] w-full rounded-xl border border-(--border) bg-white"/>:<div className="rounded-xl border border-(--border) p-10 text-center text-sm">Nenhuma prévia disponível.</div>}
- <p className="text-xs text-(--text-secondary)">Ao enviar o HTML ao cliente, revise as informações, pois o arquivo conterá um retrato dos registros autorizados. A logo é incorporada ao HTML durante o download, permitindo abertura offline.</p>
+ <p className="text-xs text-(--text-secondary)">O download registra automaticamente uma emissão no histórico. Revise as informações antes de compartilhar o HTML com o cliente, pois ele conterá os registros autorizados. A logo é incorporada ao HTML durante o download, permitindo abertura offline.</p>
  </main>
 }
