@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { getClientAuthHeaders } from "@/lib/client-auth";
 import { BRAND_LOGO_URL } from "@/lib/brand";
+import type {ReportData,ReportAudience} from "@/lib/scrum/report-data";
 
 type Project = { id:string; name:string; objective?:string; status?:string; clientName?:string|null };
 type Card = { id:string; title:string; status:string; dueDate?:string|null; responsible?:string|null; columnKey:string };
@@ -17,7 +18,7 @@ const css = `
 `;
 type AiAnalysis = { executiveSummary:string; riskAnalysis:string; nextSteps:string };
 type PeriodMetrics = { tasksCreated:number; risksRegistered:number; decisionsRegistered:number; activityEvents:number };
-function reportDocument(project:Project, cards:Card[], risks:Risk[], decisions:Decision[], period:string, issueDate:string, analysis:AiAnalysis|null, periodEvents:number|null, periodMetrics:PeriodMetrics|null) {
+function reportDocument(project:Project, cards:Card[], risks:Risk[], decisions:Decision[], period:string, issueDate:string, analysis:AiAnalysis|null, periodEvents:number|null, periodMetrics:PeriodMetrics|null, audience:ReportAudience, scrum:ReportData|null) {
   const done=cards.filter(x=>x.columnKey==="done").length, doing=cards.filter(x=>x.columnKey==="doing").length, todo=cards.filter(x=>x.columnKey==="todo").length;
   const atRisk=risks.filter(x=>x.status==="aberto"||x.status==="em_mitigacao");
   const undecided=decisions.filter(x=>x.status==="aberta"||x.status==="em_andamento");
@@ -25,8 +26,23 @@ function reportDocument(project:Project, cards:Card[], risks:Risk[], decisions:D
   const completed=cards.filter(x=>x.columnKey==="done").slice(0,10);
   const list=(rows:Array<{title:string;note:string}>,missing:string)=>rows.length?rows.map(x=>`<div class="item"><div>${htmlEscape(x.title)}</div><span>${htmlEscape(x.note)}</span></div>`).join(""):`<p class="empty">${missing}</p>`;
   const logo=htmlEscape(BRAND_LOGO_URL);
+  const isInternal=audience==="internal";
+  const scrumSection=scrum?.scrum.enabled?`
+   <section class="panel" style="margin:16px 0"><h3>07 · Scrum</h3><h2>Panorama de Sprints</h2>
+   <p class="empty">Indicadores calculados a partir do estado atual das US. Não representam a situação histórica do período escolhido.</p>
+   <div class="metrics" style="margin:12px 0"><div class="metric"><small>SPRINTS</small><strong>${scrum.scrum.sprints.length}</strong></div>
+   <div class="metric"><small>US NO BACKLOG</small><strong>${scrum.scrum.backlog_stories}</strong></div>
+   <div class="metric"><small>TASKS CONCLUÍDAS</small><strong>${scrum.scrum.tasks_done}/${scrum.scrum.tasks_total}</strong></div></div>
+   ${scrum.scrum.sprints.map(sp=>`<div class="item"><div><b>${htmlEscape(sp.name)}</b><p style="font-size:12px;margin:5px 0">Meta: ${htmlEscape(sp.goal||"Não definida")} · ${htmlEscape(sp.start_date)} a ${htmlEscape(sp.end_date)}</p><p style="font-size:12px;margin:5px 0">US: ${sp.closed}/${sp.stories} concluídas · Pontos: ${sp.points_done}/${sp.points_planned} · Atrasadas: ${sp.overdue} · Bloqueadas: ${sp.blocked}</p><p style="font-size:12px;margin:5px 0">Entregas realizadas: ${sp.delivery_actual}/${sp.delivery_planned} previstas · No prazo: ${sp.delivery_on_time} · Fora do prazo: ${sp.delivery_late}</p></div><span>${htmlEscape(sp.status)}</span></div>`).join("")}
+   </section>`: "";
+  const internalSection=isInternal&&scrum?.internal?`
+   <section class="panel" style="margin:16px 0"><h3>08 · Operação interna</h3><h2>US, Tasks e impedimentos</h2>
+   ${list(scrum.internal.stories.slice(0,35).map(st=>({title:st.title,note:st.workflow_stage.toUpperCase()+" · "+(st.responsible||"Sem responsável")+" · Prazo: "+(st.due_date||"Não definido")+(st.blocked?" · IMPEDIDA: "+st.blocker_reason:"")})),"Sem US cadastradas.")}
+   <h2 style="margin-top:18px">Tasks de desenvolvimento</h2>
+   ${list(scrum.internal.tasks.slice(0,35).map(t=>({title:t.title,note:t.state.toUpperCase()+" · "+(t.responsible||"Sem responsável")})),"Sem Tasks de desenvolvimento.")}
+   </section>`: "";
   return `<!doctype html><html lang="pt-BR"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Status Report — ${htmlEscape(project.name)}</title><style>${css}</style></head><body><main class="wrap">
-  <header class="hero"><div class="top"><img class="logo" src="${logo}" alt="Consult Services Tecnologia"><div class="topright">RELATÓRIO EXECUTIVO<br><small style="font-weight:400">MODELO INSTITUCIONAL · V1.1</small></div></div><p class="eyebrow" style="margin-top:24px">TECNOLOGIA & INTELIGÊNCIA DE PROJETOS</p><div class="rule"></div><span class="eyebrow">PROJECT INTELLIGENCE · STATUS REPORT</span><h1>${htmlEscape(project.name)}</h1><p class="desc">${htmlEscape(project.objective||"Objetivo do projeto não registrado.")}</p><div class="chips"><span class="chip">Período: ${htmlEscape(period)}</span><span class="chip">Emitido: ${htmlEscape(issueDate)}</span><span class="chip">Público: Executivo</span><span class="chip warning">Riscos ativos: ${atRisk.length}</span></div></header>
+  <header class="hero"><div class="top"><img class="logo" src="${logo}" alt="Consult Services Tecnologia"><div class="topright">RELATÓRIO ${isInternal?"GERENCIAL":"EXECUTIVO"}<br><small style="font-weight:400">MODELO INSTITUCIONAL · V1.1</small></div></div><p class="eyebrow" style="margin-top:24px">TECNOLOGIA & INTELIGÊNCIA DE PROJETOS</p><div class="rule"></div><span class="eyebrow">PROJECT INTELLIGENCE · STATUS REPORT</span><h1>${htmlEscape(project.name)}</h1><p class="desc">${htmlEscape(project.objective||"Objetivo do projeto não registrado.")}</p><div class="chips"><span class="chip">Período: ${htmlEscape(period)}</span><span class="chip">Emitido: ${htmlEscape(issueDate)}</span><span class="chip">Público: ${isInternal?"Equipe interna":"Cliente"}</span><span class="chip warning">Riscos ativos: ${atRisk.length}</span></div></header>
   <div class="note">RELATÓRIO EXTRAÍDO DE DADOS CADASTRADOS. Contagens representam registros Kanban disponíveis no momento da geração, não o percentual físico de conclusão do projeto. Ausência de registros não comprova ausência de riscos ou impedimentos. O Kanban e a lista de riscos representam o estado atual, não um retrato retrospectivo. ${periodEvents===null?"Não há recorte temporal de eventos.":`Eventos registrados no período selecionado: ${periodEvents}. Esses eventos não equivalem a entregas concluídas.`}</div>
   <section class="metrics"><div class="metric"><small>ITENS NO QUADRO</small><strong>${total}</strong><em>Cards registrados</em></div><div class="metric green"><small>CONCLUÍDOS</small><strong>${done}</strong><em>Coluna DONE</em></div><div class="metric"><small>EM EXECUÇÃO</small><strong>${doing}</strong><em>WIP atual</em></div><div class="metric amber"><small>RISCOS ABERTOS</small><strong>${atRisk.length}</strong><em>Em aberto / mitigação</em></div></section>
   ${periodMetrics?`<section class="panel" style="margin-bottom:14px"><h3>Registros do período</h3><h2>Movimentação documentada</h2><div class="item">Atividades criadas <span>${periodMetrics.tasksCreated}</span></div><div class="item">Riscos registrados <span>${periodMetrics.risksRegistered}</span></div><div class="item">Decisões registradas <span>${periodMetrics.decisionsRegistered}</span></div><div class="item">Eventos de tarefas no histórico <span>${periodMetrics.activityEvents}</span></div><p class="empty">Datas filtram a criação de registros e os eventos registrados; situação de cartões, riscos e decisões é atual, não reconstrução histórica.</p></section>`:""}
@@ -36,6 +52,7 @@ function reportDocument(project:Project, cards:Card[], risks:Risk[], decisions:D
   <section class="panel"><h3>04 · Atenção</h3><h2>Riscos e impedimentos</h2>${analysis?`<p>${htmlEscape(analysis.riskAnalysis)}</p>`:`<p class="empty">Sem avaliação inteligente nesta emissão.</p>`}${atRisk.length?atRisk.map((x,i)=>{const details=(x.impact||"").split(/\s*Título:\s*/i);const riskTitle=details[1]?.trim()||x.title;return `<div class="item"><div><span class="risk-tag">RISCO ${i+1}</span> <strong>${htmlEscape(riskTitle)}</strong> <p style="margin:5px 0 0;font-size:12px"><b>Impacto:</b> ${htmlEscape(details[0]?.trim()||"Não informado")} · <b>Probabilidade:</b> ${htmlEscape(x.probability?.trim()||"Não informada")} · <b>Classificação:</b> ${htmlEscape(x.title)}</p>${x.mitigation?`<p style="margin:5px 0 0;font-size:12px">Mitigação: ${htmlEscape(x.mitigation)}</p>`:""}</div><span>${htmlEscape(x.status.replaceAll("_"," "))}${x.owner?" · "+htmlEscape(x.owner):""}</span></div>`}).join(""):`<p class="empty">Nenhum risco ativo registrado; validar cobertura do cadastro.</p>`}</section>
   <section class="panel"><h3>05 · Governança</h3><h2>Decisões necessárias</h2>${list(undecided.map(x=>({title:x.title,note:x.status})),"Nenhuma decisão pendente registrada.")}</section>
   <section class="panel"><h3>06 · Perspectiva</h3><h2>Próximos passos</h2>${analysis?`<p>${htmlEscape(analysis.nextSteps)}</p>`:`<p class="empty">Recomendações do Kairos indisponíveis; nenhuma conclusão automática foi produzida.</p>`}<p>[AUSENTE] Sem uma linha de base e série histórica confiáveis, não há previsão executiva de custo, prazo ou tendência.</p></section></div>
+  ${scrumSection}${internalSection}
   <footer class="foot"><span>CONSULT SERVICES TECNOLOGIA · 7Commander / Kairos Executive Reporting</span><span>Registro gerado em ${htmlEscape(issueDate)}</span></footer>
   <div class="actions"><button onclick="window.print()">Salvar como PDF / Imprimir</button></div>
   </main></body></html>`;
@@ -44,6 +61,13 @@ export default function StatusReportPage() {
  const [projects,setProjects]=useState<Project[]>([]);
  const [projectId,setProjectId]=useState("");
  const [board,setBoard]=useState<Board|null>(null);
+ const [audience,setAudience]=useState<ReportAudience>("client");
+ const [scrumReport,setScrumReport]=useState<ReportData|null>(null);
+ const [scrumStatus,setScrumStatus]=useState("Consultando indicadores do projeto...");
+ const [history,setHistory]=useState<Array<{id:string;audience:string;created_at:string;generated_by_email:string|null}>>([]);
+ const [historyId,setHistoryId]=useState("");
+ const [historyData,setHistoryData]=useState<ReportData|null>(null);
+ const [issuing,setIssuing]=useState(false);
  const [risks,setRisks]=useState<Risk[]>([]);
  const [decisions,setDecisions]=useState<Decision[]>([]);
  const [status,setStatus]=useState("Selecione um projeto para gerar um relatório.");
@@ -56,6 +80,14 @@ export default function StatusReportPage() {
  const [periodEvents,setPeriodEvents]=useState<number|null>(null);
  const [periodMetrics,setPeriodMetrics]=useState<PeriodMetrics|null>(null);
  const period=periodMode==="current"?"Situação atual":`${start} a ${end}`;
+ useEffect(()=>{if(!projectId){setScrumReport(null);return}let live=true;setScrumReport(null);setScrumStatus("Consultando indicadores do projeto...");
+  void fetch("/api/status-report/scrum?projectId="+encodeURIComponent(projectId)+"&audience="+audience,{headers:getClientAuthHeaders(),cache:"no-store"})
+   .then(async r=>{const j=await r.json();if(!r.ok)throw Error(j.error||"Consulta indisponível");if(live){setScrumReport(j.data);setScrumStatus("Indicadores operacionais consultados.")}})
+   .catch(e=>{if(live)setScrumStatus(e instanceof Error?e.message:"Falha ao consultar Scrum.")});
+  return()=>{live=false};
+ },[projectId,audience]);
+ useEffect(()=>{if(!projectId)return;let live=true;void fetch("/api/status-report/history?projectId="+encodeURIComponent(projectId),{headers:getClientAuthHeaders(),cache:"no-store"})
+  .then(r=>r.json()).then(j=>{if(live)setHistory(j.data||[])}).catch(()=>{});return()=>{live=false};},[projectId]);
  useEffect(()=>{let mounted=true;void (async()=>{try{
   const res=await fetch("/api/projects",{headers:getClientAuthHeaders(),cache:"no-store"});if(!res.ok)throw Error("Sem acesso à lista de projetos.");
   const payload=await res.json();if(mounted){const projects=(payload.data??[]) as Project[];setProjects(projects);setProjectId(payload.meta?.activeProjectId??projects[0]?.id??"");}
@@ -70,15 +102,43 @@ export default function StatusReportPage() {
  const project=projects.find(x=>x.id===projectId);
  const cards=useMemo(()=>board?.columns.flatMap(x=>x.cards)||[],[board]);
  const issueDate=new Date().toLocaleDateString("pt-BR");
- const documentHtml=project&&board?reportDocument(project,cards,risks,decisions,period,issueDate,analysis,periodEvents,periodMetrics):"";
+ const documentHtml=project&&board&&scrumReport?reportDocument(project,cards,audience==="client"?risks.map(r=>({...r,owner:null,mitigation:null})):risks,decisions,period,issueDate,analysis,periodEvents,periodMetrics,audience,scrumReport):"";
+ async function issue(){
+  if(!projectId||!scrumReport||!documentHtml||issuing)return;
+  setIssuing(true);setStatus("Registrando emissão...");
+  try{
+   const r=await fetch("/api/status-report/history",{method:"POST",headers:getClientAuthHeaders({"Content-Type":"application/json"}),body:JSON.stringify({projectId,audience,mode:periodMode,start,end,narrative:analysis}),cache:"no-store"});
+   const j=await r.json();if(!r.ok)throw Error(j.error||"Falha ao registrar emissão.");
+   setStatus("Emissão registrada no histórico: "+j.data.id);
+   setHistory(h=>[j.data,...h]);setHistoryId(j.data.id);
+  }catch(e){setStatus(e instanceof Error?e.message:"Falha ao registrar emissão.");}finally{setIssuing(false)}
+ }
+ async function openHistory(id:string){
+  setHistoryId(id);setHistoryData(null);
+  if(!id)return;
+  try{const r=await fetch("/api/status-report/history?projectId="+encodeURIComponent(projectId)+"&id="+encodeURIComponent(id),{headers:getClientAuthHeaders(),cache:"no-store"});
+  const j=await r.json();if(!r.ok)throw Error(j.error||"Emissão indisponível.");
+  setHistoryData(j.data?.report_data||null);
+  }catch(e){setStatus(e instanceof Error?e.message:"Falha ao consultar histórico.");}
+ }
  async function download(){if(!documentHtml||!project)return;let html=documentHtml;try {const image=await fetch("/api/status-report/logo",{headers:getClientAuthHeaders()});if(!image.ok)throw Error("Não foi possível incorporar a logo.");const {dataUri}=await image.json();if(typeof dataUri!=="string"||!dataUri.startsWith("data:image/"))throw Error("Logo indisponível.");html=html.replace(BRAND_LOGO_URL,dataUri);}catch{setStatus("Falha ao incorporar a logo. Exportação interrompida para evitar documento incompleto.");return;}const blob=new Blob([html],{type:"text/html;charset=utf-8"});const url=URL.createObjectURL(blob);const link=document.createElement("a");link.href=url;link.download=`status-report-${project.id}-${new Date().toISOString().slice(0,10)}.html`;link.click();URL.revokeObjectURL(url);}
  return <main className="space-y-4">
- <header className="flex flex-wrap items-center justify-between gap-3"><div><p className="text-xs uppercase tracking-wider text-(--text-secondary)">7Commander · Kairos</p><h1 className="text-2xl font-semibold">Status Report Executivo</h1><p className="text-sm text-(--text-secondary)">Documento institucional navegável e exportável para clientes.</p></div><Link className="rounded-lg border border-(--border) px-3 py-2 text-sm" href="/projects">Voltar aos projetos</Link></header>
+ <header className="flex flex-wrap items-center justify-between gap-3"><div><p className="text-xs uppercase tracking-wider text-(--text-secondary)">7Commander · Kairos</p><h1 className="text-2xl font-semibold">Status Report do Projeto</h1><p className="text-sm text-(--text-secondary)">Relatório executivo para cliente ou gerencial para equipe, com dados de Scrum e Kanban.</p></div><Link className="rounded-lg border border-(--border) px-3 py-2 text-sm" href="/projects">Voltar aos projetos</Link></header>
  <section className="grid gap-3 rounded-xl border border-(--border) bg-(--bg-surface) p-4 md:grid-cols-[2fr_1fr_auto]">
  <label className="text-sm">Projeto<select className="mt-1 block w-full rounded-lg border border-(--border) bg-(--bg-surface) px-3 py-2" value={projectId} onChange={e=>setProjectId(e.target.value)}>{projects.map(x=><option key={x.id} value={x.id}>{x.name}</option>)}</select></label>
  <div className="text-sm"><label className="block">Período de referência<select className="mt-1 block w-full rounded-lg border border-(--border) bg-(--bg-surface) px-3 py-2" value={periodMode} onChange={e=>setPeriodMode(e.target.value==="period"?"period":"current")}><option value="current">Situação atual</option><option value="period">Período personalizado</option></select></label>{periodMode==="period"&&<div className="mt-2 grid grid-cols-2 gap-2"><label>Início<input type="date" className="mt-1 block w-full rounded border p-2" value={start} max={end} onChange={e=>setStart(e.target.value)}/></label><label>Fim<input type="date" className="mt-1 block w-full rounded border p-2" value={end} min={start} onChange={e=>setEnd(e.target.value)}/></label></div>}</div>
- <button type="button" onClick={download} disabled={!board||busy} className="self-end rounded-lg bg-(--accent) px-4 py-2 text-sm text-white disabled:opacity-50">Baixar HTML</button>
- </section><p role="status" className="text-sm text-(--text-secondary)">{busy?"Consolidando dados...":status}</p><p role="status" className="text-sm text-(--text-secondary)">{analysisStatus}</p>
+ <button type="button" onClick={download} disabled={!documentHtml||busy} className="self-end rounded-lg bg-(--accent) px-4 py-2 text-sm text-white disabled:opacity-50">Baixar HTML</button>
+ </section>
+ <section className="grid gap-3 rounded-xl border border-(--border) bg-(--bg-surface) p-4 md:grid-cols-[1fr_auto]">
+ <label className="text-sm">Tipo de relatório<select className="mt-1 block w-full rounded-lg border border-(--border) bg-(--bg-surface) px-3 py-2" value={audience} onChange={e=>setAudience(e.target.value==="internal"?"internal":"client")}><option value="client">Executivo · Cliente</option><option value="internal">Gerencial · Equipe interna</option></select></label>
+ <button type="button" className="self-end rounded-lg bg-(--accent) px-4 py-2 text-sm text-white disabled:opacity-50" disabled={!documentHtml||issuing} onClick={()=>void issue()}>{issuing?"Registrando...":"Registrar emissão no histórico"}</button>
+ </section>
+ <p role="status" className="text-xs text-(--text-secondary)">{scrumStatus}</p>
+ <section className="rounded-xl border border-(--border) bg-(--bg-surface) p-4"><h2 className="font-semibold">Histórico de emissões</h2><p className="mt-1 text-xs text-(--text-secondary)">Os indicadores são preservados no momento da emissão. A visualização histórica abaixo resume o snapshot armazenado.</p>
+ <select aria-label="Consultar emissão" className="mt-2 w-full rounded border border-(--border) p-2 text-sm" value={historyId} onChange={e=>void openHistory(e.target.value)}><option value="">Selecione uma emissão anterior</option>{history.map(h=><option value={h.id} key={h.id}>{new Date(h.created_at).toLocaleString("pt-BR")} · {h.audience==="client"?"Cliente":"Interno"} · {h.generated_by_email||"Usuário"}</option>)}</select>
+ {historyData&&<div className="mt-3 rounded-lg bg-(--bg-muted) p-3 text-sm"><p><b>Projeto:</b> {historyData.project.name} · <b>Emitido:</b> {new Date(historyData.generated_at).toLocaleString("pt-BR")}</p><p><b>Kanban:</b> {historyData.kanban.done} concluídas de {historyData.kanban.total} atividades</p><p><b>Sprints:</b> {historyData.scrum.sprints.length} · <b>US:</b> {historyData.scrum.stories_total} · <b>Tasks concluídas:</b> {historyData.scrum.tasks_done}/{historyData.scrum.tasks_total}</p></div>}
+ </section>
+ <p role="status" className="text-sm text-(--text-secondary)">{busy?"Consolidando dados...":status}</p><p role="status" className="text-sm text-(--text-secondary)">{analysisStatus}</p>
  {documentHtml?<iframe title="Prévia do Status Report" srcDoc={documentHtml} sandbox="allow-scripts" className="h-[900px] w-full rounded-xl border border-(--border) bg-white"/>:<div className="rounded-xl border border-(--border) p-10 text-center text-sm">Nenhuma prévia disponível.</div>}
  <p className="text-xs text-(--text-secondary)">Ao enviar o HTML ao cliente, revise as informações, pois o arquivo conterá um retrato dos registros autorizados. A logo é incorporada ao HTML durante o download, permitindo abertura offline.</p>
  </main>
