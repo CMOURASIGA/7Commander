@@ -5,412 +5,249 @@ import { useEffect, useMemo, useState } from "react";
 import { getClientAuthHeaders } from "@/lib/client-auth";
 import { useKairosAuth } from "@/components/auth/kairos-auth-provider";
 
-type ActiveProject = {
-  id: string;
-  name: string;
-  status: string;
-  objective: string;
-  context: string;
-  clientName: string | null;
-};
-
-type ProjectSummary = {
+type Project = {
   id: string;
   name: string;
   status: string;
   clientName: string | null;
+  objective?: string;
+  context?: string;
   createdAt: string;
-  isActive: boolean;
 };
-
-type TaskCard = {
+type Task = {
   id: string;
   title: string;
   priority: "baixa" | "media" | "alta" | "critica";
   status: "aberta" | "em_andamento" | "concluida";
   columnKey: "todo" | "doing" | "done";
+  dueDate?: string | null;
+  responsible?: string | null;
+};
+type Board = { columns: Array<{ cards: Task[] }> };
+type Risk = { id: string; title: string; impact?: string | null; status: "aberto" | "em_mitigacao" | "mitigado" | "encerrado" };
+type Detail = { board: Board | null; risks: Risk[]; tasksError: boolean; risksError: boolean };
+type ProjectAttention = { project: Project; task: Task; days: number };
+type ManagementStatus = "Indisponível" | "Sem planejamento" | "Crítico" | "Atenção" | "Em dia";
+function managementStatus(info: { incomplete: boolean; total: number; delayed: number; soon: number; risks: Risk[]; unassigned: number }): ManagementStatus {
+  if (info.incomplete) return "Indisponível";
+  if (info.total === 0) return "Sem planejamento";
+  if (info.delayed > 0 || info.risks.some(r => openRisk(r) && /cr[ií]tic[oa]|muito alto/i.test(r.impact || ""))) return "Crítico";
+  if (info.soon > 0 || info.unassigned > 0 || info.risks.some(openRisk)) return "Atenção";
+  return "Em dia";
+}
+const managementTone: Record<ManagementStatus, string> = {
+  "Indisponível": "bg-(--bg-muted) text-(--text-secondary)",
+  "Sem planejamento": "bg-(--warning-soft) text-(--warning)",
+  "Crítico": "bg-(--danger-soft) text-(--danger)",
+  "Atenção": "bg-(--warning-soft) text-(--warning)",
+  "Em dia": "bg-(--success-soft) text-(--success)",
 };
 
-type TaskColumn = {
-  id: string;
-  key: "todo" | "doing" | "done";
-  title: string;
-  cards: TaskCard[];
+const isOpen = (task: Task) => task.columnKey !== "done" && task.status !== "concluida";
+const openRisk = (risk: Risk) => risk.status === "aberto" || risk.status === "em_mitigacao";
+const dateKey = (date: Date) => [date.getFullYear(), String(date.getMonth() + 1).padStart(2, "0"), String(date.getDate()).padStart(2, "0")].join("-");
+const dueKey = (value: string | null | undefined) => {
+  if (!value) return null;
+  const match = /^(\d{4}-\d{2}-\d{2})/.exec(value);
+  return match?.[1] ?? null;
 };
+const daysUntil = (due: string, today: string) => Math.round((Date.parse(due + "T12:00:00Z") - Date.parse(today + "T12:00:00Z")) / 86400000);
+const plural = (count: number, singular: string, multiple: string) => count === 1 ? singular : multiple;
 
-type TaskBoard = {
-  id: string;
-  projectId: string;
-  columns: TaskColumn[];
-};
-
-type RiskItem = {
-  id: string;
-  title: string;
-  status: "aberto" | "em_mitigacao" | "mitigado" | "encerrado";
-};
-
-type KnowledgeItem = {
-  id: string;
-  title: string;
-  createdAt: string;
-};
-
-function greetingForNow() {
+function greeting() {
   const hour = new Date().getHours();
-  if (hour < 12) return "Bom dia";
-  if (hour < 18) return "Boa tarde";
-  return "Boa noite";
+  return hour < 12 ? "Bom dia" : hour < 18 ? "Boa tarde" : "Boa noite";
+}
+function displayName(email?: string | null) {
+  return (email?.split("@")[0] || "operador").split(/[.\s_-]+/).filter(Boolean).map(p => p[0].toUpperCase() + p.slice(1)).join(" ");
 }
 
-function formatDisplayName(email: string | null) {
-  const base = (email ?? "operador").split("@")[0] ?? "operador";
-  return base
-    .split(/[.\s_-]+/)
-    .filter(Boolean)
-    .map((part) => part[0]?.toUpperCase() + part.slice(1))
-    .join(" ");
-}
-
-function formatProjectAge(createdAt: string) {
-  const diffDays = Math.floor((Date.now() - new Date(createdAt).getTime()) / (1000 * 60 * 60 * 24));
-  if (diffDays <= 0) return "Hoje";
-  if (diffDays === 1) return "1 dia";
-  return `${diffDays} dias`;
-}
-
-function DashboardIcon({ type }: { type: "projects" | "activities" | "risks" | "knowledge" }) {
-  const paths = {
-    projects: <path d="M4 7h6l2 2h8v9a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2Z" />,
-    activities: <><path d="M9 6h11" /><path d="M9 12h11" /><path d="M9 18h11" /><path d="m3 6 1 1 2-2" /><path d="m3 12 1 1 2-2" /><path d="m3 18 1 1 2-2" /></>,
-    risks: <><path d="M12 3 2.8 20h18.4L12 3Z" /><path d="M12 9v4" /><path d="M12 17h.01" /></>,
-    knowledge: <><path d="M4 4.5A2.5 2.5 0 0 1 6.5 2H20v17H6.5A2.5 2.5 0 0 0 4 21.5v-17Z" /><path d="M4 19a2.5 2.5 0 0 1 2.5-2.5H20" /></>,
-  };
-  return (
-    <span className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-(--accent-soft) text-(--accent)">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4" aria-hidden="true">
-        {paths[type]}
-      </svg>
-    </span>
-  );
+function Metric({ label, value, detail, warning = false }: { label: string; value: number | string; detail: string; warning?: boolean }) {
+  return <article className="rounded-xl border border-(--border) bg-(--bg-surface) p-4">
+    <p className="text-[11px] uppercase tracking-[0.05em] text-(--text-secondary)">{label}</p>
+    <p className={["mt-3 text-[28px] font-medium", warning ? "text-(--danger)" : "text-(--text-primary)"].join(" ")}>{value}</p>
+    <p className="mt-1 text-[13px] text-(--text-tertiary)">{detail}</p>
+  </article>;
 }
 
 export default function HomePage() {
   const auth = useKairosAuth();
-  const [project, setProject] = useState<ActiveProject | null>(null);
-  const [projects, setProjects] = useState<ProjectSummary[]>([]);
-  const [board, setBoard] = useState<TaskBoard | null>(null);
-  const [risks, setRisks] = useState<RiskItem[]>([]);
-  const [knowledge, setKnowledge] = useState<KnowledgeItem[]>([]);
-  const [statusMessage, setStatusMessage] = useState<string | null>(null);
-  const [workspaceDenied, setWorkspaceDenied] = useState(false);
-  const canLoadWorkspace = !auth.loading && (!auth.required || Boolean(auth.user));
-  // UI-only permission hint; API authorization remains authoritative.
-  // Never display mutating links until the current identity is confirmed.
+  const canLoad = !auth.loading && (!auth.required || Boolean(auth.user));
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [details, setDetails] = useState<Record<string, Detail>>({});
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [denied, setDenied] = useState(false);
   const [canCreate, setCanCreate] = useState(false);
+  const [referenceDate, setReferenceDate] = useState(() => dateKey(new Date()));
+
   useEffect(() => {
-    if (!canLoadWorkspace) { setCanCreate(false); return; }
-    let mounted = true;
-    const check = async () => {
+    if (!canLoad) { setCanCreate(false); return; }
+    let live = true;
+    void (async () => {
       try {
-        const response = await fetch("/api/organizations/mine", {
-          headers: getClientAuthHeaders(), cache: "no-store", credentials: "same-origin",
-        });
-        if (!response.ok) { if (mounted) setCanCreate(false); return; }
-        const payload = await response.json().catch(() => ({}));
+        const res = await fetch("/api/organizations/mine", { headers: getClientAuthHeaders(), cache: "no-store", credentials: "same-origin" });
+        const payload = await res.json().catch(() => ({}));
         const members = Array.isArray(payload?.data) ? payload.data : [];
-        // Conservative UI rule. A granted API result is still required for writes.
-        const privileged = members.some((entry: { role?: string }) =>
-          entry.role === "owner" || entry.role === "admin" || entry.role === "manager"
-        );
-        if (mounted) setCanCreate(privileged);
-      } catch { if (mounted) setCanCreate(false); }
-    };
-    void check();
-    return () => { mounted = false; };
-  }, [canLoadWorkspace]);
-
-
-  const counters = useMemo(() => {
-    const totalProjects = projects.length;
-    const activeProjects = projects.filter((item) => item.status === "ativo").length;
-    const riskyProjects = openRiskProjects(risks, project?.id ?? null);
-    const artifacts = knowledge.length;
-    return { totalProjects, activeProjects, riskyProjects, artifacts };
-  }, [knowledge.length, project?.id, projects, risks]);
-
-  const staleProjects = useMemo(() => {
-    return projects
-      .slice()
-      .sort((left, right) => new Date(left.createdAt).getTime() - new Date(right.createdAt).getTime())
-      .slice(0, 4);
-  }, [projects]);
+        if (live) setCanCreate(res.ok && members.some((m: { role?: string }) => ["owner", "admin", "manager"].includes(m.role || "")));
+      } catch { if (live) setCanCreate(false); }
+    })();
+    return () => { live = false; };
+  }, [canLoad]);
 
   useEffect(() => {
-    if (!canLoadWorkspace) return;
-
-    async function bootstrap() {
-      setStatusMessage(null);
-      setWorkspaceDenied(false);
+    if (!canLoad) return;
+    let live = true;
+    void (async () => {
+      setLoading(true);
+      setError(null);
+      setDenied(false);
+      setProjects([]);
+      setDetails({});
+      setReferenceDate(dateKey(new Date()));
       try {
-        const activeResponse = await fetch("/api/projects/active", {
-          headers: getClientAuthHeaders(),
-        });
-        const activePayload = await activeResponse.json().catch(() => ({}));
-        if (activeResponse.status === 401 || activeResponse.status === 403) {
-          setWorkspaceDenied(true);
-          throw new Error(activePayload?.error || "Acesso operacional não autorizado.");
+        const response = await fetch("/api/projects", { headers: getClientAuthHeaders(), cache: "no-store", credentials: "same-origin" });
+        const payload = await response.json().catch(() => ({}));
+        if (response.status === 401 || response.status === 403) {
+          if (live) setDenied(true);
+          throw new Error("Acesso operacional não autorizado.");
         }
-        if (!activeResponse.ok) throw new Error(activePayload?.error || "Falha ao carregar projeto ativo.");
-
-        const activeProject = (activePayload?.data ?? null) as ActiveProject | null;
-        setProject(activeProject);
-
-        const projectsResponse = await fetch("/api/projects", {
-          headers: getClientAuthHeaders(),
-        });
-        const projectsPayload = await projectsResponse.json().catch(() => ({}));
-        if (projectsResponse.ok) {
-          setProjects((projectsPayload?.data ?? []) as ProjectSummary[]);
-        }
-
-        if (!activeProject?.id) {
-          setBoard(null);
-          setRisks([]);
-          setKnowledge([]);
-          setStatusMessage("Nenhum projeto ativo. Crie ou ative um projeto para iniciar a execução.");
-          return;
-        }
-
-        const [tasksResponse, risksResponse, knowledgeResponse] = await Promise.all([
-          fetch(`/api/projects/${activeProject.id}/tasks`, { headers: getClientAuthHeaders() }),
-          fetch(`/api/projects/${activeProject.id}/risks`, { headers: getClientAuthHeaders() }),
-          fetch(`/api/knowledge?projectId=${encodeURIComponent(activeProject.id)}`, { headers: getClientAuthHeaders() }),
-        ]);
-
-        const tasksPayload = await tasksResponse.json().catch(() => ({}));
-        const risksPayload = await risksResponse.json().catch(() => ({}));
-        const knowledgePayload = await knowledgeResponse.json().catch(() => ({}));
-
-        if (!tasksResponse.ok) throw new Error(tasksPayload?.error || "Falha ao carregar quadro.");
-        if (!risksResponse.ok) throw new Error(risksPayload?.error || "Falha ao carregar riscos.");
-        if (!knowledgeResponse.ok) throw new Error(knowledgePayload?.error || "Falha ao carregar artefatos.");
-
-        setBoard((tasksPayload?.data ?? null) as TaskBoard | null);
-        setRisks((risksPayload?.data ?? []) as RiskItem[]);
-        setKnowledge((knowledgePayload?.data ?? []) as KnowledgeItem[]);
-      } catch (error) {
-        setProject(null);
-        setBoard(null);
-        setRisks([]);
-        setKnowledge([]);
-        setStatusMessage(error instanceof Error ? error.message : "Falha ao carregar dashboard.");
+        if (!response.ok || !Array.isArray(payload?.data)) throw new Error(payload?.error || "Não foi possível carregar projetos.");
+        const listed = payload.data as Project[];
+        if (!live) return;
+        setProjects(listed);
+        const active = listed.filter(p => p.status === "ativo");
+        // Only load the projects that the authorized projects endpoint returned.
+        // Project-specific APIs independently enforce tenant and membership permissions.
+        const entries = await Promise.all(active.map(async project => {
+          const endpoints = [
+            "/api/projects/" + encodeURIComponent(project.id) + "/tasks",
+            "/api/projects/" + encodeURIComponent(project.id) + "/risks",
+          ];
+          const responses = await Promise.allSettled(endpoints.map(url =>
+            fetch(url, { headers: getClientAuthHeaders(), cache: "no-store", credentials: "same-origin" })
+          ));
+          const parsed = await Promise.all(responses.map(async result => {
+            if (result.status !== "fulfilled" || !result.value.ok) return { ok: false, data: null };
+            const json = await result.value.json().catch(() => null);
+            return { ok: Boolean(json && "data" in json), data: json?.data ?? null };
+          }));
+          const board = parsed[0].ok && parsed[0].data?.columns ? parsed[0].data as Board : null;
+          const risks = parsed[1].ok && Array.isArray(parsed[1].data) ? parsed[1].data as Risk[] : [];
+          return [project.id, { board, risks, tasksError: !board, risksError: !parsed[1].ok || !Array.isArray(parsed[1].data) }] as const;
+        }));
+        if (live) setDetails(Object.fromEntries(entries));
+      } catch (cause) {
+        if (live) setError(cause instanceof Error ? cause.message : "Falha ao carregar o Dashboard.");
       } finally {
+        if (live) setLoading(false);
       }
-    }
+    })();
+    return () => { live = false; };
+  }, [canLoad]);
 
-    void bootstrap();
-  }, [canLoadWorkspace]);
+  const active = useMemo(() => projects.filter(p => p.status === "ativo"), [projects]);
+  const unavailable = active.some(p => !details[p.id] || details[p.id].tasksError || details[p.id].risksError);
+  const analysis = useMemo(() => {
+    let risky = 0;
+    let overdue = 0;
+    let dueSoon = 0;
+    const attention: ProjectAttention[] = [];
+    const summaries = active.map(project => {
+      const detail = details[project.id];
+      const cards = detail?.board?.columns.flatMap(col => col.cards) ?? [];
+      const openRisks = detail?.risks.filter(openRisk).length ?? 0;
+      const open = cards.filter(isOpen);
+      const delayed = open.filter(task => {
+        const due = dueKey(task.dueDate);
+        return due !== null && due < referenceDate;
+      });
+      const soon = open.filter(task => {
+        const due = dueKey(task.dueDate);
+        return due !== null && due >= referenceDate && daysUntil(due, referenceDate) <= 7;
+      });
+      risky += openRisks > 0 ? 1 : 0;
+      overdue += delayed.length;
+      dueSoon += soon.length;
+      for (const task of [...delayed, ...soon]) {
+        const due = dueKey(task.dueDate);
+        if (due) attention.push({ project, task, days: daysUntil(due, referenceDate) });
+      }
+      const unassigned = open.filter(task => !task.responsible?.trim()).length;
+      const incomplete = !detail || detail.tasksError || detail.risksError;
+      const health = managementStatus({ incomplete, total: cards.length, delayed: delayed.length, soon: soon.length, risks: detail?.risks ?? [], unassigned });
+      return { project, risks: openRisks, delayed: delayed.length, soon: soon.length, open: open.length, unassigned, incomplete, health };
+    });
+    attention.sort((a,b) => a.days - b.days);
+    return { risky, overdue, dueSoon, attention: attention.slice(0, 6), summaries };
+  }, [active, details, referenceDate]);
 
-  const userName = formatDisplayName(auth.user?.email ?? null);
-  const subtitle = `${counters.activeProjects} projetos ativos e ${counters.riskyProjects} em risco agora.`;
+  if (denied) return <section role="alert" className="rounded-xl border border-(--border) bg-(--bg-surface) p-6">
+    <h2 className="text-xl font-semibold">Acesso operacional ainda não confirmado</h2>
+    <p className="mt-3 text-sm">Sua identidade foi autenticada, mas a autorização para acessar os dados da empresa não foi confirmada. Consulte os vínculos locais e o 7Service.</p>
+  </section>;
 
-  if (workspaceDenied) return (
-    <section className="rounded-xl border border-(--border) bg-(--bg-surface) p-6" role="alert">
-      <h2 className="text-xl font-semibold">Acesso operacional ainda não confirmado</h2>
-      <p className="mt-3 text-sm">Sua identidade local foi autenticada, mas a autorização para acessar os dados da empresa não foi confirmada. Nenhuma operação de criação ou alteração está disponível.</p>
-      <p className="mt-2 text-sm">O administrador deve verificar os vínculos locais e a habilitação da autorização central do 7Service.</p>
-      {statusMessage ? <p className="mt-3 text-sm text-(--text-secondary)">{statusMessage}</p> : null}
-    </section>
-  );
-
-  return (
-    <section className="space-y-4">
-      <div className="rounded-xl border border-(--border) bg-(--bg-surface) p-5">
-        <h2 className="text-[20px] font-medium text-(--text-primary)">{`${greetingForNow()}, ${userName}`}</h2>
-        <p className="mt-2 text-[13px] text-(--text-secondary)">{subtitle}</p>
-
-        <div className="mt-4 flex flex-wrap gap-2">
-          {canCreate && <Link
-            href="/projects"
-            className="workspace-button-primary rounded-lg px-3 py-2 text-[13px]"
-          >
-            Criar projeto
-          </Link>}
-          {canCreate && <Link
-            href="/clients"
-            className="rounded-lg border border-(--border) bg-(--bg-surface) px-3 py-2 text-[13px] font-medium text-(--text-primary)"
-          >
-            Criar cliente
-          </Link>}
-          <Link
-            href="/projects"
-            className="rounded-lg border border-(--border) bg-(--bg-surface) px-3 py-2 text-[13px] font-medium text-(--text-primary)"
-          >
-            Artefatos
-          </Link>
-        </div>
+  return <section className="space-y-4">
+    <header className="rounded-xl border border-(--border) bg-(--bg-surface) p-5">
+      <h2 className="text-[20px] font-medium text-(--text-primary)">{greeting()}, {displayName(auth.user?.email)}</h2>
+      <p className="mt-2 text-[13px] text-(--text-secondary)">{loading ? "Carregando indicadores dos projetos..." : error ? "Indicadores indisponíveis." : active.length + " " + plural(active.length, "projeto ativo", "projetos ativos") + " em acompanhamento."}</p>
+      <div className="mt-4 flex flex-wrap gap-2">
+        {canCreate && <Link className="workspace-button-primary rounded-lg px-3 py-2 text-[13px]" href="/projects">Criar projeto</Link>}
+        {canCreate && <Link className="rounded-lg border border-(--border) px-3 py-2 text-[13px]" href="/clients">Criar cliente</Link>}
+        <Link className="rounded-lg border border-(--border) px-3 py-2 text-[13px]" href="/projects">Artefatos</Link>
       </div>
+    </header>
 
-      <div className="flex items-center justify-between rounded-xl border border-(--border-strong) bg-(--bg-elevated) px-4 py-3">
-        <div className="flex items-center gap-3">
-          <span className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-(--accent-soft) text-lg text-(--accent-strong)">
-            V
-          </span>
-          <div>
-            <p className="text-[13px] font-medium text-(--accent-strong)">Voice Room disponível</p>
-            <p className="text-[13px] text-(--brand-ink)">
-              Converse com o Kairos sobre o projeto ativo em tempo real.
-            </p>
-          </div>
-        </div>
-        <Link
-          href="/voice"
-          className="workspace-button-primary rounded-lg px-3 py-2 text-[13px]"
-        >
-          Abrir
-        </Link>
-      </div>
+    <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-(--border-strong) bg-(--bg-elevated) px-4 py-3">
+      <div><p className="text-[13px] font-medium text-(--accent-strong)">Voice Room disponível</p><p className="text-[13px] text-(--brand-ink)">Converse com o Kairos sobre o projeto selecionado em tempo real.</p></div>
+      <Link href="/voice" className="workspace-button-primary rounded-lg px-3 py-2 text-[13px]">Abrir</Link>
+    </div>
 
-      <div className="grid gap-3 lg:grid-cols-4">
-        <MetricCard label="Projetos" icon="projects" value={counters.totalProjects} sub="Base operacional cadastrada" />
-        <MetricCard label="Ativos" icon="activities" value={counters.activeProjects} sub="Projetos em operação" />
-        <MetricCard
-          label="Em risco"
-          icon="risks"
-          value={counters.riskyProjects}
-          sub={counters.riskyProjects > 0 ? "Projetos com atenção imediata" : "Nenhum projeto em risco"}
-          tone={counters.riskyProjects > 0 ? "danger" : "default"}
-        />
-        <MetricCard label="Artefatos" icon="knowledge" value={counters.artifacts} sub="Conhecimentos e registros do projeto" />
-      </div>
+    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      <Metric label="Projetos" value={loading || error ? "–" : projects.length} detail="Projetos cadastrados" />
+      <Metric label="Ativos" value={loading || error ? "–" : active.length} detail="Projetos em operação" />
+      <Metric label="Em risco" value={loading || error || unavailable ? "–" : analysis.risky} detail={unavailable ? "Dados incompletos, revise os quadros" : "Projetos com riscos abertos"} warning={!unavailable && analysis.risky > 0} />
+      <Metric label="Tarefas atrasadas" value={loading || error || unavailable ? "–" : analysis.overdue} detail={unavailable ? "Dados incompletos, revise os quadros" : "Atividades vencidas não concluídas"} warning={!unavailable && analysis.overdue > 0} />
+    </div>
 
-      <div className="grid gap-3 lg:grid-cols-2">
-        <article className="rounded-xl border border-(--border) bg-(--bg-surface) p-4">
-          <div className="card-header">
-            <p className="card-title">Sem atualização recente</p>
-            <Link href="/projects" className="card-link">
-              ver todos
-            </Link>
-          </div>
-          {staleProjects.length === 0 ? (
-            <div className="workspace-empty-state mt-4 flex min-h-28 flex-col items-start justify-center">
-              <p className="font-medium text-(--text-primary)">Nenhum projeto cadastrado.</p>
-              <p className="mt-1 text-[13px]">Crie seu primeiro projeto para começar a acompanhar execução, decisões e riscos.</p>
-              {canCreate ? <Link href="/projects" className="workspace-button-primary mt-3 text-xs">Criar primeiro projeto</Link> : null}
-            </div>
-          ) : (
-            <div>
-              {staleProjects.map((item, index) => {
-                const ageInDays = Math.floor((Date.now() - new Date(item.createdAt).getTime()) / (1000 * 60 * 60 * 24));
-                const stale = ageInDays >= 7;
-                return (
-                  <div
-                    key={item.id}
-                    className={[
-                      "flex items-center justify-between gap-3 py-3",
-                      index < staleProjects.length - 1 ? "border-b border-(--border)" : "",
-                    ].join(" ")}
-                  >
-                    <div>
-                      <p className="text-[13px] font-medium text-(--text-primary)">{item.name}</p>
-                      <p className="mt-1 text-[13px] text-(--text-tertiary)">{formatProjectAge(item.createdAt)}</p>
-                    </div>
-                    <span
-                      className={[
-                        "rounded-full px-3 py-1 text-[13px] font-medium",
-                        stale
-                          ? "bg-(--warning-soft) text-(--warning)"
-                          : "bg-(--success-soft) text-(--success)",
-                      ].join(" ")}
-                    >
-                      {stale ? "7+ dias" : "Ativo"}
-                    </span>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </article>
+    {error && <div role="alert" className="rounded-xl border border-(--border) bg-(--bg-surface) p-4 text-sm text-(--danger)">{error}</div>}
+    {!error && !loading && unavailable && <div role="status" className="rounded-xl border border-(--border) bg-(--bg-surface) p-3 text-[13px] text-(--warning)">Nem todos os quadros ou riscos puderam ser consultados. Valores ausentes não são considerados zero.</div>}
 
-        <article className="rounded-xl border border-(--border) bg-(--bg-surface) p-4">
-          <div className="card-header">
-            <p className="card-title">Projetos em risco</p>
-            <Link href="/projects" className="card-link">
-              ver todos
-            </Link>
-          </div>
-          {counters.riskyProjects === 0 ? (
-            <div className="workspace-empty-state mt-4 flex min-h-28 flex-col items-center justify-center gap-2 text-center">
-              <span className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-(--success-soft) text-(--success)">✓</span>
-              <p className="text-[13px] text-(--text-secondary)">Nenhum projeto em risco no momento.</p>
-            </div>
-          ) : (
-            <div className="space-y-3">
-              {risks.slice(0, 4).map((risk) => (
-                <div key={risk.id} className="rounded-xl border border-(--border) bg-(--bg-muted) px-3 py-3">
-                  <p className="text-[13px] font-medium text-(--text-primary)">{risk.title}</p>
-                  <p className="mt-1 text-[13px] text-(--danger)">Status: {risk.status}</p>
-                </div>
-              ))}
-            </div>
-          )}
-        </article>
-      </div>
+    <div className="grid gap-3 lg:grid-cols-2">
+      <article className="rounded-xl border border-(--border) bg-(--bg-surface) p-4">
+        <div className="flex items-center justify-between gap-2"><h3 className="font-medium text-(--text-primary)">Pendências que exigem atenção</h3><Link href="/activities" className="card-link">Abrir Kanban</Link></div>
+        {loading ? <p className="mt-4 text-sm">Consultando atividades...</p> : analysis.attention.length ? <div className="mt-3 divide-y divide-(--border)">
+          {analysis.attention.map(({ project, task, days }) => <div key={project.id + ":" + task.id} className="py-3">
+            <p className="text-[13px] font-medium text-(--text-primary)">{task.title}</p>
+            <p className="mt-1 text-[12px] text-(--text-secondary)">{project.name} · {days < 0 ? "Atrasada há " + Math.abs(days) + " dia(s)" : days === 0 ? "Vence hoje" : "Vence em " + days + " dia(s)"}</p>
+          </div>)}
+        </div> : <p className="mt-4 text-[13px] text-(--text-secondary)">{unavailable ? "Não foi possível verificar todas as pendências." : "Nenhuma atividade vencida ou com prazo nos próximos 7 dias."}</p>}
+      </article>
+      <article className="rounded-xl border border-(--border) bg-(--bg-surface) p-4">
+        <div className="flex items-center justify-between gap-2"><h3 className="font-medium text-(--text-primary)">Próximos prazos</h3><Link href="/activities" className="card-link">Ver atividades</Link></div>
+        <p className="mt-4 text-[28px] font-medium text-(--text-primary)">{loading || error || unavailable ? "–" : analysis.dueSoon}</p>
+        <p className="mt-1 text-[13px] text-(--text-secondary)">Atividades abertas que vencem em até 7 dias, incluindo hoje.</p>
+        <p className="mt-4 text-[13px] text-(--text-tertiary)">Os prazos são calculados pela data de vencimento registrada no Kanban, não pela data de criação do projeto.</p>
+      </article>
+    </div>
 
-      {project ? (
-        <article className="rounded-xl border border-(--border) bg-(--bg-surface) p-4">
-          <div className="card-header">
-            <p className="card-title">Projeto ativo</p>
-          </div>
-          <p className="text-[13px] font-medium text-(--text-primary)">{project.name}</p>
-          <p className="mt-1 text-[13px] text-(--text-secondary)">
-            Cliente: {project.clientName || "Não vinculado"} · Status: {project.status}
-          </p>
-          <p className="mt-2 text-[13px] text-(--text-secondary)">{project.objective || project.context || "Sem objetivo definido."}</p>
-          {board ? (
-            <p className="mt-3 text-[13px] text-(--text-tertiary)">
-              Quadro atual: {board.columns.reduce((total, column) => total + column.cards.length, 0)} cards em execução.
-            </p>
-          ) : null}
-        </article>
-      ) : null}
-
-      {statusMessage ? (
-        <div className="rounded-xl border border-(--border) bg-(--bg-surface) p-4 text-[13px] text-(--text-secondary)">
-          {statusMessage}
-        </div>
-      ) : null}
-    </section>
-  );
-}
-
-function openRiskProjects(risks: RiskItem[], activeProjectId: string | null) {
-  if (!activeProjectId) return 0;
-  return risks.some((item) => item.status === "aberto" || item.status === "em_mitigacao") ? 1 : 0;
-}
-
-function MetricCard({
-  label,
-  icon,
-  value,
-  sub,
-  tone = "default",
-}: {
-  label: string;
-  icon: "projects" | "activities" | "risks" | "knowledge";
-  value: number;
-  sub: string;
-  tone?: "default" | "danger";
-}) {
-  return (
     <article className="rounded-xl border border-(--border) bg-(--bg-surface) p-4">
-      <div className="flex items-center justify-between">
-        <p className="text-[11px] uppercase tracking-[0.05em] text-(--text-secondary)">{label}</p>
-        <DashboardIcon type={icon} />
-      </div>
-      <p className={["mt-3 text-[28px] font-medium", tone === "danger" ? "text-(--danger)" : "text-(--text-primary)"].join(" ")}>{value}</p>
-      <p className="mt-1 text-[13px] text-(--text-tertiary)">{sub}</p>
+      <div className="flex flex-wrap items-center justify-between gap-2"><h3 className="font-medium text-(--text-primary)">Projetos em acompanhamento</h3><Link href="/projects" className="card-link">Ver todos</Link></div>
+      {loading ? <p className="mt-4 text-[13px]">Carregando projetos...</p> : active.length === 0 ? <p className="mt-4 text-[13px] text-(--text-secondary)">Nenhum projeto ativo cadastrado.</p> : <div className="mt-3 divide-y divide-(--border)">
+        {analysis.summaries.map(({ project, risks, delayed, soon, open, unassigned, incomplete, health }) => <div key={project.id} className="py-4">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <p className="text-[13px] font-medium text-(--text-primary)">{project.name}</p>
+            <div className="flex flex-wrap items-center gap-2">
+              <span className={["rounded-full px-3 py-1 text-[12px]", managementTone[health]] .join(" ")}>{health}</span>
+              <span className="rounded-full bg-(--success-soft) px-3 py-1 text-[12px] text-(--success)">Ativo</span>
+              <Link href={"/projects?projectId=" + encodeURIComponent(project.id)} className="rounded-lg border border-(--border) bg-(--bg-surface) px-3 py-2 text-[12px] font-medium text-(--text-primary) hover:bg-(--bg-muted)" aria-label={"Abrir projeto " + project.name}>Abrir projeto</Link>
+            </div>
+          </div>
+          <p className="mt-1 text-[12px] text-(--text-secondary)">Cliente: {project.clientName || "Não vinculado"}</p>
+          <p className="mt-2 text-[13px] text-(--text-secondary)">{project.objective || project.context || "Sem objetivo definido."}</p>
+          <p className="mt-2 text-[12px] text-(--text-tertiary)">{incomplete ? "Indicadores parcialmente indisponíveis" : open + " abertas · " + delayed + " atrasadas · " + soon + " vencem em 7 dias · " + risks + " riscos abertos · " + unassigned + " sem responsável"}</p>
+        </div>)}
+      </div>}
     </article>
-  );
+  </section>;
 }

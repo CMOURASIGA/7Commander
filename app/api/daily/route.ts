@@ -6,7 +6,7 @@ export async function GET(request: NextRequest) {
   try {
     const auth = await requireApiAuth(request);
     if (!auth.ok) return auth.response;
-    return NextResponse.json({ data: await getDailySnapshot(auth.context.userId) });
+    return NextResponse.json({ data: await getDailySnapshot(auth.context.userId, auth.context.userEmail) });
   } catch (error) {
     console.error("[/api/daily] GET error", error);
     return NextResponse.json({ error: "Erro ao carregar a Daily." }, { status: 500 });

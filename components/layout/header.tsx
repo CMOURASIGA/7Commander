@@ -8,7 +8,7 @@ import { TaskAlerts } from "@/components/notifications/task-alerts";
 import { getClientAuthHeaders } from "@/lib/client-auth";
 
 const PAGE_TITLES: Record<string, string> = {
-  "/": "Inicio", "/voice": "Voice Room", "/chat": "Dashboard Kairos", "/daily": "Daily", "/clients": "Clientes", "/projects": "Projetos", "/activities": "Atividades", "/memory": "Memoria", "/help": "Ajuda", "/settings": "Configuracoes", "/login": "Acesso",
+  "/": "Inicio", "/scrum": "Scrum e Sprints", "/scrum/backlog": "Backlog de US", "/scrum/kanban": "Kanban de US", "/voice": "Voice Room", "/chat": "Dashboard Kairos", "/daily": "Daily", "/clients": "Clientes", "/projects": "Projetos", "/activities": "Atividades", "/memory": "Memoria", "/help": "Ajuda", "/settings": "Configuracoes", "/login": "Acesso",
 };
 type HeaderProps = { onToggleMobileNav: () => void; mobileNavOpen: boolean };
 

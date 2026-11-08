@@ -7,12 +7,13 @@ import { evaluateCommanderCentralAccess } from "@/lib/commander-central-policy.m
 import { localRolePermissions } from "@/lib/central-route-policy.mjs";
 import { resolveTenantMembership } from "@/lib/tenant-context";
 import { setCentralCookies } from "@/lib/central-session";
+import { provisionCentralViewerOnLogin } from "@/lib/central-viewer-provision";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 const noStore = { "Cache-Control": "private, no-store, max-age=0" };
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-const deny = () => NextResponse.json({ ok: false, code: "ACCESS_NOT_AUTHORIZED" }, { status: 403, headers: noStore });
+const deny = (stage = 'policy') => { console.warn('[INT01 BROKER] denied:', stage); return NextResponse.json({ ok: false, code: 'ACCESS_NOT_AUTHORIZED' }, { status: 403, headers: noStore }); };
 
 /**
  * Explicitly linked central identity => existing Commander Auth account.
@@ -56,10 +57,10 @@ export async function POST(request: NextRequest) {
     });
     const result = await auth.auth.signInWithPassword({ email: input.email.trim(), password: input.password });
     const session = result.data.session;
-    if (result.error || !session?.access_token || !session.user) return deny();
+    if (result.error || !session?.access_token || !session.user) return deny('central-login');
 
     const db = getSupabaseServerClient();
-    if (!db) return deny();
+    if (!db) return deny('local-db-unavailable');
     const centralOrigin = process.env.SERVICE_7SERVICE_ORIGIN ?? "";
     let localUserId = "";
     let identityId = "";
@@ -76,17 +77,23 @@ export async function POST(request: NextRequest) {
       });
       const identity = await self.json().catch(() => null) as
         | {authorized?:boolean;identityId?:string} | null;
-      if (!self.ok || !identity?.authorized || !uuid.test(identity.identityId ?? "")) return deny();
+      if (!self.ok || !identity?.authorized || !uuid.test(identity.identityId ?? "")) return deny('central-identity-self-' + self.status);
       identityId = identity.identityId!;
       const linked = await db.from("central_identity_user_links")
         .select("central_identity_id,commander_user_id,status")
         .eq("central_identity_id",identityId).eq("status","ACTIVE").limit(2);
-      if (linked.error || linked.data?.length !== 1) return deny();
-      localUserId = linked.data[0].commander_user_id;
-      if (!uuid.test(localUserId)) return deny();
+      if (linked.error || (linked.data?.length ?? 0) > 1) return deny();
+      localUserId = linked.data?.[0]?.commander_user_id ?? "";
+      if (!localUserId) localUserId = await provisionCentralViewerOnLogin({
+        db,origin:centralOrigin,accessToken:session.access_token,
+        identityId,email:session.user.email??"",
+        emailVerified:Boolean(session.user.email_confirmed_at),
+        companyId:process.env.SERVICE_7SERVICE_PILOT_ORG_ID??"",
+      }) ?? "";
+      if (!uuid.test(localUserId)) return deny('jit-user-not-provisioned');
       const [memberships, profile] = await Promise.all([
-        db.from("organization_members").select("organization_id")
-          .eq("user_id",localUserId).eq("status","active").limit(51),
+        db.from("organization_members").select("organization_id,status")
+          .eq("user_id",localUserId).in("status",["active","suspended"]).limit(51),
         db.from("profiles").select("active_organization_id")
           .eq("user_id",localUserId).maybeSingle(),
       ]);
@@ -123,11 +130,29 @@ export async function POST(request: NextRequest) {
         .select("central_identity_id,commander_user_id,status")
         .eq("central_identity_id",currentDecision.identityId).eq("status","ACTIVE").limit(2);
       if (!linkedMode) {
-        if (!links || links.error || links.data?.length !== 1) continue;
-        identityId = links.data[0].central_identity_id;
-        localUserId = links.data[0].commander_user_id;
+        if (!links || links.error || (links.data?.length??0)>1) continue;
+        identityId = currentDecision.identityId;
+        localUserId = links.data?.[0]?.commander_user_id ?? "";
+        if (!localUserId) localUserId = await provisionCentralViewerOnLogin({
+          db,origin:centralOrigin,accessToken:session.access_token,
+          identityId,email:session.user.email??"",
+          emailVerified:Boolean(session.user.email_confirmed_at),
+          companyId:orgId,
+        }) ?? "";
       }
       if (!uuid.test(localUserId)) continue;
+      // Reinstatement requires an ACTIVE central product grant and a suspension
+      // previously created by INT-01 itself. Manual suspensions are never undone.
+      const suspended=await db.from("organization_members").select("status")
+        .eq("user_id",localUserId).eq("organization_id",orgId).maybeSingle();
+      if (suspended.error || !suspended.data) continue;
+      if (suspended.data.status === "suspended") {
+        if (!currentDecision.roleCodes.includes("VIEWER")) continue;
+        const reactivated=await db.rpc("int01_sync_central_membership",{
+          p_user:localUserId,p_company:orgId,p_authorized:true,
+        });
+        if (reactivated.error || reactivated.data!==true) continue;
+      }
       const member = await resolveTenantMembership(localUserId,orgId);
       if (!member) continue;
       const roleLinks = await db.from("central_product_role_links")
@@ -160,7 +185,7 @@ export async function POST(request: NextRequest) {
       matchedRole=member.role;
       break;
     }
-    if (!selectedOrg || !decision || !matchedCompany || !matchedRole) return deny();
+    if (!selectedOrg || !decision || !matchedCompany || !matchedRole) return deny('central-local-policy');
 
     // A suspended local user may never be revived by a central grant.
     const localAccess=await db.from("internal_user_access")
@@ -195,6 +220,6 @@ export async function POST(request: NextRequest) {
     setCentralCookies(response, session);
     return response;
   } catch {
-    return deny(); // no raw provider errors or identity details
+    return deny('unexpected'); // no raw provider errors or identity details
   }
 }

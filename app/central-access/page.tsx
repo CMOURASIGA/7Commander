@@ -16,6 +16,13 @@ export default function ClientAccessPage() {
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
   const [phase, setPhase] = useState<"idle"|"authenticating"|"confirming"|"redirecting">("idle");
+  const [accessDenied,setAccessDenied] = useState(false);
+  const [accessUnavailable,setAccessUnavailable] = useState(false);
+  useEffect(()=>{
+    const reason=new URLSearchParams(window.location.search).get('reason');
+    setAccessDenied(reason==='denied');
+    setAccessUnavailable(reason==='unavailable');
+  },[]);
 
   useEffect(() => {
     if (!auth.loading && !auth.user) window.location.replace("/login");
@@ -73,9 +80,12 @@ export default function ClientAccessPage() {
   return <main className="mx-auto max-w-xl rounded-2xl border border-(--border) bg-(--bg-surface) p-7 shadow-[var(--shadow-card)]">
     <h1 className="text-2xl font-semibold">Conectar acesso do cliente</h1>
     <p className="mt-3 text-sm">A identidade local do 7Commander já foi validada. Agora confirme a identidade vinculada no 7Service para consultar os produtos e permissões contratados.</p>
+    {accessDenied ? <p role="alert" className="mt-4 rounded-lg border border-red-300 bg-red-50 p-4 text-sm font-semibold text-red-900">Acesso negado pelo controle central ou vínculo empresarial suspenso. A sessão local não autoriza o uso do sistema. Confirme com o administrador se sua licença está ativa.</p> : null}
+    {accessUnavailable ? <p role="alert" className="mt-4 rounded-lg border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900">Não foi possível confirmar a autorização central. O acesso permanece bloqueado por segurança.</p> : null}
     <p className="mt-3 rounded-lg border p-3 text-sm">Essa segunda confirmação não cria nem altera usuários. Sua conta local precisa ter sido ativada previamente e vinculada à identidade central pelo administrador.</p>
     {auth.loading ? <p className="mt-4 text-sm">Verificando sessão local...</p> :
       !auth.user ? <p className="mt-4 text-sm">É necessário entrar primeiro com uma conta local habilitada no 7Commander.</p> :
+      accessDenied ? <p className="mt-4 text-sm">Para usar outra conta, volte ao login e encerre a sessão atual antes de se autenticar novamente.</p> :
       <form onSubmit={connect} className="mt-5 grid gap-4">
         <label className="grid gap-1 text-sm">E-mail da identidade 7Service
           <input type="email" required autoComplete="username" value={email} onChange={e=>setEmail(e.target.value)} className="rounded-lg border p-3"/>

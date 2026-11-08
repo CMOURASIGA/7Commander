@@ -82,9 +82,9 @@ export function AppShell({ children }: AppShellProps) {
   return (
     <div className="min-h-screen bg-(--bg-page) md:flex md:items-stretch">
       <Sidebar isMobileOpen={mobileNavOpen} onCloseMobile={() => setMobileNavOpen(false)} />
-      <div className="flex min-h-screen flex-1 flex-col">
+      <div className="flex min-h-screen min-w-0 flex-1 flex-col">
         <Header onToggleMobileNav={() => setMobileNavOpen((prev) => !prev)} mobileNavOpen={mobileNavOpen} />
-        <main className="flex-1 overflow-x-hidden p-4 md:p-5">{pathname === "/" && <TaskAlerts center />}{children}</main>
+        <main className="min-w-0 flex-1 overflow-x-hidden p-4 md:p-5">{pathname === "/" && <TaskAlerts center />}{children}</main>
       </div>
       <KairosLauncher />
       <KairosPanel />

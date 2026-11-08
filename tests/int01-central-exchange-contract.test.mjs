@@ -15,7 +15,8 @@ test("central broker requires verified token decision, explicit link and active 
   "central_client_company_links", "central_product_role_links", "resolveTenantMembership",
   "evaluateCommanderCentralAccess", "getUserById", "getSupabaseServerClient"])
   assert.ok(route.includes(check), check);
- assert.match(route, /links\.data\?\.length !== 1/);
+ assert.match(route, /\(links\.data\?\.length\?\?0\)>1/);
+ assert.match(route, /provisionCentralViewerOnLogin/);
  assert.match(route, /link\.data\.user\?\.id !== localUserId/);
 });
 test("central broker does not mint a JWT or create local users", () => {
@@ -33,4 +34,30 @@ test("browser obtains native local Auth JWT from one-time token before navigatin
  assert.match(page, /\/api\/auth\/local-session/);
  assert.match(page, /window\.location\.assign\(nextPath\)/);
  assert.doesNotMatch(page, /Cliente 7Service.*Equipe Consult Services|clientMode/);
+});
+
+test("VIEWER first-login provisioning requires central grant, pilot flag and service-only RPC", () => {
+ const provision = load("lib/central-viewer-provision.ts");
+ const migration = load("database/migrations/076_int01_viewer_jit_provision.sql");
+ assert.match(provision, /COMMANDER_CENTRAL_JIT_VIEWER_ENABLED/);
+ assert.match(provision, /SERVICE_7SERVICE_PILOT_ORG_ID/);
+ assert.match(provision, /decision\.roleCodes\[0\] !== 'VIEWER'/);
+ assert.match(provision, /checkCentralProductAccess/);
+ assert.match(provision, /existing local accounts|Existing local accounts/i);
+ assert.match(provision, /provision_central_viewer_atomic/);
+ assert.match(migration, /REVOKE ALL ON FUNCTION/);
+ assert.match(migration, /FROM PUBLIC, anon, authenticated/);
+ assert.match(migration, /GRANT EXECUTE ON FUNCTION/);
+ assert.match(migration, /TO service_role/);
+});
+
+test("VIEWER JIT UUID validation accepts canonical five groups", () => {
+ const source = load("lib/central-viewer-provision.ts");
+ const match = source.match(/const uuid = \/(.*)\/i;/);
+ assert.ok(match, "JIT UUID validation must exist");
+ const uuid = new RegExp(match[1], "i");
+ assert.equal(uuid.test("95aa4cdc-009e-48a9-b683-4a8d9f42ed5f"), true);
+ assert.equal(uuid.test("43973606-0c05-4934-a057-9f2710899eba"), true);
+ assert.equal(uuid.test("699e3b96-b213-4b0f-abb7-900f57bd3e69"), true);
+ assert.equal(uuid.test("95aa4cdc-009e-48a9-4a8d9f42ed5f"), false);
 });

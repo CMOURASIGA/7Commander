@@ -117,6 +117,27 @@ export async function requireApiAuth(request: NextRequest): Promise<{
             {error:"Verificação central indisponível"},{status:503})};
           linkedTenant = Boolean(link.data);
         }
+        // Independent write guard: a centrally linked local viewer must never
+        // inherit edit rights from internal_user_access or from rollout flags.
+        // This is defense in depth alongside central policy and database RLS.
+        const mutation = !["GET", "HEAD", "OPTIONS"].includes(request.method.toUpperCase());
+        if (!admin.data && mutation && request.nextUrl.pathname !== "/api/organizations/select") {
+          const viewerMembership = await db.from("organization_members")
+            .select("role").eq("organization_id", organizationId)
+            .eq("user_id", userId).eq("status", "active").maybeSingle();
+          if (viewerMembership.error) return { ok: false, response: NextResponse.json(
+            { error: "Verificação de perfil indisponível." }, { status: 503 }) };
+          if (viewerMembership.data?.role === "member") {
+            const centralIdentity = await db.from("central_identity_user_links")
+              .select("central_identity_id").eq("commander_user_id", userId)
+              .eq("status", "ACTIVE").maybeSingle();
+            if (centralIdentity.error) return { ok: false, response: NextResponse.json(
+              { error: "Verificação central indisponível." }, { status: 503 }) };
+            if (centralIdentity.data) return { ok: false, response: NextResponse.json(
+              { error: "Acesso somente leitura: operação de gravação bloqueada.", code: "CENTRAL_VIEWER_READ_ONLY" },
+              { status: 403, headers: { "Cache-Control": "no-store" } }) };
+          }
+        }
         const customerCentral = customerPilot || linkedTenant;
         const authorizedLinkedSwitch = linkedTenant
           && request.nextUrl.pathname === "/api/organizations/select"
