@@ -17,6 +17,7 @@ export async function POST(request: NextRequest) {
   const input = await request.json().catch(() => null);
   const id = typeof input?.projectId === "string" ? input.projectId : "";
   const mode = input?.mode === "period" ? "period" : "current";
+  const audience = input?.audience === "internal" ? "internal" : "client";
   const start = input?.start, end = input?.end;
   if (!UUID.test(id) || (mode==="period" && (typeof start!=="string" || typeof end!=="string" || !DATE.test(start) || !DATE.test(end) || start>end || !Number.isFinite(Date.parse(start+"T00:00:00Z")) || !Number.isFinite(Date.parse(end+"T00:00:00Z"))))) {
     return NextResponse.json({error:"Projeto ou período inválido."},{status:400});
@@ -52,11 +53,11 @@ export async function POST(request: NextRequest) {
   const period = mode==="current" ? "Situação atual" : start+" a "+end;
   const scope = {
     projeto:project.nome, objetivo:project.objetivo||project.descricao||"Não registrado",
-    periodo:period,
+    periodo:period,publico:audience,
     criterio:mode==="current"?"Fotografia operacional atual, sem inferência histórica":"Eventos registrados no intervalo; situação dos riscos e tarefas é atual, não retrospectiva",
-    atividadesAtuais:tasks.map(x=>({titulo:x.titulo,status:x.status,prioridade:x.prioridade,prazo:x.due_date,responsavel:x.responsavel})),
-    riscosAtuais:risks.map(x=>({titulo:x.titulo,status:x.status,impacto:x.impacto,probabilidade:x.probabilidade,mitigacao:x.mitigacao,responsavel:x.responsavel})),
-    decisoesAtuais:decisions.map(x=>({titulo:x.titulo,status:x.status,impacto:x.impacto,contexto:x.contexto})),
+    atividadesAtuais:tasks.map(x=>audience==="internal"?({titulo:x.titulo,status:x.status,prioridade:x.prioridade,prazo:x.due_date,responsavel:x.responsavel}):({titulo:x.titulo,status:x.status,prazo:x.due_date})),
+    riscosAtuais:risks.map(x=>audience==="internal"?({titulo:x.titulo,status:x.status,impacto:x.impacto,probabilidade:x.probabilidade,mitigacao:x.mitigacao,responsavel:x.responsavel}):({titulo:x.titulo,status:x.status})),
+    decisoesAtuais:decisions.map(x=>audience==="internal"?({titulo:x.titulo,status:x.status,impacto:x.impacto,contexto:x.contexto}):({titulo:x.titulo,status:x.status})),
     eventosNoPeriodo:events.map(x=>({tipo:x.action_type,data:x.created_at})),
     registrosCriadosNoPeriodo:periodMetrics,
     avisos:["Não equiparar quantidade de cartões a percentual de escopo.","Não inferir estado passado de registros atuais.","Não tratar ausência de histórico como ausência de trabalho."]
