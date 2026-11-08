@@ -10,9 +10,11 @@ export async function GET(req:NextRequest){
  const context=await getReportScope(auth.context,projectId);
  if("error" in context)return res({error:context.error},context.status);
  const id=req.nextUrl.searchParams.get("id");
+ const internalAccess=["owner","editor"].includes(context.role);
  if(id&&!UUID.test(id))return res({error:"Identificador inválido."},400);
  const query=context.db.from("project_report_snapshots").select(id?"id,audience,period_mode,period_start,period_end,generated_by_email,created_at,report_data,narrative":"id,audience,period_mode,period_start,period_end,generated_by_email,created_at")
  .eq("project_id",projectId).eq("organization_id",context.organizationId);
+ if(!internalAccess)query.eq("audience","client");
  const r=id?await query.eq("id",id).maybeSingle():await query.order("created_at",{ascending:false}).limit(30);
  return r.error?res({error:"Falha ao consultar emissões."},503):res({data:r.data});
 }
