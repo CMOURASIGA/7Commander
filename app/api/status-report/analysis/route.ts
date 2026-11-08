@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireApiAuth } from "@/lib/api-auth";
-import { getSupabaseServerClient } from "@/lib/supabase/server";
-import { getEffectiveTenantForUser } from "@/lib/tenant-runtime";
+import { getReportScope } from "@/lib/scrum/report-data";
 import { getOpenAIClient } from "@/lib/openai";
 import { KAIROS_PM_REPORT_POLICY } from "@/lib/kairos-pm-report-policy";
 
@@ -22,9 +21,10 @@ export async function POST(request: NextRequest) {
   if (!UUID.test(id) || (mode==="period" && (typeof start!=="string" || typeof end!=="string" || !DATE.test(start) || !DATE.test(end) || start>end || !Number.isFinite(Date.parse(start+"T00:00:00Z")) || !Number.isFinite(Date.parse(end+"T00:00:00Z"))))) {
     return NextResponse.json({error:"Projeto ou período inválido."},{status:400});
   }
-  const db = getSupabaseServerClient();
-  const tenant = await getEffectiveTenantForUser(auth.context.userId);
-  if (!db || !tenant) return NextResponse.json({error:"Empresa autenticada indisponível."},{status:403});
+  const scopeContext=await getReportScope(auth.context,id);
+  if("error" in scopeContext)return NextResponse.json({error:scopeContext.error},{status:scopeContext.status});
+  if(audience==="internal"&&!["owner","editor"].includes(scopeContext.role))return NextResponse.json({error:"Análise interna restrita."},{status:403});
+  const db=scopeContext.db,tenant=scopeContext.organizationId;
   const projectResult = await db.from("projects").select("id,nome,objetivo,descricao").eq("id",id).eq("organization_id",tenant).maybeSingle();
   if (projectResult.error || !projectResult.data) return NextResponse.json({error:"Projeto sem acesso."},{status:404});
   const project = projectResult.data;
