@@ -66,9 +66,9 @@ test("logout revokes both local and central browser sessions",()=>{
 
 test("centrally linked member has an unconditional server-side write guard",()=>{
  const auth=source("lib/api-auth.ts");
- assert.match(auth,/const mutation = !\\["GET", "HEAD", "OPTIONS"\\]/);
+ assert.ok(auth.includes('const mutation = !["GET", "HEAD", "OPTIONS"]'));
  assert.match(auth,/central_identity_user_links/);
- assert.match(auth,/viewerMembership\\.data\\?\\.role === "member"/);
+ assert.ok(auth.includes('viewerMembership.data?.role === "member"'));
  assert.match(auth,/CENTRAL_VIEWER_READ_ONLY/);
  assert.ok(auth.indexOf("CENTRAL_VIEWER_READ_ONLY") < auth.indexOf("const customerCentral = customerPilot || linkedTenant"));
 });
