@@ -21,8 +21,16 @@ export async function POST(req:NextRequest){
   const selectedStories=data.internal?.stories.filter(s=>!selected||s.sprint_id===selected.id)||[];
   const selectedTaskIds=new Set(selectedStories.map(s=>s.id));
   const selectedTasks=data.internal?.tasks.filter(t=>t.story_id&&selectedTaskIds.has(t.story_id))||[];
+  const workloadByAssignee=Object.values(selectedStories.reduce((map,st)=>{
+    const key=st.responsible||"Não atribuído";
+    const current=map[key]||{responsible:key,stories:0,points:0,blocked:0};
+    current.stories+=1;current.points+=Number(st.story_points||0);current.blocked+=Number(st.blocked);
+    map[key]=current;return map;
+  },{} as Record<string,{responsible:string;stories:number;points:number;blocked:number}>));
   const facts={
    project:data.project,mode,generated_at:data.generated_at,sprint:selected,
+   otherSprints:data.scrum.sprints.filter(s=>s.id!==selected?.id).map(s=>({name:s.name,status:s.status,stories:s.stories,closed:s.closed,points_planned:s.points_planned,points_done:s.points_done,overdue:s.overdue,delivery_on_time:s.delivery_on_time,delivery_late:s.delivery_late})),
+   workloadByAssignee,
    backlog_stories:data.scrum.backlog_stories,
    stories:selectedStories.map(s=>({title:s.title,status:s.workflow_stage,points:s.story_points,due:s.due_date,actual:s.actual_end_date,blocked:s.blocked,reason:s.blocker_reason,responsible:s.responsible})),
    tasks:selectedTasks.map(t=>({title:t.title,status:t.state,story_id:t.story_id})),
