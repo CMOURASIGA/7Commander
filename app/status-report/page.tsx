@@ -81,8 +81,8 @@ export default function StatusReportPage() {
  const [status,setStatus]=useState("Selecione um projeto para gerar um relatório.");
  const [busy,setBusy]=useState(false);
  const [periodMode,setPeriodMode]=useState<"current"|"period">("current");
- const [start,setStart]=useState("2026-10-01");
- const [end,setEnd]=useState("2026-10-27");
+ const [start,setStart]=useState(()=>{const d=new Date();return [d.getFullYear(),String(d.getMonth()+1).padStart(2,"0"),"01"].join("-")});
+ const [end,setEnd]=useState(()=>{const d=new Date();return [d.getFullYear(),String(d.getMonth()+1).padStart(2,"0"),String(d.getDate()).padStart(2,"0")].join("-")});
  const [analysis,setAnalysis]=useState<AiAnalysis|null>(null);
  const [analysisStatus,setAnalysisStatus]=useState("Selecione um projeto para solicitar a análise do Kairos.");
  const [periodEvents,setPeriodEvents]=useState<number|null>(null);
