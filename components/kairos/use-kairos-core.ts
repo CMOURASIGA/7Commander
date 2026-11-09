@@ -945,6 +945,57 @@ export function useKairosCore(options?: UseKairosCoreOptions) {
     }
   }
 
+  async function handleSaveStructuredDestination(){
+    if(!saveDialog||!activeProjectId||destinationLoadingId)return;
+    const kind=saveDialog.kind;
+    if(kind!=="meeting"&&kind!=="story"&&kind!=="story-task")return;
+    setDestinationLoadingId(saveDialog.message.id);
+    try{
+      const headers=getClientAuthHeaders({"Content-Type":"application/json"});
+      const key=encodeURIComponent(activeProjectId);
+      let endpoint="",body:Record<string,unknown>={};
+      if(kind==="meeting"){
+        if(!meetingForm.title.trim()||!meetingForm.heldAt)throw Error("Título e data da reunião são obrigatórios.");
+        endpoint="/api/projects/"+key+"/meetings";
+        body={...meetingForm,heldAt:new Date(meetingForm.heldAt).toISOString(),
+          nextFollowUp:meetingForm.nextFollowUp?new Date(meetingForm.nextFollowUp).toISOString():null,
+          sourceConversationId:conversationId};
+      }else if(kind==="story"){
+        if(!storyForm.title.trim())throw Error("Informe o título da US.");
+        endpoint="/api/scrum/stories";
+        const response=await fetch(endpoint+"?projectId="+key,{headers,cache:"no-store"});
+        if(!response.ok)throw Error("Não foi possível verificar US existentes.");
+        const result=await response.json();
+        if((result.data?.stories||[]).some((st:{title:string})=>st.title.trim().toLocaleLowerCase("pt-BR")===storyForm.title.trim().toLocaleLowerCase("pt-BR")))
+          throw Error("Já existe uma US com esse título neste projeto. Revise antes de salvar.");
+        body={action:"create",projectId:activeProjectId,title:storyForm.title.trim(),
+          description:storyForm.description,acceptanceCriteria:storyForm.acceptanceCriteria,
+          featureId:storyForm.featureId||null,sprintId:storyForm.sprintId||null,
+          responsible:storyForm.responsible,priority:storyForm.priority,
+          startDate:storyForm.startDate||null,dueDate:storyForm.dueDate||null,
+          stage:"new"};
+      }else{
+        if(!storyTaskForm.storyId||!storyTaskForm.title.trim())throw Error("Selecione a US e informe a Task.");
+        endpoint="/api/scrum/backlog-items";
+        const response=await fetch(endpoint+"?projectId="+key,{headers,cache:"no-store"});
+        if(!response.ok)throw Error("Não foi possível verificar as Tasks existentes.");
+        const result=await response.json();
+        if((result.data||[]).some((t:{item_type:string;story_id:string;title:string})=>t.item_type==="task"&&t.story_id===storyTaskForm.storyId&&t.title.trim().toLocaleLowerCase("pt-BR")===storyTaskForm.title.trim().toLocaleLowerCase("pt-BR")))
+          throw Error("Já existe uma Task com esse título nessa US.");
+        body={action:"create",projectId:activeProjectId,itemType:"task",
+          storyId:storyTaskForm.storyId,title:storyTaskForm.title.trim(),
+          description:storyTaskForm.description,responsible:storyTaskForm.responsible,
+          state:"todo"};
+      }
+      const res=await fetch(endpoint,{method:"POST",headers,body:JSON.stringify(body)});
+      const parsed=await res.json().catch(()=>({}));
+      if(!res.ok)throw Error(parsed.error||"Não foi possível registrar.");
+      setSaveDialog(null);
+      showToast(kind==="meeting"?"Reunião registrada.":kind==="story"?"US criada no Backlog.":"Task criada na US existente.","success");
+    }catch(e){showToast(e instanceof Error?e.message:"Não foi possível concluir o encaminhamento.","error")}
+    finally{setDestinationLoadingId(null)}
+  }
+
   return {
     // auth / bootstrap
     auth, canLoadWorkspace, loadingHistory,
@@ -969,6 +1020,7 @@ export function useKairosCore(options?: UseKairosCoreOptions) {
     riskForm, setRiskForm, riskDrafts, setRiskDrafts, riskTitleError, riskLoadingId, riskSavedIds, handleSaveRisk,
     knowledgeForm, setKnowledgeForm, knowledgeTitleError, knowledgeContentError, knowledgeLoadingId, knowledgeSavedIds, handleSaveKnowledge,
     taskDrafts, setTaskDrafts, taskForm, setTaskForm, taskLoadingId, handleSaveTask,
+    meetingForm,setMeetingForm,storyForm,setStoryForm,storyTaskForm,setStoryTaskForm,scrumChoices,destinationLoadingId,handleSaveStructuredDestination,
     // clearing field errors on edit
     setDecisionTitleError, setRiskTitleError, setKnowledgeTitleError, setKnowledgeContentError,
     // send
