@@ -18,6 +18,20 @@ function ScrumIcon({kind,size=16,className=""}:{kind:"eye"|"pencil"|"message"|"c
 export default function ScrumKanbanPage(){
  const data=useScrumData();const confirm=useConfirm();const openedFromUrl=useRef(false);
  const [saving,setSaving]=useState<string|null>(null);
+ // A mutation locks only its own card until the API confirms persistence.
+ const pendingCardIds=useRef(new Set<string>());
+ const [pendingCards,setPendingCards]=useState<string[]>([]);
+ const startCard=(id:string)=>{
+  if(pendingCardIds.current.has(id))return false;
+  pendingCardIds.current.add(id);
+  setPendingCards([...pendingCardIds.current]);
+  return true;
+ };
+ const finishCard=(id:string)=>{
+  pendingCardIds.current.delete(id);
+  setPendingCards([...pendingCardIds.current]);
+ };
+
  const [mode,setMode]=useState<"stories"|"tasks">("stories");
  const [tasks,setTasks]=useState<BacklogItem[]>([]);const [features,setFeatures]=useState<BacklogItem[]>([]);
  const [members,setMembers]=useState<ProjectMember[]>([]);
@@ -76,30 +90,36 @@ export default function ScrumKanbanPage(){
   finally{setSaving(null)}
  }
  async function moveTask(task:BacklogItem,newStatus:string){
-  if(closed||saving||task.state===newStatus)return;
-  setSaving(task.id);data.setError("");
-  // Render immediately, but keep server-side transition rules authoritative.
+  if(closed||saving||task.state===newStatus||!startCard(task.id))return;
+  data.setError("");
+  // Optimistic movement, with one in-flight request per Task.
   setTasks(prev=>prev.map(item=>item.id===task.id?{...item,state:newStatus}:item));
   try{
-   await apiPost("/api/scrum/backlog-items",{action:"update",projectId:data.projectId,id:task.id,itemType:"task",title:task.title,state:newStatus});
-   await Promise.all([refreshTasks(),data.refresh()]);
+   const persisted=await apiPost("/api/scrum/backlog-items",{action:"update",projectId:data.projectId,id:task.id,itemType:"task",title:task.title,state:newStatus}) as {id:string;state?:string;actual_end_date?:string|null;story?:{id:string;workflow_stage:string;actual_end_date?:string|null;updated_at?:string}};
+   setTasks(prev=>prev.map(item=>item.id===task.id?{...item,state:persisted.state??newStatus,actual_end_date:persisted.actual_end_date??null}:item));
+   if(persisted.story){
+    data.patchStory(persisted.story.id,{workflow_stage:persisted.story.workflow_stage,actual_end_date:persisted.story.actual_end_date??null,updated_at:persisted.story.updated_at??""});
+   }
   }catch(e){
-   setTasks(prev=>prev.map(item=>item.id===task.id?{...item,state:task.state}:item));
+   setTasks(prev=>prev.map(item=>item.id===task.id?{...item,state:task.state,actual_end_date:task.actual_end_date??null}:item));
    data.setError(e instanceof Error?e.message:"Falha ao mover Task.");
-  }finally{setSaving(null)}
+  }finally{finishCard(task.id)}
  }
  async function move(story:Story,stage:string,transitionComment=""){
   if(closed||saving||stage===story.workflow_stage||!transitions[story.workflow_stage]?.includes(stage))return;
   if(stage==="review"&&!transitionComment.trim()){setTransition({story,stage});return}
-  setSaving(story.id);data.setError("");
+  if(!startCard(story.id))return;
+  data.setError("");
   data.setStoryStage(story.id,stage);
-  try{await apiPost("/api/scrum/stories",{action:"update",projectId:data.projectId,storyId:story.id,stage,transitionComment});await data.refresh();
-   setTransition(null);setReason("");setSelected(old=>old?.id===story.id?{...story,workflow_stage:stage}:old)}
-  catch(e){
+  try{
+   const persisted=await apiPost("/api/scrum/stories",{action:"update",projectId:data.projectId,storyId:story.id,stage,transitionComment}) as {id:string;workflow_stage?:string;actual_end_date?:string|null;updated_at?:string};
+   data.patchStory(story.id,{workflow_stage:persisted.workflow_stage??stage,actual_end_date:persisted.actual_end_date??null,updated_at:persisted.updated_at??story.updated_at});
+   setTransition(null);setReason("");
+   setSelected(old=>old?.id===story.id?{...old,workflow_stage:persisted.workflow_stage??stage}:old);
+  }catch(e){
    data.setStoryStage(story.id,story.workflow_stage);
    data.setError(e instanceof Error?e.message:"Falha ao movimentar US");
-  }
-  finally{setSaving(null)}
+  }finally{finishCard(story.id)}
  }
  async function returnBacklog(story:Story){
   if(closed||!await confirm({title:"Retirar US da Sprint?",description:"A história retorna ao backlog mantendo os comentários e o histórico de movimentações.",confirmLabel:"Retornar ao backlog"}))return;
@@ -135,7 +155,7 @@ export default function ScrumKanbanPage(){
          <h3 className="text-sm font-semibold">{t.title}</h3><p className="mt-1 text-xs text-(--text-secondary)">US: {stories.find(us=>us.id===t.story_id)?.title||"Não encontrada"}</p>
          <p className="mt-1 text-xs">Responsável: {members.find(m=>m.email===t.responsible)?.name||t.responsible||"Não atribuído"}</p>
          {t.actual_end_date&&<p className="text-xs">Conclusão: {dateBR(t.actual_end_date)}</p>}
-         {!closed&&<select className="workspace-select mt-2 w-full text-xs" aria-label={"Status de "+t.title} disabled={Boolean(saving)} value={t.state} onChange={e=>void moveTask(t,e.target.value)}>
+         {!closed&&<select className="workspace-select mt-2 w-full text-xs" aria-label={"Status de "+t.title} disabled={Boolean(saving)||pendingCards.includes(t.id)} value={t.state} onChange={e=>void moveTask(t,e.target.value)}>
           <option value="todo">TO DO</option><option value="doing">DOING</option><option value="done" disabled={t.state==="todo"}>DONE</option>
          </select>}
        </article>)}</div>
@@ -154,7 +174,7 @@ export default function ScrumKanbanPage(){
          <button type="button" className="rounded-md border border-(--border) p-1.5" title="Editar US" aria-label={"Editar "+s.title} disabled={closed} onClick={()=>view(s,true)}><ScrumIcon kind="pencil" size={14}/></button>
          <button type="button" className="rounded-md border border-(--border) p-1.5" title="Comentários" aria-label={"Comentar "+s.title} onClick={()=>view(s)}><ScrumIcon kind="message" size={14}/></button>
         </div>
-        {!closed&&transitions[key]?.length>0&&<select aria-label={"Alterar status de "+s.title} className="workspace-select mt-2 w-full text-[11px]" disabled={Boolean(saving)} value={key} onChange={e=>{const stage=e.target.value;setTransition({story:s,stage})}}>
+        {!closed&&transitions[key]?.length>0&&<select aria-label={"Alterar status de "+s.title} className="workspace-select mt-2 w-full text-[11px]" disabled={Boolean(saving)||pendingCards.includes(s.id)} value={key} onChange={e=>{const stage=e.target.value;setTransition({story:s,stage})}}>
          <option value={key}>Mover para…</option>{transitions[key].map(next=><option value={next} key={next}>{stages.find(x=>x[0]===next)?.[1]||next}</option>)}
         </select>}
        </article>)}</div>
@@ -203,7 +223,7 @@ export default function ScrumKanbanPage(){
   {transition&&<div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4"><div className="w-full max-w-md rounded-xl bg-(--bg-surface) p-5 shadow-xl" role="dialog" aria-modal="true" aria-label="Registrar mudança de status">
    <h2 className="font-semibold">Mover para {transition.stage.toUpperCase()}</h2><p className="mt-2 text-xs text-(--text-secondary)">{transition.stage==="review"?"A justificativa é obrigatória para solicitar REVIEW.":"Comentário opcional para registrar a decisão."} O registro será preservado no histórico e o responsável será notificado.</p>
    <textarea className="workspace-input mt-3 w-full" rows={4} value={reason} onChange={e=>setReason(e.target.value)} placeholder="O que precisa ser revisado?"/>
-   <div className="mt-3 flex justify-end gap-2"><button className="workspace-button-secondary px-3 py-2 text-xs" onClick={()=>{setTransition(null);setReason("")}}>Cancelar</button><button className="workspace-button-primary px-3 py-2 text-xs" disabled={(transition.stage==="review"&&!reason.trim())||Boolean(saving)} onClick={()=>void move(transition.story,transition.stage,reason)}>Confirmar status <ScrumIcon kind="chevron" size={12} className="inline"/></button></div>
+   <div className="mt-3 flex justify-end gap-2"><button className="workspace-button-secondary px-3 py-2 text-xs" onClick={()=>{setTransition(null);setReason("")}}>Cancelar</button><button className="workspace-button-primary px-3 py-2 text-xs" disabled={(transition.stage==="review"&&!reason.trim())||Boolean(saving)||pendingCards.includes(transition.story.id)} onClick={()=>void move(transition.story,transition.stage,reason)}>Confirmar status <ScrumIcon kind="chevron" size={12} className="inline"/></button></div>
   </div></div>}
  </section>;
 }
