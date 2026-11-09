@@ -1,5 +1,3 @@
-import html2canvas from "html2canvas";
-
 /**
  * Client-side PDF export for Commander reports.
  *
@@ -98,6 +96,7 @@ async function renderReport(html: string): Promise<{ canvas: HTMLCanvasElement; 
     const boundaries = Array.from(main.children)
       .map(child => Math.max(0, Math.round(child.getBoundingClientRect().top - main.getBoundingClientRect().top)))
       .filter(n => n > 0 && n < height);
+    const { default: html2canvas } = await import("html2canvas");
     const canvas = await html2canvas(main, {
       backgroundColor: "#ffffff",
       scale: 1.7,
