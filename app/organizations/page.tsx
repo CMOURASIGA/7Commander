@@ -23,7 +23,7 @@ export default function OrganizationChooser(){
    const result=await response.json().catch(()=>({}));
    if(!response.ok)throw new Error(result.error||"Acesso à empresa negado.");
    if(result.data?.operationalIsolationReady!==true){
-    setError("A 7Commander confirmou seu vínculo, mas NÃO alterou a empresa ativa. O isolamento multempresa ainda está pendente.");
+    setError("O Commander confirmou seu vínculo, mas NÃO alterou a empresa ativa. O isolamento multempresa ainda está pendente.");
     return;
    }
    window.localStorage.setItem("7commander:company-changed",String(Date.now()));
