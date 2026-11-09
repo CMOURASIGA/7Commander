@@ -90,14 +90,17 @@ function reportDocument(project:Project, cards:Card[], risks:Risk[], decisions:D
 }
 function historicalDocument(data:ReportData,audience:ReportAudience,narrative:AiAnalysis|null,issued:string){
  if(audience==="client"){
-  const listPublic=(values:Array<{title:string;status:string}>)=>values.length?values.map(x=>'<div class="item"><div>'+htmlEscape(x.title)+'</div><span>'+htmlEscape(x.status)+'</span></div>').join(""):'<p class="empty">Nenhum registro disponível nesta categoria.</p>';
+  const listPublic=(kind:string)=>{
+    const values=(data.publicFacts||[]).filter(item=>item.kind===kind);
+    return values.length?values.map(item=>'<div class="item"><div>'+htmlEscape(item.title)+'</div><span>'+htmlEscape(item.classification)+(item.due_date?' · '+htmlEscape(item.due_date):'')+'</span></div>').join(""):'<p class="empty">Nenhum conteúdo dessa categoria aprovado para divulgação.</p>';
+  };
   return '<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>Relatório Cliente arquivado · '+htmlEscape(data.project.name)+'</title><style>'+css+'</style></head><body><main class="wrap">'
    +'<header class="hero"><h3>COMMANDER · RELATÓRIO CLIENTE ARQUIVADO</h3><h1>'+htmlEscape(data.project.name)+'</h1><p>Emitido: '+htmlEscape(issued)+'</p></header>'
    +'<div class="note">Documento histórico imutável. Valores compartilhados são registros do sistema, não confirmação de aceite ou entrega contratual.</div>'
    +'<section class="metrics"><div class="metric"><small>ATIVIDADES REGISTRADAS</small><strong>'+data.kanban.total+'</strong></div><div class="metric"><small>REGISTROS CONCLUÍDOS</small><strong>'+data.kanban.done+'</strong></div><div class="metric"><small>RISCOS ATIVOS</small><strong>'+data.governance.risks_open+'</strong></div><div class="metric"><small>DECISÕES PENDENTES</small><strong>'+data.governance.decisions_pending+'</strong></div></section>'
-   +'<section class="panel"><h2>Riscos relevantes</h2>'+listPublic(data.governance.client_risks)+'</section>'
-   +'<section class="panel"><h2>Decisões pendentes</h2>'+listPublic(data.governance.client_decisions)+'</section>'
-   +'<section class="panel"><h2>Próximos passos a confirmar</h2><p>'+htmlEscape(narrative?.nextSteps||"Confirmar compromissos e marcos com a gestão do projeto.")+'</p><p class="empty">Recomendações da IA não constituem acordos confirmados.</p></section>'
+   +'<section class="panel"><h2>Riscos relevantes</h2>'+listPublic('risk')+'</section>'
+   +'<section class="panel"><h2>Decisões pendentes</h2>'+listPublic('next_step')+'</section>'
+   +'<section class="panel"><h2>Entregas autorizadas</h2>'+listPublic('deliverable')+'</section><section class="panel"><h2>Marcos autorizados</h2>'+listPublic('milestone')+'</section><section class="panel"><h2>Próximos passos a confirmar</h2><p>'+htmlEscape(narrative?.nextSteps||"Confirmar compromissos e marcos com a gestão do projeto.")+'</p><p class="empty">Recomendações da IA não constituem acordos confirmados.</p></section>'
    +'<footer class="foot">Commander · Relatório Cliente arquivado</footer><div class="actions"><button onclick="window.print()">Salvar PDF / Imprimir</button></div></main></body></html>';
  }
 
