@@ -38,7 +38,7 @@ export async function GET(req:NextRequest){
     nextSteps:"Confirmar marcos e compromissos com a gestão do projeto."
    }};
   };
-  return res({data:Array.isArray(r.data)?r.data.map(item=>redact(item as Record<string,unknown>)):r.data?redact(r.data as Record<string,unknown>):null});
+  return res({data:Array.isArray(r.data)?r.data.map(item=>redact(item as unknown as Record<string,unknown>)):r.data?redact(r.data as unknown as Record<string,unknown>):null});
  }
  return res({data:r.data});
 }
