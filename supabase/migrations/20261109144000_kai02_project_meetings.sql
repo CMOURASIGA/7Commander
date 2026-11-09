@@ -41,6 +41,8 @@ alter table public.project_meeting_links enable row level security;
 -- Read/write only through authorized server endpoints; no direct user DML.
 revoke all on public.project_meetings from anon,authenticated;
 revoke all on public.project_meeting_links from anon,authenticated;
+grant select,insert,update,delete on public.project_meetings to service_role;
+grant select,insert,update,delete on public.project_meeting_links to service_role;
 -- Cross-tenant integrity enforced even from privileged server transactions.
 create or replace function public.project_meeting_tenant_guard()
 returns trigger language plpgsql set search_path=public as $$
