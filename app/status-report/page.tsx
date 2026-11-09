@@ -74,6 +74,16 @@ function historicalDocument(data:ReportData,audience:ReportAudience,narrative:Ai
 }
 export default function StatusReportPage() {
  const [projects,setProjects]=useState<Project[]>([]);
+ const [brandLogoData,setBrandLogoData]=useState("");
+ const [brandName,setBrandName]=useState("7Commander");
+ useEffect(()=>{
+  let active=true;
+  void measuredFetch("/api/status-report/logo",{headers:getClientAuthHeaders(),cache:"no-store"})
+   .then(async response=>{if(!response.ok)throw Error("Logo da empresa ativa indisponível");const payload=await response.json();if(!active)return;setBrandLogoData(payload.dataUri||"");setBrandName(payload.companyName||"7Commander")})
+   .catch(()=>{if(active){setBrandLogoData("");setBrandName("7Commander")}});
+  return()=>{active=false};
+ },[]);
+
  const [projectId,setProjectId]=useState("");
  const [board,setBoard]=useState<Board|null>(null);
  const [audience,setAudience]=useState<ReportAudience>("client");
@@ -123,7 +133,8 @@ export default function StatusReportPage() {
  const project=projects.find(x=>x.id===projectId);
  const cards=useMemo(()=>board?.columns.flatMap(x=>x.cards)||[],[board]);
  const issueDate=new Date().toLocaleDateString("pt-BR");
- const documentHtml=project&&board&&scrumReport?reportDocument(project,cards,audience==="client"?risks.map(r=>({...r,owner:null,mitigation:null})):risks,decisions,period,issueDate,analysis,periodEvents,periodMetrics,audience,scrumReport):"";
+ const reportHtml=project&&board&&scrumReport?reportDocument(project,cards,audience==="client"?risks.map(r=>({...r,owner:null,mitigation:null})):risks,decisions,period,issueDate,analysis,periodEvents,periodMetrics,audience,scrumReport):"";
+ const documentHtml=reportHtml.replaceAll(BRAND_LOGO_URL,brandLogoData).replaceAll("CONSULT SERVICES TECNOLOGIA",htmlEscape(brandName)).replaceAll('alt="Consult Services Tecnologia"','alt="'+htmlEscape(brandName)+'"');
  async function issue():Promise<string|null>{
   if(!projectId||!scrumReport||!documentHtml||issuing)return null;
   setIssuing(true);setStatus("Registrando emissão...");
@@ -153,7 +164,17 @@ export default function StatusReportPage() {
   const url=URL.createObjectURL(blob);
   const link=document.createElement("a");link.href=url;link.download="status-report-arquivado-"+historyId+".html";link.click();URL.revokeObjectURL(url);
  }
- async function download(){if(!documentHtml||!project)return;const issuedId=await issue();if(!issuedId)return;let html=documentHtml;try {const image=await measuredFetch("/api/status-report/logo",{headers:getClientAuthHeaders()});if(!image.ok)throw Error("Não foi possível incorporar a logo.");const {dataUri}=await image.json();if(typeof dataUri!=="string"||!dataUri.startsWith("data:image/"))throw Error("Logo indisponível.");html=html.replace(BRAND_LOGO_URL,dataUri);}catch{setStatus("Falha ao incorporar a logo. Exportação interrompida para evitar documento incompleto.");return;}const blob=new Blob([html],{type:"text/html;charset=utf-8"});const url=URL.createObjectURL(blob);const link=document.createElement("a");link.href=url;link.download=`status-report-${project.id}-${new Date().toISOString().slice(0,10)}.html`;link.click();URL.revokeObjectURL(url);}
+ async function download(){
+  if(!documentHtml||!project)return;
+  if(!brandLogoData){setStatus("A logo da empresa ativa não está disponível. Verifique o whitelabel antes de exportar.");return;}
+  const issuedId=await issue();if(!issuedId)return;
+  const blob=new Blob([documentHtml],{type:"text/html;charset=utf-8"});
+  const url=URL.createObjectURL(blob);
+  const link=document.createElement("a");
+  link.href=url;link.download=`status-report-${project.id}-${new Date().toISOString().slice(0,10)}.html`;
+  link.click();URL.revokeObjectURL(url);
+ }
+
  return <main className="space-y-4">
  <header className="flex flex-wrap items-center justify-between gap-3"><div><p className="text-xs uppercase tracking-wider text-(--text-secondary)">7Commander · Kairos</p><h1 className="text-2xl font-semibold">Status Report do Projeto</h1><p className="text-sm text-(--text-secondary)">Relatório executivo para cliente ou gerencial para equipe, com dados de Scrum e Kanban.</p></div><Link className="rounded-lg border border-(--border) px-3 py-2 text-sm" href="/projects">Voltar aos projetos</Link></header>
  <section className="grid gap-3 rounded-xl border border-(--border) bg-(--bg-surface) p-4 md:grid-cols-[2fr_1fr_auto]">
