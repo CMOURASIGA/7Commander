@@ -187,6 +187,15 @@ export function getTaskDrafts(content: string): TaskDraft[] {
     })));
   }
 
+  // Report sections frequently contain concrete actions as bullet items.
+  // The heading itself is never treated as a Task.
+  const actionBullets=[...content.matchAll(/^\s*[-*]\s+(?!\*\*)(.+)$/gm)]
+    .map((m,index)=>({id:"task-action-"+(index+1),
+      title:removeMarkdown(m[1]).split(/[.;]/)[0].trim().slice(0,180),
+      description:removeMarkdown(m[1]),selected:true}));
+  const concreteBullets=filterActionableDrafts(actionBullets);
+  if(concreteBullets.length)return concreteBullets;
+
   // A report is knowledge/meeting input, not a single enormous Kanban task.
   if((content.match(/^\s*#{1,6}\s+/gm)||[]).length>=2 || content.length>1200)return [];
   return filterActionableDrafts([{
