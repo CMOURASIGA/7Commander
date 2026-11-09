@@ -829,7 +829,7 @@ export default function ProjectsPage() {
           <div className="mt-3 flex flex-wrap items-center gap-2 rounded-lg border border-(--border) bg-(--bg-muted) px-3 py-2 text-xs">
             <span className="font-semibold text-(--text-primary)">Projeto em edição: {selectedProject.name}</span>
             <span className="text-(--text-secondary)">Cliente: {selectedProject.clientName ?? "Não vinculado"}</span>
-            <a href="#detalhes-projeto" className="ml-auto text-(--accent) underline">Editar vínculo e detalhes</a>
+            <button type="button" onClick={()=>selectTab("project")} className="ml-auto text-(--accent) underline">Editar vínculo e detalhes</button>
           </div>
         ) : null}
         {!readOnly && <ProjectRoutine
@@ -1204,7 +1204,7 @@ export default function ProjectsPage() {
          <div className={activeTab==="activities"?"rounded-xl border border-(--border) p-4":"hidden"}>
            <h2 className="text-sm font-semibold">Atividades do projeto</h2>
            <p className="mt-2 text-sm text-(--text-secondary)">Consulte e atualize atividades no quadro operacional existente, sem duplicar registros.</p>
-           <Link href="/activities" className="workspace-button-secondary mt-3 inline-flex">Abrir atividades</Link>
+           <Link href={activeProjectId?`/activities?projectId=${encodeURIComponent(activeProjectId)}`:"/activities"} className="workspace-button-secondary mt-3 inline-flex">Abrir atividades do projeto selecionado</Link>
          </div>
        </article>
        <div className={activeTab==="decisions"?"":"hidden"}>
