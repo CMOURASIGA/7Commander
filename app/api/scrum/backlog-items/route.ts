@@ -11,9 +11,9 @@ const bad=(error:string,status=400)=>reply({error},status);
 async function scope(req:NextRequest,projectId:string,write=false){
  const auth=await requireApiAuth(req);if(!auth.ok)return {error:auth.response} as const;
  if(!uuid.test(projectId))return {error:bad("Projeto inválido.")} as const;
- const project=await getProjectById({userId:auth.context.userId,userEmail:auth.context.userEmail,projectId,verifiedProject:project});
+ const project=await getProjectById({userId:auth.context.userId,userEmail:auth.context.userEmail,projectId});
  if(!project)return {error:bad("Projeto não encontrado.",404)} as const;
- const role=await getProjectAccessRole({userId:auth.context.userId,userEmail:auth.context.userEmail,projectId});
+ const role=await getProjectAccessRole({userId:auth.context.userId,userEmail:auth.context.userEmail,projectId,verifiedProject:project});
  if(role==="none"||write&&!["owner","editor"].includes(role))return {error:bad("Acesso negado.",403)} as const;
  const db=getSupabaseServerClient();if(!db)return {error:bad("Banco indisponível.",503)} as const;
  const org=TENANT_SCHEMA_READY?await requireEffectiveTenant(auth.context.userId):CONSULT_ORG_ID;
