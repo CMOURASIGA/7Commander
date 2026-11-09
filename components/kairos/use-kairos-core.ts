@@ -89,7 +89,8 @@ const ACTION_VERBS=/\b(entregar|implementar|validar|gerar|revisar|criar|atualiza
 function actionableTask(draft:TaskDraft):boolean {
  const title=removeMarkdown(draft.title).replace(/[.:]\s*$/,"");
  if(!title||NON_ACTIONABLE_HEADINGS.test(title))return false;
- return ACTION_VERBS.test(title+" "+draft.description);
+ const deliverable=/\b(entrega|implementa(?:ção|cao)|valida(?:ção|cao)|corre(?:ção|cao)|gera(?:ção|cao)|configura(?:ção|cao)|migra(?:ção|cao)|documenta(?:ção|cao)|testes?|integra(?:ção|cao))\b/i;
+ return ACTION_VERBS.test(title+" "+draft.description)||deliverable.test(title);
 }
 function filterActionableDrafts(drafts:TaskDraft[]):TaskDraft[] {
  const seen=new Set<string>();
