@@ -761,9 +761,37 @@ export function useKairosCore(options?: UseKairosCoreOptions) {
       setRiskForm({ title: parsed.length ? "" : getSuggestedTitle(message.content, kind), impact: "", probability: "", mitigation: "", owner: "" });
     } else if (kind === "knowledge") {
       setKnowledgeForm({ title: getSuggestedTitle(message.content, kind), category: "registro do Kairos", content: message.content });
+    } else if(kind==="meeting"){
+      setMeetingForm({title:"Reunião de acompanhamento",heldAt:new Date().toISOString().slice(0,16),participants:"",objective:"",summary:message.content,advances:"",decisions:"",commitments:"",pendingItems:"",risks:"",nextFollowUp:"",sourceArtifactId:""});
+    } else if(kind==="story"){
+      setStoryForm({title:"",description:message.content.slice(0,7000),acceptanceCriteria:"",featureId:"",sprintId:"",responsible:"",priority:"media",startDate:"",dueDate:""});
+    } else if(kind==="story-task"){
+      setStoryTaskForm({storyId:"",title:"",description:message.content.slice(0,7000),responsible:""});
     } else {
       setTaskDrafts(getTaskDrafts(message.content));
       setTaskForm({ columnKey: "todo", priority: "media", dueDate: "" });
+    }
+    if(["story","story-task"].includes(kind)&&activeProjectId){
+      void (async()=>{
+        try{
+          const headers=getClientAuthHeaders();
+          const key=encodeURIComponent(activeProjectId);
+          const [backlog,projects,members]=await Promise.all([
+            fetch("/api/scrum/backlog-items?projectId="+key,{headers,cache:"no-store"}),
+            fetch("/api/scrum?projectId="+key,{headers,cache:"no-store"}),
+            fetch("/api/scrum/project-members?projectId="+key,{headers,cache:"no-store"})
+          ]);
+          const stories=await fetch("/api/scrum/stories?projectId="+key,{headers,cache:"no-store"});
+          if(!backlog.ok||!projects.ok||!members.ok||!stories.ok)throw Error("Seletores de Scrum indisponíveis");
+          const [b,p,m,t]=await Promise.all([backlog.json(),projects.json(),members.json(),stories.json()]);
+          setScrumChoices({
+            features:(b.data||[]).filter((x:{item_type:string})=>x.item_type==="feature").map((x:{id:string;title:string})=>({id:x.id,title:x.title})),
+            sprints:(p.data?.sprints||[]).filter((x:{status:string})=>x.status!=="closed"),
+            stories:(t.data?.stories||[]).filter((x:{workflow_stage:string})=>x.workflow_stage!=="closed"),
+            members:m.data||[]
+          });
+        }catch{setScrumChoices({features:[],sprints:[],stories:[],members:[]});showToast("Não foi possível carregar as opções de Scrum do projeto.","error")}
+      })();
     }
     setSaveDialog({ kind, message });
   }
