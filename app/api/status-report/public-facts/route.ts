@@ -74,6 +74,69 @@ export async function POST(request:NextRequest){
  const scope=await getReportScope(auth.context,projectId,true);if("error" in scope)return out({error:scope.error},scope.status);
  if(!["owner","editor"].includes(scope.role))return out({error:"Aprovação pública restrita ao responsável do projeto."},403);
  const action=String(data.action||"");
+ if(action==="publish"){
+  // One explicit click is authorization. Server checks both editor role and tenant-scoped source.
+  const kind=String(data.kind||""),classification=String(data.classification||"");
+  const title=String(data.title||"").trim(),description=String(data.description||"").trim();
+  const due=String(data.dueDate||"");
+  const sourceReference=String(data.sourceReference||"").trim();
+  const id=String(data.id||"");
+  if(!kinds.includes(kind)||!states.includes(classification)||title.length<3||title.length>180||
+      description.length>3000||(due&&!/^\\d{4}-\\d{2}-\\d{2}$/.test(due))||
+      sourceReference.length>500||(id&&!uuid.test(id)))
+    return out({error:"Campos de publicação inválidos."},400);
+  // Untrusted source references cannot bypass tenant boundaries.
+  if(sourceReference){
+   const matched=/^(project|task|story|epic|sprint|risk|decision):([0-9a-f-]{36})$/i.exec(sourceReference);
+   const kairos=sourceReference==="kairos:proposta:"+projectId;
+   if(!matched&&!kairos)return out({error:"Origem da informação inválida."},400);
+   if(matched){
+    const tables:Record<string,string>={project:"projects",task:"tasks",story:"scrum_user_stories",epic:"scrum_backlog_items",sprint:"scrum_sprints",risk:"risks",decision:"decisions"};
+    const source=await scope.db.from(tables[matched[1]]).select("id")
+      .eq("id",matched[2]).eq("organization_id",scope.organizationId)
+      .eq(matched[1]==="project"?"id":"project_id",projectId)
+      .maybeSingle();
+    if(source.error||!source.data)return out({error:"Origem não vinculada ao projeto selecionado."},403);
+    if(matched[1]==="epic"){
+     const epic=await scope.db.from("scrum_backlog_items").select("item_type").eq("id",matched[2])
+       .eq("project_id",projectId).eq("organization_id",scope.organizationId).single();
+     if(epic.error||epic.data?.item_type!=="epic")return out({error:"Origem não é um épico válido."},403);
+    }
+   }
+  }
+  const now=new Date().toISOString();
+  const record={
+   kind,title,description,classification,due_date:due||null,source_reference:sourceReference||null,
+   approved_for_client:true,approved_by:auth.context.userId,approved_at:now,
+   updated_by:auth.context.userId,updated_at:now
+  };
+  if(id){
+   const current=await scope.db.from("project_report_public_facts").select("id,approved_for_client,source_reference")
+     .eq("id",id).eq("project_id",projectId).eq("organization_id",scope.organizationId).maybeSingle();
+   if(current.error||!current.data)return out({error:"Registro não encontrado neste projeto."},404);
+   // An existing fact cannot be rebound to an unrelated operational record.
+   if((current.data.source_reference||"")!==sourceReference)
+    return out({error:"A referência original não pode ser alterada."},409);
+   const changed=await scope.db.from("project_report_public_facts").update(record).eq("id",id)
+     .eq("project_id",projectId).eq("organization_id",scope.organizationId).select("id,approved_for_client").single();
+   return changed.error?out({error:"Não foi possível publicar a alteração."},503):out({data:changed.data});
+  }
+  if(sourceReference){
+   const existing=await scope.db.from("project_report_public_facts").select("id")
+     .eq("project_id",projectId).eq("organization_id",scope.organizationId)
+     .eq("source_reference",sourceReference).limit(1);
+   if(existing.error)return out({error:"Não foi possível verificar a origem."},503);
+   if(existing.data?.length)return out({error:"Esta informação já está registrada. Use Publicar ou Editar no registro existente."},409);
+  }
+  const existingTitle=await scope.db.from("project_report_public_facts").select("id")
+   .eq("project_id",projectId).eq("organization_id",scope.organizationId).eq("kind",kind).ilike("title",title).limit(1);
+  if(existingTitle.error)return out({error:"Não foi possível verificar duplicidade."},503);
+  if(existingTitle.data?.length)return out({error:"Já existe informação com esse título. Edite a existente."},409);
+  const inserted=await scope.db.from("project_report_public_facts").insert({
+   ...record,organization_id:scope.organizationId,project_id:projectId,created_by:auth.context.userId
+  }).select("id,approved_for_client").single();
+  return inserted.error?out({error:"Não foi possível publicar a informação."},503):out({data:inserted.data},201);
+ }
  if(action==="create"){
   const kind=String(data.kind||""),classification=String(data.classification||"");
   const title=String(data.title||"").trim(),description=String(data.description||"").trim();
