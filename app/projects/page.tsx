@@ -153,6 +153,9 @@ export default function ProjectsPage() {
   const [selectedClientIdForCreate, setSelectedClientIdForCreate] = useState<string>("");
   const [activeProjectId, setActiveProjectId] = useState<string | null>(null);
   const [openRoutine, setOpenRoutine] = useState<RoutineKey | null>(null);
+  type ProjectTab = "project"|"risks"|"decisions"|"documents"|"members"|"meetings"|"activities";
+  const [activeTab,setActiveTab]=useState<ProjectTab>("project");
+  const selectTab=(tab:ProjectTab)=>{setActiveTab(tab);const routine:Partial<Record<ProjectTab,RoutineKey>>={risks:"risks",decisions:"decisions",documents:"knowledge",members:"members"};setOpenRoutine(routine[tab]??null);};
   const [newProjectName, setNewProjectName] = useState("");
   const [decisions, setDecisions] = useState<Decision[]>([]);
   const [loading, setLoading] = useState(true);
@@ -754,6 +757,12 @@ export default function ProjectsPage() {
         }
       />
 
+      <nav aria-label="Quadros do projeto" className="workspace-card flex flex-wrap gap-2 p-3" role="tablist">
+        {([["project","Projeto"],["risks","Riscos"],["decisions","Decisões"],["documents","Documentos"],["members","Equipe"],["meetings","Reuniões"],["activities","Atividades"]] as const).map(([key,label]) => (
+          <button key={key} type="button" role="tab" aria-selected={activeTab===key}
+            onClick={()=>selectTab(key)} className={activeTab===key?"workspace-button-primary text-xs":"workspace-button-secondary text-xs"}>{label}</button>
+        ))}
+      </nav>
       <article className="workspace-card flex flex-col gap-3 p-4">
         <SectionLabel>Projetos</SectionLabel>
         <div className="mt-2 flex flex-wrap items-center justify-between gap-3">
@@ -769,7 +778,8 @@ export default function ProjectsPage() {
           {!readOnly && !checking ? <button type="button" className="workspace-button-secondary text-xs" onClick={()=>setManageProjectsOpen(x=>!x)}
             aria-expanded={manageProjectsOpen}>{manageProjectsOpen?"Fechar gerenciamento":"Gerenciar projetos"}</button> : null}
         </div>
-        {!readOnly && !checking && manageProjectsOpen?<section className="mt-3 rounded-xl border border-(--border) p-4" aria-label="Gerenciamento de projetos">
+        <div className={activeTab==="project"?"contents":"hidden"}>
+         {!readOnly && !checking && manageProjectsOpen?<section className="mt-3 rounded-xl border border-(--border) p-4" aria-label="Gerenciamento de projetos">
           <h4 className="text-sm font-semibold">Gerenciamento de projetos</h4>
           <p className="mt-1 text-xs text-(--text-secondary)">Exclusão é definitiva e somente permitida a administradores. Projetos com histórico operacional devem ser arquivados.</p>
           <div className="mt-3 space-y-2">
@@ -860,8 +870,9 @@ export default function ProjectsPage() {
           {ingestStatus ? <p className="text-xs text-(--text-primary)">{ingestStatus}</p> : null}
         </ProjectRoutine>}
 
-        <ProjectRoutine
-          title="Riscos do projeto"
+        </div>
+         <div className={activeTab==="risks"?"contents":"hidden"}>
+         <ProjectRoutine title="Riscos do projeto"
           description={readOnly ? "Consulte os riscos do projeto sem alterar registros." : "Registre, acompanhe status e defina a mitigacao dos riscos operacionais."}
           badge={risks.length ? `${risks.length} registros` : undefined}
           isOpen={openRoutine === "risks"}
@@ -976,14 +987,17 @@ export default function ProjectsPage() {
           </div>
         </ProjectRoutine>
 
-        {activeProjectId&&<section className="order-2 rounded-xl border border-(--border) bg-(--bg-surface) p-4">
+        </div>
+         <div className={activeTab==="meetings"?"contents":"hidden"}>
+         {activeProjectId&&<section className="order-2 rounded-xl border border-(--border) bg-(--bg-surface) p-4">
           <h2 className="text-sm font-semibold">Reuniões e acompanhamento</h2>
           <p className="mt-1 text-xs text-(--text-secondary)">Registre reuniões, compare compromissos e vincule decisões e entregas existentes sem duplicar atividades.</p>
           <Link className="workspace-button-secondary mt-3 inline-block rounded-lg px-3 py-2 text-sm" href={"/projects/"+encodeURIComponent(activeProjectId)+"/meetings"}>Abrir reuniões do projeto</Link>
         </section>}
 
-        <ProjectRoutine
-          title="Conhecimento do projeto"
+        </div>
+         <div className={activeTab==="documents"?"contents":"hidden"}>
+         <ProjectRoutine title="Conhecimento do projeto"
           description={readOnly ? "Consulte o conhecimento do projeto sem remover documentos." : "Consulte documentos processados e remova conhecimentos que nao forem mais relevantes."}
           badge={knowledgeItems.length ? `${knowledgeItems.length} documentos` : undefined}
           isOpen={openRoutine === "knowledge"}
@@ -1023,8 +1037,9 @@ export default function ProjectsPage() {
           )}
         </ProjectRoutine>
 
-        {selectedProject ? (
-          <div id="detalhes-projeto" className="order-1 space-y-2 rounded-xl border border-(--border-strong) bg-(--accent-ghost) p-4">
+        </div>
+         <div className={activeTab==="project"?"contents":"hidden"}>
+         {selectedProject ? (<div id="detalhes-projeto" className="order-1 space-y-2 rounded-xl border border-(--border-strong) bg-(--accent-ghost) p-4">
             <p className="text-xs font-semibold uppercase tracking-wide text-(--text-secondary)">
               Detalhes do projeto ativo
             </p>
@@ -1105,9 +1120,9 @@ export default function ProjectsPage() {
           </div>
         ) : null}
 
-        {selectedProject ? (
-          <ProjectRoutine
-            title="Membros e compartilhamento"
+        </div>
+         <div className={activeTab==="members"?"contents":"hidden"}>
+         {selectedProject ? (<ProjectRoutine title="Membros e compartilhamento"
             description="Convide pessoas e administre as permissoes de acesso deste projeto."
             badge={members.length ? `${members.length} membros` : undefined}
             isOpen={openRoutine === "members"}
@@ -1184,10 +1199,15 @@ export default function ProjectsPage() {
             {inviteStatus ? <p className="text-xs text-(--text-primary)">{inviteStatus}</p> : null}
           </ProjectRoutine>
         ) : null}
-      </article>
-
-      <ProjectRoutine
-        title="Decisoes do projeto"
+      </div>
+         <div className={activeTab==="activities"?"rounded-xl border border-(--border) p-4":"hidden"}>
+           <h2 className="text-sm font-semibold">Atividades do projeto</h2>
+           <p className="mt-2 text-sm text-(--text-secondary)">Consulte e atualize atividades no quadro operacional existente, sem duplicar registros.</p>
+           <Link href="/activities" className="workspace-button-secondary mt-3 inline-flex">Abrir atividades</Link>
+         </div>
+       </article>
+       <div className={activeTab==="decisions"?"":"hidden"}>
+       <ProjectRoutine title="Decisoes do projeto"
         description={readOnly ? "Consulte o histórico das decisões operacionais." : "Crie, acompanhe o status e consulte o historico das decisoes operacionais."}
         badge={decisions.length ? `${decisions.length} registros` : undefined}
         isOpen={openRoutine === "decisions"}
@@ -1313,7 +1333,8 @@ export default function ProjectsPage() {
           ))}
         </div>
       )}
-      </ProjectRoutine>
-    </section>
-  );
+       </ProjectRoutine>
+       </div>
+     </section>
+   );
 }
