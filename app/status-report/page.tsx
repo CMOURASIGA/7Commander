@@ -1,5 +1,7 @@
 "use client";
 
+import {measuredFetch} from "@/lib/client-performance";
+
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { getClientAuthHeaders } from "@/lib/client-auth";
@@ -97,24 +99,24 @@ export default function StatusReportPage() {
  const [periodMetrics,setPeriodMetrics]=useState<PeriodMetrics|null>(null);
  const period=periodMode==="current"?"Situação atual":`${start} a ${end}`;
  useEffect(()=>{if(!projectId){setScrumReport(null);return}let live=true;setScrumReport(null);setScrumStatus("Consultando indicadores do projeto...");
-  void fetch("/api/status-report/scrum?projectId="+encodeURIComponent(projectId)+"&audience="+audience,{headers:getClientAuthHeaders(),cache:"no-store"})
+  void measuredFetch("/api/status-report/scrum?projectId="+encodeURIComponent(projectId)+"&audience="+audience,{headers:getClientAuthHeaders(),cache:"no-store"})
    .then(async r=>{const j=await r.json();if(!r.ok)throw Error(j.error||"Consulta indisponível");if(live){setScrumReport(j.data);setScrumStatus("Indicadores operacionais consultados.")}})
    .catch(e=>{if(live)setScrumStatus(e instanceof Error?e.message:"Falha ao consultar Scrum.")});
   return()=>{live=false};
  },[projectId,audience]);
- useEffect(()=>{if(!projectId)return;let live=true;void fetch("/api/status-report/history?projectId="+encodeURIComponent(projectId),{headers:getClientAuthHeaders(),cache:"no-store"})
+ useEffect(()=>{if(!projectId)return;let live=true;void measuredFetch("/api/status-report/history?projectId="+encodeURIComponent(projectId),{headers:getClientAuthHeaders(),cache:"no-store"})
   .then(r=>r.json()).then(j=>{if(live)setHistory(j.data||[])}).catch(()=>{});return()=>{live=false};},[projectId]);
  useEffect(()=>{let mounted=true;void (async()=>{try{
-  const res=await fetch("/api/projects",{headers:getClientAuthHeaders(),cache:"no-store"});if(!res.ok)throw Error("Sem acesso à lista de projetos.");
+  const res=await measuredFetch("/api/projects",{headers:getClientAuthHeaders(),cache:"no-store"});if(!res.ok)throw Error("Sem acesso à lista de projetos.");
   const payload=await res.json();if(mounted){const projects=(payload.data??[]) as Project[];setProjects(projects);setProjectId(payload.meta?.activeProjectId??projects[0]?.id??"");}
  }catch(e){if(mounted)setStatus(e instanceof Error?e.message:"Falha ao carregar projetos.");}})();return()=>{mounted=false}},[]);
  useEffect(()=>{if(!projectId)return;let cancelled=false;void(async()=>{setBusy(true);setBoard(null);try{
-   const endpoints=["tasks","risks","decisions"].map(x=>fetch(`/api/projects/${encodeURIComponent(projectId)}/${x}`,{headers:getClientAuthHeaders(),cache:"no-store"}));
+   const endpoints=["tasks","risks","decisions"].map(x=>measuredFetch(`/api/projects/${encodeURIComponent(projectId)}/${x}`,{headers:getClientAuthHeaders(),cache:"no-store"}));
    const responses=await Promise.all(endpoints);if(responses.some(x=>!x.ok))throw Error("Não foi possível consultar todos os registros do projeto. Relatório não gerado.");
    const payloads=await Promise.all(responses.map(x=>x.json()));if(cancelled)return;
    setBoard(payloads[0].data);setRisks(payloads[1].data??[]);setDecisions(payloads[2].data??[]);setStatus("Dados consultados; relatório pronto para exportação.");
   }catch(e){if(!cancelled)setStatus(e instanceof Error?e.message:"Erro ao consolidar dados.");}finally{if(!cancelled)setBusy(false);}})();return()=>{cancelled=true}},[projectId]);
- useEffect(()=>{if(!projectId){setAnalysis(null);setPeriodEvents(null);setPeriodMetrics(null);return;}if(periodMode==="period"&&(!start||!end||start>end)){setAnalysis(null);setAnalysisStatus("Corrija as datas do período.");return;}let cancelled=false;setAnalysis(null);setPeriodEvents(null);setPeriodMetrics(null);setAnalysisStatus("Kairos analisando os registros autorizados...");void(async()=>{try{const response=await fetch("/api/status-report/analysis",{method:"POST",headers:getClientAuthHeaders({"Content-Type":"application/json"}),body:JSON.stringify({projectId,mode:periodMode,start,end,audience}),cache:"no-store"});const payload=await response.json();if(!response.ok)throw Error(payload.error||"Falha na análise.");if(!cancelled){setAnalysis(payload.data?.analysis??null);setPeriodEvents(payload.data?.periodEvents??null);setPeriodMetrics(payload.data?.periodMetrics??null);setAnalysisStatus(payload.data?.source==="ai"?"Análise Kairos gerada. Revise antes de enviar ao cliente.":payload.warning||"Análise de IA indisponível.");}}catch(e){if(!cancelled){setAnalysisStatus(e instanceof Error?e.message:"Falha na análise.");setAnalysis(null);}}})();return()=>{cancelled=true};},[projectId,periodMode,start,end,audience]);
+ useEffect(()=>{if(!projectId){setAnalysis(null);setPeriodEvents(null);setPeriodMetrics(null);return;}if(periodMode==="period"&&(!start||!end||start>end)){setAnalysis(null);setAnalysisStatus("Corrija as datas do período.");return;}let cancelled=false;setAnalysis(null);setPeriodEvents(null);setPeriodMetrics(null);setAnalysisStatus("Kairos analisando os registros autorizados...");void(async()=>{try{const response=await measuredFetch("/api/status-report/analysis",{method:"POST",headers:getClientAuthHeaders({"Content-Type":"application/json"}),body:JSON.stringify({projectId,mode:periodMode,start,end,audience}),cache:"no-store"});const payload=await response.json();if(!response.ok)throw Error(payload.error||"Falha na análise.");if(!cancelled){setAnalysis(payload.data?.analysis??null);setPeriodEvents(payload.data?.periodEvents??null);setPeriodMetrics(payload.data?.periodMetrics??null);setAnalysisStatus(payload.data?.source==="ai"?"Análise Kairos gerada. Revise antes de enviar ao cliente.":payload.warning||"Análise de IA indisponível.");}}catch(e){if(!cancelled){setAnalysisStatus(e instanceof Error?e.message:"Falha na análise.");setAnalysis(null);}}})();return()=>{cancelled=true};},[projectId,periodMode,start,end,audience]);
  const project=projects.find(x=>x.id===projectId);
  const cards=useMemo(()=>board?.columns.flatMap(x=>x.cards)||[],[board]);
  const issueDate=new Date().toLocaleDateString("pt-BR");
@@ -123,7 +125,7 @@ export default function StatusReportPage() {
   if(!projectId||!scrumReport||!documentHtml||issuing)return null;
   setIssuing(true);setStatus("Registrando emissão...");
   try{
-   const r=await fetch("/api/status-report/history",{method:"POST",headers:getClientAuthHeaders({"Content-Type":"application/json"}),body:JSON.stringify({projectId,audience,mode:periodMode,start,end,narrative:analysis}),cache:"no-store"});
+   const r=await measuredFetch("/api/status-report/history",{method:"POST",headers:getClientAuthHeaders({"Content-Type":"application/json"}),body:JSON.stringify({projectId,audience,mode:periodMode,start,end,narrative:analysis}),cache:"no-store"});
    const j=await r.json();if(!r.ok)throw Error(j.error||"Falha ao registrar emissão.");
    setStatus("Emissão registrada no histórico: "+j.data.id);
    setHistory(h=>[j.data,...h]);setHistoryId(j.data.id);
@@ -133,7 +135,7 @@ export default function StatusReportPage() {
  async function openHistory(id:string){
   setHistoryId(id);setHistoryData(null);setHistoryNarrative(null);
   if(!id)return;
-  try{const r=await fetch("/api/status-report/history?projectId="+encodeURIComponent(projectId)+"&id="+encodeURIComponent(id),{headers:getClientAuthHeaders(),cache:"no-store"});
+  try{const r=await measuredFetch("/api/status-report/history?projectId="+encodeURIComponent(projectId)+"&id="+encodeURIComponent(id),{headers:getClientAuthHeaders(),cache:"no-store"});
   const j=await r.json();if(!r.ok)throw Error(j.error||"Emissão indisponível.");
   setHistoryData(j.data?.report_data||null);
   setHistoryAudience(j.data?.audience==="internal"?"internal":"client");
@@ -148,7 +150,7 @@ export default function StatusReportPage() {
   const url=URL.createObjectURL(blob);
   const link=document.createElement("a");link.href=url;link.download="status-report-arquivado-"+historyId+".html";link.click();URL.revokeObjectURL(url);
  }
- async function download(){if(!documentHtml||!project)return;const issuedId=await issue();if(!issuedId)return;let html=documentHtml;try {const image=await fetch("/api/status-report/logo",{headers:getClientAuthHeaders()});if(!image.ok)throw Error("Não foi possível incorporar a logo.");const {dataUri}=await image.json();if(typeof dataUri!=="string"||!dataUri.startsWith("data:image/"))throw Error("Logo indisponível.");html=html.replace(BRAND_LOGO_URL,dataUri);}catch{setStatus("Falha ao incorporar a logo. Exportação interrompida para evitar documento incompleto.");return;}const blob=new Blob([html],{type:"text/html;charset=utf-8"});const url=URL.createObjectURL(blob);const link=document.createElement("a");link.href=url;link.download=`status-report-${project.id}-${new Date().toISOString().slice(0,10)}.html`;link.click();URL.revokeObjectURL(url);}
+ async function download(){if(!documentHtml||!project)return;const issuedId=await issue();if(!issuedId)return;let html=documentHtml;try {const image=await measuredFetch("/api/status-report/logo",{headers:getClientAuthHeaders()});if(!image.ok)throw Error("Não foi possível incorporar a logo.");const {dataUri}=await image.json();if(typeof dataUri!=="string"||!dataUri.startsWith("data:image/"))throw Error("Logo indisponível.");html=html.replace(BRAND_LOGO_URL,dataUri);}catch{setStatus("Falha ao incorporar a logo. Exportação interrompida para evitar documento incompleto.");return;}const blob=new Blob([html],{type:"text/html;charset=utf-8"});const url=URL.createObjectURL(blob);const link=document.createElement("a");link.href=url;link.download=`status-report-${project.id}-${new Date().toISOString().slice(0,10)}.html`;link.click();URL.revokeObjectURL(url);}
  return <main className="space-y-4">
  <header className="flex flex-wrap items-center justify-between gap-3"><div><p className="text-xs uppercase tracking-wider text-(--text-secondary)">7Commander · Kairos</p><h1 className="text-2xl font-semibold">Status Report do Projeto</h1><p className="text-sm text-(--text-secondary)">Relatório executivo para cliente ou gerencial para equipe, com dados de Scrum e Kanban.</p></div><Link className="rounded-lg border border-(--border) px-3 py-2 text-sm" href="/projects">Voltar aos projetos</Link></header>
  <section className="grid gap-3 rounded-xl border border-(--border) bg-(--bg-surface) p-4 md:grid-cols-[2fr_1fr_auto]">
