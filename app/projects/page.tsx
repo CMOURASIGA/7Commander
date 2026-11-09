@@ -1,5 +1,7 @@
 "use client";
 
+import {measuredFetch} from "@/lib/client-performance";
+
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Decision, DecisionStatus } from "@/types/decision";
@@ -217,7 +219,7 @@ export default function ProjectsPage() {
 
   async function loadProjects() {
     try {
-      const response = await fetch("/api/projects", {
+      const response = await measuredFetch("/api/projects", {
         headers: getClientAuthHeaders(),
       });
       const payload = await response.json();
@@ -237,7 +239,7 @@ export default function ProjectsPage() {
 
   async function loadClients() {
     try {
-      const response = await fetch("/api/clients", {
+      const response = await measuredFetch("/api/clients", {
         headers: getClientAuthHeaders(),
       });
       const payload = await response.json();
@@ -253,7 +255,7 @@ export default function ProjectsPage() {
     setLoading(true);
     try {
       const query = projectId ? `?projectId=${encodeURIComponent(projectId)}` : "";
-      const response = await fetch(`/api/decisions${query}`, {
+      const response = await measuredFetch(`/api/decisions${query}`, {
         headers: getClientAuthHeaders(),
       });
       const payload = await response.json();
@@ -280,7 +282,7 @@ export default function ProjectsPage() {
     if(!approved)return;
     setArchivingProjectId(project.id);
     try {
-      const r=await fetch(`/api/projects/${project.id}`,{method:"PATCH",
+      const r=await measuredFetch(`/api/projects/${project.id}`,{method:"PATCH",
         headers:getClientAuthHeaders({"Content-Type":"application/json"}),
         body:JSON.stringify({status:"arquivado"})});
       const json=await r.json();
@@ -301,7 +303,7 @@ export default function ProjectsPage() {
     if(typed!==project.name){setProjectStatus("Exclusão cancelada: o nome informado não corresponde ao projeto.");return;}
     setDeletingProjectId(project.id);setProjectStatus(null);
     try{
-      const response=await fetch(`/api/projects/${project.id}`,{
+      const response=await measuredFetch(`/api/projects/${project.id}`,{
         method:"DELETE",headers:getClientAuthHeaders({"Content-Type":"application/json"}),
         body:JSON.stringify({confirmName:typed})
       });
@@ -320,7 +322,7 @@ export default function ProjectsPage() {
 
     setCreatingProject(true);
     try {
-      const response = await fetch("/api/projects", {
+      const response = await measuredFetch("/api/projects", {
         method: "POST",
         headers: getClientAuthHeaders({ "Content-Type": "application/json" }),
         body: JSON.stringify({
@@ -347,7 +349,7 @@ export default function ProjectsPage() {
     setMembersLoading(true);
     setInviteStatus(null);
     try {
-      const response = await fetch(`/api/projects/${projectId}/members`, {
+      const response = await measuredFetch(`/api/projects/${projectId}/members`, {
         headers: getClientAuthHeaders(),
       });
       const payload = await response.json();
@@ -370,7 +372,7 @@ export default function ProjectsPage() {
 
     setKnowledgeLoading(true);
     try {
-      const response = await fetch(`/api/knowledge?projectId=${encodeURIComponent(projectId)}`, {
+      const response = await measuredFetch(`/api/knowledge?projectId=${encodeURIComponent(projectId)}`, {
         headers: getClientAuthHeaders(),
       });
       const payload = await response.json();
@@ -390,7 +392,7 @@ export default function ProjectsPage() {
     }
     setRisksLoading(true);
     try {
-      const response = await fetch(`/api/projects/${projectId}/risks`, {
+      const response = await measuredFetch(`/api/projects/${projectId}/risks`, {
         headers: getClientAuthHeaders(),
       });
       const payload = await response.json();
@@ -409,7 +411,7 @@ export default function ProjectsPage() {
     setOpenRoutine(null);
     setProjectStatus(null);
     try {
-      const response = await fetch("/api/projects/active", {
+      const response = await measuredFetch("/api/projects/active", {
         method: "PATCH",
         headers: getClientAuthHeaders({ "Content-Type": "application/json" }),
         body: JSON.stringify({ projectId }),
@@ -426,7 +428,7 @@ export default function ProjectsPage() {
     setInviting(true);
     setInviteStatus(null);
     try {
-      const response = await fetch(`/api/projects/${activeProjectId}/members`, {
+      const response = await measuredFetch(`/api/projects/${activeProjectId}/members`, {
         method: "POST",
         headers: getClientAuthHeaders({ "Content-Type": "application/json" }),
         body: JSON.stringify({
@@ -452,7 +454,7 @@ export default function ProjectsPage() {
     setRemovingMemberId(memberId);
     setInviteStatus(null);
     try {
-      const response = await fetch(`/api/projects/${activeProjectId}/members/${memberId}`, {
+      const response = await measuredFetch(`/api/projects/${activeProjectId}/members/${memberId}`, {
         method: "DELETE",
         headers: getClientAuthHeaders(),
       });
@@ -469,7 +471,7 @@ export default function ProjectsPage() {
   async function handleStatusChange(decisionId: string, status: DecisionStatus) {
     setUpdatingId(decisionId);
     try {
-      const response = await fetch(`/api/decisions/${decisionId}/status`, {
+      const response = await measuredFetch(`/api/decisions/${decisionId}/status`, {
         method: "PATCH",
         headers: getClientAuthHeaders({ "Content-Type": "application/json" }),
         body: JSON.stringify({
@@ -495,7 +497,7 @@ export default function ProjectsPage() {
     setCreatingDecision(true);
     setDecisionStatusMessage(null);
     try {
-      const response = await fetch(`/api/projects/${activeProjectId}/decisions`, {
+      const response = await measuredFetch(`/api/projects/${activeProjectId}/decisions`, {
         method: "POST",
         headers: getClientAuthHeaders({ "Content-Type": "application/json" }),
         body: JSON.stringify({
@@ -527,7 +529,7 @@ export default function ProjectsPage() {
   async function loadDecisionHistory(decisionId: string) {
     setHistoryLoadingId(decisionId);
     try {
-      const response = await fetch(`/api/decisions/${decisionId}/history`, {
+      const response = await measuredFetch(`/api/decisions/${decisionId}/history`, {
         headers: getClientAuthHeaders(),
       });
       const payload = await response.json();
@@ -556,7 +558,7 @@ export default function ProjectsPage() {
         formData.append("notes", ingestNotes.trim());
       }
 
-      const response = await fetch("/api/knowledge/ingest", {
+      const response = await measuredFetch("/api/knowledge/ingest", {
         method: "POST",
         headers: getClientAuthHeaders(),
         body: formData,
@@ -588,7 +590,7 @@ export default function ProjectsPage() {
     setSavingProject(true);
     setProjectStatus(null);
     try {
-      const response = await fetch(`/api/projects/${activeProjectId}`, {
+      const response = await measuredFetch(`/api/projects/${activeProjectId}`, {
         method: "PATCH",
         headers: getClientAuthHeaders({ "Content-Type": "application/json" }),
         body: JSON.stringify({
@@ -629,7 +631,7 @@ export default function ProjectsPage() {
     if (!confirmed) return;
     setDeletingKnowledgeId(item.id);
     try {
-      const response = await fetch(`/api/knowledge?id=${encodeURIComponent(item.id)}`, { method: "DELETE", headers: getClientAuthHeaders() });
+      const response = await measuredFetch(`/api/knowledge?id=${encodeURIComponent(item.id)}`, { method: "DELETE", headers: getClientAuthHeaders() });
       const payload = await response.json();
       if (!response.ok) throw new Error(payload?.error || "Falha ao excluir documento.");
       await loadKnowledge(activeProjectId);
@@ -643,7 +645,7 @@ export default function ProjectsPage() {
     setSavingRisk(true);
     setRiskStatusMessage(null);
     try {
-      const response = await fetch(`/api/projects/${activeProjectId}/risks`, {
+      const response = await measuredFetch(`/api/projects/${activeProjectId}/risks`, {
         method: "POST",
         headers: getClientAuthHeaders({ "Content-Type": "application/json" }),
         body: JSON.stringify({
@@ -682,7 +684,7 @@ export default function ProjectsPage() {
     setUpdatingRiskId(riskId);
     setRiskStatusMessage(null);
     try {
-      const response = await fetch(`/api/risks/${riskId}`, {
+      const response = await measuredFetch(`/api/risks/${riskId}`, {
         method: "PATCH",
         headers: getClientAuthHeaders({ "Content-Type": "application/json" }),
         body: JSON.stringify({ status }),
