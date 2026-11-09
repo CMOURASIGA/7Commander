@@ -22,6 +22,17 @@ async function scope(req:NextRequest,projectId:string,write=false){
 export async function GET(req:NextRequest){
  const projectId=req.nextUrl.searchParams.get("projectId")||"";const ctx=await scope(req,projectId);
  if("error" in ctx)return ctx.error;
+ const historyId=req.nextUrl.searchParams.get("historyItemId");
+ if(historyId){
+  if(!uuid.test(historyId))return bad("Item inválido.",400);
+  const item=await ctx.db.from("scrum_backlog_items").select("id,item_type").eq("id",historyId).eq("project_id",projectId).eq("organization_id",ctx.org).maybeSingle();
+  if(item.error||!item.data||!["epic","feature"].includes(item.data.item_type))return bad("Item não encontrado.",404);
+  const audit=await ctx.db.from("scrum_backlog_assignment_history").select("previous_responsible,new_responsible,changed_at")
+   .eq("organization_id",ctx.org).eq("project_id",projectId).eq("backlog_item_id",historyId)
+   .order("changed_at",{ascending:false}).limit(50);
+  if(audit.error)return bad("Histórico de responsáveis ainda não disponível.",503);
+  return reply({data:audit.data||[]});
+ }
  const r=await ctx.db.from("scrum_backlog_items").select("*").eq("organization_id",ctx.org).eq("project_id",projectId).order("sort_order",{ascending:true}).order("created_at",{ascending:true}).limit(1000);
  return r.error?bad("Falha ao consultar hierarquia do backlog.",503):reply({data:r.data||[]});
 }
