@@ -35,7 +35,7 @@ export type KairosMessage = ChatMessage & { source?: MessageSource };
 export type VoiceState = "inativo" | "ouvindo" | "processando" | "respondendo" | "pausado" | "erro";
 export type VoiceUiState = "idle" | "listening" | "processing" | "paused";
 
-export type SaveKind = "decision" | "risk" | "knowledge" | "task";
+export type SaveKind = "decision" | "risk" | "knowledge" | "task" | "meeting" | "story" | "story-task";
 export type SaveDialog = { kind: SaveKind | "choose"; message: KairosMessage } | null;
 export type TaskDraft = { id: string; title: string; description: string; selected: boolean };
 
@@ -338,6 +338,12 @@ export function useKairosCore(options?: UseKairosCoreOptions) {
   const [riskDrafts,setRiskDrafts] = useState<RiskDraft[]>([]);
   const [knowledgeForm, setKnowledgeForm] = useState({ title: "", category: "registro do Kairos", content: "" });
   const [taskForm, setTaskForm] = useState({ columnKey: "todo", priority: "media", dueDate: "" });
+  const [meetingForm,setMeetingForm]=useState({title:"",heldAt:new Date().toISOString().slice(0,16),participants:"",objective:"",summary:"",advances:"",decisions:"",commitments:"",pendingItems:"",risks:"",nextFollowUp:"",sourceArtifactId:""});
+  const [storyForm,setStoryForm]=useState({title:"",description:"",acceptanceCriteria:"",featureId:"",sprintId:"",responsible:"",priority:"media",startDate:"",dueDate:""});
+  const [storyTaskForm,setStoryTaskForm]=useState({storyId:"",title:"",description:"",responsible:""});
+  const [scrumChoices,setScrumChoices]=useState<{features:Array<{id:string;title:string}>;sprints:Array<{id:string;name:string;status:string}>;stories:Array<{id:string;title:string}>;members:Array<{email:string;name:string}>}>({features:[],sprints:[],stories:[],members:[]});
+  const [destinationLoadingId,setDestinationLoadingId]=useState<string|null>(null);
+
   const [taskDrafts, setTaskDrafts] = useState<TaskDraft[]>([]);
 
   const audioRef = useRef<HTMLAudioElement | null>(null);
