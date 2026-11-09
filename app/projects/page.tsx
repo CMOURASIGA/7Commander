@@ -412,7 +412,8 @@ export default function ProjectsPage() {
   async function handleActivateProject(projectId: string) {
     const previousProjectId=activeProjectId;
     setActiveProjectId(projectId);
-    setOpenRoutine(null);
+    const routines: Partial<Record<ProjectTab, RoutineKey>> = {risks:"risks",decisions:"decisions",documents:"knowledge",members:"members"};
+    setOpenRoutine(routines[activeTab] ?? null);
     setProjectStatus(null);
     try {
       const response = await measuredFetch("/api/projects/active", {
@@ -750,7 +751,7 @@ export default function ProjectsPage() {
             <StatusPill tone="accent">{projects.length} projetos</StatusPill>
             <StatusPill tone="success">{decisions.length} decisões</StatusPill>
             <Link href="/status-report" className="workspace-button-secondary">Status Report Executivo</Link>
-            <button type="button" onClick={() => void loadDecisions()} className="workspace-button-secondary">
+            <button type="button" onClick={() => void loadDecisions(activeProjectId)} className="workspace-button-secondary">
               Atualizar
             </button>
           </>
