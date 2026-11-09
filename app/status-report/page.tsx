@@ -29,10 +29,10 @@ const css = `
 type AiAnalysis = { executiveSummary:string; riskAnalysis:string; nextSteps:string };
 type PeriodMetrics = { tasksCreated:number; risksRegistered:number; decisionsRegistered:number; activityEvents:number };
 function reportDocument(project:Project, cards:Card[], risks:Risk[], decisions:Decision[], period:string, issueDate:string, analysis:AiAnalysis|null, periodEvents:number|null, periodMetrics:PeriodMetrics|null, audience:ReportAudience, scrum:ReportData|null) {
-  const done=cards.filter(x=>x.columnKey==="done").length, doing=cards.filter(x=>x.columnKey==="doing").length, todo=cards.filter(x=>x.columnKey==="todo").length;
+  const done=scrum?.kanban.done??cards.filter(x=>x.columnKey==="done").length, doing=scrum?.kanban.doing??cards.filter(x=>x.columnKey==="doing").length, todo=scrum?.kanban.todo??cards.filter(x=>x.columnKey==="todo").length;
   const atRisk=risks.filter(x=>x.status==="aberto"||x.status==="em_mitigacao");
   const undecided=decisions.filter(x=>x.status==="aberta"||x.status==="em_andamento");
-  const total=cards.length;
+  const total=scrum?.kanban.total??cards.length;
   const completed=cards.filter(x=>x.columnKey==="done").slice(0,10);
   const list=(rows:Array<{title:string;note:string}>,missing:string)=>rows.length?rows.map(x=>`<div class="item"><div>${htmlEscape(x.title)}</div><span>${htmlEscape(x.note)}</span></div>`).join(""):`<p class="empty">${missing}</p>`;
   const logo=htmlEscape(BRAND_LOGO_URL);
@@ -86,6 +86,18 @@ function reportDocument(project:Project, cards:Card[], risks:Risk[], decisions:D
   </main></body></html>`;
 }
 function historicalDocument(data:ReportData,audience:ReportAudience,narrative:AiAnalysis|null,issued:string){
+ if(audience==="client"){
+  const listPublic=(values:Array<{title:string;status:string}>)=>values.length?values.map(x=>'<div class="item"><div>'+htmlEscape(x.title)+'</div><span>'+htmlEscape(x.status)+'</span></div>').join(""):'<p class="empty">Nenhum registro disponível nesta categoria.</p>';
+  return '<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>Relatório Cliente arquivado · '+htmlEscape(data.project.name)+'</title><style>'+css+'</style></head><body><main class="wrap">'
+   +'<header class="hero"><h3>COMMANDER · RELATÓRIO CLIENTE ARQUIVADO</h3><h1>'+htmlEscape(data.project.name)+'</h1><p>Emitido: '+htmlEscape(issued)+'</p></header>'
+   +'<div class="note">Documento histórico imutável. Valores compartilhados são registros do sistema, não confirmação de aceite ou entrega contratual.</div>'
+   +'<section class="metrics"><div class="metric"><small>ATIVIDADES REGISTRADAS</small><strong>'+data.kanban.total+'</strong></div><div class="metric"><small>REGISTROS CONCLUÍDOS</small><strong>'+data.kanban.done+'</strong></div><div class="metric"><small>RISCOS ATIVOS</small><strong>'+data.governance.risks_open+'</strong></div><div class="metric"><small>DECISÕES PENDENTES</small><strong>'+data.governance.decisions_pending+'</strong></div></section>'
+   +'<section class="panel"><h2>Riscos relevantes</h2>'+listPublic(data.governance.client_risks)+'</section>'
+   +'<section class="panel"><h2>Decisões pendentes</h2>'+listPublic(data.governance.client_decisions)+'</section>'
+   +'<section class="panel"><h2>Próximos passos a confirmar</h2><p>'+htmlEscape(narrative?.nextSteps||"Confirmar compromissos e marcos com a gestão do projeto.")+'</p><p class="empty">Recomendações da IA não constituem acordos confirmados.</p></section>'
+   +'<footer class="foot">Commander · Relatório Cliente arquivado</footer><div class="actions"><button onclick="window.print()">Salvar PDF / Imprimir</button></div></main></body></html>';
+ }
+
  const rows=data.scrum.sprints.map(sp=>'<div class="item"><div><b>'+htmlEscape(sp.name)+'</b><p>Período: '+htmlEscape(sp.start_date)+' a '+htmlEscape(sp.end_date)+'</p><p>US concluídas: '+sp.closed+'/'+sp.stories+' · Story points: '+sp.points_done+'/'+sp.points_planned+' · Atrasadas: '+sp.overdue+'</p></div><span>'+htmlEscape(sp.status)+'</span></div>').join("");
  const internal=audience==="internal"&&data.internal?'<section class="panel"><h2>Detalhamento interno</h2>'+data.internal.stories.map(st=>'<div class="item"><div>'+htmlEscape(st.title)+'</div><span>'+htmlEscape(st.workflow_stage)+' · '+htmlEscape(st.responsible||"Não atribuído")+'</span></div>').join("")+'</section>':"";
  return '<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>Emissão arquivada · '+htmlEscape(data.project.name)+'</title><style>'+css+'</style></head><body><main class="wrap"><header class="hero"><h3>COMMANDER · EMISSÃO ARQUIVADA</h3><h1>'+htmlEscape(data.project.name)+'</h1><p>'+htmlEscape(audience==="internal"?"Status Report Gerencial":"Status Report Executivo")+'</p><p>Emitido: '+htmlEscape(issued)+'</p></header><div class="note">Documento histórico. Os dados abaixo são aqueles preservados na emissão e não serão recalculados ao abrir este arquivo.</div><section class="metrics"><div class="metric"><small>ATIVIDADES</small><strong>'+data.kanban.total+'</strong></div><div class="metric"><small>CONCLUÍDAS</small><strong>'+data.kanban.done+'</strong></div><div class="metric"><small>RISCOS ATIVOS</small><strong>'+data.governance.risks_open+'</strong></div><div class="metric"><small>DECISÕES PENDENTES</small><strong>'+data.governance.decisions_pending+'</strong></div></section><section class="panel"><h2>Histórico das Sprints</h2>'+(rows||'<p>Projeto sem Sprints registradas.</p>')+'</section><section class="panel"><h2>Entregas operacionais</h2>'+data.kanban.completed_titles.map(t=>'<div class="item">'+htmlEscape(t)+'</div>').join("")+'</section><section class="panel"><h2>Riscos e decisões</h2>'+data.governance.client_risks.map(r=>'<div class="item">'+htmlEscape(r.title)+' · '+htmlEscape(r.status)+'</div>').join("")+data.governance.client_decisions.map(d=>'<div class="item">'+htmlEscape(d.title)+' · '+htmlEscape(d.status)+'</div>').join("")+'</section>'+(narrative?'<section class="panel"><h2>Leitura Kairos registrada</h2><p>'+htmlEscape(narrative.executiveSummary)+'</p><p>'+htmlEscape(narrative.riskAnalysis)+'</p><p>'+htmlEscape(narrative.nextSteps)+'</p></section>':"")+internal+'<footer class="foot">Commander · Emissão registrada</footer><div class="actions"><button onclick="window.print()">Imprimir ou salvar PDF</button></div></main></body></html>';
