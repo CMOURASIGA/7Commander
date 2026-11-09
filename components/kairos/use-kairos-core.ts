@@ -977,7 +977,7 @@ export function useKairosCore(options?: UseKairosCoreOptions) {
         const result=await response.json();
         if((result.data?.stories||[]).some((st:{title:string})=>st.title.trim().toLocaleLowerCase("pt-BR")===storyForm.title.trim().toLocaleLowerCase("pt-BR")))
           throw Error("Já existe uma US com esse título neste projeto. Revise antes de salvar.");
-        body={action:"create",projectId:activeProjectId,title:storyForm.title.trim(),
+        body={action:"create",fromKairos:true,projectId:activeProjectId,title:storyForm.title.trim(),
           description:storyForm.description,acceptanceCriteria:storyForm.acceptanceCriteria,
           featureId:storyForm.featureId||null,sprintId:storyForm.sprintId||null,
           responsible:storyForm.responsible,priority:storyForm.priority,
@@ -991,7 +991,7 @@ export function useKairosCore(options?: UseKairosCoreOptions) {
         const result=await response.json();
         if((result.data||[]).some((t:{item_type:string;story_id:string;title:string})=>t.item_type==="task"&&t.story_id===storyTaskForm.storyId&&t.title.trim().toLocaleLowerCase("pt-BR")===storyTaskForm.title.trim().toLocaleLowerCase("pt-BR")))
           throw Error("Já existe uma Task com esse título nessa US.");
-        body={action:"create",projectId:activeProjectId,itemType:"task",
+        body={action:"create",fromKairos:true,projectId:activeProjectId,itemType:"task",
           storyId:storyTaskForm.storyId,title:storyTaskForm.title.trim(),
           description:storyTaskForm.description,responsible:storyTaskForm.responsible,
           state:"todo"};
