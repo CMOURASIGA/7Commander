@@ -34,8 +34,12 @@ export function Header({ onToggleMobileNav, mobileNavOpen }: HeaderProps) {
       } catch { if(alive)setActiveCompany(null); }
     }
     void refreshActiveCompany();
+    const onStorage=(event:StorageEvent)=>{if(event.key==="7commander:company-changed")void refreshActiveCompany()};
+    const onFocus=()=>void refreshActiveCompany();
     window.addEventListener("7commander:organization-selected", refreshActiveCompany);
-    return () => {alive=false;window.removeEventListener("7commander:organization-selected", refreshActiveCompany);};
+    window.addEventListener("storage",onStorage);
+    window.addEventListener("focus",onFocus);
+    return () => {alive=false;window.removeEventListener("7commander:organization-selected", refreshActiveCompany);window.removeEventListener("storage",onStorage);window.removeEventListener("focus",onFocus);};
   }, [authenticated]);
   const menuRef = useRef<HTMLDivElement>(null);
   const avatarLabel = (email ?? "7c").split("@")[0].split(/[.\s_-]+/).filter(Boolean).slice(0, 2).map((part) => part[0]?.toUpperCase() ?? "").join("") || "7C";
