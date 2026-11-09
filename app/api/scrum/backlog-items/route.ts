@@ -26,10 +26,12 @@ export async function GET(req:NextRequest){
  return r.error?bad("Falha ao consultar hierarquia do backlog.",503):reply({data:r.data||[]});
 }
 export async function POST(req:NextRequest){
+ const perfStart=performance.now();
  const body=await req.json().catch(()=>null) as Record<string,unknown>|null;
  if(!body||Array.isArray(body)||typeof body!=="object")return bad("Dados inválidos.");
  const projectId=String(body.projectId||"");const ctx=await scope(req,projectId,true);
  if("error" in ctx)return ctx.error;
+ const perfAuth=performance.now();
  const {db,org}=ctx;const action=String(body.action||"");
  const type=String(body.itemType||""),id=String(body.id||"");
  if(action!=="create"&&(!uuid.test(id)))return bad("Item inválido.");
@@ -72,18 +74,28 @@ export async function POST(req:NextRequest){
 
  const rank=body.sortOrder===undefined?Number(item?.sort_order||0):Number(body.sortOrder);
  if(!Number.isInteger(rank)||rank<0||rank>1000000)return bad("Ordem inválida.");
+ const perfValidation=performance.now();
  const patch={title,responsible:responsible||null,actual_end_date:itemType==="task"&&state==="done"?new Date().toISOString().slice(0,10):state==="todo"||state==="doing"?null:item?.actual_end_date||null,description:String(body.description??item?.description??"").slice(0,10000),state,parent_id:parentId,story_id:storyId,sort_order:rank,updated_at:new Date().toISOString()};
  const result=action==="create"?
   await db.from("scrum_backlog_items").insert({...patch,organization_id:org,project_id:projectId,item_type:itemType}).select("id").single():
   await db.from("scrum_backlog_items").update(patch).eq("id",id).eq("organization_id",org).eq("project_id",projectId).select("id,state,actual_end_date,story_id,updated_at").single();
  if(result.error)return bad("Não foi possível salvar item: "+result.error.code,409);
+ const perfWrite=performance.now();
+ const timedSuccess=(data:unknown,status=200)=>{
+  const total=performance.now();
+  const millis=(value:number)=>Math.max(0,Math.round(value*10)/10);
+  return NextResponse.json({data},{status,headers:{
+   "Cache-Control":"private,no-store",
+   "Server-Timing":`auth;dur=${millis(perfAuth-perfStart)},validate;dur=${millis(perfValidation-perfAuth)},write;dur=${millis(perfWrite-perfValidation)},link;dur=${millis(total-perfWrite)},total;dur=${millis(total-perfStart)}`
+  }});
+ };
  // Return the authoritative Task state and its synchronous story-progress
  // effect, avoiding a full board reload before another user interaction.
  if(action==="update"&&itemType==="task"&&storyId){
   const linked=await db.from("scrum_user_stories")
     .select("id,workflow_stage,actual_end_date,updated_at")
     .eq("id",String(storyId)).eq("project_id",projectId).eq("organization_id",org).maybeSingle();
-  if(!linked.error&&linked.data)return reply({data:{...result.data,story:linked.data}});
+  if(!linked.error&&linked.data)return timedSuccess({...result.data,story:linked.data});
  }
- return reply({data:result.data},action==="create"?201:200);
+ return timedSuccess(result.data,action==="create"?201:200);
 }
