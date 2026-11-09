@@ -61,7 +61,8 @@ export async function POST(request: NextRequest) {
     resumoAtividadesCliente:audience==="client"?{total:scrum.kanban.total,concluidas:scrum.kanban.done,emAndamento:scrum.kanban.doing}:undefined,
     riscosAtuais:risks.map(x=>audience==="internal"?({titulo:x.titulo,status:x.status,impacto:x.impacto,probabilidade:x.probabilidade,mitigacao:x.mitigacao,responsavel:x.responsavel}):({titulo:x.titulo,status:x.status})),
     decisoesAtuais:decisions.map(x=>audience==="internal"?({titulo:x.titulo,status:x.status,impacto:x.impacto,contexto:x.contexto}):({titulo:x.titulo,status:x.status})),
-    eventosNoPeriodo:events.map(x=>({tipo:x.action_type,data:x.created_at})),
+    eventosNoPeriodo:audience==="internal"?events.map(x=>({tipo:x.action_type,data:x.created_at})):undefined,
+    totalEventosNoPeriodo:events.length,
     registrosCriadosNoPeriodo:periodMetrics,
     scrumAtual:audience==="internal"?{
       sprints:scrum.scrum.sprints,
@@ -74,7 +75,7 @@ export async function POST(request: NextRequest) {
       tasksConcluidas:scrum.scrum.tasks_done,
       tasksTotais:scrum.scrum.tasks_total
     },
-    kanbanResumo:scrum.kanban,
+    kanbanResumo:audience==="internal"?scrum.kanban:{total:scrum.kanban.total,todo:scrum.kanban.todo,doing:scrum.kanban.doing,done:scrum.kanban.done,overdue:scrum.kanban.overdue},
     avisos:["Não equiparar quantidade de cartões a percentual de escopo.","Não inferir estado passado de registros atuais.","Não tratar ausência de histórico como ausência de trabalho."]
   };
   const openai = getOpenAIClient();
