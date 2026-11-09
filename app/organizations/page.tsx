@@ -4,7 +4,6 @@ import Link from "next/link";
 import {getClientAuthHeaders} from "@/lib/client-auth";
 import {useCentralPilotReadOnly} from "@/lib/use-central-pilot-read-only";
 type Org={id:string;role:string;organization:{id:string;name:string;slug:string;status:string;branding?:unknown}|Array<{id:string;name:string}>};
-const KEY="7commander:active-organization";
 export default function OrganizationChooser(){
  const {readOnly,checking,canSwitchCompany}=useCentralPilotReadOnly();
  const [orgs,setOrgs]=useState<Org[]>([]);
@@ -15,7 +14,7 @@ export default function OrganizationChooser(){
  const [activeCompany,setActiveCompany]=useState<string|null>(null);
  useEffect(()=>{let active=true;void(async()=>{try{const r=await fetch("/api/organizations/mine",{headers:getClientAuthHeaders(),cache:"no-store"});if(!r.ok)throw Error("Não foi possível verificar seus vínculos.");const p=await r.json();if(!active)return;const list=(p.data??[]) as Org[];setOrgs(list);
  const current=await fetch("/api/organizations/branding",{headers:getClientAuthHeaders(),cache:"no-store"}).then(x=>x.ok?x.json():null).catch(()=>null);
- if(active)setActiveCompany(typeof current?.data?.name==="string"?current.data.name:null);const cached=window.sessionStorage.getItem(KEY);setSelected(list.find(x=>x.id===cached)?.id??list[0]?.id??"");}catch(e){if(active)setError(e instanceof Error?e.message:"Falha de acesso.");}finally{if(active)setLoadingCompanies(false);}})();return()=>{active=false};},[]);
+ if(active){setActiveCompany(typeof current?.data?.name==="string"?current.data.name:null);const serverSelected=current?.data?.id;setSelected(list.find(x=>x.id===serverSelected)?.id??list[0]?.id??"");}}catch(e){if(active)setError(e instanceof Error?e.message:"Falha de acesso.");}finally{if(active)setLoadingCompanies(false);}})();return()=>{active=false};},[]);
  async function choose(){
   if(!canSwitchCompany || checking || !orgs.some(x=>x.id===selected))return;
   try {
@@ -27,7 +26,7 @@ export default function OrganizationChooser(){
     setError("A 7Commander confirmou seu vínculo, mas NÃO alterou a empresa ativa. O isolamento multempresa ainda está pendente.");
     return;
    }
-   window.sessionStorage.setItem(KEY,selected);
+   window.localStorage.setItem("7commander:company-changed",String(Date.now()));
    window.dispatchEvent(new CustomEvent("7commander:organization-selected",{detail:{organizationId:selected}}));
    window.location.assign("/"); // Clears in-memory project and Kairos context after authorized switch.
   } catch(e){setError(e instanceof Error?e.message:"Erro ao selecionar empresa.");}
