@@ -22,5 +22,9 @@ export function normalizeDecisionText(value:string):{display:string;hasEmbeddedR
  const report=/(?:^|\n)\s*#{1,6}\s+(?:status report|resumo executivo|avanços|pendências|situação geral|riscos? e impedimentos)/i.test(value);
  if(!report)return {display:value,hasEmbeddedReport:false};
  const extracted=extractDecisionSection(value);
- return {display:extracted||"Este registro contém um relatório original sem uma decisão isolada identificável.",hasEmbeddedReport:true};
+ const firstReportHeading=value.search(/(?:^|\n)\s*#{1,6}\s+(?:status report|resumo executivo|avanços|pendências|situação geral|riscos? e impedimentos)/i);
+ const preceding=firstReportHeading>0?value.slice(0,firstReportHeading).trim():"";
+ // Legacy Mardisa decision has a concrete contextual paragraph before the
+ // accidentally embedded executive report. Preserve that paragraph verbatim.
+ return {display:extracted||preceding||"Este registro contém um relatório original sem uma decisão isolada identificável.",hasEmbeddedReport:true};
 }
