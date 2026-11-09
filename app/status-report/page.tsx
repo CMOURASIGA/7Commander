@@ -9,6 +9,7 @@ import { BRAND_LOGO_URL } from "@/lib/brand";
 import type {ReportData,ReportAudience} from "@/lib/scrum/report-data";
 import {safeMarkdownHtml} from "@/lib/safe-markdown-html";
 import {PublicFactsEditor} from "@/components/status-report/public-facts-editor";
+import {downloadReportPdf} from "@/lib/reports/pdf-browser";
 
 type Project = { id:string; name:string; objective?:string; status?:string; clientName?:string|null };
 type Card = { id:string; title:string; status:string; dueDate?:string|null; responsible?:string|null; columnKey:string };
@@ -25,7 +26,7 @@ const css = `
 .report-ai-text li{padding:3px 0}
 .report-ai-text strong{font-weight:700}
 
-:root{font-family:Inter,'Segoe UI',Arial,sans-serif;color:#19334b;background:#f4f7fb;font-size:14px}*{box-sizing:border-box}body{margin:0}.wrap{max-width:1100px;margin:auto;padding:28px 20px 60px}.hero{background:white;border-radius:22px;padding:40px 38px;box-shadow:0 16px 36px #183e6020;position:relative;overflow:hidden}.hero:before{content:'';position:absolute;right:-130px;top:-190px;width:380px;height:380px;border:50px solid #f0f7fb;border-radius:50%;pointer-events:none}.top{display:flex;justify-content:space-between;gap:20px;align-items:start;position:relative}.logo{width:230px;max-width:55%;height:auto;object-fit:contain}.eyebrow{font-size:10px;font-weight:750;letter-spacing:2px;color:#027bbb;text-transform:uppercase}.topright{text-align:right;font-size:12px;color:#254867;font-weight:700}.rule{height:1px;background:#e1e9f0;margin:30px 0 26px}.hero h1{font-size:30px;font-weight:650;letter-spacing:-.7px;margin:8px 0 12px;color:#103c65}.desc{color:#536c85;font-size:14px;line-height:1.6}.chips{display:flex;flex-wrap:wrap;gap:8px;margin-top:22px}.chip{border:1px solid #cfdce7;border-radius:7px;padding:8px 11px;background:#f8fbff;font-size:11px}.chip.warning{background:#fff0d6;color:#99610f;border-color:#fff0d6}.note{margin:20px 0;padding:14px 16px;border-radius:12px;background:#fff9e8;border:1px solid #f4d995;color:#835918;font-size:12px}.metrics{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin:18px 0}.metric,.panel{background:white;border:1px solid #e1e8f1;border-radius:15px;padding:20px}.metric small{font-size:10px;color:#778da4;letter-spacing:.4px;text-transform:uppercase}.metric strong{font-size:36px;display:block;margin:20px 0 3px;font-weight:600;color:#173a59}.metric em{font-style:normal;font-size:11px;color:#778da4}.metric.green strong{color:#069775}.metric.amber strong{color:#ce861a}.grid{display:grid;grid-template-columns:1.1fr 1fr;gap:14px}.panel h2{font-size:17px;color:#173a59;font-weight:600;margin:5px 0 15px}.panel h3{font-size:12px;text-transform:uppercase;letter-spacing:1px;color:#7a92a6;margin:0}.panel p{color:#53687b;line-height:1.6}.bar{height:13px;background:#edf2f7;border-radius:20px;display:flex;overflow:hidden;margin:21px 0 15px}.bar>span{height:100%}.item{padding:12px 0;border-bottom:1px solid #ecf1f6;display:flex;justify-content:space-between;gap:15px}.item:last-child{border-bottom:0}.item span{color:#71879c;font-size:12px}.risk-tag{display:inline-block;font-size:10px;font-weight:700;border-radius:6px;background:#fff1d5;color:#8a5b12;padding:4px 6px;margin-right:5px}.empty{font-size:12px;color:#60788b;background:#f3f6fa;border-radius:9px;padding:15px}.foot{font-size:10px;color:#8498ad;display:flex;justify-content:space-between;border-top:1px solid #dce5ef;padding-top:16px;margin-top:22px}.actions{display:flex;justify-content:flex-end;margin:18px 0}.actions button{background:#19364d;color:white;border:0;border-radius:8px;padding:12px 16px;cursor:pointer}@media(max-width:750px){.wrap{padding:12px}.hero{padding:25px 20px}.logo{width:180px}.metrics{grid-template-columns:repeat(2,1fr)}.grid{grid-template-columns:1fr}.hero h1{font-size:24px}}@media print{@page{size:A4;margin:12mm}body{background:white}.wrap{padding:0}.hero{box-shadow:none;border:1px solid #d9e4ed}.actions{display:none}.panel,.metric{break-inside:avoid}}
+:root{font-family:Inter,'Segoe UI',Arial,sans-serif;color:#19334b;background:#f4f7fb;font-size:14px}*{box-sizing:border-box}body{margin:0}.wrap{max-width:1100px;margin:auto;padding:28px 20px 60px}.hero{background:white;border-radius:22px;padding:40px 38px;box-shadow:0 16px 36px #183e6020;position:relative;overflow:hidden}.hero:before{content:'';position:absolute;right:-130px;top:-190px;width:380px;height:380px;border:50px solid #f0f7fb;border-radius:50%;pointer-events:none}.top{display:flex;justify-content:space-between;gap:20px;align-items:start;position:relative}.logo{width:112px;height:112px;max-width:28%;object-fit:contain;border-radius:20px;border:1px solid #e2ebf3;padding:7px;background:#fff;box-shadow:0 6px 20px #173a5912;flex-shrink:0}.eyebrow{font-size:10px;font-weight:750;letter-spacing:2px;color:#027bbb;text-transform:uppercase}.topright{text-align:right;font-size:12px;color:#254867;font-weight:700}.rule{height:1px;background:#e1e9f0;margin:30px 0 26px}.hero h1{font-size:30px;font-weight:650;letter-spacing:-.7px;margin:8px 0 12px;color:#103c65}.desc{color:#536c85;font-size:14px;line-height:1.6}.chips{display:flex;flex-wrap:wrap;gap:8px;margin-top:22px}.chip{border:1px solid #cfdce7;border-radius:7px;padding:8px 11px;background:#f8fbff;font-size:11px}.chip.warning{background:#fff0d6;color:#99610f;border-color:#fff0d6}.note{margin:20px 0;padding:14px 16px;border-radius:12px;background:#fff9e8;border:1px solid #f4d995;color:#835918;font-size:12px}.metrics{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin:18px 0}.metric,.panel{background:white;border:1px solid #e1e8f1;border-radius:15px;padding:20px}.metric small{font-size:10px;color:#778da4;letter-spacing:.4px;text-transform:uppercase}.metric strong{font-size:36px;display:block;margin:20px 0 3px;font-weight:600;color:#173a59}.metric em{font-style:normal;font-size:11px;color:#778da4}.metric.green strong{color:#069775}.metric.amber strong{color:#ce861a}.grid{display:grid;grid-template-columns:1.1fr 1fr;gap:14px}.panel h2{font-size:17px;color:#173a59;font-weight:600;margin:5px 0 15px}.panel h3{font-size:12px;text-transform:uppercase;letter-spacing:1px;color:#7a92a6;margin:0}.panel p{color:#53687b;line-height:1.6}.bar{height:13px;background:#edf2f7;border-radius:20px;display:flex;overflow:hidden;margin:21px 0 15px}.bar>span{height:100%}.item{padding:12px 0;border-bottom:1px solid #ecf1f6;display:flex;justify-content:space-between;gap:15px}.item:last-child{border-bottom:0}.item span{color:#71879c;font-size:12px}.risk-tag{display:inline-block;font-size:10px;font-weight:700;border-radius:6px;background:#fff1d5;color:#8a5b12;padding:4px 6px;margin-right:5px}.empty{font-size:12px;color:#60788b;background:#f3f6fa;border-radius:9px;padding:15px}.foot{font-size:10px;color:#8498ad;display:flex;justify-content:space-between;border-top:1px solid #dce5ef;padding-top:16px;margin-top:22px}.actions{display:flex;justify-content:flex-end;margin:18px 0}.actions button{background:#19364d;color:white;border:0;border-radius:8px;padding:12px 16px;cursor:pointer}@media(max-width:750px){.wrap{padding:12px}.hero{padding:25px 20px}.logo{width:92px;height:92px;border-radius:16px}.metrics{grid-template-columns:repeat(2,1fr)}.grid{grid-template-columns:1fr}.hero h1{font-size:24px}}@media print{@page{size:A4;margin:12mm}body{background:white}.wrap{padding:0}.hero{box-shadow:none;border:1px solid #d9e4ed}.actions{display:none}.panel,.metric{break-inside:avoid}}
 `;
 type AiAnalysis = { executiveSummary:string; riskAnalysis:string; nextSteps:string };
 type PeriodMetrics = { tasksCreated:number; risksRegistered:number; decisionsRegistered:number; activityEvents:number };
@@ -140,6 +141,7 @@ export default function StatusReportPage() {
  const [decisions,setDecisions]=useState<Decision[]>([]);
  const [status,setStatus]=useState("Selecione um projeto para gerar um relatório.");
  const [busy,setBusy]=useState(false);
+ const [pdfBusy,setPdfBusy]=useState(false);
  const [periodMode,setPeriodMode]=useState<"current"|"period">("current");
  const [start,setStart]=useState(()=>{const d=new Date();return [d.getFullYear(),String(d.getMonth()+1).padStart(2,"0"),"01"].join("-")});
  const [end,setEnd]=useState(()=>{const d=new Date();return [d.getFullYear(),String(d.getMonth()+1).padStart(2,"0"),String(d.getDate()).padStart(2,"0")].join("-")});
@@ -197,12 +199,38 @@ export default function StatusReportPage() {
   setHistoryIssued(j.data?.created_at||"");
   }catch(e){setStatus(e instanceof Error?e.message:"Falha ao consultar histórico.");}
  }
- async function exportHistory(){
+ function archivedHtml(){
+  if(!historyData)return "";
+  const content=historicalDocument(historyData,historyAudience,historyNarrative,historyIssued);
+  const logo=brandLogoData?'<div class="top"><img class="logo" src="'+htmlEscape(brandLogoData)+'" alt="'+htmlEscape(brandName)+'"></div>':"";
+  return content.replace('<header class="hero">','<header class="hero">'+logo);
+ }
+ async function exportHistory(format:"html"|"pdf"){
   if(!historyData)return;
-  const html=historicalDocument(historyData,historyAudience,historyNarrative,historyIssued);
+  const html=archivedHtml();
+  if(format==="pdf"){
+   setPdfBusy(true);
+   try{await downloadReportPdf(html,"status-report-arquivado-"+historyId+".pdf");setStatus("PDF da emissão arquivada gerado.");}
+   catch(e){setStatus(e instanceof Error?e.message:"Não foi possível exportar PDF.");}
+   finally{setPdfBusy(false);}
+   return;
+  }
   const blob=new Blob([html],{type:"text/html;charset=utf-8"});
   const url=URL.createObjectURL(blob);
-  const link=document.createElement("a");link.href=url;link.download="status-report-arquivado-"+historyId+".html";link.click();URL.revokeObjectURL(url);
+  const link=document.createElement("a");link.href=url;link.download="status-report-arquivado-"+historyId+".html";link.click();
+  window.setTimeout(()=>URL.revokeObjectURL(url),3000);
+ }
+ async function downloadPdf(){
+  if(!documentHtml||!project||pdfBusy||busy)return;
+  if(!brandLogoData){setStatus("Logo da empresa ativa indisponível. Verifique o whitelabel antes de exportar.");return;}
+  setPdfBusy(true);
+  try{
+   const filename="status-report-"+(audience==="client"?"cliente":"equipe")+"-"+project.id+"-"+new Date().toISOString().slice(0,10)+".pdf";
+   await downloadReportPdf(documentHtml,filename);
+   setStatus("PDF gerado, registrando emissão...");
+   await issue();
+  }catch(e){setStatus(e instanceof Error?e.message:"Não foi possível gerar o PDF.");}
+  finally{setPdfBusy(false);}
  }
  async function download(){
   if(!documentHtml||!project)return;
@@ -220,7 +248,7 @@ export default function StatusReportPage() {
  <section className="grid gap-3 rounded-xl border border-(--border) bg-(--bg-surface) p-4 md:grid-cols-[2fr_1fr_auto]">
  <label className="text-sm">Projeto<select className="mt-1 block w-full rounded-lg border border-(--border) bg-(--bg-surface) px-3 py-2" value={projectId} onChange={e=>setProjectId(e.target.value)}>{projects.map(x=><option key={x.id} value={x.id}>{x.name}</option>)}</select></label>
  <div className="text-sm"><label className="block">Período de referência<select className="mt-1 block w-full rounded-lg border border-(--border) bg-(--bg-surface) px-3 py-2" value={periodMode} onChange={e=>setPeriodMode(e.target.value==="period"?"period":"current")}><option value="current">Situação atual</option><option value="period">Período personalizado</option></select></label>{periodMode==="period"&&<div className="mt-2 grid grid-cols-2 gap-2"><label>Início<input type="date" className="mt-1 block w-full rounded border p-2" value={start} max={end} onChange={e=>setStart(e.target.value)}/></label><label>Fim<input type="date" className="mt-1 block w-full rounded border p-2" value={end} min={start} onChange={e=>setEnd(e.target.value)}/></label></div>}</div>
- <button type="button" onClick={download} disabled={!documentHtml||busy} className="self-end rounded-lg bg-(--accent) px-4 py-2 text-sm text-white disabled:opacity-50">Baixar HTML</button>
+ <div className="flex flex-wrap gap-2 self-end"><button type="button" onClick={()=>void download()} disabled={!documentHtml||busy||pdfBusy||issuing} className="workspace-button-secondary px-4 py-2 text-sm disabled:opacity-50">Baixar HTML</button><button type="button" onClick={()=>void downloadPdf()} disabled={!documentHtml||busy||pdfBusy||issuing} className="workspace-button-primary px-4 py-2 text-sm disabled:opacity-50">{pdfBusy?"Gerando PDF...":"Baixar PDF"}</button></div>
  </section>
  <section className="grid gap-3 rounded-xl border border-(--border) bg-(--bg-surface) p-4 md:grid-cols-[1fr_auto]">
  <label className="text-sm">Tipo de relatório<select className="mt-1 block w-full rounded-lg border border-(--border) bg-(--bg-surface) px-3 py-2" value={audience} onChange={e=>setAudience(e.target.value==="internal"?"internal":"client")}><option value="client">Executivo · Cliente</option><option value="internal">Gerencial · Equipe interna</option></select></label>
@@ -230,10 +258,10 @@ export default function StatusReportPage() {
  {projectId&&<PublicFactsEditor projectId={projectId} proposedNextSteps={analysis?.nextSteps} onChange={()=>setFactsRevision(n=>n+1)}/>}
  <section className="rounded-xl border border-(--border) bg-(--bg-surface) p-4"><h2 className="font-semibold">Histórico de emissões</h2><p className="mt-1 text-xs text-(--text-secondary)">Os indicadores são preservados no momento da emissão. A visualização histórica abaixo resume o snapshot armazenado.</p>
  <select aria-label="Consultar emissão" className="mt-2 w-full rounded border border-(--border) p-2 text-sm" value={historyId} onChange={e=>void openHistory(e.target.value)}><option value="">Selecione uma emissão anterior</option>{history.map(h=><option value={h.id} key={h.id}>{new Date(h.created_at).toLocaleString("pt-BR")} · {h.audience==="client"?"Cliente":"Interno"} · {h.generated_by_email||"Usuário"}</option>)}</select>
- {historyData&&<div className="mt-3 rounded-lg bg-(--bg-muted) p-3 text-sm"><p><b>Projeto:</b> {historyData.project.name} · <b>Emitido:</b> {new Date(historyData.generated_at).toLocaleString("pt-BR")}</p><p><b>Kanban:</b> {historyData.kanban.done} concluídas de {historyData.kanban.total} atividades</p>{historyAudience==="internal"&&<p><b>Sprints:</b> {historyData.scrum.sprints.length} · <b>US:</b> {historyData.scrum.stories_total} · <b>Tasks concluídas:</b> {historyData.scrum.tasks_done}/{historyData.scrum.tasks_total}</p>}<button type="button" onClick={()=>void exportHistory()} className="workspace-button-secondary mt-3 rounded-lg px-3 py-2 text-sm">Exportar emissão arquivada</button></div>}
+ {historyData&&<div className="mt-3 rounded-lg bg-(--bg-muted) p-3 text-sm"><p><b>Projeto:</b> {historyData.project.name} · <b>Emitido:</b> {new Date(historyData.generated_at).toLocaleString("pt-BR")}</p><p><b>Kanban:</b> {historyData.kanban.done} concluídas de {historyData.kanban.total} atividades</p>{historyAudience==="internal"&&<p><b>Sprints:</b> {historyData.scrum.sprints.length} · <b>US:</b> {historyData.scrum.stories_total} · <b>Tasks concluídas:</b> {historyData.scrum.tasks_done}/{historyData.scrum.tasks_total}</p>}<button type="button" onClick={()=>void exportHistory("html")} className="workspace-button-secondary mt-3 rounded-lg px-3 py-2 text-sm">Baixar HTML arquivado</button> <button type="button" disabled={pdfBusy} onClick={()=>void exportHistory("pdf")} className="workspace-button-primary mt-3 rounded-lg px-3 py-2 text-sm disabled:opacity-50">Baixar PDF arquivado</button></div>}
  </section>
  <p role="status" className="text-sm text-(--text-secondary)">{busy?"Consolidando dados...":status}</p><div className="flex flex-wrap items-center gap-3"><button type="button" className="workspace-button-secondary rounded-lg px-4 py-2 text-sm" disabled={!projectId||analysisLoading} onClick={()=>setAnalysisRequest(prev=>({key:analysisKey,revision:prev.revision+1}))}>{analysisLoading?"Analisando...":"Gerar análise Kairos"}</button><p role="status" className="text-sm text-(--text-secondary)">{analysisStatus}</p></div>
  {documentHtml?<iframe title="Prévia do Status Report" srcDoc={documentHtml} sandbox="allow-scripts" className="h-[900px] w-full rounded-xl border border-(--border) bg-white"/>:<div className="rounded-xl border border-(--border) p-10 text-center text-sm">Nenhuma prévia disponível.</div>}
- <p className="text-xs text-(--text-secondary)">O download registra automaticamente uma emissão no histórico. Revise as informações antes de compartilhar o HTML com o cliente, pois ele conterá os registros autorizados. A logo é incorporada ao HTML durante o download, permitindo abertura offline.</p>
+ <p className="text-xs text-(--text-secondary)">Os botões Baixar PDF e Baixar HTML utilizam o mesmo relatório e registram a emissão no histórico. O PDF é criado em páginas A4, sem a janela de impressão. Revise as informações autorizadas antes de enviar ao cliente.</p>
  </main>
 }
