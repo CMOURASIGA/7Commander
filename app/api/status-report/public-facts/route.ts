@@ -35,7 +35,7 @@ export async function GET(request:NextRequest){
   if(project.data?.objetivo) add("objective",String(project.data.nome||"Objetivo do projeto"),String(project.data.objetivo),"in_progress","","project:"+projectId,"Projeto");
   for(const row of tasks.data||[]){
    const done=["concluida","done"].includes(row.status);
-   add(done?"deliverable":"next_step",row.titulo,row.descricao||"",done?"in_progress":"in_progress",row.due_date||"","task:"+row.id,"Atividade");
+   add(done?"deliverable":"next_step",row.titulo,row.descricao||"","in_progress",row.due_date||"","task:"+row.id,"Atividade");
   }
   for(const row of stories.data||[]){
    add(row.workflow_stage==="closed"?"deliverable":"next_step",row.title,row.description||"","in_progress",row.due_date||"","story:"+row.id,"User Story");
