@@ -144,6 +144,28 @@ export default function ProjectMeetings(){
    </div>
    <button className="workspace-button-secondary px-4 py-2 text-sm" disabled={linking||!linkForm.meetingId||!linkForm.recordId.trim()} onClick={()=>void linkExisting()}>{linking?"Vinculando...":"Vincular"}</button>
   </section>}
+  <section className="workspace-card p-5">
+   <h2 className="font-semibold">Timeline de acompanhamento</h2>
+   <p className="mt-1 text-sm text-(--text-secondary)">Somente acontecimentos e vínculos registrados. Não representa comprovação automática de entrega ou conclusão.</p>
+   <ol className="mt-4 space-y-4 border-l-2 border-(--border) pl-5">
+    {[...meetings].sort((a,b)=>Date.parse(b.held_at)-Date.parse(a.held_at)).map(meeting=><li key={meeting.id} className="relative">
+     <span className="absolute -left-[27px] top-1 h-3 w-3 rounded-full bg-(--accent)"/>
+     <p className="text-xs text-(--text-secondary)">{new Date(meeting.held_at).toLocaleString("pt-BR")}</p>
+     <h3 className="font-semibold">{meeting.title}</h3>
+     <div className="mt-1 text-sm"><MarkdownContent content={meeting.summary||"Registro criado sem resumo."}/></div>
+     {meeting.links.length>0&&<div className="mt-2 flex flex-wrap gap-2">{meeting.links.map((link,index)=>{
+       const textLabel=({decision:"Decisão",risk:"Risco",story:"User Story",task:"Atividade",sprint:"Sprint",knowledge:"Conhecimento"} as Record<string,string>)[link.record_type]||"Registro";
+       const target=link.record_type==="story"?"/scrum/kanban?projectId="+encodeURIComponent(projectId)+"&storyId="+encodeURIComponent(link.record_id)
+         :link.record_type==="task"?"/activities?projectId="+encodeURIComponent(projectId)+"&taskId="+encodeURIComponent(link.record_id)
+         :link.record_type==="sprint"?"/scrum?projectId="+encodeURIComponent(projectId)+"&sprintId="+encodeURIComponent(link.record_id)
+         :null;
+       return target?<Link key={index} href={target} className="rounded-lg border px-2 py-1 text-xs underline">{textLabel}</Link>
+         :<span key={index} className="rounded-lg border px-2 py-1 text-xs">{textLabel} vinculada</span>
+     })}</div>}
+    </li>)}
+   </ol>
+   {!loading&&!meetings.length&&<p className="mt-3 text-sm text-(--text-secondary)">Nenhuma reunião registrada para compor a timeline.</p>}
+  </section>
   <section className="space-y-3"><h2 className="font-semibold">Histórico de reuniões</h2>
    {loading?<p>Carregando registros...</p>:meetings.length===0?<p className="text-sm text-(--text-secondary)">Nenhuma reunião cadastrada para este projeto.</p>:meetings.map(m=><article key={m.id} className="workspace-card p-4">
     <div className="flex flex-wrap justify-between gap-2"><h3 className="font-semibold">{m.title}</h3><span className="text-sm text-(--text-secondary)">{new Date(m.held_at).toLocaleString("pt-BR")}</span></div>
