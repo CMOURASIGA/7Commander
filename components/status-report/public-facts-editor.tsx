@@ -7,7 +7,7 @@ type Candidate={kind:string;title:string;description:string;classification:strin
 const kinds=[["objective","Objetivo"],["benefit","Benefício"],["deliverable","Entrega"],["milestone","Marco"],["risk","Risco relevante"],["next_step","Próximo passo"]] as const;
 const classes=[["confirmed","Confirmado"],["in_progress","Em andamento"],["hypothesis","Hipótese"],["ai_recommendation","Recomendação de IA"]] as const;
 const clean=()=>({kind:"deliverable",title:"",description:"",classification:"in_progress",dueDate:"",sourceReference:""});
-export function PublicFactsEditor({projectId,onChange}:{projectId:string;onChange?:()=>void}){
+export function PublicFactsEditor({projectId,onChange,proposedNextSteps}:{projectId:string;onChange?:()=>void;proposedNextSteps?:string|null}){
  const [items,setItems]=useState<Fact[]>([]);
  const [candidates,setCandidates]=useState<Candidate[]>([]);
  const [suggestionsLoading,setSuggestionsLoading]=useState(false);
@@ -89,6 +89,15 @@ export function PublicFactsEditor({projectId,onChange}:{projectId:string;onChang
      </div>)}
     </div>}
   </div>
+  {proposedNextSteps?.trim()?<div className="rounded-xl border border-(--border) bg-(--bg-muted) p-3 space-y-2">
+    <h3 className="text-sm font-semibold">Proposta de próximos passos</h3>
+    <p className="text-xs text-(--text-secondary)">Texto auxiliar para revisão gerencial. Revise e ajuste antes de salvar. A origem permanece registrada internamente.</p>
+    <p className="whitespace-pre-wrap text-sm">{proposedNextSteps.slice(0,900)}</p>
+    <button type="button" className="workspace-button-secondary text-xs" onClick={()=>{
+      setForm({kind:"next_step",title:"Próximos passos do projeto",description:proposedNextSteps.slice(0,3000),classification:"ai_recommendation",dueDate:"",sourceReference:"kairos:proposta:"+projectId});
+      setMessage("Proposta carregada. Revise, ajuste e salve como rascunho antes de autorizar.");
+    }}>Revisar como rascunho</button>
+   </div>:null}
   <div className="grid gap-3 sm:grid-cols-2">
    <label className="text-xs">Categoria<select className="workspace-select mt-1 w-full" value={form.kind} onChange={e=>setForm(f=>({...f,kind:e.target.value}))}>{kinds.map(([value,label])=><option key={value} value={value}>{label}</option>)}</select></label>
    <label className="text-xs">Classificação<select className="workspace-select mt-1 w-full" value={form.classification} onChange={e=>setForm(f=>({...f,classification:e.target.value}))}>{classes.map(([value,label])=><option key={value} value={value}>{label}</option>)}</select></label>

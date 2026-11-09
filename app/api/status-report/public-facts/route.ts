@@ -18,14 +18,16 @@ export async function GET(request:NextRequest){
  if(suggestions){
   // Existing operational data is a private REVIEW QUEUE, never an approved client feed.
   // All rows are scoped to the authenticated project's server-verified tenant.
-  const [project,tasks,stories,risks,decisions]=await Promise.all([
+  const [project,tasks,stories,risks,decisions,epics,sprints]=await Promise.all([
    scope.db.from("projects").select("id,nome,objetivo,descricao").eq("id",projectId).eq("organization_id",scope.organizationId).maybeSingle(),
    scope.db.from("tasks").select("id,titulo,descricao,status,due_date").eq("project_id",projectId).eq("organization_id",scope.organizationId).order("created_at",{ascending:false}).limit(80),
    scope.db.from("scrum_user_stories").select("id,title,description,workflow_stage,due_date").eq("project_id",projectId).eq("organization_id",scope.organizationId).order("created_at",{ascending:false}).limit(80),
    scope.db.from("risks").select("id,titulo,impacto,status").eq("project_id",projectId).eq("organization_id",scope.organizationId).order("created_at",{ascending:false}).limit(40),
-   scope.db.from("decisions").select("id,titulo,status").eq("project_id",projectId).eq("organization_id",scope.organizationId).order("created_at",{ascending:false}).limit(40),
+   scope.db.from("decisions").select("id,titulo,contexto,status").eq("project_id",projectId).eq("organization_id",scope.organizationId).order("created_at",{ascending:false}).limit(40),
+   scope.db.from("scrum_backlog_items").select("id,title,description,state,actual_end_date").eq("project_id",projectId).eq("organization_id",scope.organizationId).eq("item_type","epic").order("created_at",{ascending:false}).limit(60),
+   scope.db.from("scrum_sprints").select("id,name,goal,status,start_date,end_date").eq("project_id",projectId).eq("organization_id",scope.organizationId).order("start_date",{ascending:false}).limit(60),
   ]);
-  if([project,tasks,stories,risks,decisions].some(r=>r.error))
+  if([project,tasks,stories,risks,decisions,epics,sprints].some(r=>r.error))
     return out({error:"Não foi possível consultar os registros operacionais para revisão."},503);
   const entries:Array<{kind:string;title:string;description:string;classification:string;dueDate:string;sourceReference:string;origin:string}>=[];
   const add=(kind:string,title:string,description:string,classification:string,dueDate:string,sourceReference:string,origin:string)=>{
@@ -33,6 +35,15 @@ export async function GET(request:NextRequest){
    entries.push({kind,title:cleanTitle,description:description.trim().slice(0,3000),classification,dueDate:dueDate.slice(0,10),sourceReference,origin});
   };
   if(project.data?.objetivo) add("objective",String(project.data.nome||"Objetivo do projeto"),String(project.data.objetivo),"in_progress","","project:"+projectId,"Projeto");
+  // An epic represents planned scope; it is not evidence of accepted delivery.
+  for(const row of epics.data||[]){
+   const completion=row.actual_end_date?"Conclusão registrada: "+row.actual_end_date+". ":"";
+   add("deliverable",row.title,completion+(row.description||"Escopo do épico cadastrado. Confirmar o que foi efetivamente entregue."),"in_progress","","epic:"+row.id,"Épico · revisar entrega");
+  }
+  for(const row of sprints.data||[]){
+   const period=(row.start_date||"A definir")+" a "+(row.end_date||"A definir");
+   add("milestone",row.name,"Período: "+period+". Situação: "+row.status+". "+(row.goal||"Meta não cadastrada."),"in_progress",row.end_date||"","sprint:"+row.id,"Sprint · revisar marco");
+  }
   for(const row of tasks.data||[]){
    const done=["concluida","done"].includes(row.status);
    add(done?"deliverable":"next_step",row.titulo,row.descricao||"","in_progress",row.due_date||"","task:"+row.id,"Atividade");
@@ -41,7 +52,7 @@ export async function GET(request:NextRequest){
    add(row.workflow_stage==="closed"?"deliverable":"next_step",row.title,row.description||"","in_progress",row.due_date||"","story:"+row.id,"User Story");
   }
   for(const row of risks.data||[])add("risk",row.titulo,row.impacto||"","in_progress","","risk:"+row.id,"Risco");
-  for(const row of decisions.data||[])add("next_step",row.titulo,"Decisão registrada, validar contexto e divulgação.","in_progress","","decision:"+row.id,"Decisão");
+  for(const row of decisions.data||[])add("next_step",row.titulo,"Decisão ("+row.status+"). "+(row.contexto||"Validar contexto e próximos passos antes da divulgação."),"in_progress","","decision:"+row.id,"Decisão");
   // Public facts and proposed drafts are managed separately; suggestions are never persisted.
   return out({data:entries.slice(0,160)});
  }
