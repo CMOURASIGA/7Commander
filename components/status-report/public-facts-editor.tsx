@@ -3,11 +3,14 @@ import {useCallback,useEffect,useState} from "react";
 import {getClientAuthHeaders} from "@/lib/client-auth";
 
 type Fact={id:string;kind:string;title:string;description:string;classification:string;due_date:string|null;approved_for_client:boolean;approved_at:string|null;source_reference?:string|null};
+type Candidate={kind:string;title:string;description:string;classification:string;dueDate:string;sourceReference:string;origin:string};
 const kinds=[["objective","Objetivo"],["benefit","Benefício"],["deliverable","Entrega"],["milestone","Marco"],["risk","Risco relevante"],["next_step","Próximo passo"]] as const;
 const classes=[["confirmed","Confirmado"],["in_progress","Em andamento"],["hypothesis","Hipótese"],["ai_recommendation","Recomendação de IA"]] as const;
 const clean=()=>({kind:"deliverable",title:"",description:"",classification:"in_progress",dueDate:"",sourceReference:""});
 export function PublicFactsEditor({projectId,onChange}:{projectId:string;onChange?:()=>void}){
  const [items,setItems]=useState<Fact[]>([]);
+ const [candidates,setCandidates]=useState<Candidate[]>([]);
+ const [suggestionsLoading,setSuggestionsLoading]=useState(false);
  const [canManage,setCanManage]=useState(false);
  const [loading,setLoading]=useState(true);
  const [form,setForm]=useState(clean);
@@ -28,7 +31,18 @@ export function PublicFactsEditor({projectId,onChange}:{projectId:string;onChang
   }catch(e){setError(e instanceof Error?e.message:"Falha ao consultar classificações.");}
   finally{setLoading(false)}
  },[projectId]);
- useEffect(()=>{setCanManage(false);setItems([]);void reload()},[reload]);
+ const loadSuggestions=useCallback(async()=>{
+  if(!projectId)return;
+  setSuggestionsLoading(true);
+  try{
+   const r=await fetch("/api/status-report/public-facts?projectId="+encodeURIComponent(projectId)+"&suggestions=1",{headers:getClientAuthHeaders(),cache:"no-store"});
+   const payload=await r.json().catch(()=>({}));
+   if(!r.ok)throw Error(payload.error||"Não foi possível consultar informações do projeto.");
+   setCandidates(payload.data||[]);
+  }catch(e){setCandidates([]);setError(e instanceof Error?e.message:"Falha ao consultar sugestões.");}
+  finally{setSuggestionsLoading(false)}
+ },[projectId]);
+ useEffect(()=>{setCanManage(false);setItems([]);setCandidates([]);setForm(clean());void reload();void loadSuggestions()},[reload,loadSuggestions]);
  async function saveDraft(){
   if(!form.title.trim()||busy)return;
   setBusy(true);setError("");setMessage("");
@@ -59,6 +73,22 @@ export function PublicFactsEditor({projectId,onChange}:{projectId:string;onChang
    <p className="text-sm text-(--text-secondary)">Prepare os fatos compartilháveis. Novos registros começam restritos. A divulgação exige confirmação explícita e permanece auditável.</p></div>
   {error&&<p role="alert" className="text-sm text-red-700">{error}</p>}
   {message&&<p role="status" className="text-sm text-(--text-secondary)">{message}</p>}
+  <div className="rounded-xl border border-(--border) bg-(--bg-muted) p-3 space-y-3">
+   <div className="flex flex-wrap items-center justify-between gap-2"><div><h3 className="text-sm font-semibold">Dados existentes para revisão</h3>
+    <p className="mt-1 text-xs text-(--text-secondary)">Os dados abaixo vêm do projeto. Selecionar não publica nada: revise o texto e salve como rascunho antes de autorizar a divulgação.</p></div>
+    <button type="button" className="workspace-button-secondary text-xs" disabled={suggestionsLoading} onClick={()=>void loadSuggestions()}>{suggestionsLoading?"Consultando...":"Atualizar sugestões"}</button>
+   </div>
+   {suggestionsLoading?<p className="text-sm">Consultando registros operacionais...</p>:candidates.length===0?<p className="text-sm text-(--text-secondary)">Não há registros operacionais elegíveis para preparar rascunhos.</p>:
+    <div className="max-h-64 space-y-2 overflow-y-auto">
+     {candidates.map(candidate=><div key={candidate.sourceReference} className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-(--border) bg-(--bg-surface) p-3">
+      <div className="min-w-0 flex-1"><p className="text-sm font-medium">{candidate.title}</p><p className="text-xs text-(--text-secondary)">{candidate.origin} · {kinds.find(k=>k[0]===candidate.kind)?.[1]||candidate.kind}{items.some(item=>item.source_reference===candidate.sourceReference)?" · já classificado":""}</p></div>
+      <button type="button" className="workspace-button-secondary text-xs" disabled={busy||items.some(item=>item.source_reference===candidate.sourceReference)}
+       onClick={()=>{setForm({kind:candidate.kind,title:candidate.title,description:candidate.description,classification:candidate.classification,dueDate:candidate.dueDate,sourceReference:candidate.sourceReference});setMessage("Informação carregada no formulário. Revise antes de salvar.");}}>
+        Preparar rascunho
+      </button>
+     </div>)}
+    </div>}
+  </div>
   <div className="grid gap-3 sm:grid-cols-2">
    <label className="text-xs">Categoria<select className="workspace-select mt-1 w-full" value={form.kind} onChange={e=>setForm(f=>({...f,kind:e.target.value}))}>{kinds.map(([value,label])=><option key={value} value={value}>{label}</option>)}</select></label>
    <label className="text-xs">Classificação<select className="workspace-select mt-1 w-full" value={form.classification} onChange={e=>setForm(f=>({...f,classification:e.target.value}))}>{classes.map(([value,label])=><option key={value} value={value}>{label}</option>)}</select></label>
