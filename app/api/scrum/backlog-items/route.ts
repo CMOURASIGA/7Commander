@@ -61,6 +61,11 @@ export async function POST(req:NextRequest){
  const itemType=action==="create"?type:item.item_type;
  if(!["epic","feature","task"].includes(itemType))return bad("Tipo inválido.");
  const title=String(body.title??item?.title??"").trim();
+ if(action==="create"&&type==="task"&&body.fromKairos===true){
+  const duplicate=await db.from("scrum_backlog_items").select("id").eq("organization_id",org).eq("project_id",projectId).eq("story_id",String(body.storyId||"")).eq("item_type","task").ilike("title",title).limit(1);
+  if(duplicate.error)return bad("Não foi possível verificar duplicidade da Task.",503);
+  if(duplicate.data?.length)return bad("Task do Kairos já cadastrada nesta US.",409);
+ }
  if(!title||title.length>180)return bad("Título obrigatório.");
  const parentId=body.parentId===undefined?item?.parent_id??null:body.parentId||null;
  const storyId=body.storyId===undefined?item?.story_id??null:body.storyId||null;
