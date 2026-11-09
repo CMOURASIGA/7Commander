@@ -28,7 +28,7 @@ create table if not exists public.project_meeting_links (
  organization_id uuid not null references public.organizations(id),
  project_id uuid not null references public.projects(id),
  meeting_id uuid not null references public.project_meetings(id) on delete cascade,
- record_type text not null check(record_type in ('decision','risk','story','task','sprint','knowledge')),
+ record_type text not null check(record_type in ('decision','risk','story','task','scrum_task','sprint','knowledge')),
  record_id uuid not null,
  created_by uuid not null,
  created_at timestamptz not null default now(),
