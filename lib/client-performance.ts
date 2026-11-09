@@ -3,7 +3,7 @@
  * authorization headers, URL query values, or user identifiers.
  * In a browser use ?perf=1 to display measurements in DevTools.
  */
-type Sample = {route:string;method:string;status:number;elapsedMs:number;at:number};
+type Sample = {route:string;method:string;status:number;elapsedMs:number;at:number;serverTiming?:string};
 const samples:Sample[]=[];
 export function getClientPerformanceSummary(){
  const groups=new Map<string,number[]>();
@@ -27,7 +27,8 @@ export async function measuredFetch(input:RequestInfo|URL,init?:RequestInit):Pro
   let route="unknown";
   try{route=new URL(raw,window.location.origin).pathname.replace(/[0-9a-f]{8}-[0-9a-f-]{27,}/gi,":id");}catch{/* no raw URL logging */}
   const method=(init?.method||"GET").toUpperCase();
-  const sample={route,method,status:response?.status||0,elapsedMs,at:Date.now()};
+  const serverTiming=response?.headers.get("Server-Timing")||undefined;
+  const sample:Sample={route,method,status:response?.status||0,elapsedMs,at:Date.now(),...(serverTiming?{serverTiming}:{})};
   samples.push(sample);
   if(samples.length>120)samples.shift();
   performance.measure("7Commander "+method+" "+route,{start,end:performance.now()});
