@@ -126,7 +126,7 @@ export async function POST(req:NextRequest){
   };
   const result=action==="create"?
     await db.from("scrum_user_stories").insert({...patch,project_id:projectId,organization_id:org,created_by_email:auth.userEmail||"",workflow_stage:"new"}).select("id").single():
-    await db.from("scrum_user_stories").update(patch).eq("id",storyId).eq("organization_id",org).eq("project_id",projectId).select("id").single();
+    await db.from("scrum_user_stories").update(patch).eq("id",storyId).eq("organization_id",org).eq("project_id",projectId).select("id,workflow_stage,actual_end_date,updated_at").single();
   if(result.error)return fail("Não foi possível salvar a US: "+result.error.code,409);
   return respond({data:result.data},action==="create"?201:200);
 }
