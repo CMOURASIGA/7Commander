@@ -975,6 +975,12 @@ export default function ProjectsPage() {
           </div>
         </ProjectRoutine>
 
+        {activeProjectId&&<section className="order-2 rounded-xl border border-(--border) bg-(--bg-surface) p-4">
+          <h2 className="text-sm font-semibold">Reuniões e acompanhamento</h2>
+          <p className="mt-1 text-xs text-(--text-secondary)">Registre reuniões, compare compromissos e vincule decisões e entregas existentes sem duplicar atividades.</p>
+          <Link className="workspace-button-secondary mt-3 inline-block rounded-lg px-3 py-2 text-sm" href={"/projects/"+encodeURIComponent(activeProjectId)+"/meetings"}>Abrir reuniões do projeto</Link>
+        </section>}
+
         <ProjectRoutine
           title="Conhecimento do projeto"
           description={readOnly ? "Consulte o conhecimento do projeto sem remover documentos." : "Consulte documentos processados e remova conhecimentos que nao forem mais relevantes."}
