@@ -27,7 +27,7 @@ export function Header({ onToggleMobileNav, mobileNavOpen }: HeaderProps) {
     let alive = true;
     async function refreshActiveCompany() {
       try {
-        const response = await fetch("/api/organizations/branding", {headers:getClientAuthHeaders(),cache:"no-store"});
+        const response = await fetch("/api/organizations/branding?summary=1", {headers:getClientAuthHeaders(),cache:"no-store"});
         if (!response.ok) { if(alive)setActiveCompany(null); return; }
         const payload = await response.json();
         if (alive) setActiveCompany(typeof payload.data?.name === "string" ? payload.data.name : null);
