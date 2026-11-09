@@ -40,19 +40,22 @@ function reportDocument(project:Project, cards:Card[], risks:Risk[], decisions:D
   // REP-01: client document is a separate, strictly public projection.
   // It never interpolates internal story/task/member information.
   if(audience==="client"){
-    const riskRows=(scrum?.governance.client_risks||[]).slice(0,12);
-    const decisionRows=(scrum?.governance.client_decisions||[]).slice(0,12);
-    const delivered=(scrum?.kanban.completed_titles||[]).slice(0,10);
-    const approvedMilestones="Nenhum marco de aceite formal foi identificado nesta fonte de dados. Confirmar com o responsável pelo projeto.";
+    const shareable=scrum?.publicFacts||[];
+    const classify=(value:string)=>({confirmed:"Compromisso confirmado",in_progress:"Em andamento",hypothesis:"Hipótese",ai_recommendation:"Recomendação da IA"} as Record<string,string>)[value]||"A confirmar";
+    const publicItems=(kind:string)=>shareable.filter(x=>x.kind===kind).slice(0,15).map(x=>({
+      title:x.title,note:classify(x.classification)+(x.due_date?" · Prazo informado: "+x.due_date:"")+(x.description?" · "+x.description:"")
+    }));
+    const published=Boolean(scrum?.publicFactsAvailable);
+    const approvalNotice=published?"Nenhum registro dessa categoria foi aprovado para divulgação ao cliente.":"Catálogo de divulgação ainda não habilitado. Não será exposto conteúdo interno.";
     return `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Status Report Cliente - ${htmlEscape(project.name)}</title><style>${css}</style></head><body><main class="wrap">
     <header class="hero"><div class="top"><img class="logo" src="${logo}" alt="Consult Services Tecnologia"><div class="topright">RELATÓRIO PARA CLIENTE<br><small>Visão de objetivos, entregas e compromissos</small></div></div><p class="eyebrow">COMMANDER · ACOMPANHAMENTO DO PROJETO</p><h1>${htmlEscape(project.name)}</h1><p class="desc">${htmlEscape(project.objective||"Objetivo não informado.")}</p><div class="chips"><span class="chip">Referência: ${htmlEscape(period)}</span><span class="chip">Emissão: ${htmlEscape(issueDate)}</span><span class="chip">Público: Cliente</span></div></header>
     <div class="note">Informações extraídas de registros autorizados. Quantidades de atividades não significam percentual de entrega contratual ou aceite do cliente. Dados operacionais refletem a situação atual.</div>
-    <section class="panel"><h3>01 · Objetivo e benefícios</h3><h2>Objetivo do projeto</h2><p>${htmlEscape(project.objective||"A confirmar com o responsável pelo projeto.")}</p><p class="empty">Benefícios específicos não foram formalizados no cadastro; não são inferidos automaticamente.</p></section>
+    <section class="panel"><h3>01 · Objetivo e benefícios</h3><h2>Objetivo do projeto</h2><p>${htmlEscape(project.objective||"A confirmar com o responsável pelo projeto.")}</p><h2>Objetivos aprovados para divulgação</h2>${list(publicItems("objective"),approvalNotice)}<h2>Benefícios documentados e aprovados</h2>${list(publicItems("benefit"),approvalNotice)}</section>
     <section class="metrics"><div class="metric"><small>REGISTROS DE ATIVIDADES</small><strong>${scrum?.kanban.total??total}</strong></div><div class="metric green"><small>REGISTROS CONCLUÍDOS</small><strong>${scrum?.kanban.done??done}</strong></div><div class="metric amber"><small>RISCOS ATIVOS</small><strong>${scrum?.governance.risks_open??atRisk.length}</strong></div><div class="metric"><small>DECISÕES PENDENTES</small><strong>${scrum?.governance.decisions_pending??undecided.length}</strong></div></section>
-    <section class="panel"><h3>02 · Entregas registradas</h3><h2>Realizações cadastradas</h2>${list(delivered.map(title=>({title,note:"Registro operacional concluído; aceite externo não confirmado"})),"Nenhuma entrega concluída foi registrada.")}</section>
-    <section class="panel"><h3>03 · Marcos e prazos</h3><h2>Compromissos confirmados</h2><p class="empty">${approvedMilestones}</p><p>Não há, nesta extração, evidência suficiente para declarar prazos contratuais ou reuniões futuras confirmadas.</p></section>
-    <section class="panel"><h3>04 · Riscos relevantes</h3><h2>Pontos de atenção para o cliente</h2>${list(riskRows.map(r=>({title:r.title,note:r.status})),"Nenhum risco ativo consta no cadastro consultado; confirmar cobertura do registro.")}</section>
-    <section class="panel"><h3>05 · Decisões e próximos passos</h3><h2>Decisões pendentes</h2>${list(decisionRows.map(d=>({title:d.title,note:d.status})),"Nenhuma decisão pendente registrada.")}<h2>Recomendações Kairos</h2>${analysis?`<div class="report-ai-text">${safeMarkdownHtml(analysis.nextSteps)}</div>`:"<p class='empty'>Sem recomendações da IA nesta emissão.</p>"}<p class="empty">Recomendações da IA não são compromissos aprovados. Validar responsáveis, datas e escopo antes de comunicar como confirmados.</p></section>
+    <section class="panel"><h3>02 · Entregas registradas</h3><h2>Realizações cadastradas</h2>${list(publicItems("deliverable"),approvalNotice)}</section>
+    <section class="panel"><h3>03 · Marcos e prazos</h3><h2>Compromissos confirmados</h2>${list(publicItems("milestone"),approvalNotice)}<p>Não há, nesta extração, evidência suficiente para declarar prazos contratuais ou reuniões futuras confirmadas.</p></section>
+    <section class="panel"><h3>04 · Riscos relevantes</h3><h2>Pontos de atenção para o cliente</h2>${list(publicItems("risk"),approvalNotice)}</section>
+    <section class="panel"><h3>05 · Decisões e próximos passos</h3><h2>Próximos passos aprovados para divulgação</h2>${list(publicItems("next_step"),approvalNotice)}<h2>Recomendações Kairos</h2>${analysis?`<div class="report-ai-text">${safeMarkdownHtml(analysis.nextSteps)}</div>`:"<p class='empty'>Sem recomendações da IA nesta emissão.</p>"}<p class="empty">Recomendações da IA não são compromissos aprovados. Validar responsáveis, datas e escopo antes de comunicar como confirmados.</p></section>
     <footer class="foot"><span>CONSULT SERVICES TECNOLOGIA · Commander / Relatório Cliente</span><span>Emitido em ${htmlEscape(issueDate)}</span></footer><div class="actions"><button onclick="window.print()">Imprimir / Salvar em PDF</button></div></main></body></html>`;
   }
   const scrumSection=scrum?.scrum.enabled?`
