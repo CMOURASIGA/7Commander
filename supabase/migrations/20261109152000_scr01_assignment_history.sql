@@ -14,6 +14,7 @@ create index if not exists scrum_backlog_assignment_history_item_idx
  on public.scrum_backlog_assignment_history (organization_id,project_id,backlog_item_id,changed_at desc);
 alter table public.scrum_backlog_assignment_history enable row level security;
 revoke all on public.scrum_backlog_assignment_history from anon,authenticated;
+grant select,insert on public.scrum_backlog_assignment_history to service_role;
 create or replace function public.scrum_audit_backlog_assignment()
 returns trigger language plpgsql security definer set search_path=public as $$
 begin
