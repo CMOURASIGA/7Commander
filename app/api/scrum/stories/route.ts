@@ -92,6 +92,11 @@ export async function POST(req:NextRequest){
   const days=body.durationDays===undefined?current?.duration_days??null:body.durationDays===""||body.durationDays===null?null:Number(body.durationDays);
   const points=body.storyPoints===undefined?current?.story_points??null:body.storyPoints===""||body.storyPoints===null?null:Number(body.storyPoints);
   if(days!==null&&(!Number.isInteger(days)||days<1||days>3650))return fail("Duração inválida.");
+  if(start&&due&&days!==null&&(action==="create"||body.startDate!==undefined||body.dueDate!==undefined||body.durationDays!==undefined)){
+    const calculated=new Date(String(start)+"T12:00:00Z");
+    calculated.setUTCDate(calculated.getUTCDate()+days-1);
+    if(calculated.toISOString().slice(0,10)!==due)return fail("Início, prazo em dias corridos e data de entrega são inconsistentes.",400);
+  }
   if(points!==null&&![1,2,3,4].includes(points))return fail("Story points devem ser 1, 2, 3 ou 4.");
   const actualEnd=body.actualEndDate===undefined?current?.actual_end_date||null:body.actualEndDate||null;
   if(actualEnd!==null&&!validDate(actualEnd))return fail("Data real inválida.");
