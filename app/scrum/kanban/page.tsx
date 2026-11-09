@@ -1,5 +1,6 @@
 "use client";
 import {ScrumKairosActions} from "@/components/scrum/scrum-kairos-actions";
+import {MarkdownContent} from "@/components/ui/markdown-content";
 import {useEffect,useRef,useState} from "react";
 
 import {useConfirm} from "@/components/ui/confirm-dialog";
@@ -206,7 +207,7 @@ export default function ScrumKanbanPage(){
       <label className="text-xs">Motivo do impedimento<input className="workspace-input mt-1 w-full" value={editForm.blockerReason} onChange={e=>setEditForm(f=>({...f,blockerReason:e.target.value}))}/></label>
     </div>
     <button className="workspace-button-primary px-3 py-2 text-xs" disabled={Boolean(saving)||!editForm.title.trim()} onClick={()=>void saveStory()}>Salvar alterações</button>
-   </div>:<div className="mt-4 space-y-2 text-sm"><h3 className="text-base font-semibold">{currentSelected?.title}</h3><p className="whitespace-pre-wrap">{currentSelected?.description||"Sem descrição"}</p><p>Critérios de aceite: {currentSelected?.acceptance_criteria||"Não definidos"}</p><p>Etapa: {currentSelected?.workflow_stage.toUpperCase()}</p><p>Responsável: {currentSelected?.responsible||"Não atribuído"}</p><p>Entrega prevista: {dateBR(currentSelected?.due_date)}</p><p>Entrega real: {dateBR(currentSelected?.actual_end_date)}</p><p>Story points: {currentSelected?.story_points??"Não estimado"}</p><p>Feature: {features.find(t=>t.id===currentSelected?.feature_id)?.title||"Sem Feature"}</p><p>Prioridade: {currentSelected?.priority}</p><p>Impedimento: {currentSelected?.blocked?currentSelected.blocker_reason||"Ativo":"Não"}</p></div>}
+   </div>:<div className="mt-4 space-y-2 text-sm"><h3 className="text-base font-semibold">{currentSelected?.title}</h3><section><h4 className="text-xs font-semibold">Descrição</h4><MarkdownContent content={currentSelected?.description||"Sem descrição"}/></section><section><h4 className="text-xs font-semibold">Critérios de aceite</h4><MarkdownContent content={currentSelected?.acceptance_criteria||"Não definidos"}/></section><p>Etapa: {currentSelected?.workflow_stage.toUpperCase()}</p><p>Responsável: {currentSelected?.responsible||"Não atribuído"}</p><p>Entrega prevista: {dateBR(currentSelected?.due_date)}</p><p>Entrega real: {dateBR(currentSelected?.actual_end_date)}</p><p>Story points: {currentSelected?.story_points??"Não estimado"}</p><p>Feature: {features.find(t=>t.id===currentSelected?.feature_id)?.title||"Sem Feature"}</p><p>Prioridade: {currentSelected?.priority}</p><p>Impedimento: {currentSelected?.blocked?currentSelected.blocker_reason||"Ativo":"Não"}</p></div>}
    <section className="mt-5 border-t border-(--border) pt-3">
      <h3 className="text-sm font-semibold">Tasks vinculadas à US</h3>
      <p className="mt-1 text-xs text-(--text-secondary)">{tasks.filter(t=>t.story_id===selected.id&&t.state==="done").length} de {tasks.filter(t=>t.story_id===selected.id).length} concluídas</p>
