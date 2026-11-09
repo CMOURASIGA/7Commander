@@ -26,7 +26,7 @@ export default function BacklogPage(){
  const data=useScrumData();const confirm=useConfirm();const deepLinkHandled=useRef(false);
  const [items,setItems]=useState<BacklogItem[]>([]);const [members,setMembers]=useState<ProjectMember[]>([]);const [opened,setOpened]=useState<Row|null>(null);const [drawerOpen,setDrawerOpen]=useState(false);const [readOnly,setReadOnly]=useState(false);
  const [form,setForm]=useState<Form>(initial);const [saving,setSaving]=useState(false);const [comment,setComment]=useState("");const [transitionComment,setTransitionComment]=useState("");
- const [query,setQuery]=useState("");const [typeFilter,setTypeFilter]=useState("all");const [stateFilter,setStateFilter]=useState("all");const [sprintFilter,setSprintFilter]=useState("all");const [collapsed,setCollapsed]=useState<string[]>([]);
+ const [query,setQuery]=useState("");const [typeFilter,setTypeFilter]=useState("all");const [stateFilter,setStateFilter]=useState("all");const [sprintFilter,setSprintFilter]=useState("all");const [responsibleFilter,setResponsibleFilter]=useState("all");const [collapsed,setCollapsed]=useState<string[]>([]);
  const [error,setError]=useState("");
  const [assignmentHistory,setAssignmentHistory]=useState<Array<{previous_responsible:string|null;new_responsible:string|null;changed_at:string}>>([]);
  const [assignmentHistoryStatus,setAssignmentHistoryStatus]=useState("");
@@ -89,9 +89,10 @@ export default function BacklogPage(){
   const matchesText=!term||r.title.toLowerCase().includes(term)||r.number===term||r.number.startsWith(term+".");
   const matchesType=typeFilter==="all"||r.type===typeFilter;
   const matchesState=stateFilter==="all"||r.state===stateFilter;
+  const matchesResponsible=responsibleFilter==="all"||(r.story?.responsible||r.item?.responsible||"")===responsibleFilter;
   const matchesSprint=sprintFilter==="all"||(r.story?sprintFilter==="unassigned"?!r.story.sprint_id:r.story.sprint_id===sprintFilter:true);
-  const filtersActive=query||typeFilter!=="all"||stateFilter!=="all"||sprintFilter!=="all";
-  return matchesText&&matchesType&&matchesState&&matchesSprint&&(!r.ancestorIds.some(p=>collapsed.includes(p))||Boolean(filtersActive));
+  const filtersActive=query||typeFilter!=="all"||stateFilter!=="all"||sprintFilter!=="all"||responsibleFilter!=="all";
+  return matchesText&&matchesType&&matchesState&&matchesResponsible&&matchesSprint&&(!r.ancestorIds.some(p=>collapsed.includes(p))||Boolean(filtersActive));
  });
  function open(row:Row|null,type:Row["type"],view=false,defaults?:Partial<Form>){
   setOpened(row);setDrawerOpen(true);setReadOnly(view);setComment("");setTransitionComment("");setError("");
@@ -134,9 +135,10 @@ export default function BacklogPage(){
     <input className="workspace-input w-full text-sm" value={query} onChange={e=>setQuery(e.target.value)} placeholder="Pesquisar título ou ordem (ex.: 1.2)"/>
     <select className="workspace-select" aria-label="Filtrar tipo" value={typeFilter} onChange={e=>setTypeFilter(e.target.value)}><option value="all">Todos os tipos</option>{(["epic","feature","story","task"] as const).map(t=><option key={t} value={t}>{types[t]}</option>)}</select>
     <select className="workspace-select" aria-label="Filtrar status" value={stateFilter} onChange={e=>setStateFilter(e.target.value)}><option value="all">Todos os status</option>{stages.map(([v,label])=><option key={v} value={v}>{label}</option>)}</select>
+    <select className="workspace-select" aria-label="Filtrar responsável" value={responsibleFilter} onChange={e=>setResponsibleFilter(e.target.value)}><option value="all">Todos os responsáveis</option><option value="">Não atribuídos</option>{members.map(m=><option key={m.email} value={m.email}>{m.name}</option>)}</select>
     <select className="workspace-select" aria-label="Filtrar Sprint" value={sprintFilter} onChange={e=>setSprintFilter(e.target.value)}><option value="all">Todas as Sprints</option><option value="unassigned">Sem Sprint</option>{data.sprints.map(s=><option key={s.id} value={s.id}>{s.name}</option>)}</select>
    </div>
-   <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-xs text-(--text-secondary)"><span>{visible.length} itens exibidos · {data.stories.length} US cadastradas</span><div className="flex gap-2"><button className="workspace-button-secondary px-2 py-1" onClick={()=>setCollapsed([...epics.map(e=>e.id),...features.map(f=>f.id)])}>Recolher</button><button className="workspace-button-secondary px-2 py-1" onClick={()=>setCollapsed([])}>Expandir</button><button className="workspace-button-secondary px-2 py-1" onClick={()=>{setQuery("");setTypeFilter("all");setStateFilter("all");setSprintFilter("all")}}>Limpar filtros</button></div></div>
+   <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-xs text-(--text-secondary)"><span>{visible.length} itens exibidos · {data.stories.length} US cadastradas</span><div className="flex gap-2"><button className="workspace-button-secondary px-2 py-1" onClick={()=>setCollapsed([...epics.map(e=>e.id),...features.map(f=>f.id)])}>Recolher</button><button className="workspace-button-secondary px-2 py-1" onClick={()=>setCollapsed([])}>Expandir</button><button className="workspace-button-secondary px-2 py-1" onClick={()=>{setQuery("");setTypeFilter("all");setStateFilter("all");setSprintFilter("all");setResponsibleFilter("all")}}>Limpar filtros</button></div></div>
    {(error||data.error)&&<p role="alert" className="mt-3 text-sm text-(--danger)">{error||data.error}</p>}
   </SurfaceCard>
   <SurfaceCard>
