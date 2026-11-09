@@ -28,6 +28,19 @@ export default function BacklogPage(){
  const [form,setForm]=useState<Form>(initial);const [saving,setSaving]=useState(false);const [comment,setComment]=useState("");const [transitionComment,setTransitionComment]=useState("");
  const [query,setQuery]=useState("");const [typeFilter,setTypeFilter]=useState("all");const [stateFilter,setStateFilter]=useState("all");const [sprintFilter,setSprintFilter]=useState("all");const [collapsed,setCollapsed]=useState<string[]>([]);
  const [error,setError]=useState("");
+ const [assignmentHistory,setAssignmentHistory]=useState<Array<{previous_responsible:string|null;new_responsible:string|null;changed_at:string}>>([]);
+ const [assignmentHistoryStatus,setAssignmentHistoryStatus]=useState("");
+ useEffect(()=>{
+  if(!drawerOpen||!opened?.item||!["epic","feature"].includes(opened.type)||!data.projectId){setAssignmentHistory([]);setAssignmentHistoryStatus("");return}
+  let alive=true;
+  setAssignmentHistoryStatus("Carregando histórico...");
+  void apiGet("/api/scrum/backlog-items?projectId="+encodeURIComponent(data.projectId)+"&historyItemId="+encodeURIComponent(opened.id))
+    .then((history:Array<{previous_responsible:string|null;new_responsible:string|null;changed_at:string}>)=>{
+      if(alive){setAssignmentHistory(history);setAssignmentHistoryStatus(history.length?"":"Nenhuma reatribuição registrada.")}
+    }).catch(()=>{if(alive){setAssignmentHistory([]);setAssignmentHistoryStatus("Histórico indisponível até a migração ser validada.")}});
+  return()=>{alive=false};
+ },[drawerOpen,opened?.id,opened?.type,data.projectId]);
+
  const loadItems=useCallback(async()=>{if(!data.projectId){setItems([]);return;}try{const rows=await apiGet("/api/scrum/backlog-items?projectId="+encodeURIComponent(data.projectId));setItems(rows as BacklogItem[])}catch(e){setError(e instanceof Error?e.message:"Erro ao carregar hierarquia.")}},[data.projectId]);
  useEffect(()=>{void loadItems()},[loadItems]);
  useEffect(()=>{let live=true;if(!data.projectId){setMembers([]);return}void apiGet("/api/scrum/project-members?projectId="+encodeURIComponent(data.projectId)).then((v:ProjectMember[])=>{if(live)setMembers(v)}).catch(()=>{if(live)setMembers([])});return()=>{live=false}},[data.projectId]);
@@ -181,6 +194,11 @@ export default function BacklogPage(){
    </fieldset>
    {!readOnly&&!isLocked&&<button className="workspace-button-primary mt-4 px-4 py-2 text-sm" disabled={saving||!form.title.trim()||mode==="feature"&&!form.parentId||mode==="task"&&!form.storyId} onClick={()=>void submit()}>{saving?"Salvando...":"Salvar "+types[mode]}</button>}
    {error&&<p role="alert" className="mt-3 text-sm text-(--danger)">{error}</p>}
+   {opened?.item&&["epic","feature"].includes(opened.type)&&<section className="mt-5 border-t border-(--border) pt-3">
+    <h3 className="text-sm font-semibold">Histórico do responsável</h3>
+    {assignmentHistoryStatus&&<p className="mt-2 text-xs text-(--text-secondary)">{assignmentHistoryStatus}</p>}
+    {assignmentHistory.map((h,index)=><p key={index} className="mt-2 text-xs text-(--text-secondary)">{new Date(h.changed_at).toLocaleString("pt-BR")} · {h.previous_responsible||"Não atribuído"} → {h.new_responsible||"Não atribuído"}</p>)}
+   </section>}
    {opened?.story&&<section className="mt-5 border-t border-(--border) pt-3"><h3 className="font-semibold text-sm">Histórico de comentários</h3>{allComments.map(c=><div key={c.id} className="mt-2 rounded-lg bg-(--bg-muted) p-3 text-xs"><p className="text-(--text-secondary)">{c.author_email} · {new Date(c.created_at).toLocaleString("pt-BR")}</p><p className="mt-1 whitespace-pre-wrap">{c.content}</p></div>)}{!isLocked&&!readOnly&&<><textarea className="workspace-input mt-3 w-full" rows={3} placeholder="Registrar acompanhamento..." value={comment} onChange={e=>setComment(e.target.value)}/><button className="workspace-button-secondary mt-2 px-3 py-2 text-xs" disabled={saving||!comment.trim()} onClick={()=>void addComment()}>Comentar</button></>}</section>}
   </aside></div>}
  </section>;
