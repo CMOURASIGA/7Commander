@@ -18,7 +18,26 @@ export async function GET(req:NextRequest){
  const r=id?await scopedQuery.eq("id",id).maybeSingle():await scopedQuery.order("created_at",{ascending:false}).limit(30);
  if(r.error)return res({error:"Falha ao consultar emissões."},503);
  if(!internalAccess){
-  const redact=(record:Record<string,unknown>)=>({...record,generated_by_email:null});
+  const redact=(record:Record<string,unknown>)=>{
+   const snapshot=record.report_data as Record<string,unknown>|undefined;
+   if(!snapshot)return {...record,generated_by_email:null};
+   const kanban=(snapshot.kanban||{}) as Record<string,unknown>;
+   const governance=(snapshot.governance||{}) as Record<string,unknown>;
+   const scrum=(snapshot.scrum||{}) as Record<string,unknown>;
+   const publicData={
+    ...snapshot,internal:undefined,
+    kanban:{...kanban,completed_titles:[]},
+    governance:{...governance,client_risks:[],client_decisions:[]},
+    scrum:{...scrum,sprints:[]}
+   };
+   // Old client snapshots may contain free-text narratives that were never
+   // reviewed for public disclosure. Do not return them to read-only clients.
+   return {...record,generated_by_email:null,report_data:publicData,narrative:{
+    executiveSummary:"Resumo do período disponível apenas por indicadores registrados.",
+    riskAnalysis:"Consultar riscos aprovados para divulgação.",
+    nextSteps:"Confirmar marcos e compromissos com a gestão do projeto."
+   }};
+  };
   return res({data:Array.isArray(r.data)?r.data.map(item=>redact(item as Record<string,unknown>)):r.data?redact(r.data as Record<string,unknown>):null});
  }
  return res({data:r.data});
