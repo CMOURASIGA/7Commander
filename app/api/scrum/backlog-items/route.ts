@@ -75,6 +75,15 @@ export async function POST(req:NextRequest){
  const patch={title,responsible:responsible||null,actual_end_date:itemType==="task"&&state==="done"?new Date().toISOString().slice(0,10):state==="todo"||state==="doing"?null:item?.actual_end_date||null,description:String(body.description??item?.description??"").slice(0,10000),state,parent_id:parentId,story_id:storyId,sort_order:rank,updated_at:new Date().toISOString()};
  const result=action==="create"?
   await db.from("scrum_backlog_items").insert({...patch,organization_id:org,project_id:projectId,item_type:itemType}).select("id").single():
-  await db.from("scrum_backlog_items").update(patch).eq("id",id).eq("organization_id",org).eq("project_id",projectId).select("id").single();
- return result.error?bad("Não foi possível salvar item: "+result.error.code,409):reply({data:result.data},action==="create"?201:200);
+  await db.from("scrum_backlog_items").update(patch).eq("id",id).eq("organization_id",org).eq("project_id",projectId).select("id,state,actual_end_date,story_id,updated_at").single();
+ if(result.error)return bad("Não foi possível salvar item: "+result.error.code,409);
+ // Return the authoritative Task state and its synchronous story-progress
+ // effect, avoiding a full board reload before another user interaction.
+ if(action==="update"&&itemType==="task"&&result.data?.story_id){
+  const linked=await db.from("scrum_user_stories")
+    .select("id,workflow_stage,actual_end_date,updated_at")
+    .eq("id",result.data.story_id).eq("project_id",projectId).eq("organization_id",org).maybeSingle();
+  if(!linked.error&&linked.data)return reply({data:{...result.data,story:linked.data}});
+ }
+ return reply({data:result.data},action==="create"?201:200);
 }
