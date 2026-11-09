@@ -187,6 +187,8 @@ export function getTaskDrafts(content: string): TaskDraft[] {
     })));
   }
 
+  // A report is knowledge/meeting input, not a single enormous Kanban task.
+  if((content.match(/^\s*#{1,6}\s+/gm)||[]).length>=2 || content.length>1200)return [];
   return filterActionableDrafts([{
     id: "task-1",
     title: getSuggestedTitle(content, "task"),
