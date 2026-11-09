@@ -84,11 +84,42 @@ function splitTitleAndDescription(raw: string): { title: string; description: st
   };
 }
 
+const NON_ACTIONABLE_HEADINGS=/^(avancos|avanços|pendencias|pendências|compromissos|riscos?( e impedimentos)?|proximos passos|próximos passos|situacao geral|situação geral|resumo|status report|panorama|conclusao|conclusão)$/i;
+const ACTION_VERBS=/\b(entregar|implementar|validar|gerar|revisar|criar|atualizar|corrigir|desenvolver|configurar|disponibilizar|testar|documentar|integrar|migrar|preparar|aprovar|publicar|concluir|executar|levantar|definir|mapear|enviar|verificar|solicitar|construir|produzir|finalizar|encaminhar|entrega(?:r|rá)|deverá|precisa(?:rá)?|implementarão)\b/i;
+function actionableTask(draft:TaskDraft):boolean {
+ const title=removeMarkdown(draft.title).replace(/[.:]\s*$/,"");
+ if(!title||NON_ACTIONABLE_HEADINGS.test(title))return false;
+ return ACTION_VERBS.test(title+" "+draft.description);
+}
+function filterActionableDrafts(drafts:TaskDraft[]):TaskDraft[] {
+ const seen=new Set<string>();
+ return drafts.filter(d=>{
+  if(!actionableTask(d))return false;
+  const normalized=removeMarkdown(d.title).toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/[^a-z0-9]+/g," ").trim();
+  if(seen.has(normalized))return false;
+  seen.add(normalized);return true;
+ });
+}
+export function getDecisionExcerpt(content:string):string {
+ const lines=content.replace(/\r\n/g,"\n").split("\n");
+ const start=lines.findIndex(line=>/^\s*(?:#{1,6}\s*)?(?:\*\*)?decis(?:ã|a)o(?:\s+(?:sugerida|proposta|para registrar))?(?:\*\*)?\s*:?\s*$/i.test(line.trim()));
+ if(start<0)return "";
+ const selected:string[]=[];
+ for(const line of lines.slice(start+1)){
+  if(/^\s*#{1,6}\s+/.test(line)&&selected.length)break;
+  if(/^\s*#{1,6}\s+/.test(line)&&!selected.length)break;
+  if(/^\s*(?:\*\*)?(?:risco|pendências|proximos passos|próximos passos|status report)(?:\*\*)?\s*:/i.test(line))break;
+  selected.push(line);
+  if(selected.join("\n").length>3000)break;
+ }
+ return selected.join("\n").trim().slice(0,3000);
+}
+
 export function getTaskDrafts(content: string): TaskDraft[] {
   const numberedItems = [...content.matchAll(/^\s*(\d+)[.)]\s+(.+)$/gm)];
 
   if (numberedItems.length > 1) {
-    return numberedItems.map((item, index) => {
+    return filterActionableDrafts(numberedItems.map((item, index) => {
       const start = (item.index ?? 0) + item[0].length;
       const end = numberedItems[index + 1]?.index ?? content.length;
       const description = content.slice(start, end)
@@ -102,12 +133,12 @@ export function getTaskDrafts(content: string): TaskDraft[] {
         description: removeMarkdown(description),
         selected: true,
       };
-    });
+    }));
   }
 
   const inlineNumberedItems = matchSequentialNumberedItems(content);
   if (inlineNumberedItems.length > 1) {
-    return inlineNumberedItems.map((item, index) => {
+    return filterActionableDrafts(inlineNumberedItems.map((item, index) => {
       const start = (item.index ?? 0) + item[0].length;
       const end = inlineNumberedItems[index + 1]?.index ?? content.length;
       const { title, description } = splitTitleAndDescription(content.slice(start, end));
@@ -117,14 +148,14 @@ export function getTaskDrafts(content: string): TaskDraft[] {
         description,
         selected: true,
       };
-    });
+    }));
   }
 
   const boldItems = [...content.matchAll(/^\s*\*\*([^*\n]+)\*\*\s*$/gm)]
     .filter((item) => !/^(atividades|proximos passos|próximos passos|contexto|diagnostico|diagnóstico)\b/i.test(removeMarkdown(item[1]).replace(/:\s*$/, "")));
 
   if (boldItems.length > 1) {
-    return boldItems.map((item, index) => {
+    return filterActionableDrafts(boldItems.map((item, index) => {
       const start = (item.index ?? 0) + item[0].length;
       const end = boldItems[index + 1]?.index ?? content.length;
       const description = content.slice(start, end)
@@ -137,7 +168,7 @@ export function getTaskDrafts(content: string): TaskDraft[] {
         description: removeMarkdown(description),
         selected: true,
       };
-    });
+    }));
   }
 
   // Itens de lista com titulo em negrito e descricao na mesma linha, ex.:
@@ -147,20 +178,20 @@ export function getTaskDrafts(content: string): TaskDraft[] {
   const bulletBoldItems = [...content.matchAll(/^\s*[-*]\s*\*\*([^*\n]+)\*\*\s*:?\s*(.*)$/gm)];
 
   if (bulletBoldItems.length > 1) {
-    return bulletBoldItems.map((item, index) => ({
+    return filterActionableDrafts(bulletBoldItems.map((item, index) => ({
       id: `task-bullet-${index + 1}`,
       title: removeMarkdown(item[1]).replace(/[.:]\s*$/, "") || `Atividade ${index + 1}`,
       description: removeMarkdown(item[2] ?? ""),
       selected: true,
-    }));
+    })));
   }
 
-  return [{
+  return filterActionableDrafts([{
     id: "task-1",
     title: getSuggestedTitle(content, "task"),
     description: content,
     selected: true,
-  }];
+  }]);
 }
 
 export function getSuggestedTitle(content: string, kind: SaveKind): string {
@@ -299,7 +330,7 @@ export function useKairosCore(options?: UseKairosCoreOptions) {
   const [riskTitleError, setRiskTitleError] = useState<string | null>(null);
   const [knowledgeTitleError, setKnowledgeTitleError] = useState<string | null>(null);
   const [knowledgeContentError, setKnowledgeContentError] = useState<string | null>(null);
-  const [decisionForm, setDecisionForm] = useState({ title: "", context: "", impact: "", artifactId: "" });
+  const [decisionForm, setDecisionForm] = useState({ title: "", context: "", reason: "", impact: "", artifactId: "" });
   const [riskForm, setRiskForm] = useState({ title: "", impact: "", probability: "", mitigation: "", owner: "" });
   const [riskDrafts,setRiskDrafts] = useState<RiskDraft[]>([]);
   const [knowledgeForm, setKnowledgeForm] = useState({ title: "", category: "registro do Kairos", content: "" });
@@ -714,7 +745,7 @@ export function useKairosCore(options?: UseKairosCoreOptions) {
   function openSaveDialog(kind: SaveKind, message: KairosMessage) {
     resetFieldErrors();
     if (kind === "decision") {
-      setDecisionForm({ title: getSuggestedTitle(message.content, kind), context: "", impact: "", artifactId: "" });
+      setDecisionForm({ title: getSuggestedTitle(message.content, kind), context: "", reason: getDecisionExcerpt(message.content), impact: "", artifactId: "" });
     } else if (kind === "risk") {
       const parsed = parseRiskDrafts(message.content);
       setRiskDrafts(parsed);
@@ -738,6 +769,7 @@ export function useKairosCore(options?: UseKairosCoreOptions) {
   async function handleSaveDecision() {
     if (!saveDialog || saveDialog.kind !== "decision" || !activeProjectId) return;
     if (!decisionForm.title.trim()) { setDecisionTitleError("Informe o titulo da decisao."); return; }
+    if (!decisionForm.reason.trim()) { showToast("Informe apenas a decisão específica, sem copiar o relatório completo.", "error"); return; }
     setDecisionTitleError(null);
     setDecisionLoadingId(saveDialog.message.id);
     try {
@@ -747,7 +779,7 @@ export function useKairosCore(options?: UseKairosCoreOptions) {
         body: JSON.stringify({
           title: decisionForm.title.trim(),
           context: decisionForm.context.trim(),
-          reason: saveDialog.message.content,
+          reason: decisionForm.reason.trim(),
           impact: decisionForm.impact.trim() || `Registrada via Kairos (${saveDialog.message.specialist})`,
           status: "aberta",
           projectId: activeProjectId,
