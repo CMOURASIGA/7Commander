@@ -79,10 +79,10 @@ export async function POST(req:NextRequest){
  if(result.error)return bad("Não foi possível salvar item: "+result.error.code,409);
  // Return the authoritative Task state and its synchronous story-progress
  // effect, avoiding a full board reload before another user interaction.
- if(action==="update"&&itemType==="task"&&result.data?.story_id){
+ if(action==="update"&&itemType==="task"&&storyId){
   const linked=await db.from("scrum_user_stories")
     .select("id,workflow_stage,actual_end_date,updated_at")
-    .eq("id",result.data.story_id).eq("project_id",projectId).eq("organization_id",org).maybeSingle();
+    .eq("id",String(storyId)).eq("project_id",projectId).eq("organization_id",org).maybeSingle();
   if(!linked.error&&linked.data)return reply({data:{...result.data,story:linked.data}});
  }
  return reply({data:result.data},action==="create"?201:200);
