@@ -8,6 +8,7 @@ import { Decision, DecisionStatus } from "@/types/decision";
 import { getClientAuthHeaders } from "@/lib/client-auth";
 import { useCentralPilotReadOnly } from "@/lib/use-central-pilot-read-only";
 import { MarkdownContent } from "@/components/ui/markdown-content";
+import { normalizeDecisionText } from "@/lib/decision-excerpt";
 import { PageIntro, SectionLabel, StatusPill } from "@/components/ui/workspace-primitives";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 
@@ -1272,7 +1273,7 @@ export default function ProjectsPage() {
                 </select>
               </div>
               <p className="mt-2 text-sm leading-6 text-(--text-secondary)">
-                {(decision.reason || decision.context || "Sem justificativa registrada.").replace(/[#*`]/g,"").replace(/\s+/g," ").slice(0,220)}
+                {normalizeDecisionText(decision.reason || decision.context || "Sem justificativa registrada.").display.replace(/[#*`]/g,"").replace(/\s+/g," ").slice(0,220)}
                 {(decision.reason || decision.context || "").length>220?"…":""}
               </p>
               <div className="mt-1 text-xs text-(--text-secondary)">
@@ -1283,7 +1284,7 @@ export default function ProjectsPage() {
                 <summary className="cursor-pointer text-sm font-medium text-(--accent)">Ver detalhes da decisão</summary>
                 <div className="mt-3 space-y-4 text-sm">
                   <section><h4 className="mb-1 font-semibold">Contexto</h4><MarkdownContent content={decision.context||"Não informado."}/></section>
-                  <section><h4 className="mb-1 font-semibold">Motivo e justificativa</h4><MarkdownContent content={decision.reason||"Não informado."}/></section>
+                  <section><h4 className="mb-1 font-semibold">Motivo e justificativa</h4><MarkdownContent content={normalizeDecisionText(decision.reason||"Não informado.").display}/>{normalizeDecisionText(decision.reason||"").hasEmbeddedReport&&<details className="mt-3 rounded-lg border border-(--border) p-3"><summary className="cursor-pointer text-xs text-(--accent)">Ver relatório de origem integral, preservado para auditoria</summary><MarkdownContent className="mt-3" content={decision.reason}/></details>}</section>
                   <section><h4 className="mb-1 font-semibold">Impacto esperado</h4><MarkdownContent content={decision.impact||"Não informado."}/></section>
                   {(decision.conversationId||decision.artifactId)&&<p className="text-xs text-(--text-secondary)">Origem: {decision.conversationId?"Conversa vinculada":""}{decision.conversationId&&decision.artifactId?" · ":""}{decision.artifactId?"Documento vinculado":""}</p>}
                 </div>
