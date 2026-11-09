@@ -1,8 +1,8 @@
 import type { MetadataRoute } from "next";
 export default function manifest(): MetadataRoute.Manifest {
  return {
-  name: "7Commander — Gestão de projetos",
-  short_name: "7Commander",
+  name: "Commander — Gestão de projetos",
+  short_name: "Commander",
   description: "Gestão de projetos e operações",
   start_url: "/",
   scope: "/",
