@@ -18,6 +18,7 @@ export function AppShell({ children }: AppShellProps) {
   const pathname = usePathname();
   const router = useRouter();
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  const [companyContextChanged,setCompanyContextChanged]=useState(false);
   const canBypassAuth =
     pathname === "/login" || pathname.startsWith("/auth/callback");
   const mustWaitForAuth = auth.required && auth.loading && !canBypassAuth;
@@ -28,12 +29,13 @@ export function AppShell({ children }: AppShellProps) {
     router.replace(`/login?next=${encodeURIComponent(pathname)}`);
   }, [mustBlock, pathname, router]);
 
-  // A company switch in another tab invalidates this tab's in-memory
-  // project, Kairos and permission context. Reload from the server-verified
-  // active tenant instead of silently showing data from the former tenant.
+  // The operational tenant is server-side and shared across tabs.
+  // Fail closed after a switch elsewhere: never silently reprocess the old
+  // tab under the newly selected company. Full independent tenant contexts
+  // require explicit per-request tenant authorization in every API.
   useEffect(()=>{
     const onStorage=(event:StorageEvent)=>{
-      if(event.key==="7commander:company-changed")window.location.reload();
+      if(event.key==="7commander:company-changed")setCompanyContextChanged(true);
     };
     window.addEventListener("storage",onStorage);
     return()=>window.removeEventListener("storage",onStorage);
@@ -51,6 +53,18 @@ export function AppShell({ children }: AppShellProps) {
           {children}
         </main>
       </div>
+    );
+  }
+
+  if(companyContextChanged && !canBypassAuth){
+    return (
+      <main className="mx-auto flex min-h-screen max-w-xl items-center justify-center p-6">
+        <section role="alert" className="rounded-xl border border-(--border) bg-(--bg-surface) p-6">
+          <h1 className="text-lg font-semibold">Empresa alterada em outra aba</h1>
+          <p className="mt-3 text-sm text-(--text-secondary)">O Commander utiliza atualmente um contexto operacional de empresa por sessão. Esta aba foi bloqueada para impedir operações com a empresa incorreta. A navegação independente entre empresas ainda requer isolamento por requisição.</p>
+          <button type="button" className="workspace-button-primary mt-4" onClick={()=>window.location.reload()}>Atualizar para a empresa ativa</button>
+        </section>
+      </main>
     );
   }
 
