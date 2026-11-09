@@ -18,7 +18,7 @@ async function scope(request:NextRequest,projectId:string,write=false){
   if(!uuid.test(projectId))return {error:fail("Projeto inválido.")} as const;
   const project=await getProjectById({projectId,userId:auth.context.userId,userEmail:auth.context.userEmail});
   if(!project)return {error:fail("Projeto não encontrado.",404)} as const;
-  const role=await getProjectAccessRole({projectId,userId:auth.context.userId,userEmail:auth.context.userEmail});
+  const role=await getProjectAccessRole({projectId,userId:auth.context.userId,userEmail:auth.context.userEmail,verifiedProject:project});
   if(role==="none" || write&&!["owner","editor"].includes(role))return {error:fail("Acesso negado.",403)} as const;
   const db=getSupabaseServerClient();if(!db)return {error:fail("Banco indisponível.",503)} as const;
   const org=TENANT_SCHEMA_READY?await requireEffectiveTenant(auth.context.userId):CONSULT_ORG_ID;
