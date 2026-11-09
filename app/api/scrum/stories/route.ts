@@ -80,6 +80,11 @@ export async function POST(req:NextRequest){
   }
   if(action!=="create"&&action!=="update")return fail("Ação não reconhecida.");
   const title=typeof body.title==="string"?body.title.trim():current?.title||"";
+  if(action==="create"&&body.fromKairos===true){
+    const duplicate=await db.from("scrum_user_stories").select("id").eq("organization_id",org).eq("project_id",projectId).ilike("title",title).limit(1);
+    if(duplicate.error)return fail("Não foi possível verificar duplicidade da US.",503);
+    if(duplicate.data?.length)return fail("US do Kairos já cadastrada com este título.",409);
+  }
   if(!title||title.length>180)return fail("Título obrigatório (até 180 caracteres).");
   const priority=body.priority===undefined?current?.priority||"media":String(body.priority);
   if(!["baixa","media","alta","critica"].includes(priority))return fail("Prioridade inválida.");
