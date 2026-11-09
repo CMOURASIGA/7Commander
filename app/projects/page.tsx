@@ -1266,7 +1266,7 @@ export default function ProjectsPage() {
                 </select>
               </div>
               <p className="mt-2 text-sm leading-6 text-(--text-secondary)">
-                {(decision.reason || decision.context || "Sem justificativa registrada.").replace(/[#*`]/g,"").replace(/\\s+/g," ").slice(0,220)}
+                {(decision.reason || decision.context || "Sem justificativa registrada.").replace(/[#*`]/g,"").replace(/\s+/g," ").slice(0,220)}
                 {(decision.reason || decision.context || "").length>220?"…":""}
               </p>
               <div className="mt-1 text-xs text-(--text-secondary)">
