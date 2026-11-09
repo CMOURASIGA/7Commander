@@ -28,6 +28,17 @@ export function AppShell({ children }: AppShellProps) {
     router.replace(`/login?next=${encodeURIComponent(pathname)}`);
   }, [mustBlock, pathname, router]);
 
+  // A company switch in another tab invalidates this tab's in-memory
+  // project, Kairos and permission context. Reload from the server-verified
+  // active tenant instead of silently showing data from the former tenant.
+  useEffect(()=>{
+    const onStorage=(event:StorageEvent)=>{
+      if(event.key==="7commander:company-changed")window.location.reload();
+    };
+    window.addEventListener("storage",onStorage);
+    return()=>window.removeEventListener("storage",onStorage);
+  },[]);
+
   // Fecha a gaveta mobile automaticamente ao trocar de rota.
   useEffect(() => {
     setMobileNavOpen(false);
