@@ -67,8 +67,11 @@ export function KairosAuthProvider({ required, children }: ProviderProps) {
       if (sessionUser && token) {
         setClientAuthToken(token, sessionUser.email ?? null);
         await syncServerLocalSession(token);
-        await syncProfile(sessionUser);
-        syncedUserIdRef.current = sessionUser.id;
+        // Profile metadata is best-effort and must never block navigation.
+        if (syncedUserIdRef.current !== sessionUser.id) {
+          syncedUserIdRef.current = sessionUser.id;
+          void syncProfile(sessionUser);
+        }
       } else {
         clearClientAuthToken();
         syncedUserIdRef.current = null;
@@ -90,8 +93,8 @@ export function KairosAuthProvider({ required, children }: ProviderProps) {
         setClientAuthToken(token, currentUser.email ?? null);
         await syncServerLocalSession(token);
         if (syncedUserIdRef.current !== currentUser.id) {
-          await syncProfile(currentUser);
           syncedUserIdRef.current = currentUser.id;
+          void syncProfile(currentUser);
         }
       } else {
         clearClientAuthToken();
