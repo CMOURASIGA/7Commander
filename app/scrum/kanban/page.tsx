@@ -51,7 +51,7 @@ export default function ScrumKanbanPage(){
   void Promise.all([apiGet("/api/scrum/backlog-items?projectId="+encodeURIComponent(data.projectId)),apiGet("/api/scrum/project-members?projectId="+encodeURIComponent(data.projectId))]).then(([a,b])=>{if(live){setTasks((a as BacklogItem[]).filter(t=>t.item_type==="task"));setFeatures((a as BacklogItem[]).filter(t=>t.item_type==="feature"));setMembers(b as ProjectMember[])}}).catch(()=>{});
   return()=>{live=false}
  },[data.projectId]);
- const refreshTasks=async()=>{const a=await apiGet("/api/scrum/backlog-items?projectId="+encodeURIComponent(data.projectId));setTasks((a as BacklogItem[]).filter(t=>t.item_type==="task"))};
+
  const sprint=data.sprints.find(s=>s.id===data.sprintId);
  const stories=data.stories.filter(s=>s.sprint_id===data.sprintId);
  const filtered=stories.filter(s=>(!search||s.title.toLowerCase().includes(search.toLowerCase()))&&(priority==="all"||s.priority===priority)&&(assignee==="all"||s.responsible===assignee)&&(blockedOnly?s.blocked:true));
