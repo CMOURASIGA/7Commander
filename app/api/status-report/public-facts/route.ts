@@ -82,7 +82,7 @@ export async function POST(request:NextRequest){
   const sourceReference=String(data.sourceReference||"").trim();
   const id=String(data.id||"");
   if(!kinds.includes(kind)||!states.includes(classification)||title.length<3||title.length>180||
-      description.length>3000||(due&&!/^\\d{4}-\\d{2}-\\d{2}$/.test(due))||
+      description.length>3000||(due&&!/^\d{4}-\d{2}-\d{2}$/.test(due))||
       sourceReference.length>500||(id&&!uuid.test(id)))
     return out({error:"Campos de publicação inválidos."},400);
   // Untrusted source references cannot bypass tenant boundaries.
