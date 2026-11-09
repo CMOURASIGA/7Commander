@@ -37,6 +37,32 @@ export default function ProjectMeetings(){
  const [compareIds,setCompareIds]=useState<string[]>([]);
  const [linkForm,setLinkForm]=useState({meetingId:"",recordType:"decision",recordId:""});
  const [linking,setLinking]=useState(false);
+ const [availableRecords,setAvailableRecords]=useState<Array<{id:string;title:string}>>([]);
+ const [recordsLoading,setRecordsLoading]=useState(false);
+ useEffect(()=>{
+  if(!projectId||!linkForm.recordType){setAvailableRecords([]);return}
+  let live=true;
+  const type=linkForm.recordType;
+  const base="/api/projects/"+encodeURIComponent(projectId);
+  const endpoint=type==="decision"?"/api/decisions?projectId="+encodeURIComponent(projectId)
+   :type==="risk"?base+"/risks"
+   :type==="story"?"/api/scrum/stories?projectId="+encodeURIComponent(projectId)
+   :type==="task"?base+"/tasks"
+   :type==="sprint"?"/api/scrum?projectId="+encodeURIComponent(projectId)
+   :"/api/knowledge?projectId="+encodeURIComponent(projectId);
+  setRecordsLoading(true);setAvailableRecords([]);
+  void fetch(endpoint,{headers:getClientAuthHeaders(),cache:"no-store"}).then(async response=>{
+   const json=await response.json();if(!response.ok)throw Error(json.error||"Consulta indisponível.");
+   let values:Array<{id:string;title:string}>=[];
+   if(type==="story")values=(json.data?.stories||[]).map((x:{id:string;title:string})=>({id:x.id,title:x.title}));
+   else if(type==="sprint")values=(json.data?.sprints||[]).map((x:{id:string;name:string})=>({id:x.id,title:x.name}));
+   else if(type==="task")values=(json.data?.columns||[]).flatMap((x:{cards:Array<{id:string;title:string}>})=>x.cards.map(card=>({id:card.id,title:card.title})));
+   else values=(json.data||[]).map((x:{id:string;title?:string;name?:string})=>({id:x.id,title:x.title||x.name||"Registro"}));
+   if(live)setAvailableRecords(values);
+  }).catch(()=>{if(live)setAvailableRecords([])}).finally(()=>{if(live)setRecordsLoading(false)});
+  return()=>{live=false};
+ },[projectId,linkForm.recordType]);
+
  const fetchMeetings=useCallback(async()=>{
   if(!projectId)return;
   setLoading(true);
@@ -110,11 +136,11 @@ export default function ProjectMeetings(){
   </section>
   {!readOnly&&!checking&&meetings.length>0&&<section className="workspace-card space-y-3 p-5">
    <h2 className="font-semibold">Vincular registro já existente</h2>
-   <p className="text-xs text-(--text-secondary)">O vínculo exige um registro do mesmo projeto e não cria cópias. Use o identificador de registro obtido da interface autorizada.</p>
+   <p className="text-xs text-(--text-secondary)">O vínculo exige um registro do mesmo projeto e não cria cópias. Selecione um registro autorizado. Os identificadores internos não aparecem na interface.</p>
    <div className="grid gap-3 sm:grid-cols-3">
     <select aria-label="Reunião" className="workspace-select" value={linkForm.meetingId} onChange={e=>setLinkForm(f=>({...f,meetingId:e.target.value}))}><option value="">Reunião</option>{meetings.map(m=><option key={m.id} value={m.id}>{m.title}</option>)}</select>
-    <select aria-label="Tipo de registro" className="workspace-select" value={linkForm.recordType} onChange={e=>setLinkForm(f=>({...f,recordType:e.target.value}))}>{[["decision","Decisão"],["risk","Risco"],["story","User Story"],["task","Task operacional"],["sprint","Sprint"],["knowledge","Conhecimento"]].map(([v,label])=><option key={v} value={v}>{label}</option>)}</select>
-    <input aria-label="Identificador do registro existente" className="workspace-input" placeholder="ID do registro" value={linkForm.recordId} onChange={e=>setLinkForm(f=>({...f,recordId:e.target.value}))}/>
+    <select aria-label="Tipo de registro" className="workspace-select" value={linkForm.recordType} onChange={e=>setLinkForm(f=>({...f,recordType:e.target.value,recordId:""}))}>{[["decision","Decisão"],["risk","Risco"],["story","User Story"],["task","Task operacional"],["sprint","Sprint"],["knowledge","Conhecimento"]].map(([v,label])=><option key={v} value={v}>{label}</option>)}</select>
+    <select aria-label="Registro existente" className="workspace-select" disabled={recordsLoading} value={linkForm.recordId} onChange={e=>setLinkForm(f=>({...f,recordId:e.target.value}))}><option value="">{recordsLoading?"Consultando registros...":"Selecione o registro"}</option>{availableRecords.map(record=><option key={record.id} value={record.id}>{record.title}</option>)}</select>
    </div>
    <button className="workspace-button-secondary px-4 py-2 text-sm" disabled={linking||!linkForm.meetingId||!linkForm.recordId.trim()} onClick={()=>void linkExisting()}>{linking?"Vinculando...":"Vincular"}</button>
   </section>}
