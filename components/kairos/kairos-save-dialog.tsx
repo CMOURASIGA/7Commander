@@ -16,7 +16,8 @@ export function KairosSaveDialog({ core }: { core: KairosCore }) {
     core.decisionLoadingId === saveDialog.message.id ||
     core.riskLoadingId === saveDialog.message.id ||
     core.knowledgeLoadingId === saveDialog.message.id ||
-    core.taskLoadingId === saveDialog.message.id;
+    core.taskLoadingId === saveDialog.message.id ||
+    core.destinationLoadingId === saveDialog.message.id;
 
   return (
     <div className="fixed inset-0 z-[95] flex items-center justify-center bg-slate-950/45 p-4" role="presentation">
@@ -33,7 +34,10 @@ export function KairosSaveDialog({ core }: { core: KairosCore }) {
                     ? "Registrar risco"
                     : saveDialog.kind === "knowledge"
                       ? "Guardar como conhecimento"
-                      : "Criar atividade no Kanban"}
+                      : saveDialog.kind==="meeting"?"Registrar reunião"
+                  :saveDialog.kind==="story"?"Criar User Story"
+                  :saveDialog.kind==="story-task"?"Criar Task de US"
+                  :"Criar atividade no Kanban"}
             </h2>
             <p className="mt-1 text-sm text-(--text-secondary)">
               Revise e complete as informacoes antes de salvar em {core.selectedProject?.name ?? "este projeto"}.
@@ -74,6 +78,9 @@ export function KairosSaveDialog({ core }: { core: KairosCore }) {
                   <span className="mt-1 block text-sm leading-5 text-(--text-secondary)">Crie um card para executar e acompanhar o trabalho no quadro.</span>
                 </span>
               </button>
+              <button type="button" onClick={() => core.openSaveDialog("meeting",saveDialog.message)} className="rounded-xl border p-4 text-left hover:bg-(--accent-ghost)"><strong>Reunião</strong><p className="text-xs">Registrar acompanhamento com origem e histórico.</p></button>
+              <button type="button" onClick={() => core.openSaveDialog("story",saveDialog.message)} className="rounded-xl border p-4 text-left hover:bg-(--accent-ghost)"><strong>User Story</strong><p className="text-xs">Criar US no Backlog e vincular Feature ou Sprint existente.</p></button>
+              <button type="button" onClick={() => core.openSaveDialog("story-task",saveDialog.message)} className="rounded-xl border p-4 text-left hover:bg-(--accent-ghost)"><strong>Task de US</strong><p className="text-xs">Criar atividade subordinada a uma US do projeto.</p></button>
             </div>
           </div>
         ) : saveDialog.kind === "decision" ? (
@@ -102,6 +109,34 @@ export function KairosSaveDialog({ core }: { core: KairosCore }) {
             <label className="sm:col-span-2 text-xs font-medium text-(--text-primary)">Artefato relacionado (opcional)
               <input value={core.decisionForm.artifactId} onChange={(event) => core.setDecisionForm((prev) => ({ ...prev, artifactId: event.target.value }))} className="workspace-input mt-1 w-full" />
             </label>
+          </div>
+        ) : saveDialog.kind==="meeting" ? (
+          <div className="mt-5 grid gap-3 sm:grid-cols-2">
+            <label className="text-xs">Título<input className="workspace-input mt-1 w-full" value={core.meetingForm.title} onChange={e=>core.setMeetingForm(f=>({...f,title:e.target.value}))}/></label>
+            <label className="text-xs">Data/hora<input type="datetime-local" className="workspace-input mt-1 w-full" value={core.meetingForm.heldAt} onChange={e=>core.setMeetingForm(f=>({...f,heldAt:e.target.value}))}/></label>
+            {([["participants","Participantes"],["objective","Objetivo"],["summary","Resumo e fonte original"],["advances","Avanços"],["decisions","Decisões"],["commitments","Compromissos"],["pendingItems","Pendências"],["risks","Riscos e impedimentos"],["sourceArtifactId","Documento de origem"]] as const).map(([key,label])=>
+              <label key={key} className="text-xs sm:col-span-2">{label}<textarea className="workspace-input mt-1 w-full" rows={key==="summary"?4:2} value={core.meetingForm[key]} onChange={e=>core.setMeetingForm(f=>({...f,[key]:e.target.value}))}/></label>)}
+            <label className="text-xs">Próximo acompanhamento<input type="datetime-local" className="workspace-input mt-1 w-full" value={core.meetingForm.nextFollowUp} onChange={e=>core.setMeetingForm(f=>({...f,nextFollowUp:e.target.value}))}/></label>
+            <p className="sm:col-span-2 text-xs text-(--text-secondary)">Revise os dados antes de registrar. Nenhuma entrega será considerada concluída automaticamente.</p>
+          </div>
+        ) : saveDialog.kind==="story" ? (
+          <div className="mt-5 grid gap-3 sm:grid-cols-2">
+            <label className="text-xs sm:col-span-2">Título da US<input className="workspace-input mt-1 w-full" value={core.storyForm.title} onChange={e=>core.setStoryForm(f=>({...f,title:e.target.value}))}/></label>
+            <label className="text-xs sm:col-span-2">Descrição<textarea rows={4} className="workspace-input mt-1 w-full" value={core.storyForm.description} onChange={e=>core.setStoryForm(f=>({...f,description:e.target.value}))}/></label>
+            <label className="text-xs sm:col-span-2">Critérios de aceite<textarea rows={2} className="workspace-input mt-1 w-full" value={core.storyForm.acceptanceCriteria} onChange={e=>core.setStoryForm(f=>({...f,acceptanceCriteria:e.target.value}))}/></label>
+            <label className="text-xs">Feature existente<select className="workspace-select mt-1 w-full" value={core.storyForm.featureId} onChange={e=>core.setStoryForm(f=>({...f,featureId:e.target.value}))}><option value="">US independente</option>{core.scrumChoices.features.map(x=><option key={x.id} value={x.id}>{x.title}</option>)}</select></label>
+            <label className="text-xs">Sprint<select className="workspace-select mt-1 w-full" value={core.storyForm.sprintId} onChange={e=>core.setStoryForm(f=>({...f,sprintId:e.target.value}))}><option value="">Sem Sprint</option>{core.scrumChoices.sprints.map(x=><option key={x.id} value={x.id}>{x.name}</option>)}</select></label>
+            <label className="text-xs">Responsável<select className="workspace-select mt-1 w-full" value={core.storyForm.responsible} onChange={e=>core.setStoryForm(f=>({...f,responsible:e.target.value}))}><option value="">Não atribuído</option>{core.scrumChoices.members.map(x=><option key={x.email} value={x.email}>{x.name}</option>)}</select></label>
+            <label className="text-xs">Prioridade<select className="workspace-select mt-1 w-full" value={core.storyForm.priority} onChange={e=>core.setStoryForm(f=>({...f,priority:e.target.value}))}><option value="baixa">Baixa</option><option value="media">Média</option><option value="alta">Alta</option><option value="critica">Crítica</option></select></label>
+            <label className="text-xs">Início confirmado<input type="date" className="workspace-input mt-1 w-full" value={core.storyForm.startDate} onChange={e=>core.setStoryForm(f=>({...f,startDate:e.target.value}))}/></label>
+            <label className="text-xs">Entrega prevista confirmada<input type="date" className="workspace-input mt-1 w-full" value={core.storyForm.dueDate} onChange={e=>core.setStoryForm(f=>({...f,dueDate:e.target.value}))}/></label>
+          </div>
+        ) : saveDialog.kind==="story-task" ? (
+          <div className="mt-5 grid gap-3">
+            <label className="text-xs">US existente<select className="workspace-select mt-1 w-full" value={core.storyTaskForm.storyId} onChange={e=>core.setStoryTaskForm(f=>({...f,storyId:e.target.value}))}><option value="">Selecione uma US</option>{core.scrumChoices.stories.map(x=><option key={x.id} value={x.id}>{x.title}</option>)}</select></label>
+            <label className="text-xs">Título da Task<input className="workspace-input mt-1 w-full" value={core.storyTaskForm.title} onChange={e=>core.setStoryTaskForm(f=>({...f,title:e.target.value}))}/></label>
+            <label className="text-xs">Descrição<textarea className="workspace-input mt-1 w-full" rows={4} value={core.storyTaskForm.description} onChange={e=>core.setStoryTaskForm(f=>({...f,description:e.target.value}))}/></label>
+            <label className="text-xs">Responsável<select className="workspace-select mt-1 w-full" value={core.storyTaskForm.responsible} onChange={e=>core.setStoryTaskForm(f=>({...f,responsible:e.target.value}))}><option value="">Não atribuído</option>{core.scrumChoices.members.map(x=><option key={x.email} value={x.email}>{x.name}</option>)}</select></label>
           </div>
         ) : saveDialog.kind === "risk" ? (
           <div className="mt-5 grid gap-3 sm:grid-cols-2">
@@ -222,6 +257,7 @@ export function KairosSaveDialog({ core }: { core: KairosCore }) {
                 saveDialog.kind === "decision" ? core.handleSaveDecision()
                   : saveDialog.kind === "risk" ? core.handleSaveRisk()
                     : saveDialog.kind === "knowledge" ? core.handleSaveKnowledge()
+                      : ["meeting","story","story-task"].includes(saveDialog.kind) ? core.handleSaveStructuredDestination()
                       : core.handleSaveTask()
               )}
               disabled={isSaving}
