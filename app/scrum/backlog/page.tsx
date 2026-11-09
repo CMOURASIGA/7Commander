@@ -1,6 +1,7 @@
 "use client";
 import {ScrumKairosActions} from "@/components/scrum/scrum-kairos-actions";
-import {useCallback,useEffect,useMemo,useState} from "react";
+import {MarkdownContent} from "@/components/ui/markdown-content";
+import {useCallback,useEffect,useMemo,useRef,useState} from "react";
 import {PageIntro,SurfaceCard} from "@/components/ui/workspace-primitives";
 import {useConfirm} from "@/components/ui/confirm-dialog";
 import {ScrumSelectors,useScrumData,apiGet,apiPost,Story,BacklogItem,ProjectMember,stages,transitions,dateBR,dateOnly,today,addDays,daysBetween} from "@/components/scrum/scrum-common";
@@ -22,7 +23,7 @@ function WorkItemIcon({type}:{type:Row["type"]}){
 function Icon({kind}:{kind:"view"|"edit"|"delete"|"add"}){return <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">{kind==="view"?<><path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/></>:kind==="edit"?<><path d="m4 20 4-1 11-11-3-3L5 16l-1 4Z"/><path d="m14 6 3 3"/></>:kind==="delete"?<><path d="M4 6h16M9 6V4h6v2M7 6l1 14h8l1-14M10 10v7M14 10v7"/></>:<path d="M12 4v16M4 12h16"/>}</svg>}
 const types={epic:"Epic",feature:"Feature",story:"User Story",task:"Task"} as const;
 export default function BacklogPage(){
- const data=useScrumData();const confirm=useConfirm();
+ const data=useScrumData();const confirm=useConfirm();const deepLinkHandled=useRef(false);
  const [items,setItems]=useState<BacklogItem[]>([]);const [members,setMembers]=useState<ProjectMember[]>([]);const [opened,setOpened]=useState<Row|null>(null);const [drawerOpen,setDrawerOpen]=useState(false);const [readOnly,setReadOnly]=useState(false);
  const [form,setForm]=useState<Form>(initial);const [saving,setSaving]=useState(false);const [comment,setComment]=useState("");const [transitionComment,setTransitionComment]=useState("");
  const [query,setQuery]=useState("");const [typeFilter,setTypeFilter]=useState("all");const [stateFilter,setStateFilter]=useState("all");const [sprintFilter,setSprintFilter]=useState("all");const [collapsed,setCollapsed]=useState<string[]>([]);
@@ -57,6 +58,19 @@ export default function BacklogPage(){
   });
   return result;
  },[items,data.stories]);
+ useEffect(()=>{
+  if(deepLinkHandled.current)return;
+  const params=new URLSearchParams(window.location.search);
+  const requestedProject=params.get("projectId");
+  const itemId=params.get("itemId");
+  if(!requestedProject||!itemId)return;
+  if(!data.projects.some(project=>project.id===requestedProject))return;
+  if(data.projectId!==requestedProject){data.setProjectId(requestedProject);return}
+  const item=rows.find(row=>row.id===itemId);
+  if(!item)return;
+  deepLinkHandled.current=true;
+  open(item,item.type,true);
+ },[data.projects,data.projectId,rows]);
  const visible=rows.filter(r=>{
   const term=query.trim().toLowerCase().replace(/^#/,"");
   const matchesText=!term||r.title.toLowerCase().includes(term)||r.number===term||r.number.startsWith(term+".");
@@ -159,6 +173,8 @@ export default function BacklogPage(){
       {opened?.story&&form.stage==="review"&&opened.story.workflow_stage!=="review"&&<label className="block text-xs">Justificativa obrigatória para REVIEW<textarea className="workspace-input mt-1 w-full" value={transitionComment} onChange={e=>setTransitionComment(e.target.value)}/></label>}
     </>}
     {(mode==="epic"||mode==="feature")&&<label className="block text-xs">Responsável<select className="workspace-select mt-1 w-full" value={form.responsible} onChange={e=>setForm(f=>({...f,responsible:e.target.value}))}><option value="">Não atribuído</option>{members.map(m=><option value={m.email} key={m.email}>{m.name}</option>)}</select></label>}
+    {readOnly&&form.description&&<div className="rounded-lg border border-(--border) p-3"><p className="mb-2 text-xs font-semibold">Descrição formatada</p><MarkdownContent content={form.description}/></div>}
+    {readOnly&&mode==="story"&&form.acceptanceCriteria&&<div className="rounded-lg border border-(--border) p-3"><p className="mb-2 text-xs font-semibold">Critérios de aceite</p><MarkdownContent content={form.acceptanceCriteria}/></div>}
     {mode==="task"&&<label className="block text-xs">User Story pai<select className="workspace-select mt-1 w-full" value={form.storyId} onChange={e=>setForm(f=>({...f,storyId:e.target.value}))}><option value="">Selecione a US</option>{data.stories.map(st=><option value={st.id} key={st.id}>{st.title}</option>)}</select></label>}
     {mode==="task"&&<label className="block text-xs">Responsável<select className="workspace-select mt-1 w-full" value={form.responsible} onChange={e=>setForm(f=>({...f,responsible:e.target.value}))}><option value="">Não atribuído</option>{members.map(m=><option value={m.email} key={m.email}>{m.name}</option>)}</select></label>}
     <div className="grid grid-cols-2 gap-3"><p className="text-xs text-(--text-secondary)">A ordem é calculada automaticamente pela hierarquia dos itens.</p>{mode!=="story"&&<label className="text-xs">Status<select className="workspace-select mt-1 w-full" value={form.stage} onChange={e=>setForm(f=>({...f,stage:e.target.value}))}>{(mode==="task"?[["todo","TO DO"],["doing","DOING"],["done","DONE"]] as const:stages).map(([v,label])=><option key={v} value={v} disabled={mode==="task"?(opened?.item?!(v===opened.item.state||(opened.item.state==="todo"&&v==="doing")||(opened.item.state==="doing"&&(v==="done"||v==="todo"))||(opened.item.state==="done"&&v==="doing")):v!=="todo"):false}>{label}</option>)}</select></label>}</div>
