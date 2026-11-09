@@ -61,7 +61,7 @@ export async function loadReportData(db:DB,org:string,projectId:string,audience:
   publicFactsAvailable:!approvedFacts.error,
   kanban:{
    total:kanbanRows.length,
-   completed_titles:kanbanRows.filter(t=>["concluida","done"].includes(t.status)).slice(0,12).map(t=>t.titulo),
+   completed_titles:audience==="internal"?kanbanRows.filter(t=>["concluida","done"].includes(t.status)).slice(0,12).map(t=>t.titulo):[],
    todo:kanbanRows.filter(t=>t.status==="aberta"||t.status==="todo"||t.status==="to_do").length,
    doing:kanbanRows.filter(t=>t.status==="em_andamento"||t.status==="doing").length,
    done:kanbanRows.filter(t=>t.status==="concluida"||t.status==="done").length,
@@ -73,7 +73,7 @@ export async function loadReportData(db:DB,org:string,projectId:string,audience:
    client_risks:audience==="internal"?(risks.data||[]).filter(r=>["aberto","em_mitigacao"].includes(r.status)).slice(0,15).map(r=>({title:r.titulo,status:r.status})):[],
    client_decisions:audience==="internal"?(decisions.data||[]).filter(d=>["aberta","em_andamento"].includes(d.status)).slice(0,15).map(d=>({title:d.titulo,status:d.status})):[]
   },
-  scrum:{enabled:metrics.length>0,sprints:metrics,backlog_stories:allStories.filter(st=>!st.sprint_id).length,stories_total:allStories.length,tasks_total:allTasks.length,tasks_done:allTasks.filter(t=>t.state==="done").length},
+  scrum:{enabled:metrics.length>0,sprints:audience==="internal"?metrics:[],backlog_stories:allStories.filter(st=>!st.sprint_id).length,stories_total:allStories.length,tasks_total:allTasks.length,tasks_done:allTasks.filter(t=>t.state==="done").length},
   ...(audience==="internal"?{internal:{stories:allStories,tasks:allTasks}}:{})
  };
 }
