@@ -24,13 +24,14 @@ export function useScrumData(){
  const [sprints,setSprints]=useState<Sprint[]>([]);const [sprintId,setSprintId]=useState("");
  const [stories,setStories]=useState<Story[]>([]);const [comments,setComments]=useState<Comment[]>([]);
  const setStoryStage=useCallback((id:string,stage:string)=>setStories(prev=>prev.map(story=>story.id===id?{...story,workflow_stage:stage}:story)),[]);
+ const patchStory=useCallback((id:string,patch:Partial<Story>)=>setStories(prev=>prev.map(story=>story.id===id?{...story,...patch}:story)),[]);
  const [loading,setLoading]=useState(true);const [error,setError]=useState("");
  useEffect(()=>{let alive=true;void apiGet("/api/scrum").then((data:Project[])=>{if(alive){setProjects(data);setProjectId(old=>old||data[0]?.id||"")}}).catch(e=>{if(alive){setError(e.message);setLoading(false)}});return()=>{alive=false}},[]);
  const refresh=useCallback(async()=>{if(!projectId){setSprints([]);setStories([]);setLoading(false);return}setLoading(true);setError("");
   try{const [a,b]=await Promise.all([apiGet("/api/scrum?projectId="+encodeURIComponent(projectId)),apiGet("/api/scrum/stories?projectId="+encodeURIComponent(projectId))]);setSprints(a.sprints);setStories(b.stories);setComments(b.comments);setSprintId(old=>a.sprints.some((x:Sprint)=>x.id===old)?old:a.sprints[0]?.id||"");}catch(e){setError(e instanceof Error?e.message:"Erro na consulta.");}finally{setLoading(false)}
  },[projectId]);
  useEffect(()=>{void refresh()},[refresh]);
- return {projects,projectId,setProjectId,sprints,sprintId,setSprintId,stories,comments,setStoryStage,loading,error,setError,refresh};
+ return {projects,projectId,setProjectId,sprints,sprintId,setSprintId,stories,comments,setStoryStage,patchStory,loading,error,setError,refresh};
 }
 export function ScrumNav({active}:{active:"overview"|"backlog"|"board"}) {
  return <div className="flex flex-wrap gap-2">
