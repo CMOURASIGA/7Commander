@@ -13,7 +13,7 @@ export default function OrganizationChooser(){
  const [error,setError]=useState("");
  const [activeCompany,setActiveCompany]=useState<string|null>(null);
  useEffect(()=>{let active=true;void(async()=>{try{const r=await fetch("/api/organizations/mine",{headers:getClientAuthHeaders(),cache:"no-store"});if(!r.ok)throw Error("Não foi possível verificar seus vínculos.");const p=await r.json();if(!active)return;const list=(p.data??[]) as Org[];setOrgs(list);
- const current=await fetch("/api/organizations/branding",{headers:getClientAuthHeaders(),cache:"no-store"}).then(x=>x.ok?x.json():null).catch(()=>null);
+ const current=await fetch("/api/organizations/branding?summary=1",{headers:getClientAuthHeaders(),cache:"no-store"}).then(x=>x.ok?x.json():null).catch(()=>null);
  if(active){setActiveCompany(typeof current?.data?.name==="string"?current.data.name:null);const serverSelected=current?.data?.id;setSelected(list.find(x=>x.id===serverSelected)?.id??list[0]?.id??"");}}catch(e){if(active)setError(e instanceof Error?e.message:"Falha de acesso.");}finally{if(active)setLoadingCompanies(false);}})();return()=>{active=false};},[]);
  async function choose(){
   if(!canSwitchCompany || checking || !orgs.some(x=>x.id===selected))return;
