@@ -78,18 +78,27 @@ export default function ScrumKanbanPage(){
  async function moveTask(task:BacklogItem,newStatus:string){
   if(closed||saving||task.state===newStatus)return;
   setSaving(task.id);data.setError("");
+  // Render immediately, but keep server-side transition rules authoritative.
+  setTasks(prev=>prev.map(item=>item.id===task.id?{...item,state:newStatus}:item));
   try{
    await apiPost("/api/scrum/backlog-items",{action:"update",projectId:data.projectId,id:task.id,itemType:"task",title:task.title,state:newStatus});
    await Promise.all([refreshTasks(),data.refresh()]);
-  }catch(e){data.setError(e instanceof Error?e.message:"Falha ao mover Task.")}finally{setSaving(null)}
+  }catch(e){
+   setTasks(prev=>prev.map(item=>item.id===task.id?{...item,state:task.state}:item));
+   data.setError(e instanceof Error?e.message:"Falha ao mover Task.");
+  }finally{setSaving(null)}
  }
  async function move(story:Story,stage:string,transitionComment=""){
   if(closed||saving||stage===story.workflow_stage||!transitions[story.workflow_stage]?.includes(stage))return;
   if(stage==="review"&&!transitionComment.trim()){setTransition({story,stage});return}
   setSaving(story.id);data.setError("");
+  data.setStoryStage(story.id,stage);
   try{await apiPost("/api/scrum/stories",{action:"update",projectId:data.projectId,storyId:story.id,stage,transitionComment});await data.refresh();
    setTransition(null);setReason("");setSelected(old=>old?.id===story.id?{...story,workflow_stage:stage}:old)}
-  catch(e){data.setError(e instanceof Error?e.message:"Falha ao movimentar US")}
+  catch(e){
+   data.setStoryStage(story.id,story.workflow_stage);
+   data.setError(e instanceof Error?e.message:"Falha ao movimentar US");
+  }
   finally{setSaving(null)}
  }
  async function returnBacklog(story:Story){
