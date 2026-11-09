@@ -1,4 +1,6 @@
 "use client";
+
+import {measuredFetch} from "@/lib/client-performance";
 import Link from "next/link";
 import {useCallback,useEffect,useState} from "react";
 import {getClientAuthHeaders} from "@/lib/client-auth";
@@ -15,8 +17,8 @@ export const dateBR=(value:string|null|undefined)=>{const s=dateOnly(value);retu
 export const today=()=>{const d=new Date();return [d.getFullYear(),String(d.getMonth()+1).padStart(2,"0"),String(d.getDate()).padStart(2,"0")].join("-")};
 export const addDays=(date:string,days:number)=>{const d=new Date(date+"T12:00:00Z");if(isNaN(d.getTime()))return "";d.setUTCDate(d.getUTCDate()+days-1);return d.toISOString().slice(0,10)};
 export const daysBetween=(start:string,end:string)=>Math.round((Date.parse(end+"T12:00:00Z")-Date.parse(start+"T12:00:00Z"))/86400000)+1;
-export async function apiGet(path:string){const response=await fetch(path,{headers:getClientAuthHeaders(),cache:"no-store"});const payload=await response.json().catch(()=>({}));if(!response.ok)throw new Error(payload.error||"Falha ao consultar Scrum.");return payload.data}
-export async function apiPost(path:string,body:Record<string,unknown>){const response=await fetch(path,{method:"POST",headers:getClientAuthHeaders({"Content-Type":"application/json"}),body:JSON.stringify(body)});const payload=await response.json().catch(()=>({}));if(!response.ok)throw new Error(payload.error||"Falha ao salvar.");return payload.data}
+export async function apiGet(path:string){const response=await measuredFetch(path,{headers:getClientAuthHeaders(),cache:"no-store"});const payload=await response.json().catch(()=>({}));if(!response.ok)throw new Error(payload.error||"Falha ao consultar Scrum.");return payload.data}
+export async function apiPost(path:string,body:Record<string,unknown>){const response=await measuredFetch(path,{method:"POST",headers:getClientAuthHeaders({"Content-Type":"application/json"}),body:JSON.stringify(body)});const payload=await response.json().catch(()=>({}));if(!response.ok)throw new Error(payload.error||"Falha ao salvar.");return payload.data}
 export function useScrumData(){
  const [projects,setProjects]=useState<Project[]>([]);const [projectId,setProjectId]=useState("");
  const [sprints,setSprints]=useState<Sprint[]>([]);const [sprintId,setSprintId]=useState("");
