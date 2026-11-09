@@ -1,19 +1,49 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireApiAuth } from "@/lib/api-auth";
+import { getEffectiveTenantForUser } from "@/lib/tenant-runtime";
+import { getSupabaseServerClient } from "@/lib/supabase/server";
+import { CONSULT_ORG_ID } from "@/lib/consult-workspace";
 import { BRAND_LOGO_URL } from "@/lib/brand";
-export async function GET(request: NextRequest) {
+
+export const dynamic="force-dynamic";
+const error=(message:string,status:number)=>NextResponse.json({error:message},{status,headers:{"Cache-Control":"no-store"}});
+
+export async function GET(request:NextRequest) {
  const auth=await requireApiAuth(request);
  if(!auth.ok)return auth.response;
- try {
-  const controller=new AbortController();
-  const timeout=setTimeout(()=>controller.abort(),5000);
-  let response:Response;
-  try {response=await fetch(BRAND_LOGO_URL,{signal:controller.signal,cache:"force-cache"});} finally {clearTimeout(timeout);}
-  if(!response.ok) throw Error("Logo não disponível.");
+ if(auth.context.authMode!=="supabase")return error("Sessão autenticada necessária.",401);
+ const tenant=await getEffectiveTenantForUser(auth.context.userId);
+ const db=getSupabaseServerClient();
+ if(!tenant||!db)return error("Empresa não autorizada.",403);
+ const organization=await db.from("organizations").select("branding").eq("id",tenant).maybeSingle();
+ if(organization.error||!organization.data)return error("Empresa indisponível.",404);
+ const branding=organization.data.branding as {logoUrl?:unknown}|null;
+ const configured=typeof branding?.logoUrl==="string"?branding.logoUrl.trim():"";
+ // A missing customer's logo must never silently become Consult Services.
+ const logo=configured||(tenant===CONSULT_ORG_ID?BRAND_LOGO_URL:"");
+ if(!logo)return error("Empresa sem logo cadastrada no whitelabel.",404);
+ const MAX_IMAGE_BYTES=1024*1024;
+ const match=/^data:(image\/(?:png|jpeg|webp));base64,([a-zA-Z0-9+/=]+)$/.exec(logo);
+ if(match) {
+  const bytes=Buffer.from(match[2],"base64");
+  if(!bytes.length||bytes.byteLength>MAX_IMAGE_BYTES)return error("Logo excede o limite para exportação.",422);
+  return NextResponse.json({dataUri:`data:${match[1]};base64,${bytes.toString("base64")}`},{headers:{"Cache-Control":"private,no-store"}});
+ }
+ let remote:URL;
+ try {remote=new URL(logo);}catch{return error("Logo do whitelabel inválida.",422)}
+ // Protect server-side fetch against SSRF and unapproved private hosts.
+ const hostname=remote.hostname.toLowerCase();
+ if(remote.protocol!=="https:"||remote.username||remote.password||remote.port||
+    !(hostname==="i.imgur.com"||hostname.endsWith(".supabase.co")))
+   return error("Provedor de logo não permitido.",422);
+ try{
+  const response=await fetch(remote.toString(),{signal:AbortSignal.timeout(5000),cache:"no-store",redirect:"error"});
+  if(!response.ok)return error("Logo do whitelabel indisponível.",502);
+  const type=(response.headers.get("content-type")||"").split(";")[0].trim().toLowerCase();
+  if(!["image/png","image/jpeg","image/webp"].includes(type))return error("Tipo de imagem não suportado.",422);
+  if(Number(response.headers.get("content-length")||0)>MAX_IMAGE_BYTES)return error("Logo excede o limite.",422);
   const buffer=await response.arrayBuffer();
-  if(buffer.byteLength>1024*1024)throw Error("Arquivo de marca excedeu o limite.");
-  const type=response.headers.get("content-type")||"";
-  if(!["image/png","image/jpeg","image/webp"].some(prefix=>type.startsWith(prefix))) throw Error("Tipo de imagem não suportado.");
-  return NextResponse.json({dataUri:`data:${type.split(";")[0]};base64,${Buffer.from(buffer).toString("base64")}`});
- }catch{return NextResponse.json({error:"Não foi possível incorporar a logo ao documento."},{status:502});}
+  if(!buffer.byteLength||buffer.byteLength>MAX_IMAGE_BYTES)return error("Logo excede o limite.",422);
+  return NextResponse.json({dataUri:`data:${type};base64,${Buffer.from(buffer).toString("base64")}`},{headers:{"Cache-Control":"private,no-store"}});
+ }catch{return error("Não foi possível incorporar a marca ativa ao relatório.",502)}
 }
