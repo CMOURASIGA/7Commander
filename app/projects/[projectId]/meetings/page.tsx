@@ -47,6 +47,7 @@ export default function ProjectMeetings(){
   const endpoint=type==="decision"?"/api/decisions?projectId="+encodeURIComponent(projectId)
    :type==="risk"?base+"/risks"
    :type==="story"?"/api/scrum/stories?projectId="+encodeURIComponent(projectId)
+   :type==="scrum_task"?"/api/scrum/backlog-items?projectId="+encodeURIComponent(projectId)
    :type==="task"?base+"/tasks"
    :type==="sprint"?"/api/scrum?projectId="+encodeURIComponent(projectId)
    :"/api/knowledge?projectId="+encodeURIComponent(projectId);
@@ -56,6 +57,7 @@ export default function ProjectMeetings(){
    let values:Array<{id:string;title:string}>=[];
    if(type==="story")values=(json.data?.stories||[]).map((x:{id:string;title:string})=>({id:x.id,title:x.title}));
    else if(type==="sprint")values=(json.data?.sprints||[]).map((x:{id:string;name:string})=>({id:x.id,title:x.name}));
+   else if(type==="scrum_task")values=(json.data||[]).filter((x:{item_type:string})=>x.item_type==="task").map((x:{id:string;title:string})=>({id:x.id,title:x.title}));
    else if(type==="task")values=(json.data?.columns||[]).flatMap((x:{cards:Array<{id:string;title:string}>})=>x.cards.map(card=>({id:card.id,title:card.title})));
    else values=(json.data||[]).map((x:{id:string;title?:string;name?:string})=>({id:x.id,title:x.title||x.name||"Registro"}));
    if(live)setAvailableRecords(values);
@@ -139,7 +141,7 @@ export default function ProjectMeetings(){
    <p className="text-xs text-(--text-secondary)">O vínculo exige um registro do mesmo projeto e não cria cópias. Selecione um registro autorizado. Os identificadores internos não aparecem na interface.</p>
    <div className="grid gap-3 sm:grid-cols-3">
     <select aria-label="Reunião" className="workspace-select" value={linkForm.meetingId} onChange={e=>setLinkForm(f=>({...f,meetingId:e.target.value}))}><option value="">Reunião</option>{meetings.map(m=><option key={m.id} value={m.id}>{m.title}</option>)}</select>
-    <select aria-label="Tipo de registro" className="workspace-select" value={linkForm.recordType} onChange={e=>setLinkForm(f=>({...f,recordType:e.target.value,recordId:""}))}>{[["decision","Decisão"],["risk","Risco"],["story","User Story"],["task","Task operacional"],["sprint","Sprint"],["knowledge","Conhecimento"]].map(([v,label])=><option key={v} value={v}>{label}</option>)}</select>
+    <select aria-label="Tipo de registro" className="workspace-select" value={linkForm.recordType} onChange={e=>setLinkForm(f=>({...f,recordType:e.target.value,recordId:""}))}>{[["decision","Decisão"],["risk","Risco"],["story","User Story"],["task","Task operacional"],["scrum_task","Task de US"],["sprint","Sprint"],["knowledge","Conhecimento"]].map(([v,label])=><option key={v} value={v}>{label}</option>)}</select>
     <select aria-label="Registro existente" className="workspace-select" disabled={recordsLoading} value={linkForm.recordId} onChange={e=>setLinkForm(f=>({...f,recordId:e.target.value}))}><option value="">{recordsLoading?"Consultando registros...":"Selecione o registro"}</option>{availableRecords.map(record=><option key={record.id} value={record.id}>{record.title}</option>)}</select>
    </div>
    <button className="workspace-button-secondary px-4 py-2 text-sm" disabled={linking||!linkForm.meetingId||!linkForm.recordId.trim()} onClick={()=>void linkExisting()}>{linking?"Vinculando...":"Vincular"}</button>
@@ -154,8 +156,9 @@ export default function ProjectMeetings(){
      <h3 className="font-semibold">{meeting.title}</h3>
      <div className="mt-1 text-sm"><MarkdownContent content={meeting.summary||"Registro criado sem resumo."}/></div>
      {meeting.links.length>0&&<div className="mt-2 flex flex-wrap gap-2">{meeting.links.map((link,index)=>{
-       const textLabel=({decision:"Decisão",risk:"Risco",story:"User Story",task:"Atividade",sprint:"Sprint",knowledge:"Conhecimento"} as Record<string,string>)[link.record_type]||"Registro";
+       const textLabel=({decision:"Decisão",risk:"Risco",story:"User Story",task:"Atividade",scrum_task:"Task de US",sprint:"Sprint",knowledge:"Conhecimento"} as Record<string,string>)[link.record_type]||"Registro";
        const target=link.record_type==="story"?"/scrum/kanban?projectId="+encodeURIComponent(projectId)+"&storyId="+encodeURIComponent(link.record_id)
+         :link.record_type==="scrum_task"?"/scrum/backlog?projectId="+encodeURIComponent(projectId)+"&itemId="+encodeURIComponent(link.record_id)
          :link.record_type==="task"?"/activities?projectId="+encodeURIComponent(projectId)+"&taskId="+encodeURIComponent(link.record_id)
          :link.record_type==="sprint"?"/scrum?projectId="+encodeURIComponent(projectId)+"&sprintId="+encodeURIComponent(link.record_id)
          :null;
