@@ -966,12 +966,9 @@ export default function ProjectsPage() {
                   <p className="mt-1 text-[13px] text-(--text-secondary)">
                     Impacto: {risk.impact || "Nao informado"} | Probabilidade: {risk.probability || "Nao informada"}
                   </p>
-                  <p className="mt-1 text-[13px] text-(--text-secondary)">
-                    Dono: {risk.owner || "Nao definido"} | Mitigacao: {risk.mitigation || "Nao definida"}
-                  </p>
-                  <p className="mt-1 text-[13px] text-(--text-secondary)">
-                    Decisao: {risk.decisionId || "Nao vinculada"} | Tarefa: {risk.taskId || "Nao vinculada"}
-                  </p>
+                  <p className="mt-1 text-[13px] text-(--text-secondary)">Responsável: {risk.owner || "Não definido"}</p>
+                  <details className="mt-2"><summary className="cursor-pointer text-xs font-medium text-(--accent)">Ver mitigação</summary><MarkdownContent className="mt-2" content={risk.mitigation||"Não definida"}/></details>
+                  <p className="mt-1 text-xs text-(--text-secondary)">Vínculos: {risk.decisionId?"decisão":""}{risk.decisionId&&risk.taskId?" e ":""}{risk.taskId?"atividade":""}{!risk.decisionId&&!risk.taskId?"nenhum":""}</p>
                 </article>
               ))
             )}
@@ -1268,19 +1265,23 @@ export default function ProjectsPage() {
                   ))}
                 </select>
               </div>
-              <p className="mt-2 text-sm text-(--text-secondary)">{decision.reason || "Sem motivo registrado."}</p>
-              <p className="mt-1 text-sm text-(--text-secondary)">
-                Contexto: {decision.context || "Nao informado."}
+              <p className="mt-2 text-sm leading-6 text-(--text-secondary)">
+                {(decision.reason || decision.context || "Sem justificativa registrada.").replace(/[#*`]/g,"").replace(/\\s+/g," ").slice(0,220)}
+                {(decision.reason || decision.context || "").length>220?"…":""}
               </p>
-              <p className="mt-1 text-sm text-(--text-secondary)">
-                Projeto relacionado: {decision.projectId || "Nao informado."}
-              </p>
-              <p className="mt-1 text-sm text-(--text-secondary)">
-                Conversa: {decision.conversationId || "Nao vinculada"} | Artefato: {decision.artifactId || "Nao vinculado"}
-              </p>
-              <p className="mt-2 text-xs text-(--text-secondary)">
-                Impacto: {decision.impact || "Nao informado"} | {new Date(decision.createdAt).toLocaleString("pt-BR")}
-              </p>
+              <div className="mt-1 text-xs text-(--text-secondary)">
+                Projeto: {projects.find(project=>project.id===decision.projectId)?.name||selectedProject?.name||"Não vinculado"}
+                {" · "}{new Date(decision.createdAt).toLocaleString("pt-BR")}
+              </div>
+              <details className="mt-3 rounded-lg border border-(--border) p-3">
+                <summary className="cursor-pointer text-sm font-medium text-(--accent)">Ver detalhes da decisão</summary>
+                <div className="mt-3 space-y-4 text-sm">
+                  <section><h4 className="mb-1 font-semibold">Contexto</h4><MarkdownContent content={decision.context||"Não informado."}/></section>
+                  <section><h4 className="mb-1 font-semibold">Motivo e justificativa</h4><MarkdownContent content={decision.reason||"Não informado."}/></section>
+                  <section><h4 className="mb-1 font-semibold">Impacto esperado</h4><MarkdownContent content={decision.impact||"Não informado."}/></section>
+                  {(decision.conversationId||decision.artifactId)&&<p className="text-xs text-(--text-secondary)">Origem: {decision.conversationId?"Conversa vinculada":""}{decision.conversationId&&decision.artifactId?" · ":""}{decision.artifactId?"Documento vinculado":""}</p>}
+                </div>
+              </details>
               <div className="mt-2">
                 <button
                   type="button"
