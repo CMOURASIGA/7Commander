@@ -93,6 +93,9 @@ export function KairosSaveDialog({ core }: { core: KairosCore }) {
             <label className="text-xs font-medium text-(--text-primary)">Contexto
               <textarea value={core.decisionForm.context} onChange={(event) => core.setDecisionForm((prev) => ({ ...prev, context: event.target.value }))} className="workspace-input mt-1 min-h-24 w-full" />
             </label>
+            <label className="sm:col-span-2 text-xs font-medium text-(--text-primary)">Decisão e justificativa específicas
+              <textarea rows={5} value={core.decisionForm.reason} onChange={event=>core.setDecisionForm(prev=>({...prev,reason:event.target.value}))} className="workspace-input mt-1 w-full" placeholder="Registre somente o conteúdo desta decisão. O relatório integral permanece na conversa de origem."/>
+            </label>
             <label className="text-xs font-medium text-(--text-primary)">Impacto esperado
               <textarea value={core.decisionForm.impact} onChange={(event) => core.setDecisionForm((prev) => ({ ...prev, impact: event.target.value }))} className="workspace-input mt-1 min-h-24 w-full" />
             </label>
@@ -173,7 +176,7 @@ export function KairosSaveDialog({ core }: { core: KairosCore }) {
           <div className="mt-5 space-y-4">
             <div className="rounded-xl border border-(--border) bg-(--accent-ghost) px-4 py-3">
               <p className="text-sm font-semibold text-(--text-primary)">{core.taskDrafts.length} {core.taskDrafts.length === 1 ? "atividade identificada" : "atividades identificadas"}</p>
-              <p className="mt-1 text-xs text-(--text-secondary)">Selecione e ajuste os cards que devem ser criados no Kanban.</p>
+              <p className="mt-1 text-xs text-(--text-secondary)">Selecione e ajuste os cards que devem ser criados no Kanban.</p>{core.taskDrafts.length===0?<p role="status" className="mt-2 text-xs text-amber-700">Nenhuma ação executável identificada. Se o relatório contém apenas seções gerenciais, registre-o como conhecimento ou reunião, sem criar Tasks genéricas.</p>:null}
             </div>
             <div className="max-h-72 space-y-3 overflow-y-auto pr-1">
               {core.taskDrafts.map((task, index) => (
