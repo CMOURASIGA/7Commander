@@ -6,8 +6,8 @@ import {TENANT_SCHEMA_READY,requireEffectiveTenant} from "@/lib/tenant-runtime";
 import {CONSULT_ORG_ID} from "@/lib/consult-workspace";
 export const dynamic="force-dynamic";
 const uuid=/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-type Kind="decision"|"risk"|"story"|"task"|"sprint"|"knowledge";
-const tables:Record<Kind,string>={decision:"decisions",risk:"risks",story:"scrum_user_stories",task:"tasks",sprint:"scrum_sprints",knowledge:"knowledge_base"};
+type Kind="decision"|"risk"|"story"|"task"|"scrum_task"|"sprint"|"knowledge";
+const tables:Record<Kind,string>={decision:"decisions",risk:"risks",story:"scrum_user_stories",task:"tasks",scrum_task:"scrum_backlog_items",sprint:"scrum_sprints",knowledge:"knowledge_base"};
 const answer=(data:unknown,status=200)=>NextResponse.json(data,{status,headers:{"Cache-Control":"private,no-store"}});
 type Context={params:Promise<{projectId:string}>};
 export async function POST(req:NextRequest,{params}:Context){
@@ -29,6 +29,10 @@ export async function POST(req:NextRequest,{params}:Context){
   db.from("project_meetings").select("id").eq("id",meetingId).eq("project_id",projectId).eq("organization_id",org).maybeSingle(),
   db.from(tables[type]).select("id").eq("id",recordId).eq("project_id",projectId).eq("organization_id",org).maybeSingle()
  ]);
+ if(type==="scrum_task"){
+  const subtype=await db.from("scrum_backlog_items").select("item_type").eq("id",recordId).eq("project_id",projectId).eq("organization_id",org).maybeSingle();
+  if(subtype.error||subtype.data?.item_type!=="task")return answer({error:"Task Scrum não encontrada."},404);
+ }
  if(meeting.error||linked.error)return answer({error:"Não foi possível validar os vínculos."},503);
  if(!meeting.data||!linked.data)return answer({error:"Registro não encontrado nesta empresa/projeto."},404);
  const inserted=await db.from("project_meeting_links").upsert({
