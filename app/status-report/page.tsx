@@ -42,7 +42,7 @@ function reportDocument(project:Project, cards:Card[], risks:Risk[], decisions:D
   // It never interpolates internal story/task/member information.
   if(audience==="client"){
     const shareable=scrum?.publicFacts||[];
-    const classify=(value:string)=>({confirmed:"Compromisso confirmado",in_progress:"Em andamento",hypothesis:"Hipótese",ai_recommendation:"Recomendação da IA"} as Record<string,string>)[value]||"A confirmar";
+    const classify=(value:string)=>({confirmed:"Compromisso confirmado",in_progress:"Em andamento",hypothesis:"Hipótese",ai_recommendation:"Proposta revisada"} as Record<string,string>)[value]||"A confirmar";
     const publicItems=(kind:string)=>shareable.filter(x=>x.kind===kind).slice(0,15).map(x=>({
       title:x.title,note:classify(x.classification)+(x.due_date?" · Prazo informado: "+x.due_date:"")+(x.description?" · "+x.description:"")
     }));
