@@ -45,11 +45,13 @@ export async function GET(req:NextRequest){
   return respond({data:{stories:(stories.data||[]).map(st=>({...st,has_history:history.has(st.id)})),comments:comments.data}});
 }
 export async function POST(req:NextRequest){
+  const perfStart=performance.now();
   const body=await req.json().catch(()=>null) as Record<string,unknown>|null;
   if(!body||Array.isArray(body)||typeof body!=="object")return fail("Payload inválido.");
   const projectId=String(body.projectId||"");
   const context=await scope(req,projectId,true);
   if("error" in context)return context.error;
+  const perfAuth=performance.now();
   const {db,org,auth}=context;
   const action=String(body.action||"");
   const storyId=String(body.storyId||"");
@@ -114,6 +116,7 @@ export async function POST(req:NextRequest){
   if(target.error||target.status==="closed")return fail("A Sprint selecionada está encerrada ou indisponível.",409);
   const sortOrder=body.sortOrder===undefined?Number(current?.sort_order||0):Number(body.sortOrder);
   if(!Number.isInteger(sortOrder)||sortOrder<0||sortOrder>1000000)return fail("Ordem inválida.");
+  const perfValidation=performance.now();
   const patch={
     title,description:String(body.description===undefined?current?.description||"":body.description||"").slice(0,10000),
     acceptance_criteria:String(body.acceptanceCriteria===undefined?current?.acceptance_criteria||"":body.acceptanceCriteria||"").slice(0,10000),
@@ -128,5 +131,10 @@ export async function POST(req:NextRequest){
     await db.from("scrum_user_stories").insert({...patch,project_id:projectId,organization_id:org,created_by_email:auth.userEmail||"",workflow_stage:"new"}).select("id").single():
     await db.from("scrum_user_stories").update(patch).eq("id",storyId).eq("organization_id",org).eq("project_id",projectId).select("id,workflow_stage,actual_end_date,updated_at").single();
   if(result.error)return fail("Não foi possível salvar a US: "+result.error.code,409);
-  return respond({data:result.data},action==="create"?201:200);
+  const perfEnd=performance.now();
+  const millis=(v:number)=>Math.max(0,Math.round(v*10)/10);
+  return NextResponse.json({data:result.data},{status:action==="create"?201:200,headers:{
+    "Cache-Control":"private,no-store",
+    "Server-Timing":`auth;dur=${millis(perfAuth-perfStart)},validate;dur=${millis(perfValidation-perfAuth)},write;dur=${millis(perfEnd-perfValidation)},total;dur=${millis(perfEnd-perfStart)}`
+  }});
 }
