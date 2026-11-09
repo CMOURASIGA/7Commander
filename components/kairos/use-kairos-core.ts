@@ -876,6 +876,14 @@ export function useKairosCore(options?: UseKairosCoreOptions) {
     if (selectedTasks.length === 0) { showToast("Selecione ao menos uma atividade com titulo.", "error"); return; }
     setTaskLoadingId(saveDialog.message.id);
     try {
+      // Check the existing authorized board before creating any card. If the
+      // check fails, fail closed rather than risk duplicating a prior action.
+      const boardResponse=await fetch(`/api/projects/${activeProjectId}/tasks`,{headers:getClientAuthHeaders(),cache:"no-store"});
+      if(!boardResponse.ok)throw new Error("Não foi possível verificar atividades existentes.");
+      const boardPayload=await boardResponse.json();
+      const titles=new Set<string>((boardPayload.data?.columns??[]).flatMap((col:{cards:Array<{title:string}>})=>col.cards.map(card=>card.title.trim().toLocaleLowerCase("pt-BR"))));
+      const duplicate=selectedTasks.find(task=>titles.has(task.title.trim().toLocaleLowerCase("pt-BR")));
+      if(duplicate)throw new Error("Já existe uma atividade com este título no projeto: "+duplicate.title+". Revise antes de salvar.");
       for (const task of selectedTasks) {
         const response = await fetch(`/api/projects/${activeProjectId}/tasks`, {
           method: "POST",
