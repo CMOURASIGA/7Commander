@@ -1,3 +1,5 @@
+import html2canvas from "html2canvas";
+
 /**
  * Client-side PDF export for Commander reports.
  *
@@ -72,7 +74,7 @@ function assemblePdf(pages: PdfPageImage[]): Blob {
 async function renderReport(html: string): Promise<{ canvas: HTMLCanvasElement; boundaries: number[] }> {
   const frame = document.createElement("iframe");
   frame.setAttribute("aria-hidden", "true");
-  frame.style.cssText = "position:fixed;left:-10000px;top:0;width:760px;height:1px;border:0;visibility:hidden";
+  frame.style.cssText = "position:fixed;left:0;top:0;width:760px;height:1200px;border:0;opacity:0;pointer-events:none;z-index:-1";
   document.body.appendChild(frame);
   try {
     const frameDoc = frame.contentDocument;
@@ -91,42 +93,27 @@ async function renderReport(html: string): Promise<{ canvas: HTMLCanvasElement; 
     const main = frameDoc.querySelector<HTMLElement>(".wrap");
     if (!main) throw new Error("Estrutura do relatório não encontrada.");
     const height = Math.ceil(main.getBoundingClientRect().height + 4);
-    const width = 760;
     if (height < 1 || height > 14000) throw new Error("O relatório excedeu o tamanho permitido para exportação.");
+    frame.style.height = height + "px";
     const boundaries = Array.from(main.children)
       .map(child => Math.max(0, Math.round(child.getBoundingClientRect().top - main.getBoundingClientRect().top)))
       .filter(n => n > 0 && n < height);
-    const bodyCopy = frameDoc.body.cloneNode(true) as HTMLElement;
-    const style = frameDoc.createElement("style");
-    style.textContent = Array.from(frameDoc.querySelectorAll("head style")).map(node => node.textContent || "").join("\n") +
-      "\nhtml,body{width:760px!important;min-width:760px!important;background:white!important} .actions{display:none!important}";
-    bodyCopy.insertBefore(style, bodyCopy.firstChild);
-    bodyCopy.setAttribute("xmlns", "http://www.w3.org/1999/xhtml");
-    bodyCopy.style.margin = "0";
-    bodyCopy.style.width = width + "px";
-    bodyCopy.style.background = "white";
-    const serialized = new XMLSerializer().serializeToString(bodyCopy);
-    const svg = '<svg xmlns="http://www.w3.org/2000/svg" width="' + width + '" height="' + height +
-      '" viewBox="0 0 ' + width + " " + height + '"><foreignObject x="0" y="0" width="100%" height="100%">' +
-      serialized + "</foreignObject></svg>";
-    const url = URL.createObjectURL(new Blob([svg], { type: "image/svg+xml;charset=utf-8" }));
-    try {
-      const image = new Image();
-      image.src = url;
-      await image.decode();
-      const scale = 1.7;
-      const canvas = document.createElement("canvas");
-      canvas.width = Math.round(width * scale);
-      canvas.height = Math.round(height * scale);
-      const context = canvas.getContext("2d");
-      if (!context) throw new Error("Renderização do PDF indisponível.");
-      context.fillStyle = "#ffffff";
-      context.fillRect(0, 0, canvas.width, canvas.height);
-      context.drawImage(image, 0, 0, canvas.width, canvas.height);
-      return { canvas, boundaries };
-    } finally {
-      URL.revokeObjectURL(url);
-    }
+    const canvas = await html2canvas(main, {
+      backgroundColor: "#ffffff",
+      scale: 1.7,
+      useCORS: false,
+      allowTaint: false,
+      logging: false,
+      scrollX: 0,
+      scrollY: 0,
+      windowWidth: 760,
+      windowHeight: height,
+    });
+    if (canvas.width < 1 || canvas.height < 1) throw new Error("Não foi possível capturar o conteúdo do relatório.");
+    // Canvas pixels can be read only if all document images remain same-origin/data URIs.
+    try { canvas.toDataURL("image/jpeg", 0.8); }
+    catch { throw new Error("Não foi possível incorporar a logo ao PDF. Verifique a imagem da empresa."); }
+    return { canvas, boundaries };
   } finally {
     frame.remove();
   }
