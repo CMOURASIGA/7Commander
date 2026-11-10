@@ -153,7 +153,7 @@ class DocumentComposer{
   this.y+=h+7;
  }
  node(element:Element){
-  if(element.matches(".actions,.pdf-hide,script,style,noscript"))return;
+  if(element.matches(".actions,.pdf-hide,.foot,script,style,noscript"))return;
   const tag=element.tagName.toLowerCase();
   if(tag==="img")return;
   if(tag==="table"){this.table(element as HTMLTableElement);return;}
