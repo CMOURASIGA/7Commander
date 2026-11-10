@@ -85,7 +85,7 @@ export async function loadReportData(db:DB,org:string,projectId:string,audience:
  return {
   project:{id:projectId,name:project.data?.nome||"Projeto"},
   generated_at:new Date().toISOString(),scope:"current_snapshot",
-  publicFacts:approvedFacts.error?[]:(approvedFacts.data||[]) as ClientReportFact[],
+  publicFacts:approvedFacts.error?[]:(approvedFacts.data||[]).map(fact=>audience==="client"?{kind:fact.kind,title:fact.title,description:fact.description,classification:fact.classification,due_date:fact.due_date}:fact) as ClientReportFact[],
   publicFactsAvailable:!approvedFacts.error,
   riskAssessments,
   kanban:{
