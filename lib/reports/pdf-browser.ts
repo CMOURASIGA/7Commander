@@ -92,6 +92,7 @@ async function renderReport(html: string): Promise<{ canvas: HTMLCanvasElement; 
     ));
     await frameDoc.fonts.ready;
     frameDoc.querySelectorAll(".actions").forEach(element => element.remove());
+    frameDoc.querySelectorAll(".pdf-hide").forEach(element => element.remove());
     const main = frameDoc.querySelector<HTMLElement>(".wrap");
     if (!main) throw new Error("Estrutura do relatório não encontrada.");
     const height = Math.ceil(main.getBoundingClientRect().height + 4);
