@@ -67,7 +67,7 @@ function reportDocument(project:Project, cards:Card[], risks:Risk[], decisions:D
     const shareable=scrum?.publicFacts||[];
     const classify=(value:string)=>({confirmed:"Concluído ou confirmado",in_progress:"Em andamento",hypothesis:"Em avaliação",ai_recommendation:"Proposta"} as Record<string,string>)[value]||"A confirmar";
     const publicItems=(kind:string)=>shareable.filter(x=>x.kind===kind && !(kind==="milestone"&&x.classification!=="confirmed")).slice(0,15).map(x=>({
-      title:x.title,note:classify(x.classification)+(x.due_date?" · Prazo informado: "+x.due_date:"")+(x.description?" · "+x.description:"")
+      title:x.title,note:classify(x.classification)+(x.due_date?" · Prazo informado: "+x.due_date:"")+(x.description&&!/validar contexto|antes da divulga[cç][aã]o|informação interna/i.test(x.description)?" · "+x.description:"")
     }));
     const publicObjective=shareable.find(x=>x.kind==="objective"&&x.classification==="confirmed");
     const publicObjectiveText=publicObjective?.description||publicObjective?.title||"";
