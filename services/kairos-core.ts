@@ -10,11 +10,13 @@ import { listDecisions } from "@/services/decision-service";
 import { getKairosProfile } from "@/services/kairos-profile-service";
 import { resolveProjectContext } from "@/services/project-resolver";
 import { createTaskFromKairosCommand, moveTaskFromKairosCommand } from "@/services/task-card-detail-service";
+import {createKanbanActivityBatch,hasExplicitBatchCreationRequest} from "@/services/kairos-activity-batch";
 import { getProjectTaskOperationalSnapshot } from "@/services/task-board-service";
 import { listRisksByProject } from "@/services/risk-service";
 import { createRisk } from "@/services/risk-service";
 import { SpecialistId } from "@/types/chat";
 import { ProjectRecord } from "@/types/project";
+import {decodeStakeholders,STAKEHOLDER_GROUP_LABELS} from "@/lib/projects/stakeholders";
 
 const DEFAULT_SPECIALIST: SpecialistId = "core";
 
@@ -46,7 +48,7 @@ function buildProjectContext(project: ProjectRecord | null): string {
     `Status: ${project.status}`,
     `Objetivo: ${project.objective || "Nao informado"}`,
     `Contexto: ${project.context || "Nao informado"}`,
-    `Stakeholders: ${project.stakeholders || "Nao informado"}`,
+    `Stakeholders: ${decodeStakeholders(project.stakeholders).map(item=>`${item.name} | ${item.organization||"organização não informada"} | ${item.role||"papel não informado"} | ${STAKEHOLDER_GROUP_LABELS[item.group]}`).join("; ")||"Nao informado"}`,
     `Maturidade: ${project.maturity || "Nao informado"}`,
     `Tags: ${project.tags.length ? project.tags.join(", ") : "Sem tags"}`,
   ].join("\n");
@@ -205,11 +207,6 @@ function detectMoveTaskIntent(message: string): { title: string; columnKey: "tod
   return { title: between.slice(0, 180), columnKey };
 }
 
-function detectSuggestRiskIntent(message: string): boolean {
-  const normalized = normalizeLoose(message);
-  return /(sugerir|sugere|sugira|quais).*(risco|riscos)/.test(normalized);
-}
-
 function detectConfirmRiskIntent(message: string): { title: string } | null {
   const normalized = normalizeLoose(message);
   if (!/(confirmar|confirmo|registrar|criar).*(risco)/.test(normalized)) return null;
@@ -234,6 +231,11 @@ async function maybeHandleTaskCommand(params: {
     };
   }
 
+  if(hasExplicitBatchCreationRequest(params.message)){
+    const answer=await createKanbanActivityBatch({userId:params.userId,userEmail:params.userEmail,
+      projectId:params.projectId,projectName:params.projectName||"projeto ativo",message:params.message});
+    return {handled:true,answer};
+  }
   const createIntent = detectCreateTaskIntent(params.message);
   if (createIntent) {
     const created = await createTaskFromKairosCommand({
@@ -299,19 +301,8 @@ async function maybeHandleRiskCommand(params: {
     };
   }
 
-  if (detectSuggestRiskIntent(params.message)) {
-    return {
-      handled: true,
-      answer: [
-        "## Risco identificado",
-        "- Titulo: Dependencia externa sem responsavel definido",
-        "- Impacto: Pode atrasar entregas e bloquear validacoes externas.",
-        "- Mitigacao inicial: Definir responsavel, prazo e plano de contingencia.",
-        `O registro pode ser revisado e salvo no projeto ${params.projectName ?? "ativo"}.`,
-      ].join("\n"),
-    };
-  }
-
+  // Risk questions must reach the evidence-backed LLM pipeline.
+  // Do not return a canned risk or claim an official record was created.
   const confirm = detectConfirmRiskIntent(params.message);
   if (confirm) {
     const created = await createRisk({
