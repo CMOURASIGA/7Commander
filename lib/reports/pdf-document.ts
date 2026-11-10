@@ -121,7 +121,8 @@ class DocumentComposer{
   if(!headers.length)return;
   const columns=headers.length;
   const widths=columns===6?[.12,.25,.12,.15,.11,.25]:columns===4?[.19,.27,.28,.26]:Array(columns).fill(1/columns);
-  const drawRow=(values:string[],header=false)=>{
+  const isMatrix=table.classList.contains("risk-matrix");
+  const drawRow=(values:string[],header=false,rowIndex=0)=>{
    const size=header?7.7:8.2,pad=6,lineHeight=size*1.4;
    const cells=values.slice(0,columns).map((value,i)=>this.wrap(value,WIDTH*widths[i]-2*pad,size,header));
    const height=Math.max(26,...cells.map(lines=>lines.length*lineHeight+2*pad));
@@ -129,7 +130,9 @@ class DocumentComposer{
    let x=LEFT;
    cells.forEach((lines,i)=>{
     const w=WIDTH*widths[i];
-    this.rect(x,this.y,w,height,header?"eaf1f8":"ffffff","dce6ef");
+    const score=isMatrix&&!header&&i>0?(3-rowIndex)*i:0;
+    const fill=header?"eaf1f8":score>=6?"fff0e7":score>=3?"fff8e8":score>0?"eff8f5":"ffffff";
+    this.rect(x,this.y,w,height,fill,"dce6ef");
     lines.forEach((line,j)=>this.text(x+pad,this.y+pad+j*lineHeight,line,size,header,"173a59"));
     x+=w;
    });
@@ -137,13 +140,13 @@ class DocumentComposer{
   };
   const rowElements=rawRows.slice(1);
   drawRow(headers,true);
-  for(const row of rowElements){
+  for(const [rowIndex,row] of rowElements.entries()){
    const values=Array.from(row.querySelectorAll(":scope > th,:scope > td")).map(cell=>cell.textContent?.trim()||"");
    if(!values.length)continue;
    // Page breaks repeat the table heading, never split a compact risk row.
    const est=Math.max(26,...values.map((v,i)=>this.wrap(v,(WIDTH*widths[i])-12,8.2).length*11.5+12));
    if(this.y+est>PAGE_H-BOTTOM-2){this.newPage();drawRow(headers,true);}
-   drawRow(values);
+   drawRow(values,false,rowIndex);
   }
   this.y+=10;
  }
