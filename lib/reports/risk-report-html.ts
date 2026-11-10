@@ -49,6 +49,7 @@ export function riskReportHtml(risks:ReportRiskAssessment[],audience:ReportAudie
   return '<section class="panel risk-panel"><h3>04 · Riscos relevantes</h3><h2>Riscos e Planos de Mitigação</h2>'+summary+
    (top.length?'<div class="client-risk-list">'+cards+'</div>':empty)+
    (clientVisible.length>5?'<p class="muted">Cinco riscos autorizados de maior prioridade apresentados. Outros registros permanecem no cadastro do projeto.</p>':"")+
+   (top.some(r=>getApprovedRiskFields(r.description).measure&&!getApprovedRiskFields(r.description).measureStatus)?'<p class="muted">As medidas citadas constam do registro do projeto. Sua execução não está confirmada nesta emissão.</p>':"")+
    '</section>';
  }
  const rows=sorted.map(r=>{
