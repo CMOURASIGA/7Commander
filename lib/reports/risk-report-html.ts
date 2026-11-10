@@ -19,11 +19,12 @@ function shortAction(mitigation:string|null){
 }
 function approvedRiskDescription(text:string){
  const blocks=String(text||"").split(/\n+/).map(x=>x.trim()).filter(Boolean);
+ const point=blocks.find(x=>/^(?:ponto de atenção|risco executivo)\s*:/i.test(x));
  const consequence=blocks.find(x=>/^(?:consequência|consequencia|possível consequência|impacto para o cliente)\s*:/i.test(x));
  const measure=blocks.find(x=>/^(?:medida|mitigação|mitigacao|ação prevista|plano)\s*:/i.test(x));
  const status=blocks.find(x=>/^(?:situação da medida|status da mitigação)\s*:/i.test(x));
  const trimLabel=(x?:string)=>x?.replace(/^[^:]+:\s*/,"").trim()||"";
- return {consequence:trimLabel(consequence),measure:trimLabel(measure),measureStatus:trimLabel(status)};
+ return {point:trimLabel(point),consequence:trimLabel(consequence),measure:trimLabel(measure),measureStatus:trimLabel(status)};
 }
 export function riskReportHtml(risks:ReportRiskAssessment[],audience:ReportAudience,options:{includeMitigationAnnex?:boolean}={}){
  const esc=escapeHtml;
@@ -35,8 +36,8 @@ export function riskReportHtml(risks:ReportRiskAssessment[],audience:ReportAudie
  if(audience==="client"){
   const top=sorted.slice(0,5);
   const rows=top.map(r=>{
-   const {consequence,measure,measureStatus}=approvedRiskDescription(r.description);
-   const title=compact(r.title,105);
+   const {point,consequence,measure,measureStatus}=approvedRiskDescription(r.description);
+   const title=compact(point||r.title,105);
    return '<tr><td>'+esc(title)+'</td><td>'+esc(consequence||"")+'</td><td>'+esc(measure)+(measureStatus?' <small>('+esc(measureStatus)+')</small>':"")+'</td><td><strong>'+esc(r.severity)+'</strong></td></tr>';
   }).join("");
   return '<section class="panel risk-panel"><h3>04 · Riscos relevantes</h3><h2>Riscos e Planos de Mitigação</h2>'+summary+
