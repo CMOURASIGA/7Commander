@@ -6,6 +6,7 @@ import { getClientAuthEmail, getClientAuthHeaders } from "@/lib/client-auth";
 import { PageIntro, SectionLabel, StatusPill, SurfaceCard } from "@/components/ui/workspace-primitives";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import { useKairosPanel } from "@/components/kairos/kairos-context";
+import {ActionIcon} from "@/components/ui/action-icon";
 
 type ProjectSummary = {
   id: string;
@@ -24,6 +25,7 @@ type TaskCard = {
   position: number;
   columnId: string;
   columnKey: "todo" | "doing" | "done";
+  createdSource?: "user"|"kairos"|"unknown";
   labels: Array<{
     id: string;
     name: string;
@@ -91,6 +93,7 @@ export default function ActivitiesPage() {
   const [newTaskTitle, setNewTaskTitle] = useState("");
   const [newTaskDescription, setNewTaskDescription] = useState("");
   const [creatingTask, setCreatingTask] = useState(false);
+  const [deletingTaskId,setDeletingTaskId]=useState<string|null>(null);
   const [draggingTaskId, setDraggingTaskId] = useState<string | null>(null);
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   const handledDeepLink=useRef(false);
@@ -308,6 +311,26 @@ export default function ActivitiesPage() {
     }
   }
 
+  async function deleteTask(taskId:string,title:string){
+    if(!canEdit||deletingTaskId)return;
+    const authorized=await confirm({
+      title:"Excluir atividade?",
+      description:'A atividade "'+title+'" será excluída definitivamente. Comentários, checklists, membros e anexos associados também serão removidos. Atividades ligadas a risco oficial ou Sprint são bloqueadas.',
+      confirmLabel:"Excluir atividade",tone:"danger"
+    });
+    if(!authorized)return;
+    setDeletingTaskId(taskId);setStatus(null);
+    try{
+      const response=await fetch("/api/tasks/"+encodeURIComponent(taskId),{method:"DELETE",headers:getClientAuthHeaders()});
+      const data=await response.json().catch(()=>({}));
+      if(!response.ok)throw new Error(data.error||"Falha ao excluir atividade.");
+      if(selectedTaskId===taskId)closeTaskDrawer();
+      setStatus("Atividade excluída. Auditoria preservada.");window.dispatchEvent(new Event("7commander:tasks-changed"));
+      if(activeProjectId)await loadBoard(activeProjectId);
+    }catch(e){setStatus(e instanceof Error?e.message:"Falha ao excluir atividade.");}
+    finally{setDeletingTaskId(null);}
+  }
+
   async function moveTask(taskId: string, targetColumnId: string, targetPosition: number) {
     if (!canEdit) return;
     try {
@@ -364,6 +387,7 @@ export default function ActivitiesPage() {
         description="Quadro Kanban por projeto com cards operacionais, responsáveis, checklists, anexos e histórico completo."
         aside={
           <>
+            <Link href={activeProjectId?"/projects?projectId="+encodeURIComponent(activeProjectId):"/projects"} className="workspace-button-secondary inline-flex items-center gap-2"><ActionIcon name="arrow-left"/> Voltar ao projeto</Link>
             <StatusPill tone="accent">{projects.length} projetos</StatusPill>
             <StatusPill tone="success">{board?.columns.reduce((total, column) => total + column.cards.length, 0) ?? 0} cards</StatusPill>
             <button
@@ -516,8 +540,9 @@ export default function ActivitiesPage() {
                         <p className="mt-2 text-[13px] uppercase tracking-wide text-(--text-secondary)">
                           {card.priority} | {card.status}
                         </p>
+                        <p className="mt-1 text-[11px] text-(--text-secondary)" title="Origem verificada no histórico de criação">Criado por: {card.createdSource==="kairos"?"Kairos":card.createdSource==="user"?"usuário":"origem anterior não informada"}</p>
                       </button>
-                      <div className="px-3 pb-3">
+                      <div className="flex flex-wrap items-center justify-between gap-2 px-3 pb-3">
                         <button
                           type="button"
                           onClick={() =>
@@ -530,6 +555,7 @@ export default function ActivitiesPage() {
                         >
                           ✨ Kairos
                         </button>
+                        {canEdit&&<button type="button" aria-label={"Excluir atividade "+card.title} title="Excluir atividade" className="workspace-button-danger inline-flex items-center justify-center p-2" disabled={deletingTaskId===card.id} onClick={()=>void deleteTask(card.id,card.title)}><ActionIcon name="trash"/></button>}
                       </div>
                     </div>
                   ))
