@@ -72,6 +72,7 @@ export function PublicFactsEditor({projectId,onChange,proposedNextSteps}:{projec
   setBusy(true);setError("");setMessage("");
   const available=candidates.filter(candidate=>selected.includes(candidate.sourceReference)&&!recorded(candidate.sourceReference)?.approved_for_client);
   const failures:string[]=[];
+  const failedRefs:string[]=[];
   let published=0;
   try{
    for(const [index,candidate] of available.entries()){
@@ -86,9 +87,9 @@ export function PublicFactsEditor({projectId,onChange,proposedNextSteps}:{projec
      const result=await response.json().catch(()=>({}));
      if(!response.ok)throw Error(result.error||"Falha na publicação");
      published++;
-    }catch(e){failures.push(candidate.title+": "+(e instanceof Error?e.message:"erro desconhecido"));}
+    }catch(e){failedRefs.push(candidate.sourceReference);failures.push(candidate.title+": "+(e instanceof Error?e.message:"erro desconhecido"));}
    }
-   setSelected(failures.length?selected.filter(ref=>failures.some(msg=>candidates.find(c=>c.sourceReference===ref)?.title===msg.split(":")[0])):[]);
+   setSelected(failedRefs);
    setMessage(published+" informações publicadas. "+(failures.length?failures.length+" falharam e permaneceram selecionadas.":""));
    if(failures.length)setError(failures.slice(0,3).join(" | "));
    await reload();onChange?.();
