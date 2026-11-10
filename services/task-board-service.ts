@@ -99,6 +99,7 @@ export type TaskCard = {
   }>;
   createdAt: string;
   updatedAt: string;
+  createdSource: "user"|"kairos"|"unknown";
 };
 
 export type TaskBoardColumn = {
@@ -185,6 +186,7 @@ function mapTaskRowToCard(row: TaskRow, columnKey: ColumnKey): TaskCard {
     labels: [],
     createdAt: row.created_at,
     updatedAt: row.updated_at,
+    createdSource: "unknown",
   };
 }
 
@@ -205,6 +207,7 @@ function mapLegacyTaskRowToCard(row: LegacyTaskRow, columnKey: ColumnKey, positi
     labels: [],
     createdAt: row.created_at,
     updatedAt: row.updated_at ?? row.created_at,
+    createdSource: "unknown",
   };
 }
 
@@ -365,6 +368,24 @@ export async function listTaskBoard(params: {
     }
   }
 
+  // The creator is the real audit metadata, never inferred from current user.
+  // Missing or legacy rows remain "unknown" rather than falsely claiming Kairos.
+  if(taskIds.length){
+    let auditQuery=supabase.from("task_activity_log")
+      .select("task_id,metadata,created_at")
+      .in("task_id",taskIds).eq("action_type","task_created")
+      .order("created_at",{ascending:true}).limit(Math.max(taskIds.length*3,100));
+    if(tenantId)auditQuery=auditQuery.eq("organization_id",tenantId);
+    const audit=await auditQuery;
+    if(!audit.error&&audit.data){
+      for(const event of audit.data){
+        const card=cardByTaskId.get(event.task_id);
+        if(!card||card.createdSource!=="unknown")continue;
+        const source=(event.metadata as {source?:string}|null)?.source;
+        if(source==="kairos"||source==="user")card.createdSource=source;
+      }
+    }
+  }
   for (const column of columns) {
     column.cards.sort((a, b) => a.position - b.position);
   }
