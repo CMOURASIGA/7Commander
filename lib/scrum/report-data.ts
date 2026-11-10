@@ -2,6 +2,7 @@ import { getSupabaseServerClient } from "@/lib/supabase/server";
 import { getProjectAccessRole, getProjectById } from "@/services/project-service";
 import { requireEffectiveTenant, TENANT_SCHEMA_READY } from "@/lib/tenant-runtime";
 import { CONSULT_ORG_ID } from "@/lib/consult-workspace";
+import {getApprovedRiskFields} from "@/lib/reports/risk-report-html";
 
 export type ReportAudience="client"|"internal";
 export type ScrumReportStory={id:string;sprint_id:string|null;title:string;workflow_stage:string;story_points:number|null;due_date:string|null;actual_end_date:string|null;blocked:boolean;blocker_reason:string;responsible:string|null};
@@ -43,7 +44,7 @@ export async function loadReportData(db:DB,org:string,projectId:string,audience:
   if(person.email&&person.nome?.trim())emailNames.set(person.email.trim().toLowerCase(),person.nome.trim());
  }
  const displayOwner=(value:string|null)=>value&&emailNames.has(value.toLowerCase())?emailNames.get(value.toLowerCase())!:value;
- const approvedRiskFacts=(approvedFacts.data||[]).filter(item=>item.kind==="risk"&&/^risk:[0-9a-f-]{36}$/i.test(item.source_reference||""));
+ const approvedRiskFacts=(approvedFacts.data||[]).filter(item=>{const x=getApprovedRiskFields(item.description||"");return item.kind==="risk"&&/^risk:[0-9a-f-]{36}$/i.test(item.source_reference||"")&&Boolean(x.consequence&&x.measure&&x.measureStatus);});
  const riskPublicMap=new Map(approvedRiskFacts.map(item=>[item.source_reference?.slice(5),item]));
  const norm=(value:string|null):number|null=>{
   const normalized=String(value||"").trim().normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase();
