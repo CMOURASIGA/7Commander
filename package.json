@@ -12,7 +12,8 @@
     "supabase:validate": "node scripts/validate-supabase-schema.mjs",
     "test:e2e": "playwright test",
     "test:e2e:headed": "playwright test --headed",
-    "test:e2e:ui": "playwright test --ui"
+    "test:e2e:ui": "playwright test --ui",
+    "test:unit": "playwright test -c playwright.unit.config.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.51.0",
