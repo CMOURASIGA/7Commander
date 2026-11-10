@@ -23,17 +23,17 @@ export async function GET(request:NextRequest){
    scope.db.from("projects").select("id,nome,objetivo,descricao").eq("id",projectId).eq("organization_id",scope.organizationId).maybeSingle(),
    scope.db.from("tasks").select("id,titulo,descricao,status,due_date").eq("project_id",projectId).eq("organization_id",scope.organizationId).order("created_at",{ascending:false}).limit(80),
    scope.db.from("scrum_user_stories").select("id,title,description,workflow_stage,due_date").eq("project_id",projectId).eq("organization_id",scope.organizationId).order("created_at",{ascending:false}).limit(80),
-   scope.db.from("risks").select("id,titulo,impacto,status").eq("project_id",projectId).eq("organization_id",scope.organizationId).order("created_at",{ascending:false}).limit(40),
+   scope.db.from("risks").select("id,titulo,impacto,mitigacao,probabilidade,status").eq("project_id",projectId).eq("organization_id",scope.organizationId).order("created_at",{ascending:false}).limit(40),
    scope.db.from("decisions").select("id,titulo,contexto,status").eq("project_id",projectId).eq("organization_id",scope.organizationId).order("created_at",{ascending:false}).limit(40),
    scope.db.from("scrum_backlog_items").select("id,title,description,state,actual_end_date").eq("project_id",projectId).eq("organization_id",scope.organizationId).eq("item_type","epic").order("created_at",{ascending:false}).limit(60),
    scope.db.from("scrum_sprints").select("id,name,goal,status,start_date,end_date").eq("project_id",projectId).eq("organization_id",scope.organizationId).order("start_date",{ascending:false}).limit(60),
   ]);
   if([project,tasks,stories,risks,decisions,epics,sprints].some(r=>r.error))
     return out({error:"Não foi possível consultar os registros operacionais para revisão."},503);
-  const entries:Array<{kind:string;title:string;description:string;classification:string;dueDate:string;sourceReference:string;origin:string}>=[];
-  const add=(kind:string,title:string,description:string,classification:string,dueDate:string,sourceReference:string,origin:string)=>{
+  const entries:Array<{kind:string;title:string;description:string;classification:string;dueDate:string;sourceReference:string;origin:string;internalContext?:string}>=[];
+  const add=(kind:string,title:string,description:string,classification:string,dueDate:string,sourceReference:string,origin:string,internalContext?:string)=>{
    const cleanTitle=title.trim().slice(0,180);if(cleanTitle.length<3)return;
-   entries.push({kind,title:cleanTitle,description:description.trim().slice(0,3000),classification,dueDate:dueDate.slice(0,10),sourceReference,origin});
+   entries.push({kind,title:cleanTitle,description:description.trim().slice(0,3000),classification,dueDate:dueDate.slice(0,10),sourceReference,origin,internalContext});
   };
   if(project.data?.objetivo) add("objective",String(project.data.nome||"Objetivo do projeto"),String(project.data.objetivo),"in_progress","","project:"+projectId,"Projeto");
   // An epic represents planned scope; it is not evidence of accepted delivery.
@@ -52,8 +52,8 @@ export async function GET(request:NextRequest){
   for(const row of stories.data||[]){
    add(row.workflow_stage==="closed"?"deliverable":"next_step",row.title,row.description||"","in_progress",row.due_date||"","story:"+row.id,"User Story");
   }
-  for(const row of risks.data||[])add("risk",row.titulo,row.impacto||"","in_progress","","risk:"+row.id,"Risco");
-  for(const row of decisions.data||[])add("next_step",row.titulo,"Decisão ("+row.status+"). "+(row.contexto||"Validar contexto e próximos passos antes da divulgação."),"in_progress","","decision:"+row.id,"Decisão");
+  for(const row of risks.data||[])add("risk",row.titulo,"","in_progress","","risk:"+row.id,"Risco", "Impacto cadastrado: "+(row.impacto||"não informado")+" | Probabilidade: "+(row.probabilidade||"não informada")+" | Mitigação técnica: "+(row.mitigacao||"não registrada"));
+  // Decisões não representam automaticamente ações futuras. Próximos passos devem ser registrados com finalidade própria.
   // Public facts and proposed drafts are managed separately; suggestions are never persisted.
   return out({data:entries.slice(0,160)});
  }
