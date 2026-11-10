@@ -31,15 +31,15 @@ for(const size of [0,1,5,7,15]){
   expect(team).toContain("Moderado 3–4");
   expect(team).toContain("Alto 6");
   expect(team).toContain("Crítico 9");
-  expect(team).toContain("não</b> um percentual");
+  expect(team).toContain("não corresponde a percentual");
   expect(team).toContain("Gestão de riscos");
-  if(size>0)expect(team).toContain("Mitigação registrada");
+  if(size>0){expect(team).toContain("Próxima ação registrada");expect(team).toContain("Ver plano completo");}
   expect(client).not.toContain("P × I");
   expect(client).not.toContain("Como ler a matriz");
   expect(client).not.toContain("Pessoa interna");
   expect(client).not.toContain("Plano reservado para equipe");
   expect(client).not.toContain("R-000000000001");
-  if(size>0){expect(client).toContain("Ponto de atenção");expect(client).toContain("Medida comunicável");}
+  if(size>0){expect(client).toContain("Ponto de atenção");expect(client).toContain("Medida prevista ou em execução");}
   const ids=[...team.matchAll(/<td>(R-\d{12})<\/td>/g)].map(match=>match[1]);
   expect(ids).toHaveLength(size);
   for(const id of ids)expect(team).toContain(id);
@@ -75,6 +75,29 @@ test("REP-02 uses same score and severity in matrix and team row",()=>{
  data[0]={...data[0],probability:3,impact:3,score:9,severity:"Crítico"};
  const html=riskReportHtml(data,"internal");
  expect(html).toContain("Crítico · 9");
- expect(html).toContain("P 3 × I 3 = 9");
+ expect(html).toContain("Crítico");
  expect(html).toContain("R-000000000001");
+});
+
+test("REP-03 client uses only structured authorized measures and never guesses implementation status",()=>{
+ const data=fixtures(1);
+ data[0]={...data[0],description:"Consequência: atraso de homologação\nMedida: executar validação técnica\nSituação da medida: planejada"};
+ const client=riskReportHtml(data,"client");
+ expect(client).toContain("atraso de homologação");
+ expect(client).toContain("executar validação técnica");
+ expect(client).toContain("(planejada)");
+ expect(client).not.toContain("Plano reservado para equipe");
+ data[0].description="Consequência: indisponibilidade operacional";
+ const missing=riskReportHtml(data,"client");
+ expect(missing).not.toContain("Medida ainda não comunicada");
+ expect(missing).not.toContain("Revisar internamente");
+});
+test("REP-03 operational rows exclude mitigation text except in HTML details and optional annex",()=>{
+ const risk=fixtures(1)[0];
+ risk.mitigation="Validar controle de acesso. Executar plano extenso com documentação e validações.";
+ const html=riskReportHtml([risk],"internal");
+ expect(html).toContain("Ver plano completo");
+ expect(html).toContain("Validar controle de acesso.");
+ expect(html).not.toContain("class=\"risk-annex\"");
+ expect(riskReportHtml([risk],"internal",{includeMitigationAnnex:true})).toContain("Anexo opcional");
 });
