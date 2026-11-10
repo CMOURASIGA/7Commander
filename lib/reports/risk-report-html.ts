@@ -34,16 +34,13 @@ export function riskReportHtml(risks:ReportRiskAssessment[],audience:ReportAudie
  const empty='<p class="empty">Não há avaliações de riscos formalizadas nesta seleção. Isso não significa ausência de exposição; recomenda-se uma revisão.</p>';
  if(audience==="client"){
   const top=sorted.slice(0,5);
-  let pending=0;
   const rows=top.map(r=>{
    const {consequence,measure,measureStatus}=approvedRiskDescription(r.description);
-   if(!measure)pending++;
    const title=compact(r.title,105);
    return '<tr><td>'+esc(title)+'</td><td>'+esc(consequence||"")+'</td><td>'+esc(measure)+(measureStatus?' <small>('+esc(measureStatus)+')</small>':"")+'</td><td><strong>'+esc(r.severity)+'</strong></td></tr>';
   }).join("");
   return '<section class="panel risk-panel"><h3>04 · Riscos relevantes</h3><h2>Riscos e Planos de Mitigação</h2>'+summary+
    (top.length?'<div class="report-table-wrap"><table class="report-table client-risk-table"><thead><tr><th>Ponto de atenção</th><th>Possível consequência</th><th>Medida prevista ou em execução</th><th>Criticidade</th></tr></thead><tbody>'+rows+'</tbody></table></div>':empty)+
-   (pending?'<p class="muted client-risk-warning">Existem '+pending+' riscos sem medida comunicável aprovada. Revisar internamente antes do envio ao cliente; as células correspondentes permanecem vazias.</p>':"")+
    (sorted.length>5?'<p class="muted">Mostrados os cinco riscos autorizados de maior prioridade. Outros '+(sorted.length-5)+' riscos permanecem fora desta síntese.</p>':"")+
    '</section>';
  }
