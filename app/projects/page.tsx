@@ -11,6 +11,7 @@ import { MarkdownContent } from "@/components/ui/markdown-content";
 import { normalizeDecisionText } from "@/lib/decision-excerpt";
 import { PageIntro, SectionLabel, StatusPill } from "@/components/ui/workspace-primitives";
 import { useConfirm } from "@/components/ui/confirm-dialog";
+import {ProjectStakeholdersEditor} from "@/components/projects/project-stakeholders-editor";
 
 const STATUS_LABELS: Record<DecisionStatus, string> = {
   aberta: "Aberta",
@@ -1080,11 +1081,11 @@ export default function ProjectsPage() {
               placeholder="Contexto"
               className="min-h-20 w-full rounded-lg border border-(--border) px-3 py-2 text-xs outline-none focus:border-(--accent)"
             />
-            <input
+            <ProjectStakeholdersEditor
+              key={activeProjectId||"project"}
               value={projectForm.stakeholders}
-              onChange={(event) => setProjectForm((prev) => ({ ...prev, stakeholders: event.target.value }))}
-              placeholder="Stakeholders"
-              className="w-full rounded-lg border border-(--border) px-3 py-2 text-xs outline-none focus:border-(--accent)"
+              onChange={stakeholders=>{setProjectForm(prev=>({...prev,stakeholders}));setProjectStatus("Stakeholders alterados. Salve os detalhes do projeto para confirmar.");}}
+              readOnly={readOnly}
             />
             <div className="grid gap-2 md:grid-cols-3">
               <input
