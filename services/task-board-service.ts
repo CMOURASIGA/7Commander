@@ -527,6 +527,7 @@ export async function createTaskCard(params: {
     return null;
   }
   const card = mapTaskRowToCard(inserted.data as TaskRow, targetColumnKey);
+  card.createdSource=params.actionSource??"user";
   await registerTaskActivity({
     taskId: card.id,
     actorUserId: params.userId,
@@ -945,4 +946,41 @@ export async function getUserTaskOperationalSnapshot(userId: string): Promise<{
   }
 
   return { todo, doing, done, openTitles };
+}
+
+/**
+ * Delete a project Kanban task only with editor/owner permission and a retained audit.
+ * Refuse deletion of formal risk-linked tasks or Sprint-linked records.
+ * Comments, checklists, memberships and attachments are removed by DB cascades
+ * only after the caller confirms the loss in the interface.
+ */
+export async function deleteTaskCard(params:{userId:string;userEmail?:string|null;taskId:string}):Promise<{deleted:boolean;reason:string}>{
+ const supabase=getSupabaseServerClient();
+ if(!supabase)return {deleted:false,reason:"Banco indisponível."};
+ const organizationId=TENANT_SCHEMA_READY?await requireEffectiveTenant(params.userId):CONSULT_ORG_ID;
+ const current=await supabase.from("tasks").select("id,project_id,titulo,descricao,prioridade,status,responsavel,due_date,created_at,board_id,column_id")
+   .eq("id",params.taskId).eq("organization_id",organizationId).maybeSingle();
+ if(current.error||!current.data?.project_id)return {deleted:false,reason:"Atividade não localizada neste ambiente."};
+ const row=current.data;
+ const access=await getProjectAccessRole({userId:params.userId,userEmail:params.userEmail,projectId:row.project_id});
+ if(access!=="owner"&&access!=="editor")return {deleted:false,reason:"Sem permissão para excluir esta atividade."};
+ const [riskLink,sprintLink]=await Promise.all([
+  supabase.from("risks").select("id").eq("task_id",params.taskId).limit(1),
+  supabase.from("scrum_sprint_tasks").select("id").eq("task_id",params.taskId).limit(1)
+ ]);
+ if(riskLink.error||sprintLink.error)return {deleted:false,reason:"Não foi possível verificar os vínculos. Exclusão bloqueada."};
+ if(riskLink.data?.length||sprintLink.data?.length)
+  return {deleted:false,reason:"Atividade vinculada a risco oficial ou Sprint. Desvincule-a antes de excluir para preservar a rastreabilidade."};
+ const audit=await supabase.from("project_task_deletion_audit").insert({
+  organization_id:organizationId,project_id:row.project_id,task_id:row.id,
+  snapshot:{...row,requested_by:params.userId},deleted_by:params.userId
+ }).select("id").single();
+ if(audit.error||!audit.data)return {deleted:false,reason:"Auditoria da exclusão indisponível. Nenhuma atividade removida."};
+ const deleted=await supabase.from("tasks").delete().eq("id",row.id).eq("project_id",row.project_id)
+  .eq("organization_id",organizationId).select("id").maybeSingle();
+ if(deleted.error||!deleted.data){
+  await supabase.from("project_task_deletion_audit").delete().eq("id",audit.data.id).eq("organization_id",organizationId);
+  return {deleted:false,reason:"Falha ao excluir atividade. O cadastro foi preservado."};
+ }
+ return {deleted:true,reason:"Atividade excluída com registro de auditoria."};
 }
