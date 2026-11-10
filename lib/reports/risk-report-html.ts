@@ -29,12 +29,13 @@ export function getApprovedRiskFields(text:string){
 export function riskReportHtml(risks:ReportRiskAssessment[],audience:ReportAudience,options:{includeMitigationAnnex?:boolean}={}){
  const esc=escapeHtml;
  const sorted=sortedRisks(risks);
+ const clientVisible=audience==="client"?sorted.filter(r=>{const x=getApprovedRiskFields(r.description);return Boolean(x.point&&x.consequence&&x.measure&&["planejada","em execução","concluída"].includes(x.measureStatus.toLowerCase()));}):sorted;
  const rated=sorted.filter(r=>r.score!==null);
- const count=(severity:string)=>sorted.filter(r=>r.severity===severity).length;
- const summary='<p class="risk-summary">Riscos visíveis: '+sorted.length+' · Críticos: '+count("Crítico")+' · Altos: '+count("Alto")+' · Moderados: '+count("Moderado")+' · Baixos: '+count("Baixo")+' · Não avaliados: '+count("Não avaliado")+'.</p>';
+ const count=(severity:string)=>clientVisible.filter(r=>r.severity===severity).length;
+ const summary='<p class="risk-summary">Riscos visíveis: '+clientVisible.length+' · Críticos: '+count("Crítico")+' · Altos: '+count("Alto")+' · Moderados: '+count("Moderado")+' · Baixos: '+count("Baixo")+' · Não avaliados: '+count("Não avaliado")+'.</p>';
  const empty='<p class="empty">Não há avaliações de riscos formalizadas nesta seleção. Isso não significa ausência de exposição; recomenda-se uma revisão.</p>';
  if(audience==="client"){
-  const top=sorted.filter(r=>{const x=getApprovedRiskFields(r.description);return Boolean(x.consequence&&x.measure&&x.measureStatus);}).slice(0,5);
+  const top=clientVisible.slice(0,5);
   const rows=top.map(r=>{
    const {point,consequence,measure,measureStatus}=getApprovedRiskFields(r.description);
    const title=compact(point||r.title,105);
@@ -42,7 +43,7 @@ export function riskReportHtml(risks:ReportRiskAssessment[],audience:ReportAudie
   }).join("");
   return '<section class="panel risk-panel"><h3>04 · Riscos relevantes</h3><h2>Riscos e Planos de Mitigação</h2>'+summary+
    (top.length?'<div class="report-table-wrap"><table class="report-table client-risk-table"><thead><tr><th>Ponto de atenção</th><th>Possível consequência</th><th>Medida prevista ou em execução</th><th>Criticidade</th></tr></thead><tbody>'+rows+'</tbody></table></div>':empty)+
-   (sorted.length>top.length?'<p class="muted">A síntese apresenta somente riscos com consequência, medida e situação autorizadas. Outros registros exigem complementação antes de divulgação.</p>':"")+
+   
    '</section>';
  }
  const rows=sorted.map(r=>{
