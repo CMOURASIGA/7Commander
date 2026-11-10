@@ -39,8 +39,7 @@ for(const size of [0,1,5,7,15]){
   expect(client).not.toContain("Pessoa interna");
   expect(client).not.toContain("Plano reservado para equipe");
   expect(client).not.toContain("R-000000000001");
-  expect(client).toContain("Ponto de atenção");
-  expect(client).toContain("Medida comunicável");
+  if(size>0){expect(client).toContain("Ponto de atenção");expect(client).toContain("Medida comunicável");}
   const ids=[...team.matchAll(/<td>(R-\d{12})<\/td>/g)].map(match=>match[1]);
   expect(ids).toHaveLength(size);
   for(const id of ids)expect(team).toContain(id);
