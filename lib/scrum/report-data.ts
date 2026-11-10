@@ -97,7 +97,7 @@ export async function loadReportData(db:DB,org:string,projectId:string,audience:
    overdue:kanbanRows.filter(t=>t.due_date&&t.due_date<now&&!["concluida","done"].includes(t.status)).length
   },
   governance:{
-   risks_open:(risks.data||[]).filter(r=>["aberto","em_mitigacao"].includes(r.status)).length,
+   risks_open:(audience==="internal"?(risks.data||[]):riskAssessments).filter(r=>["aberto","em_mitigacao"].includes(r.status)).length,
    decisions_pending:(decisions.data||[]).filter(d=>["aberta","em_andamento"].includes(d.status)).length,
    client_risks:audience==="internal"?(risks.data||[]).filter(r=>["aberto","em_mitigacao"].includes(r.status)).slice(0,15).map(r=>({title:r.titulo,status:r.status})):[],
    client_decisions:audience==="internal"?(decisions.data||[]).filter(d=>["aberta","em_andamento"].includes(d.status)).slice(0,15).map(d=>({title:d.titulo,status:d.status})):[]
