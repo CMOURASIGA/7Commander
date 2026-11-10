@@ -52,6 +52,11 @@ const css = `
 .client-risk-item p b{color:#19334b;font-weight:700}
 .client-risk-item p+p{padding-top:7px;border-top:1px solid #edf2f7}
 .risk-panel>.muted{display:block;margin-top:13px;line-height:1.65}
+/* Delivery descriptions and next-step statuses must not become a narrow right-hand column. */
+.client-report .panel:not(.risk-panel) .item{display:block;padding:12px 0;line-height:1.55}
+.client-report .panel:not(.risk-panel) .item>div{display:block;font-weight:650;color:#19334b;margin-bottom:7px;overflow-wrap:break-word}
+.client-report .panel:not(.risk-panel) .item>span{display:block;margin-top:5px;color:#53687b;font-size:12.5px;line-height:1.65;overflow-wrap:break-word}
+
 @media(max-width:550px){.client-risk-head{gap:8px}.client-risk-head strong{flex-basis:100%}.client-risk-item.item{padding:13px}}
 @media print{.client-risk-item.item{break-inside:avoid;page-break-inside:avoid}.client-risk-head{break-after:avoid}}
 
@@ -88,7 +93,7 @@ function reportDocument(project:Project, cards:Card[], risks:Risk[], decisions:D
     const publicObjectiveText=publicObjective?.description||publicObjective?.title||"";
     const published=Boolean(scrum?.publicFactsAvailable);
     const approvalNotice=published?"":"Informações ainda não disponíveis para divulgação.";
-    return `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Status Report Cliente - ${htmlEscape(project.name)}</title><style>${css}</style></head><body><main class="wrap">
+    return `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Status Report Cliente - ${htmlEscape(project.name)}</title><style>${css}</style></head><body><main class="wrap client-report">
     <header class="hero"><div class="top"><img class="logo" src="${logo}" alt="Consult Services Tecnologia"><div class="topright">RELATÓRIO PARA CLIENTE<br><small>Visão de objetivos, entregas e compromissos</small></div></div><p class="eyebrow">COMMANDER · ACOMPANHAMENTO DO PROJETO</p><h1>${htmlEscape(project.name)}</h1>${publicObjectiveText?`<p class="desc">${htmlEscape(publicObjectiveText)}</p>`:""}<div class="chips"><span class="chip">Referência: ${htmlEscape(period)}</span><span class="chip">Emissão: ${htmlEscape(issueDate)}</span><span class="chip">Público: Cliente</span></div></header>
     <div class="note">Informações autorizadas para acompanhamento. As contagens não indicam aceite contratual nem percentual físico de conclusão.</div>
     ${publicItems("benefit").length?`<section class="panel"><h3>01 · Benefícios</h3><h2>Benefícios documentados</h2>${list(publicItems("benefit"),approvalNotice)}</section>`:""}
