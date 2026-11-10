@@ -36,12 +36,22 @@ const css = `
 .risk-code{display:inline-block;border:1px solid #b9cad8;border-radius:4px;padding:2px 4px;margin:2px;font-size:10px}
 .risk-legend{font-size:11px;background:#f3f7fb;border:1px solid #dce7f1;border-radius:9px;padding:10px 12px;margin:12px 0}
 .risk-legend p{margin:5px 0;line-height:1.45}.risk-summary{font-size:12px}.muted{font-size:11px;color:#657d91}
-.panel h2,.panel h3{break-after:avoid}.item,.risk-legend,.report-table tr{break-inside:avoid}
+.panel h2,.panel h3{break-after:avoid}.risk-legend,.report-table thead{break-inside:avoid}
+.operational-risk-table{table-layout:fixed;font-size:11px}.operational-risk-table th:nth-child(1){width:12%}.operational-risk-table th:nth-child(2){width:25%}.operational-risk-table th:nth-child(3){width:12%}.operational-risk-table th:nth-child(4){width:15%}.operational-risk-table th:nth-child(5){width:11%}.operational-risk-table th:nth-child(6){width:25%}
+.client-risk-table th:nth-child(1){width:27%}.client-risk-table th:nth-child(2){width:27%}.client-risk-table th:nth-child(3){width:31%}.client-risk-table th:nth-child(4){width:15%}
+.risk-detail-row td{background:#f5f8fc}.risk-detail-row summary{cursor:pointer;font-weight:600}.risk-detail-row p{max-width:700px;white-space:pre-wrap}.risk-panel strong{color:#19334b}
+.risk-annex{break-before:page}.report-table td,.report-table th{line-height:1.45}
+@media print{.pdf-hide{display:none!important}.report-table tr{break-inside:avoid}.risk-legend{break-inside:avoid}.risk-annex{break-before:page}}
+
 @media print{@page{size:A4;margin:12mm}body{background:white}.wrap{padding:0}.hero{box-shadow:none;border:1px solid #d9e4ed}.actions{display:none}.metric,.hero,.risk-legend,.report-table tr{break-inside:avoid}.report-table thead,.risk-matrix thead{display:table-header-group}.panel{break-inside:auto}.report-table-wrap{overflow:visible}}
 `;
 
 type AiAnalysis = { executiveSummary:string; riskAnalysis:string; nextSteps:string };
 type PeriodMetrics = { tasksCreated:number; risksRegistered:number; decisionsRegistered:number; activityEvents:number };
+function renumberReportSections(html:string):string{
+ let count=0;
+ return html.replace(/(<h3>)(\d{2})( · )/g,(_m,tag:string,_number:string,dot:string)=>tag+String(++count).padStart(2,"0")+dot);
+}
 function reportDocument(project:Project, cards:Card[], risks:Risk[], decisions:Decision[], period:string, issueDate:string, analysis:AiAnalysis|null, periodEvents:number|null, periodMetrics:PeriodMetrics|null, audience:ReportAudience, scrum:ReportData|null) {
   const done=scrum?.kanban.done??cards.filter(x=>x.columnKey==="done").length, doing=scrum?.kanban.doing??cards.filter(x=>x.columnKey==="doing").length, todo=scrum?.kanban.todo??cards.filter(x=>x.columnKey==="todo").length;
   const atRisk=risks.filter(x=>x.status==="aberto"||x.status==="em_mitigacao");
@@ -186,7 +196,7 @@ export default function StatusReportPage() {
  const project=projects.find(x=>x.id===projectId);
  const cards=useMemo(()=>board?.columns.flatMap(x=>x.cards)||[],[board]);
  const issueDate=new Date().toLocaleDateString("pt-BR");
- const reportHtml=project&&board&&scrumReport?reportDocument(project,cards,audience==="client"?risks.map(r=>({...r,owner:null,mitigation:null})):risks,decisions,period,issueDate,analysis,periodEvents,periodMetrics,audience,scrumReport):"";
+ const reportHtml=project&&board&&scrumReport?renumberReportSections(reportDocument(project,cards,audience==="client"?risks.map(r=>({...r,owner:null,mitigation:null})):risks,decisions,period,issueDate,analysis,periodEvents,periodMetrics,audience,scrumReport)):"";
  const documentHtml=reportHtml.replaceAll(BRAND_LOGO_URL,brandLogoData).replaceAll("CONSULT SERVICES TECNOLOGIA",htmlEscape(brandName)).replaceAll('alt="Consult Services Tecnologia"','alt="'+htmlEscape(brandName)+'"');
  async function issue():Promise<string|null>{
   if(!projectId||!scrumReport||!documentHtml||issuing)return null;
