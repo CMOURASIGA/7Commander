@@ -2,6 +2,7 @@
 import {useCallback,useEffect,useState} from "react";
 import {getClientAuthHeaders} from "@/lib/client-auth";
 import {isVagueNextStep} from "@/lib/reports/editorial-rules";
+import {executiveRiskTitle} from "@/lib/reports/risk-editorial";
 
 type Fact={id:string;kind:string;title:string;description:string;classification:string;due_date:string|null;approved_for_client:boolean;approved_at:string|null;source_reference?:string|null};
 type Candidate={kind:string;title:string;description:string;classification:string;dueDate:string;sourceReference:string;origin:string;internalContext?:string};
@@ -13,13 +14,6 @@ const blank=():EditorialForm=>({kind:"deliverable",title:"",description:"",class
 const riskReady=(info:{kind:string;description:string})=>
  info.kind!=="risk"||info.description.split("\n").some(line=>
   /^ponto de aten[çc][aã]o\s*:\s*\S/i.test(line.trim()));
-const executiveRiskTitle=(title:string)=>{
- const normal=title.normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase();
- if(/registros de auditoria.*(?:pipeline|etl)/.test(normal))return "Rastreabilidade do processamento de dados";
- if(/falhas? na integracao.*(?:api|backend|interface)/.test(normal))return "Integração das funcionalidades";
- if(/(?:liberacao|entrega).*sem homologacao/.test(normal))return "Validação das entregas";
- return title;
-};
 const riskTemplate=(description:string,title:string)=>{
  const lines=description.split("\n").filter(Boolean);
  if(!lines.some(line=>/^ponto de aten[çc][aã]o\s*:/i.test(line.trim())))
