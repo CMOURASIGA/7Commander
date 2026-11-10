@@ -52,7 +52,7 @@ function renumberReportSections(html:string):string{
  let count=0;
  return html.replace(/(<h3>)(\d{2})( · )/g,(_m,tag:string,_number:string,dot:string)=>tag+String(++count).padStart(2,"0")+dot);
 }
-function reportDocument(project:Project, cards:Card[], risks:Risk[], decisions:Decision[], period:string, issueDate:string, analysis:AiAnalysis|null, periodEvents:number|null, periodMetrics:PeriodMetrics|null, audience:ReportAudience, scrum:ReportData|null) {
+function reportDocument(project:Project, cards:Card[], risks:Risk[], decisions:Decision[], period:string, issueDate:string, analysis:AiAnalysis|null, periodEvents:number|null, periodMetrics:PeriodMetrics|null, audience:ReportAudience, scrum:ReportData|null, includeMitigationAnnex=false) {
   const done=scrum?.kanban.done??cards.filter(x=>x.columnKey==="done").length, doing=scrum?.kanban.doing??cards.filter(x=>x.columnKey==="doing").length, todo=scrum?.kanban.todo??cards.filter(x=>x.columnKey==="todo").length;
   const atRisk=risks.filter(x=>x.status==="aberto"||x.status==="em_mitigacao");
   const undecided=decisions.filter(x=>x.status==="aberta"||x.status==="em_andamento");
@@ -108,7 +108,7 @@ function reportDocument(project:Project, cards:Card[], risks:Risk[], decisions:D
   <section class="panel"><h3>03 · Atividades concluídas</h3><h2>Cards concluídos, incluindo reuniões e atividades administrativas</h2>${list(completed.map(x=>({title:x.title,note:"Concluída"})),"Nenhum card em DONE.")}</section>
   <section class="panel"><h3>04 · Governança</h3><h2>Decisões necessárias</h2>${list(undecided.map(x=>({title:x.title,note:x.status})),"Nenhuma decisão pendente registrada.")}</section>
   <section class="panel"><h3>05 · Perspectiva</h3><h2>Próximos passos</h2>${analysis?`<div class="report-ai-text">${safeMarkdownHtml(analysis.nextSteps)}</div>`:`<p class="muted">Próximas ações ainda não registradas.</p>`}<p>Sem linha de base histórica suficiente para uma previsão de custo, prazo ou tendência.</p></section></div>
-  ${riskReportHtml(scrum?.riskAssessments||[],"internal")}${scrumSection}${internalSection}
+  ${riskReportHtml(scrum?.riskAssessments||[],"internal",{includeMitigationAnnex})}${scrumSection}${internalSection}
   <footer class="foot"><span>CONSULT SERVICES TECNOLOGIA · Commander / Relatório Equipe</span><span>Registro gerado em ${htmlEscape(issueDate)}</span></footer>
   <div class="actions"><button onclick="window.print()">Salvar como PDF / Imprimir</button></div>
   </main></body></html>`;
@@ -163,6 +163,7 @@ export default function StatusReportPage() {
  const [status,setStatus]=useState("Selecione um projeto para gerar um relatório.");
  const [busy,setBusy]=useState(false);
  const [pdfBusy,setPdfBusy]=useState(false);
+ const [includeMitigationAnnex,setIncludeMitigationAnnex]=useState(false);
  const [periodMode,setPeriodMode]=useState<"current"|"period">("current");
  const [start,setStart]=useState(()=>{const d=new Date();return [d.getFullYear(),String(d.getMonth()+1).padStart(2,"0"),"01"].join("-")});
  const [end,setEnd]=useState(()=>{const d=new Date();return [d.getFullYear(),String(d.getMonth()+1).padStart(2,"0"),String(d.getDate()).padStart(2,"0")].join("-")});
@@ -247,7 +248,10 @@ export default function StatusReportPage() {
   setPdfBusy(true);
   try{
    const filename="status-report-"+(audience==="client"?"cliente":"equipe")+"-"+project.id+"-"+new Date().toISOString().slice(0,10)+".pdf";
-   await downloadReportPdf(documentHtml,filename);
+   const pdfHtml=audience==="internal"&&includeMitigationAnnex
+    ?renumberReportSections(reportDocument(project,cards,risks,decisions,period,issueDate,analysis,periodEvents,periodMetrics,audience,scrumReport,true)).replaceAll(BRAND_LOGO_URL,brandLogoData).replaceAll("CONSULT SERVICES TECNOLOGIA",htmlEscape(brandName))
+    :documentHtml;
+   await downloadReportPdf(pdfHtml,filename);
    setStatus("PDF gerado, registrando emissão...");
    await issue();
   }catch(e){setStatus(e instanceof Error?e.message:"Não foi possível gerar o PDF.");}
@@ -269,12 +273,13 @@ export default function StatusReportPage() {
  <section className="grid gap-3 rounded-xl border border-(--border) bg-(--bg-surface) p-4 md:grid-cols-[2fr_1fr_auto]">
  <label className="text-sm">Projeto<select className="mt-1 block w-full rounded-lg border border-(--border) bg-(--bg-surface) px-3 py-2" value={projectId} onChange={e=>setProjectId(e.target.value)}>{projects.map(x=><option key={x.id} value={x.id}>{x.name}</option>)}</select></label>
  <div className="text-sm"><label className="block">Período de referência<select className="mt-1 block w-full rounded-lg border border-(--border) bg-(--bg-surface) px-3 py-2" value={periodMode} onChange={e=>setPeriodMode(e.target.value==="period"?"period":"current")}><option value="current">Situação atual</option><option value="period">Período personalizado</option></select></label>{periodMode==="period"&&<div className="mt-2 grid grid-cols-2 gap-2"><label>Início<input type="date" className="mt-1 block w-full rounded border p-2" value={start} max={end} onChange={e=>setStart(e.target.value)}/></label><label>Fim<input type="date" className="mt-1 block w-full rounded border p-2" value={end} min={start} onChange={e=>setEnd(e.target.value)}/></label></div>}</div>
- <div className="flex flex-wrap gap-2 self-end"><button type="button" onClick={()=>void download()} disabled={!documentHtml||busy||pdfBusy||issuing} className="workspace-button-secondary px-4 py-2 text-sm disabled:opacity-50">Baixar HTML</button><button type="button" onClick={()=>void downloadPdf()} disabled={!documentHtml||busy||pdfBusy||issuing} className="workspace-button-primary px-4 py-2 text-sm disabled:opacity-50">{pdfBusy?"Gerando PDF...":"Baixar PDF"}</button></div>
+ <div className="flex flex-wrap gap-2 self-end"><button type="button" onClick={()=>void download() disabled={!documentHtml||busy||pdfBusy||issuing} className="workspace-button-secondary px-4 py-2 text-sm disabled:opacity-50">Baixar HTML</button><button type="button" onClick={()=>void downloadPdf()} disabled={!documentHtml||busy||pdfBusy||issuing} className="workspace-button-primary px-4 py-2 text-sm disabled:opacity-50">{pdfBusy?"Gerando PDF...":"Baixar PDF"}</button></div>
  </section>
  <section className="grid gap-3 rounded-xl border border-(--border) bg-(--bg-surface) p-4 md:grid-cols-[1fr_auto]">
  <label className="text-sm">Tipo de relatório<select className="mt-1 block w-full rounded-lg border border-(--border) bg-(--bg-surface) px-3 py-2" value={audience} onChange={e=>setAudience(e.target.value==="internal"?"internal":"client")}><option value="client">Executivo · Cliente</option><option value="internal">Gerencial · Equipe interna</option></select></label>
  <button type="button" className="self-end rounded-lg bg-(--accent) px-4 py-2 text-sm text-white disabled:opacity-50" disabled={!documentHtml||issuing} onClick={()=>void issue()}>{issuing?"Registrando...":"Registrar emissão no histórico"}</button>
  </section>
+ {audience==="internal"&&<label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={includeMitigationAnnex} onChange={e=>setIncludeMitigationAnnex(e.target.checked)}/> Incluir anexo de mitigação completa no PDF da Equipe (opcional)</label>}
  <p role="status" className="text-xs text-(--text-secondary)">{scrumStatus}</p>
  {projectId&&<PublicFactsEditor projectId={projectId} proposedNextSteps={analysis?.nextSteps} onChange={()=>setFactsRevision(n=>n+1)}/>}
  <section className="rounded-xl border border-(--border) bg-(--bg-surface) p-4"><h2 className="font-semibold">Histórico de emissões</h2><p className="mt-1 text-xs text-(--text-secondary)">Os indicadores são preservados no momento da emissão. A visualização histórica abaixo resume o snapshot armazenado.</p>
