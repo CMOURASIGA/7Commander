@@ -10,6 +10,7 @@ import { listDecisions } from "@/services/decision-service";
 import { getKairosProfile } from "@/services/kairos-profile-service";
 import { resolveProjectContext } from "@/services/project-resolver";
 import { createTaskFromKairosCommand, moveTaskFromKairosCommand } from "@/services/task-card-detail-service";
+import {createKanbanActivityBatch,hasExplicitBatchCreationRequest} from "@/services/kairos-activity-batch";
 import { getProjectTaskOperationalSnapshot } from "@/services/task-board-service";
 import { listRisksByProject } from "@/services/risk-service";
 import { createRisk } from "@/services/risk-service";
@@ -230,6 +231,11 @@ async function maybeHandleTaskCommand(params: {
     };
   }
 
+  if(hasExplicitBatchCreationRequest(params.message)){
+    const answer=await createKanbanActivityBatch({userId:params.userId,userEmail:params.userEmail,
+      projectId:params.projectId,projectName:params.projectName||"projeto ativo",message:params.message});
+    return {handled:true,answer};
+  }
   const createIntent = detectCreateTaskIntent(params.message);
   if (createIntent) {
     const created = await createTaskFromKairosCommand({
