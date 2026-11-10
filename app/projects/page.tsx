@@ -11,6 +11,7 @@ import { MarkdownContent } from "@/components/ui/markdown-content";
 import { normalizeDecisionText } from "@/lib/decision-excerpt";
 import { PageIntro, SectionLabel, StatusPill } from "@/components/ui/workspace-primitives";
 import { useConfirm } from "@/components/ui/confirm-dialog";
+import {ActionIcon} from "@/components/ui/action-icon";
 import {ProjectStakeholdersEditor} from "@/components/projects/project-stakeholders-editor";
 
 const STATUS_LABELS: Record<DecisionStatus, string> = {
@@ -161,6 +162,8 @@ export default function ProjectsPage() {
   const [decisions, setDecisions] = useState<Decision[]>([]);
   const [loading, setLoading] = useState(true);
   const [creatingDecision, setCreatingDecision] = useState(false);
+  const [decisionDrawerOpen,setDecisionDrawerOpen]=useState(false);
+  const [riskDrawerOpen,setRiskDrawerOpen]=useState(false);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
   const [creatingProject, setCreatingProject] = useState(false);
   const [deletingProjectId,setDeletingProjectId] = useState<string|null>(null);
@@ -524,6 +527,7 @@ export default function ProjectsPage() {
         status: "aberta",
       });
       setDecisionStatusMessage("Decisao criada.");
+      setDecisionDrawerOpen(false);
       await loadDecisions(activeProjectId);
     } catch (error) {
       setDecisionStatusMessage(error instanceof Error ? error.message : "Falha ao criar decisao.");
@@ -678,6 +682,7 @@ export default function ProjectsPage() {
         taskId: "",
       });
       setRiskStatusMessage("Risco criado.");
+      setRiskDrawerOpen(false);
       await loadRisks(activeProjectId);
     } catch (error) {
       setRiskStatusMessage(error instanceof Error ? error.message : "Falha ao criar risco.");
@@ -749,6 +754,7 @@ export default function ProjectsPage() {
         description="Projetos concentram contexto, documentos, riscos, membros e decisões do command center operacional."
         aside={
           <>
+            <Link href="/" className="workspace-button-secondary inline-flex items-center gap-2"><ActionIcon name="arrow-left"/> Voltar ao início</Link>
             <StatusPill tone="accent">{projects.length} projetos</StatusPill>
             <StatusPill tone="success">{decisions.length} decisões</StatusPill>
             <Link href="/status-report" className="workspace-button-secondary">Status Report Executivo</Link>
@@ -874,6 +880,7 @@ export default function ProjectsPage() {
 
         </div>
          <div className={activeTab==="risks"?"contents":"hidden"}>
+         {!readOnly&&activeProjectId&&<div className="mb-3 flex justify-end"><button type="button" className="workspace-button-primary inline-flex items-center gap-2 px-4 py-2 text-sm" onClick={()=>setRiskDrawerOpen(true)}><ActionIcon name="plus"/> Criar risco</button></div>}
          <ProjectRoutine title="Riscos do projeto"
           description={readOnly ? "Consulte os riscos do projeto sem alterar registros." : "Registre, acompanhe status e defina a mitigacao dos riscos operacionais."}
           badge={risks.length ? `${risks.length} registros` : undefined}
@@ -883,7 +890,49 @@ export default function ProjectsPage() {
           <p className="text-xs font-semibold uppercase tracking-wide text-(--text-secondary)">
             Riscos do projeto
           </p>
-          <div className="grid gap-2 md:grid-cols-2">
+                    {riskStatusMessage ? <p className="text-xs text-(--text-primary)">{riskStatusMessage}</p> : null}
+
+          <div className="space-y-2">
+            {risksLoading ? (
+              <p className="text-xs text-(--text-secondary)">Carregando riscos...</p>
+            ) : risks.length === 0 ? (
+              <p className="text-xs text-(--text-secondary)">Nenhum risco registrado para este projeto.</p>
+            ) : (
+              risks.map((risk) => (
+                <article key={risk.id} className="rounded-lg border border-(--border) bg-white p-3">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <p className="text-xs font-semibold text-(--text-primary)">{risk.title}</p>
+                    <select
+                      value={risk.status}
+                      onChange={(event) => void handleRiskStatusChange(risk.id, event.target.value as RiskItem["status"])}
+                      disabled={updatingRiskId === risk.id}
+                      className="rounded-md border border-(--border) bg-white px-2 py-1 text-[13px] text-(--text-primary)"
+                    >
+                      <option value="aberto">aberto</option>
+                      <option value="em_mitigacao">em_mitigacao</option>
+                      <option value="mitigado">mitigado</option>
+                      <option value="encerrado">encerrado</option>
+                    </select>
+                  </div>
+                  <p className="mt-1 text-[13px] text-(--text-secondary)">
+                    Impacto: {risk.impact || "Nao informado"} | Probabilidade: {risk.probability || "Nao informada"}
+                  </p>
+                  <p className="mt-1 text-[13px] text-(--text-secondary)">Responsável: {risk.owner || "Não definido"}</p>
+                  <details className="mt-2"><summary className="cursor-pointer text-xs font-medium text-(--accent)">Ver mitigação</summary><MarkdownContent className="mt-2" content={risk.mitigation||"Não definida"}/></details>
+                  <p className="mt-1 text-xs text-(--text-secondary)">Vínculos: {risk.decisionId?"decisão":""}{risk.decisionId&&risk.taskId?" e ":""}{risk.taskId?"atividade":""}{!risk.decisionId&&!risk.taskId?"nenhum":""}</p>
+                </article>
+              ))
+            )}
+          </div>
+        </ProjectRoutine>
+        {riskDrawerOpen&&!readOnly&&<div className="fixed inset-0 z-50">
+          <button type="button" aria-label="Fechar cadastro de risco" onClick={()=>setRiskDrawerOpen(false)} className="absolute inset-0 bg-black/35"/>
+          <aside role="dialog" aria-modal="true" aria-label="Criar risco" className="relative ml-auto h-dvh w-full max-w-2xl space-y-3 overflow-y-auto border-l border-(--border) bg-(--bg-surface) p-5 shadow-2xl">
+            <div className="flex items-center justify-between gap-3 border-b border-(--border) pb-3">
+              <h2 className="text-lg font-semibold">Criar risco do projeto</h2>
+              <button type="button" aria-label="Fechar" className="workspace-button-secondary p-2" onClick={()=>setRiskDrawerOpen(false)}><ActionIcon name="x"/></button>
+            </div>
+            <div className="grid gap-2 md:grid-cols-2">
             <input
               value={riskForm.title}
               onChange={(event) => setRiskForm((prev) => ({ ...prev, title: event.target.value }))}
@@ -953,41 +1002,10 @@ export default function ProjectsPage() {
               {savingRisk ? "Salvando risco..." : "Criar risco"}
             </button>
           </div>
-          {riskStatusMessage ? <p className="text-xs text-(--text-primary)">{riskStatusMessage}</p> : null}
 
-          <div className="space-y-2">
-            {risksLoading ? (
-              <p className="text-xs text-(--text-secondary)">Carregando riscos...</p>
-            ) : risks.length === 0 ? (
-              <p className="text-xs text-(--text-secondary)">Nenhum risco registrado para este projeto.</p>
-            ) : (
-              risks.map((risk) => (
-                <article key={risk.id} className="rounded-lg border border-(--border) bg-white p-3">
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <p className="text-xs font-semibold text-(--text-primary)">{risk.title}</p>
-                    <select
-                      value={risk.status}
-                      onChange={(event) => void handleRiskStatusChange(risk.id, event.target.value as RiskItem["status"])}
-                      disabled={updatingRiskId === risk.id}
-                      className="rounded-md border border-(--border) bg-white px-2 py-1 text-[13px] text-(--text-primary)"
-                    >
-                      <option value="aberto">aberto</option>
-                      <option value="em_mitigacao">em_mitigacao</option>
-                      <option value="mitigado">mitigado</option>
-                      <option value="encerrado">encerrado</option>
-                    </select>
-                  </div>
-                  <p className="mt-1 text-[13px] text-(--text-secondary)">
-                    Impacto: {risk.impact || "Nao informado"} | Probabilidade: {risk.probability || "Nao informada"}
-                  </p>
-                  <p className="mt-1 text-[13px] text-(--text-secondary)">Responsável: {risk.owner || "Não definido"}</p>
-                  <details className="mt-2"><summary className="cursor-pointer text-xs font-medium text-(--accent)">Ver mitigação</summary><MarkdownContent className="mt-2" content={risk.mitigation||"Não definida"}/></details>
-                  <p className="mt-1 text-xs text-(--text-secondary)">Vínculos: {risk.decisionId?"decisão":""}{risk.decisionId&&risk.taskId?" e ":""}{risk.taskId?"atividade":""}{!risk.decisionId&&!risk.taskId?"nenhum":""}</p>
-                </article>
-              ))
-            )}
-          </div>
-        </ProjectRoutine>
+            {riskStatusMessage&&<p role="status" className="text-sm">{riskStatusMessage}</p>}
+          </aside>
+        </div>}
 
         </div>
          <div className={activeTab==="meetings"?"contents":"hidden"}>
@@ -1209,63 +1227,14 @@ export default function ProjectsPage() {
          </div>
        </article>
        <div className={activeTab==="decisions"?"":"hidden"}>
+       {!readOnly&&activeProjectId&&<div className="mb-3 flex justify-end"><button type="button" className="workspace-button-primary inline-flex items-center gap-2 px-4 py-2 text-sm" onClick={()=>setDecisionDrawerOpen(true)}><ActionIcon name="plus"/> Criar decisão</button></div>}
        <ProjectRoutine title="Decisoes do projeto"
         description={readOnly ? "Consulte o histórico das decisões operacionais." : "Crie, acompanhe o status e consulte o historico das decisoes operacionais."}
         badge={decisions.length ? `${decisions.length} registros` : undefined}
         isOpen={openRoutine === "decisions"}
         onToggle={() => setOpenRoutine((current) => current === "decisions" ? null : "decisions")}
       >
-      <article className="rounded-xl border border-(--border) bg-(--bg-surface) p-4">
-        <p className="text-sm font-semibold text-(--text-primary)">Nova decisao do projeto</p>
-        <div className="mt-2 grid gap-2 md:grid-cols-2">
-          <input
-            value={decisionForm.title}
-            onChange={(event) => setDecisionForm((prev) => ({ ...prev, title: event.target.value }))}
-            placeholder="Titulo da decisao"
-            className="rounded-lg border border-(--border) px-3 py-2 text-xs outline-none focus:border-(--accent)"
-          />
-          <select
-            value={decisionForm.status}
-            onChange={(event) => setDecisionForm((prev) => ({ ...prev, status: event.target.value as DecisionStatus }))}
-            className="rounded-lg border border-(--border) bg-white px-3 py-2 text-xs outline-none focus:border-(--accent)"
-          >
-            {STATUS_OPTIONS.map((status) => (
-              <option key={status} value={status}>
-                {STATUS_LABELS[status]}
-              </option>
-            ))}
-          </select>
-        </div>
-        <input
-          value={decisionForm.context}
-          onChange={(event) => setDecisionForm((prev) => ({ ...prev, context: event.target.value }))}
-          placeholder="Contexto"
-          className="mt-2 w-full rounded-lg border border-(--border) px-3 py-2 text-xs outline-none focus:border-(--accent)"
-        />
-        <textarea
-          value={decisionForm.reason}
-          onChange={(event) => setDecisionForm((prev) => ({ ...prev, reason: event.target.value }))}
-          placeholder="Motivo/justificativa"
-          className="mt-2 min-h-20 w-full rounded-lg border border-(--border) px-3 py-2 text-xs outline-none focus:border-(--accent)"
-        />
-        <input
-          value={decisionForm.impact}
-          onChange={(event) => setDecisionForm((prev) => ({ ...prev, impact: event.target.value }))}
-          placeholder="Impacto esperado"
-          className="mt-2 w-full rounded-lg border border-(--border) px-3 py-2 text-xs outline-none focus:border-(--accent)"
-        />
-        <button
-          type="button"
-          onClick={() => void handleCreateDecision()}
-          disabled={!activeProjectId || creatingDecision}
-          className="mt-2 rounded-lg bg-(--accent) px-3 py-2 text-xs font-medium text-white disabled:opacity-50"
-        >
-          {creatingDecision ? "Criando..." : "Criar decisao"}
-        </button>
-        {decisionStatusMessage ? <p className="mt-2 text-xs text-(--text-primary)">{decisionStatusMessage}</p> : null}
-      </article>
-
-      {loading ? (
+            {loading ? (
         <div className="rounded-xl border border-(--border) bg-(--bg-surface) p-4 text-sm text-(--text-secondary)">
           Carregando decisoes...
         </div>
@@ -1336,6 +1305,66 @@ export default function ProjectsPage() {
         </div>
       )}
        </ProjectRoutine>
+       {decisionDrawerOpen&&!readOnly&&<div className="fixed inset-0 z-50">
+         <button type="button" aria-label="Fechar cadastro de decisão" onClick={()=>setDecisionDrawerOpen(false)} className="absolute inset-0 bg-black/35"/>
+         <aside role="dialog" aria-modal="true" aria-label="Criar decisão" className="relative ml-auto h-dvh w-full max-w-2xl overflow-y-auto border-l border-(--border) bg-(--bg-surface) p-5 shadow-2xl">
+           <div className="flex items-center justify-between gap-3 border-b border-(--border) pb-3">
+             <h2 className="text-lg font-semibold">Criar decisão do projeto</h2>
+             <button type="button" aria-label="Fechar" className="workspace-button-secondary p-2" onClick={()=>setDecisionDrawerOpen(false)}><ActionIcon name="x"/></button>
+           </div>
+           <article className="rounded-xl border border-(--border) bg-(--bg-surface) p-4">
+        <p className="text-sm font-semibold text-(--text-primary)">Nova decisao do projeto</p>
+        <div className="mt-2 grid gap-2 md:grid-cols-2">
+          <input
+            value={decisionForm.title}
+            onChange={(event) => setDecisionForm((prev) => ({ ...prev, title: event.target.value }))}
+            placeholder="Titulo da decisao"
+            className="rounded-lg border border-(--border) px-3 py-2 text-xs outline-none focus:border-(--accent)"
+          />
+          <select
+            value={decisionForm.status}
+            onChange={(event) => setDecisionForm((prev) => ({ ...prev, status: event.target.value as DecisionStatus }))}
+            className="rounded-lg border border-(--border) bg-white px-3 py-2 text-xs outline-none focus:border-(--accent)"
+          >
+            {STATUS_OPTIONS.map((status) => (
+              <option key={status} value={status}>
+                {STATUS_LABELS[status]}
+              </option>
+            ))}
+          </select>
+        </div>
+        <input
+          value={decisionForm.context}
+          onChange={(event) => setDecisionForm((prev) => ({ ...prev, context: event.target.value }))}
+          placeholder="Contexto"
+          className="mt-2 w-full rounded-lg border border-(--border) px-3 py-2 text-xs outline-none focus:border-(--accent)"
+        />
+        <textarea
+          value={decisionForm.reason}
+          onChange={(event) => setDecisionForm((prev) => ({ ...prev, reason: event.target.value }))}
+          placeholder="Motivo/justificativa"
+          className="mt-2 min-h-20 w-full rounded-lg border border-(--border) px-3 py-2 text-xs outline-none focus:border-(--accent)"
+        />
+        <input
+          value={decisionForm.impact}
+          onChange={(event) => setDecisionForm((prev) => ({ ...prev, impact: event.target.value }))}
+          placeholder="Impacto esperado"
+          className="mt-2 w-full rounded-lg border border-(--border) px-3 py-2 text-xs outline-none focus:border-(--accent)"
+        />
+        <button
+          type="button"
+          onClick={() => void handleCreateDecision()}
+          disabled={!activeProjectId || creatingDecision}
+          className="mt-2 rounded-lg bg-(--accent) px-3 py-2 text-xs font-medium text-white disabled:opacity-50"
+        >
+          {creatingDecision ? "Criando..." : "Criar decisao"}
+        </button>
+        {decisionStatusMessage ? <p className="mt-2 text-xs text-(--text-primary)">{decisionStatusMessage}</p> : null}
+      </article>
+
+
+         </aside>
+       </div>}
        </div>
      </section>
    );
