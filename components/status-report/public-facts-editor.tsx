@@ -1,6 +1,7 @@
 "use client";
 import {useCallback,useEffect,useState} from "react";
 import {getClientAuthHeaders} from "@/lib/client-auth";
+import {isVagueNextStep} from "@/lib/reports/editorial-rules";
 
 type Fact={id:string;kind:string;title:string;description:string;classification:string;due_date:string|null;approved_for_client:boolean;approved_at:string|null;source_reference?:string|null};
 type Candidate={kind:string;title:string;description:string;classification:string;dueDate:string;sourceReference:string;origin:string;internalContext?:string};
@@ -140,6 +141,7 @@ export function PublicFactsEditor({projectId,onChange,proposedNextSteps}:{projec
   </header>
   {error?<p role="alert" className="text-sm text-red-700">{error}</p>:null}
   {message?<p role="status" className="text-sm text-(--text-secondary)">{message}</p>:null}
+   {items.some(item=>item.kind==="next_step"&&item.approved_for_client&&isVagueNextStep(item.title,item.description))&&<p role="alert" className="text-sm text-amber-700">Alguns próximos passos publicados anteriormente precisam ser reescritos como ações objetivas antes de aparecerem na versão Cliente.</p>}
    {items.some(item=>item.kind==="risk"&&item.approved_for_client&&!riskReady(item))&&<p role="alert" className="text-sm text-amber-700">Alguns riscos aprovados anteriormente precisam de consequência, medida e situação comunicável. Eles não serão incluídos no relatório Cliente até você completar e publicar novamente, sem alterar o registro técnico.</p>}
   <div className="space-y-2 rounded-xl border border-(--border) bg-(--bg-muted) p-3">
    <div className="flex flex-wrap items-center justify-between gap-2">
