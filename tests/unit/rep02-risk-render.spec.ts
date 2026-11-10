@@ -45,8 +45,8 @@ for(const size of [0,1,5,7,15]){
   for(const id of ids)expect(team).toContain(id);
   expect((client.match(/<td>Risco \d+<\/td>/g)||[]).length).toBe(Math.min(size,5));
   if(size===0){
-   expect(client).toContain("não indica ausência de exposição");
-   expect(team).toContain("Não existem avaliações formalizadas");
+   expect(client).toContain("não significa ausência de exposição");
+   expect(team).toContain("Não há avaliações de riscos formalizadas");
   }
  });
 }
