@@ -161,7 +161,9 @@ export function PublicFactsEditor({projectId,onChange,proposedNextSteps}:{projec
         <div className="min-w-0 flex-1">
          <p className="text-sm font-semibold">{candidate.title}</p>
          <p className="text-xs text-(--text-secondary)">{candidate.origin} · {kinds.find(k=>k[0]===candidate.kind)?.[1]}{published?" · Publicado":existing?" · Não publicado":""}</p>
-         {candidate.description?<p className="mt-1 line-clamp-2 text-xs text-(--text-secondary)">{candidate.description}</p>:null}
+         {candidate.description&&(candidate.kind==="risk"
+          ?<details className="mt-1 text-xs text-(--text-secondary)"><summary className="cursor-pointer">Ver texto existente que será autorizado</summary><p className="mt-2 whitespace-pre-wrap">{editorialInfo(candidate,existing).description}</p><p className="mt-1">O conteúdo mostrado será incluído na versão Cliente ao clicar em Publicar. Use Editar para ajustar o texto.</p></details>
+          :<p className="mt-1 line-clamp-2 text-xs text-(--text-secondary)">{candidate.description}</p>)}
           {candidate.internalContext?<p className="mt-1 text-xs text-(--text-secondary)">Consulta interna do risco: {candidate.internalContext}</p>:null}
         </div>
         <div className="flex flex-wrap gap-2">
