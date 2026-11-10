@@ -39,7 +39,7 @@ for(const size of [0,1,5,7,15]){
   expect(client).not.toContain("Pessoa interna");
   expect(client).not.toContain("Plano reservado para equipe");
   expect(client).not.toContain("R-000000000001");
-  if(size>0){expect(client).not.toContain("<table");expect(client).toContain("exigem complementação");}
+  if(size>0){expect(client).not.toContain("<table");expect(client).toContain("Riscos visíveis: 0");}
   const ids=[...team.matchAll(/<td>(R-\d{12})<\/td>/g)].map(match=>match[1]);
   expect(ids).toHaveLength(size);
   for(const id of ids)expect(team).toContain(id);
@@ -81,13 +81,13 @@ test("REP-02 uses same score and severity in matrix and team row",()=>{
 
 test("REP-03 client uses only structured authorized measures and never guesses implementation status",()=>{
  const data=fixtures(1);
- data[0]={...data[0],description:"Consequência: atraso de homologação\nMedida: executar validação técnica\nSituação da medida: planejada"};
+ data[0]={...data[0],description:"Ponto de atenção: Validação das entregas\nConsequência: atraso de homologação\nMedida: executar validação técnica\nSituação da medida: planejada"};
  const client=riskReportHtml(data,"client");
  expect(client).toContain("atraso de homologação");
  expect(client).toContain("executar validação técnica");
  expect(client).toContain("(planejada)");
  expect(client).not.toContain("Plano reservado para equipe");
- data[0].description="Consequência: indisponibilidade operacional";
+ data[0].description="Ponto de atenção: Indisponibilidade operacional\nConsequência: indisponibilidade operacional";
  const missing=riskReportHtml(data,"client");
  expect(missing).not.toContain("Medida ainda não comunicada");
  expect(missing).not.toContain("Revisar internamente");
