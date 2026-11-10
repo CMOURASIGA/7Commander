@@ -86,7 +86,7 @@ test("REP-03 client uses only structured authorized measures and never guesses i
  const client=riskReportHtml(data,"client");
  expect(client).toContain("atraso de homologação");
  expect(client).toContain("executar validação técnica");
- expect(client).toContain("(planejada)");
+ expect(client).toContain("Situação da medida:");
  expect(client).not.toContain("Plano reservado para equipe");
  data[0].description="Ponto de atenção: Indisponibilidade operacional\nConsequência: indisponibilidade operacional";
  const missing=riskReportHtml(data,"client");
@@ -118,4 +118,27 @@ test("REP-03.8 blocks incomplete client risks and accepts fully approved executi
 test("REP-03.8 recognizes vague client action but permits concrete follow-up",()=>{
  expect(isVagueNextStep("Reunião com equipe","para ver se conseguimos dar prosseguimento às atividades")).toBe(true);
  expect(isVagueNextStep("Executar testes integrados","Confirmar integração antes da homologação")).toBe(false);
+});
+
+test("REP-03.9 a source-backed approval can omit consequence and mitigation execution stage",()=>{
+ const risk=fixtures(1)[0];
+ risk.description="Ponto de atenção: Rastreabilidade do processamento de dados\nMedida registrada: Implantar registros de auditoria das pipelines ETL";
+ const result=riskReportHtml([risk],"client");
+ expect(result).toContain("Riscos visíveis: 1");
+ expect(result).toContain("Rastreabilidade do processamento de dados");
+ expect(result).toContain("Implantar registros de auditoria");
+ expect(result).not.toContain("Possível consequência:");
+ expect(result).not.toContain("Situação da medida:");
+ expect(result).not.toContain("Medida ainda não comunicada");
+ expect(result).not.toContain("Plano reservado para equipe");
+ expect(result).toContain("Crítico"===risk.severity?"Crítico":risk.severity);
+});
+test("REP-03.9 missing source mitigation does not yield a blank table column",()=>{
+ const risk=fixtures(1)[0];
+ risk.description="Ponto de atenção: Monitoramento do processo de dados";
+ const result=riskReportHtml([risk],"client");
+ expect(result).toContain("Riscos visíveis: 1");
+ expect(result).toContain("Monitoramento do processo de dados");
+ expect(result).not.toContain("<table");
+ expect(result).not.toContain("Medida registrada:");
 });
