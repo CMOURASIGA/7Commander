@@ -40,7 +40,7 @@ const css = `
 .operational-risk-table{table-layout:fixed;font-size:11px}.operational-risk-table th:nth-child(1){width:12%}.operational-risk-table th:nth-child(2){width:25%}.operational-risk-table th:nth-child(3){width:12%}.operational-risk-table th:nth-child(4){width:15%}.operational-risk-table th:nth-child(5){width:11%}.operational-risk-table th:nth-child(6){width:25%}
 .client-risk-table th:nth-child(1){width:27%}.client-risk-table th:nth-child(2){width:27%}.client-risk-table th:nth-child(3){width:31%}.client-risk-table th:nth-child(4){width:15%}
 .risk-detail-row td{background:#f5f8fc}.risk-detail-row summary{cursor:pointer;font-weight:600}.risk-detail-row p{max-width:700px;white-space:pre-wrap}.risk-panel strong{color:#19334b}
-.risk-annex{break-before:page}.report-table td,.report-table th{line-height:1.45}
+.risk-annex{break-before:page}.report-table td,.report-table th{line-height:1.45}.scrum-overview{break-inside:avoid;page-break-inside:avoid}.scrum-overview .metrics{margin-bottom:10px!important}
 @media print{.pdf-hide{display:none!important}.report-table tr{break-inside:avoid}.risk-legend{break-inside:avoid}.risk-annex{break-before:page}}
 
 @media print{@page{size:A4;margin:12mm}body{background:white}.wrap{padding:0}.hero{box-shadow:none;border:1px solid #d9e4ed}.actions{display:none}.metric,.hero,.risk-legend,.report-table tr{break-inside:avoid}.report-table thead,.risk-matrix thead{display:table-header-group}.panel{break-inside:auto}.report-table-wrap{overflow:visible}}
@@ -85,11 +85,11 @@ function reportDocument(project:Project, cards:Card[], risks:Risk[], decisions:D
     <footer class="foot"><span>CONSULT SERVICES TECNOLOGIA · Commander / Relatório Cliente</span><span>Emitido em ${htmlEscape(issueDate)}</span></footer><div class="actions"><button onclick="window.print()">Imprimir / Salvar em PDF</button></div></main></body></html>`;
   }
   const scrumSection=scrum?.scrum.enabled?`
-   <section class="panel" style="margin:16px 0"><h3>07 · Scrum</h3><h2>Panorama de Sprints</h2>
+   <section class="panel" style="margin:16px 0"><div class="scrum-overview"><h3>07 · Scrum</h3><h2>Panorama de Sprints</h2>
    <p class="empty">Indicadores calculados a partir do estado atual das US. Não representam a situação histórica do período escolhido.</p>
    <div class="metrics" style="margin:12px 0"><div class="metric"><small>SPRINTS</small><strong>${scrum.scrum.sprints.length}</strong></div>
    <div class="metric"><small>US NO BACKLOG</small><strong>${scrum.scrum.backlog_stories}</strong></div>
-   <div class="metric"><small>TASKS CONCLUÍDAS</small><strong>${scrum.scrum.tasks_done}/${scrum.scrum.tasks_total}</strong></div></div>
+   <div class="metric"><small>TASKS CONCLUÍDAS</small><strong>${scrum.scrum.tasks_done}/${scrum.scrum.tasks_total}</strong></div></div></div>
    ${scrum.scrum.sprints.map(sp=>`<div class="item"><div><b>${htmlEscape(sp.name)}</b><p style="font-size:12px;margin:5px 0">Meta: ${htmlEscape(sp.goal||"Não definida")} · ${htmlEscape(sp.start_date)} a ${htmlEscape(sp.end_date)}</p><p style="font-size:12px;margin:5px 0">US: ${sp.closed}/${sp.stories} concluídas · Pontos: ${sp.points_done}/${sp.points_planned} · Atrasadas: ${sp.overdue} · Bloqueadas: ${sp.blocked}</p>${sp.status==="planned"&&(sp.active>0||sp.resolved>0||sp.closed>0)?`<p class="note">Inconsistência a revisar: Sprint planejada com US em execução ou concluídas.</p>`:""}<p style="font-size:12px;margin:5px 0">Entregas realizadas: ${sp.delivery_actual}/${sp.delivery_planned} previstas · No prazo: ${sp.delivery_on_time} · Fora do prazo: ${sp.delivery_late}</p></div><span>${htmlEscape(sp.status)}</span></div>`).join("")}
    </section>`: "";
   const internalSection=isInternal&&scrum?.internal?`
