@@ -5,7 +5,7 @@ export type CapabilityModuleId =
  | "project_diagnosis" | "risk_analysis" | "kanban_execution" | "backlog_planning"
  | "scrum_management" | "decision_governance" | "executive_report"
  | "integrations_and_data" | "process_bpmn" | "stakeholder_governance"
- | "meeting_followup" | "quality_review";
+ | "meeting_followup" | "quality_review" | "document_analysis" | "writing_support" | "study_translation";
 
 type ModuleSelection = {id:CapabilityModuleId;prompt:string};
 const MODULE_PATHS:Record<CapabilityModuleId,string[]>={
@@ -14,7 +14,8 @@ const MODULE_PATHS:Record<CapabilityModuleId,string[]>={
  scrum_management:["scrum-management"],decision_governance:["decision-governance"],
  executive_report:["executive-report"],integrations_and_data:["integrations-and-data"],
  process_bpmn:["process-bpmn"],stakeholder_governance:["stakeholder-governance"],
- meeting_followup:["meeting-followup"],quality_review:["quality-review"]
+ meeting_followup:["meeting-followup"],quality_review:["quality-review"],
+ document_analysis:["document-analysis"],writing_support:["writing-support"],study_translation:["study-and-translation"]
 } as Record<CapabilityModuleId,string[]>;
 const CORE_PROMPT_PATHS = [path.join(process.cwd(), "prompts/core/pm-ai-partner.md")];
 
@@ -41,6 +42,9 @@ export function pickModulesByIntent(message:string):CapabilityModuleId[]{
  add(/stakeholder|parte interessada|raci|responsabilid/, "stakeholder_governance");
  add(/reuniao|ata|encaminhamento|follow.up|compromisso/, "meeting_followup");
  add(/qualidade|homolog|testes|deploy|producao|aceite|validac/, "quality_review");
+ add(/documento|storyboard|transcricao|arquivo|discovery|briefing|leitura estruturada/, "document_analysis");
+ add(/escrever|redigir|texto|comunicado|mensagem|proposta|post|artigo/, "writing_support");
+ add(/explicar|estudar|prova|revisao didat|traduz|translation|idioma|ingles|espanhol/, "study_translation");
  if(!selected.size)selected.add("project_diagnosis");
  return Array.from(selected).slice(0,5);
 }
