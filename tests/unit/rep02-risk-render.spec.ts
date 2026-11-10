@@ -114,7 +114,7 @@ test("REP-03.8 blocks incomplete client risks and accepts fully approved executi
  entry.description="Ponto de atenção: Integração das funcionalidades";
  expect(riskReportHtml([entry],"client")).not.toContain("client-risk-table");
 });
-\n
+
 test("REP-03.8 recognizes vague client action but permits concrete follow-up",()=>{
  expect(isVagueNextStep("Reunião com equipe","para ver se conseguimos dar prosseguimento às atividades")).toBe(true);
  expect(isVagueNextStep("Executar testes integrados","Confirmar integração antes da homologação")).toBe(false);
