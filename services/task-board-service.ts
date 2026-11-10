@@ -99,7 +99,7 @@ export type TaskCard = {
   }>;
   createdAt: string;
   updatedAt: string;
-  createdSource: "user"|"kairos"|"unknown";
+  createdSource?: "user"|"kairos"|"unknown";
 };
 
 export type TaskBoardColumn = {
