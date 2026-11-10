@@ -3,7 +3,7 @@ import {useCallback,useEffect,useState} from "react";
 import {getClientAuthHeaders} from "@/lib/client-auth";
 
 type Fact={id:string;kind:string;title:string;description:string;classification:string;due_date:string|null;approved_for_client:boolean;approved_at:string|null;source_reference?:string|null};
-type Candidate={kind:string;title:string;description:string;classification:string;dueDate:string;sourceReference:string;origin:string};
+type Candidate={kind:string;title:string;description:string;classification:string;dueDate:string;sourceReference:string;origin:string;internalContext?:string};
 type EditorialForm={kind:string;title:string;description:string;classification:string;dueDate:string;sourceReference:string};
 const kinds=[["objective","Objetivo"],["benefit","Benefício"],["deliverable","Entrega"],["milestone","Marco"],["risk","Risco relevante"],["next_step","Próximo passo"]] as const;
 const classes=[["confirmed","Confirmado"],["in_progress","Em andamento"],["hypothesis","Hipótese"],["ai_recommendation","Proposta para revisão"]] as const;
@@ -160,6 +160,7 @@ export function PublicFactsEditor({projectId,onChange,proposedNextSteps}:{projec
          <p className="text-sm font-semibold">{candidate.title}</p>
          <p className="text-xs text-(--text-secondary)">{candidate.origin} · {kinds.find(k=>k[0]===candidate.kind)?.[1]}{published?" · Publicado":existing?" · Não publicado":""}</p>
          {candidate.description?<p className="mt-1 line-clamp-2 text-xs text-(--text-secondary)">{candidate.description}</p>:null}
+          {candidate.internalContext?<p className="mt-1 text-xs text-(--text-secondary)">Consulta interna do risco: {candidate.internalContext}</p>:null}
         </div>
         <div className="flex flex-wrap gap-2">
          {published?<span className="text-xs text-(--text-secondary)">Publicado</span>:needsRiskRevision?<span className="text-xs text-(--text-secondary)">Completar informações antes de publicar</span>:
@@ -197,7 +198,7 @@ export function PublicFactsEditor({projectId,onChange,proposedNextSteps}:{projec
   <div className="space-y-2 border-t border-(--border) pt-3">
    <h3 className="font-semibold">Conteúdo registrado para o Cliente</h3>
    {items.length===0?<p className="text-sm text-(--text-secondary)">Nenhuma informação publicada ainda.</p>:items.map(fact=><article key={fact.id} className="flex flex-wrap items-start justify-between gap-2 rounded-lg border border-(--border) p-3">
-    <div><p className="text-sm font-medium">{fact.title}</p><p className="text-xs text-(--text-secondary)">{kinds.find(k=>k[0]===fact.kind)?.[1]} · {fact.approved_for_client?"Publicado":"Não publicado"}</p></div>
+    <div><p className="text-sm font-medium">{fact.title}</p><p className="text-xs text-(--text-secondary)">{kinds.find(k=>k[0]===fact.kind)?.[1]} · {fact.approved_for_client?(riskReady(fact)?"Publicado":"Revisar conteúdo para o Cliente"):"Não publicado"}</p></div>
     <div className="flex flex-wrap gap-2">
      {!fact.approved_for_client?<button className="workspace-button-primary text-xs" disabled={busy} onClick={()=>void publish(fromFact(fact),fact.id)}>Publicar</button>:null}
      <button className="workspace-button-secondary text-xs" disabled={busy} onClick={()=>edit(fromFact(fact),fact.id)}>Editar</button>
