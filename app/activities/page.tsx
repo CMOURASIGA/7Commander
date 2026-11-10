@@ -553,7 +553,7 @@ export default function ActivitiesPage() {
                           }
                           className="kanban-kairos-chip"
                         >
-                          ✨ Kairos
+                          Analisar com Kairos
                         </button>
                         {canEdit&&<button type="button" aria-label={"Excluir atividade "+card.title} title="Excluir atividade" className="workspace-button-danger inline-flex items-center justify-center p-2" disabled={deletingTaskId===card.id} onClick={()=>void deleteTask(card.id,card.title)}><ActionIcon name="trash"/></button>}
                       </div>
