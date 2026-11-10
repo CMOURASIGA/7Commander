@@ -34,6 +34,15 @@ export async function loadReportData(db:DB,org:string,projectId:string,audience:
   db.from("project_report_public_facts").select("kind,title,description,classification,due_date,source_reference").eq("project_id",projectId).eq("organization_id",org).eq("approved_for_client",true).order("created_at",{ascending:false}).limit(150),
  ]);
  if([project,sprints,stories,tasks,kanban,risks,decisions].some(r=>r.error))throw Error("Dados de projetos, Scrum ou Kanban indisponíveis.");
+ // Resolve displayed owners only from profiles belonging to the effective tenant.
+ const memberQuery=await db.from("organization_members").select("user_id").eq("organization_id",org).limit(500);
+ const memberIds=(memberQuery.data||[]).map(m=>m.user_id).filter(Boolean);
+ const profileQuery=memberIds.length?await db.from("profiles").select("user_id,email,nome").in("user_id",memberIds):null;
+ const emailNames=new Map<string,string>();
+ for(const person of (profileQuery?.data||[])){
+  if(person.email&&person.nome?.trim())emailNames.set(person.email.trim().toLowerCase(),person.nome.trim());
+ }
+ const displayOwner=(value:string|null)=>value&&emailNames.has(value.toLowerCase())?emailNames.get(value.toLowerCase())!:value;
  const approvedRiskFacts=(approvedFacts.data||[]).filter(item=>item.kind==="risk"&&/^risk:[0-9a-f-]{36}$/i.test(item.source_reference||""));
  const riskPublicMap=new Map(approvedRiskFacts.map(item=>[item.source_reference?.slice(5),item]));
  const norm=(value:string|null):number|null=>{
@@ -55,14 +64,16 @@ export async function loadReportData(db:DB,org:string,projectId:string,audience:
    description:audience==="client"?(approved?.description||""):(r.impacto||""),
    status:r.status,probability,impact,score,severity,
    mitigation:audience==="client"?null:r.mitigacao,
-   owner:audience==="client"?null:r.responsavel,
+   owner:audience==="client"?null:displayOwner(r.responsavel),
    decisionId:audience==="client"?null:r.decision_id,
    taskId:audience==="client"?null:r.task_id,
    lastUpdated:r.updated_at||null
   } as ReportRiskAssessment;
  });
  const allStories=(stories.data||[]) as ScrumReportStory[];
+ for(const story of allStories){if(story.responsible)story.responsible=displayOwner(story.responsible)||story.responsible;}
  const allTasks=(tasks.data||[]) as ScrumReportTask[];
+ for(const task of allTasks){if(task.responsible)task.responsible=displayOwner(task.responsible)||task.responsible;}
  const kanbanRows=kanban.data||[];
  const now=new Date().toISOString().slice(0,10);
  const metrics=(sprints.data||[]).map(s=>{
