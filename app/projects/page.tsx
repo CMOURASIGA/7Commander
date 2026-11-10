@@ -910,7 +910,7 @@ export default function ProjectsPage() {
                       className="workspace-button-secondary inline-flex items-center gap-1 p-2 text-xs" onClick={()=>{
                         setEditingRiskId(risk.id);setRiskForm({title:risk.title,impact:risk.impact,probability:risk.probability,
                         mitigation:risk.mitigation,owner:risk.owner,status:risk.status,decisionId:risk.decisionId||"",taskId:risk.taskId||""});setRiskDrawerOpen(true);
-                      }}><ActionIcon name="pencil"/></button>}
+                      }}><ActionIcon name="pencil"/></button>}}
                     <select
                       value={risk.status}
                       onChange={(event) => void handleRiskStatusChange(risk.id, event.target.value as RiskItem["status"])}
@@ -1261,7 +1261,7 @@ export default function ProjectsPage() {
                   className="workspace-button-secondary inline-flex items-center gap-1 p-2 text-xs" onClick={()=>{
                     setEditingDecisionId(decision.id);setDecisionForm({title:decision.title,context:decision.context,reason:decision.reason,
                      impact:decision.impact,status:decision.status});setDecisionDrawerOpen(true);
-                  }}><ActionIcon name="pencil"/></button>
+                  }}><ActionIcon name="pencil"/></button>}
                 <select
                   value={decision.status}
                   onChange={(event) =>
