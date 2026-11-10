@@ -164,6 +164,8 @@ export default function ProjectsPage() {
   const [creatingDecision, setCreatingDecision] = useState(false);
   const [decisionDrawerOpen,setDecisionDrawerOpen]=useState(false);
   const [riskDrawerOpen,setRiskDrawerOpen]=useState(false);
+  const [editingRiskId,setEditingRiskId]=useState<string|null>(null);
+  const [editingDecisionId,setEditingDecisionId]=useState<string|null>(null);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
   const [creatingProject, setCreatingProject] = useState(false);
   const [deletingProjectId,setDeletingProjectId] = useState<string|null>(null);
@@ -506,8 +508,8 @@ export default function ProjectsPage() {
     setCreatingDecision(true);
     setDecisionStatusMessage(null);
     try {
-      const response = await measuredFetch(`/api/projects/${activeProjectId}/decisions`, {
-        method: "POST",
+      const response = await measuredFetch(editingDecisionId?`/api/decisions/${editingDecisionId}`:`/api/projects/${activeProjectId}/decisions`, {
+        method: editingDecisionId?"PATCH":"POST",
         headers: getClientAuthHeaders({ "Content-Type": "application/json" }),
         body: JSON.stringify({
           title: decisionForm.title.trim(),
@@ -526,7 +528,8 @@ export default function ProjectsPage() {
         impact: "",
         status: "aberta",
       });
-      setDecisionStatusMessage("Decisao criada.");
+      setDecisionStatusMessage(editingDecisionId?"Decisão atualizada.":"Decisão criada.");
+      setEditingDecisionId(null);
       setDecisionDrawerOpen(false);
       await loadDecisions(activeProjectId);
     } catch (error) {
@@ -655,8 +658,8 @@ export default function ProjectsPage() {
     setSavingRisk(true);
     setRiskStatusMessage(null);
     try {
-      const response = await measuredFetch(`/api/projects/${activeProjectId}/risks`, {
-        method: "POST",
+      const response = await measuredFetch(editingRiskId?`/api/risks/${editingRiskId}`:`/api/projects/${activeProjectId}/risks`, {
+        method: editingRiskId?"PATCH":"POST",
         headers: getClientAuthHeaders({ "Content-Type": "application/json" }),
         body: JSON.stringify({
           title: riskForm.title.trim(),
@@ -681,7 +684,8 @@ export default function ProjectsPage() {
         decisionId: "",
         taskId: "",
       });
-      setRiskStatusMessage("Risco criado.");
+      setRiskStatusMessage(editingRiskId?"Risco atualizado.":"Risco criado.");
+      setEditingRiskId(null);
       setRiskDrawerOpen(false);
       await loadRisks(activeProjectId);
     } catch (error) {
@@ -880,7 +884,7 @@ export default function ProjectsPage() {
 
         </div>
          <div className={activeTab==="risks"?"contents":"hidden"}>
-         {!readOnly&&activeProjectId&&<div className="mb-3 flex justify-end"><button type="button" className="workspace-button-primary inline-flex items-center gap-2 px-4 py-2 text-sm" onClick={()=>setRiskDrawerOpen(true)}><ActionIcon name="plus"/> Criar risco</button></div>}
+         {!readOnly&&activeProjectId&&<div className="mb-3 flex justify-end"><button type="button" className="workspace-button-primary inline-flex items-center gap-2 px-4 py-2 text-sm" onClick={()=>{setEditingRiskId(null);setRiskForm({title:"",impact:"",probability:"",mitigation:"",owner:"",status:"aberto",decisionId:"",taskId:""});setRiskDrawerOpen(true);}}><ActionIcon name="plus"/> Criar risco</button></div>}
          <ProjectRoutine title="Riscos do projeto"
           description={readOnly ? "Consulte os riscos do projeto sem alterar registros." : "Registre, acompanhe status e defina a mitigacao dos riscos operacionais."}
           badge={risks.length ? `${risks.length} registros` : undefined}
@@ -902,6 +906,11 @@ export default function ProjectsPage() {
                 <article key={risk.id} className="rounded-lg border border-(--border) bg-white p-3">
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <p className="text-xs font-semibold text-(--text-primary)">{risk.title}</p>
+                     {!readOnly&&<button type="button" title={"Editar risco "+risk.title} aria-label={"Editar risco "+risk.title}
+                      className="workspace-button-secondary inline-flex items-center gap-1 p-2 text-xs" onClick={()=>{
+                        setEditingRiskId(risk.id);setRiskForm({title:risk.title,impact:risk.impact,probability:risk.probability,
+                        mitigation:risk.mitigation,owner:risk.owner,status:risk.status,decisionId:risk.decisionId||"",taskId:risk.taskId||""});setRiskDrawerOpen(true);
+                      }}><ActionIcon name="pencil"/></button>}
                     <select
                       value={risk.status}
                       onChange={(event) => void handleRiskStatusChange(risk.id, event.target.value as RiskItem["status"])}
@@ -929,7 +938,7 @@ export default function ProjectsPage() {
           <button type="button" aria-label="Fechar cadastro de risco" onClick={()=>setRiskDrawerOpen(false)} className="absolute inset-0 bg-black/35"/>
           <aside role="dialog" aria-modal="true" aria-label="Criar risco" className="relative ml-auto h-dvh w-full max-w-2xl space-y-3 overflow-y-auto border-l border-(--border) bg-(--bg-surface) p-5 shadow-2xl">
             <div className="flex items-center justify-between gap-3 border-b border-(--border) pb-3">
-              <h2 className="text-lg font-semibold">Criar risco do projeto</h2>
+              <h2 className="text-lg font-semibold">{editingRiskId?"Editar risco":"Criar risco do projeto"}</h2>
               <button type="button" aria-label="Fechar" className="workspace-button-secondary p-2" onClick={()=>setRiskDrawerOpen(false)}><ActionIcon name="x"/></button>
             </div>
             <div className="grid gap-2 md:grid-cols-2">
@@ -999,7 +1008,7 @@ export default function ProjectsPage() {
               disabled={!activeProjectId || savingRisk}
               className="rounded-lg bg-(--accent) px-3 py-2 text-xs font-medium text-white disabled:opacity-50"
             >
-              {savingRisk ? "Salvando risco..." : "Criar risco"}
+              {savingRisk ? "Salvando risco..." : editingRiskId?"Salvar risco":"Criar risco"}
             </button>
           </div>
 
@@ -1227,7 +1236,7 @@ export default function ProjectsPage() {
          </div>
        </article>
        <div className={activeTab==="decisions"?"":"hidden"}>
-       {!readOnly&&activeProjectId&&<div className="mb-3 flex justify-end"><button type="button" className="workspace-button-primary inline-flex items-center gap-2 px-4 py-2 text-sm" onClick={()=>setDecisionDrawerOpen(true)}><ActionIcon name="plus"/> Criar decisão</button></div>}
+       {!readOnly&&activeProjectId&&<div className="mb-3 flex justify-end"><button type="button" className="workspace-button-primary inline-flex items-center gap-2 px-4 py-2 text-sm" onClick={()=>{setEditingDecisionId(null);setDecisionForm({title:"",context:"",reason:"",impact:"",status:"aberta"});setDecisionDrawerOpen(true);}}><ActionIcon name="plus"/> Criar decisão</button></div>}
        <ProjectRoutine title="Decisoes do projeto"
         description={readOnly ? "Consulte o histórico das decisões operacionais." : "Crie, acompanhe o status e consulte o historico das decisoes operacionais."}
         badge={decisions.length ? `${decisions.length} registros` : undefined}
@@ -1248,6 +1257,11 @@ export default function ProjectsPage() {
             <article key={decision.id} className="rounded-xl border border-(--border) bg-(--bg-surface) p-4">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <p className="text-base font-semibold text-(--text-primary)">{decision.title}</p>
+                 {!readOnly&&<button type="button" title={"Editar decisão "+decision.title} aria-label={"Editar decisão "+decision.title}
+                  className="workspace-button-secondary inline-flex items-center gap-1 p-2 text-xs" onClick={()=>{
+                    setEditingDecisionId(decision.id);setDecisionForm({title:decision.title,context:decision.context,reason:decision.reason,
+                     impact:decision.impact,status:decision.status});setDecisionDrawerOpen(true);
+                  }}><ActionIcon name="pencil"/></button>
                 <select
                   value={decision.status}
                   onChange={(event) =>
@@ -1309,7 +1323,7 @@ export default function ProjectsPage() {
          <button type="button" aria-label="Fechar cadastro de decisão" onClick={()=>setDecisionDrawerOpen(false)} className="absolute inset-0 bg-black/35"/>
          <aside role="dialog" aria-modal="true" aria-label="Criar decisão" className="relative ml-auto h-dvh w-full max-w-2xl overflow-y-auto border-l border-(--border) bg-(--bg-surface) p-5 shadow-2xl">
            <div className="flex items-center justify-between gap-3 border-b border-(--border) pb-3">
-             <h2 className="text-lg font-semibold">Criar decisão do projeto</h2>
+             <h2 className="text-lg font-semibold">{editingDecisionId?"Editar decisão":"Criar decisão do projeto"}</h2>
              <button type="button" aria-label="Fechar" className="workspace-button-secondary p-2" onClick={()=>setDecisionDrawerOpen(false)}><ActionIcon name="x"/></button>
            </div>
            <article className="rounded-xl border border-(--border) bg-(--bg-surface) p-4">
@@ -1357,7 +1371,7 @@ export default function ProjectsPage() {
           disabled={!activeProjectId || creatingDecision}
           className="mt-2 rounded-lg bg-(--accent) px-3 py-2 text-xs font-medium text-white disabled:opacity-50"
         >
-          {creatingDecision ? "Criando..." : "Criar decisao"}
+          {creatingDecision ? "Salvando..." : editingDecisionId?"Salvar decisão":"Criar decisão"}
         </button>
         {decisionStatusMessage ? <p className="mt-2 text-xs text-(--text-primary)">{decisionStatusMessage}</p> : null}
       </article>
