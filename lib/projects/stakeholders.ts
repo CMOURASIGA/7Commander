@@ -9,6 +9,13 @@ export type ProjectStakeholder={
 };
 const PREFIX="stakeholders:v1:";
 const GROUPS:StakeholderGroup[]=["cliente","consultoria","fornecedor","outro"];
+const inferredGroup=(org:string,role:string):StakeholderGroup=>{
+ const value=(org+" "+role).normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase();
+ if(/prosperita/.test(value))return "cliente";
+ if(/7consulting/.test(value))return "consultoria";
+ if(/forneced|sigmag|racimed|hacimed/.test(value))return "fornecedor";
+ return "outro";
+};
 export const STAKEHOLDER_LIMIT=100;
 export function decodeStakeholders(raw:string|null|undefined):ProjectStakeholder[]{
  const value=(raw||"").trim();if(!value)return [];
@@ -33,10 +40,10 @@ export function decodeStakeholders(raw:string|null|undefined):ProjectStakeholder
   if(parentheses){
    const details=parentheses[2].split(/\s*,\s*/);
    const organization=details.shift()||"";
-   return {id:"legacy-"+index,name:parentheses[1].trim(),organization,role:details.join(", "),group:"outro"};
+   return {id:"legacy-"+index,name:parentheses[1].trim(),organization,role:details.join(", "),group:inferredGroup(organization,details.join(", "))};
   }
   const separator=entry.match(/^(.+?)\s+[-–]\s+(.+)$/);
-  return {id:"legacy-"+index,name:(separator?.[1]||entry).trim(),organization:"",role:(separator?.[2]||"").trim(),group:"outro"};
+  return {id:"legacy-"+index,name:(separator?.[1]||entry).trim(),organization:"",role:(separator?.[2]||"").trim(),group:inferredGroup("",separator?.[2]||"")};
  });
 }
 export function encodeStakeholders(items:ProjectStakeholder[]):string{
