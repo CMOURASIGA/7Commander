@@ -57,7 +57,7 @@ export async function GET(request:NextRequest){
    // Explicitly show the source information to the editor before authorization.
    // Impact may be a severity label, not a consequence: never invent one.
    const publicText="Ponto de atenção: "+row.titulo+
-     (row.mitigacao?.trim()?"\\nMedida registrada: "+row.mitigacao.trim():"");
+     (row.mitigacao?.trim()?"\nMedida registrada: "+row.mitigacao.trim():"");
    add("risk",row.titulo,publicText,"in_progress","","risk:"+row.id,"Risco",
      "Avaliação: impacto "+(row.impacto||"não informado")+", probabilidade "+(row.probabilidade||"não informada")+
      ". Situação do risco: "+row.status+". A execução da mitigação não é confirmada por esses dados.");
