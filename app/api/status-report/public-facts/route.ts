@@ -1,6 +1,7 @@
 import {NextRequest,NextResponse} from "next/server";
 import {requireApiAuth} from "@/lib/api-auth";
 import {getReportScope} from "@/lib/scrum/report-data";
+import {getApprovedRiskFields} from "@/lib/reports/risk-report-html";
 
 export const dynamic="force-dynamic";
 const uuid=/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -85,6 +86,13 @@ export async function POST(request:NextRequest){
       description.length>3000||(due&&!/^\d{4}-\d{2}-\d{2}$/.test(due))||
       sourceReference.length>500||(id&&!uuid.test(id)))
     return out({error:"Campos de publicação inválidos."},400);
+  if(kind==="risk"){
+   if(!/^risk:[0-9a-f-]{36}$/i.test(sourceReference))return out({error:"Para publicar risco, vincule-o ao cadastro oficial do projeto."},400);
+   const approved=getApprovedRiskFields(description);
+   if(!approved.point||!approved.consequence||!approved.measure||
+      !["planejada","em execução","concluída"].includes(approved.measureStatus.toLowerCase()))
+    return out({error:"Antes de publicar o risco, use Editar e preencha Ponto de atenção, Consequência, Medida e Situação da medida (planejada, em execução ou concluída)."},422);
+  }
   // Untrusted source references cannot bypass tenant boundaries.
   if(sourceReference){
    const matched=/^(project|task|story|epic|sprint|risk|decision):([0-9a-f-]{36})$/i.exec(sourceReference);
