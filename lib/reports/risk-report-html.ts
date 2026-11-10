@@ -17,7 +17,7 @@ function shortAction(mitigation:string|null){
  const sentence=raw.split(/(?<=[.!?])\s+|\n+/).find(x=>x.trim())||raw;
  return compact(sentence,105);
 }
-function approvedRiskDescription(text:string){
+export function getApprovedRiskFields(text:string){
  const blocks=String(text||"").split(/\n+/).map(x=>x.trim()).filter(Boolean);
  const point=blocks.find(x=>/^(?:ponto de atenção|risco executivo)\s*:/i.test(x));
  const consequence=blocks.find(x=>/^(?:consequência|consequencia|possível consequência|impacto para o cliente)\s*:/i.test(x));
@@ -34,15 +34,15 @@ export function riskReportHtml(risks:ReportRiskAssessment[],audience:ReportAudie
  const summary='<p class="risk-summary">Riscos visíveis: '+sorted.length+' · Críticos: '+count("Crítico")+' · Altos: '+count("Alto")+' · Moderados: '+count("Moderado")+' · Baixos: '+count("Baixo")+' · Não avaliados: '+count("Não avaliado")+'.</p>';
  const empty='<p class="empty">Não há avaliações de riscos formalizadas nesta seleção. Isso não significa ausência de exposição; recomenda-se uma revisão.</p>';
  if(audience==="client"){
-  const top=sorted.slice(0,5);
+  const top=sorted.filter(r=>{const x=getApprovedRiskFields(r.description);return Boolean(x.consequence&&x.measure&&x.measureStatus);}).slice(0,5);
   const rows=top.map(r=>{
-   const {point,consequence,measure,measureStatus}=approvedRiskDescription(r.description);
+   const {point,consequence,measure,measureStatus}=getApprovedRiskFields(r.description);
    const title=compact(point||r.title,105);
    return '<tr><td>'+esc(title)+'</td><td>'+esc(consequence||"")+'</td><td>'+esc(measure)+(measureStatus?' <small>('+esc(measureStatus)+')</small>':"")+'</td><td><strong>'+esc(r.severity)+'</strong></td></tr>';
   }).join("");
   return '<section class="panel risk-panel"><h3>04 · Riscos relevantes</h3><h2>Riscos e Planos de Mitigação</h2>'+summary+
    (top.length?'<div class="report-table-wrap"><table class="report-table client-risk-table"><thead><tr><th>Ponto de atenção</th><th>Possível consequência</th><th>Medida prevista ou em execução</th><th>Criticidade</th></tr></thead><tbody>'+rows+'</tbody></table></div>':empty)+
-   (sorted.length>5?'<p class="muted">Mostrados os cinco riscos autorizados de maior prioridade. Outros '+(sorted.length-5)+' riscos permanecem fora desta síntese.</p>':"")+
+   (sorted.length>top.length?'<p class="muted">A síntese apresenta somente riscos com consequência, medida e situação autorizadas. Outros registros exigem complementação antes de divulgação.</p>':"")+
    '</section>';
  }
  const rows=sorted.map(r=>{
