@@ -15,11 +15,18 @@ const riskReady=(info:{kind:string;description:string})=>info.kind!=="risk"||
   const line=info.description.split("\n").find(row=>row.trim().toLowerCase().startsWith(label.toLowerCase()));
   return !!line?.slice(label.length).trim();
  });
+const executiveRiskTitle=(title:string)=>{
+ const normal=title.normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase();
+ if(/registros de auditoria.*(?:pipeline|etl)/.test(normal))return "Rastreabilidade do processamento de dados";
+ if(/falhas? na integracao.*(?:api|backend|interface)/.test(normal))return "Integração das funcionalidades";
+ if(/(?:liberacao|entrega).*sem homologacao/.test(normal))return "Validação das entregas";
+ return title;
+};
 const riskTemplate=(description:string,title:string)=>{
  const labels=["Ponto de atenção:","Consequência:","Medida:","Situação da medida:"];
  const pieces=description.split("\n");
  const additions=labels.filter(label=>!pieces.some(line=>line.trim().toLowerCase().startsWith(label.toLowerCase())))
-   .map(label=>label+" "+(label==="Ponto de atenção:"?title:label==="Situação da medida:"?"":""));
+   .map(label=>label+" "+(label==="Ponto de atenção:"?executiveRiskTitle(title):label==="Situação da medida:"?"":""));
  return [...pieces.filter(Boolean),...additions].join("\n");
 };
 
