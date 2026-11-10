@@ -3,6 +3,7 @@ import {requireApiAuth} from "@/lib/api-auth";
 import {getReportScope} from "@/lib/scrum/report-data";
 import {getApprovedRiskFields} from "@/lib/reports/risk-report-html";
 import {isVagueNextStep} from "@/lib/reports/editorial-rules";
+import {executiveRiskTitle} from "@/lib/reports/risk-editorial";
 
 export const dynamic="force-dynamic";
 const uuid=/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -56,7 +57,7 @@ export async function GET(request:NextRequest){
   for(const row of risks.data||[]){
    // Explicitly show the source information to the editor before authorization.
    // Impact may be a severity label, not a consequence: never invent one.
-   const publicText="Ponto de atenção: "+row.titulo+
+   const publicText="Ponto de atenção: "+executiveRiskTitle(row.titulo)+
      (row.mitigacao?.trim()?"\nMedida registrada: "+row.mitigacao.trim():"");
    add("risk",row.titulo,publicText,"in_progress","","risk:"+row.id,"Risco",
      "Avaliação: impacto "+(row.impacto||"não informado")+", probabilidade "+(row.probabilidade||"não informada")+
