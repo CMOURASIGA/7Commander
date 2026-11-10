@@ -589,6 +589,7 @@ export default function ActivitiesPage() {
                     <span className="workspace-pill">
                       {taskDetail.accessRole}
                     </span>
+                    {canEditDetail&&<button type="button" className="workspace-button-danger inline-flex items-center gap-2 px-3 py-2 text-xs" disabled={deletingTaskId===selectedTaskId} onClick={()=>void deleteTask(taskDetail.card.id,taskDetail.card.title)}><ActionIcon name="trash"/> Excluir</button>}
                     <button
                       type="button"
                       onClick={closeTaskDrawer}
