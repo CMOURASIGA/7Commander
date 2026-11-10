@@ -18,7 +18,7 @@ const riskTemplate=(description:string,title:string)=>{
  const labels=["Ponto de atenção:","Consequência:","Medida:","Situação da medida:"];
  const pieces=description.split("\n");
  const additions=labels.filter(label=>!pieces.some(line=>line.trim().toLowerCase().startsWith(label.toLowerCase())))
-   .map(label=>label+" "+(label==="Ponto de atenção:"?title:label==="Situação da medida:"?"planejada":""));
+   .map(label=>label+" "+(label==="Ponto de atenção:"?title:label==="Situação da medida:"?"":""));
  return [...pieces.filter(Boolean),...additions].join("\n");
 };
 
