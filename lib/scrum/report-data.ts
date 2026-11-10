@@ -48,7 +48,7 @@ export async function loadReportData(db:DB,org:string,projectId:string,audience:
   .eq("project_id",projectId).eq("organization_id",org).limit(1000);
  if(codeRows.error)throw Error("Códigos permanentes dos riscos indisponíveis. Verifique a migração REP-03.8.");
  const displayCodes=new Map((codeRows.data||[]).map(row=>[row.risk_id,"R"+String(row.code_number).padStart(2,"0")]));
- const approvedRiskFacts=(approvedFacts.data||[]).filter(item=>{const x=getApprovedRiskFields(item.description||"");return item.kind==="risk"&&/^risk:[0-9a-f-]{36}$/i.test(item.source_reference||"")&&Boolean(x.consequence&&x.measure&&x.measureStatus);});
+ const approvedRiskFacts=(approvedFacts.data||[]).filter(item=>item.kind==="risk"&&/^risk:[0-9a-f-]{36}$/i.test(item.source_reference||"")&&Boolean(getApprovedRiskFields(item.description||"").point));
  const riskPublicMap=new Map(approvedRiskFacts.map(item=>[item.source_reference?.slice(5),item]));
  const norm=(value:string|null):number|null=>{
   const normalized=String(value||"").trim().normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase();
