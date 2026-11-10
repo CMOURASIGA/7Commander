@@ -19,6 +19,8 @@ export function PublicFactsEditor({projectId,onChange,proposedNextSteps}:{projec
  const [editingId,setEditingId]=useState("");
  const [showEditor,setShowEditor]=useState(false);
  const [busy,setBusy]=useState(false);
+ const [selected,setSelected]=useState<string[]>([]);
+ const [bulkProgress,setBulkProgress]=useState("");
  const [error,setError]=useState("");
  const [message,setMessage]=useState("");
 
@@ -46,7 +48,7 @@ export function PublicFactsEditor({projectId,onChange,proposedNextSteps}:{projec
   finally{setSuggestionsLoading(false);}
  },[projectId]);
  useEffect(()=>{
-  setCanManage(false);setItems([]);setCandidates([]);setForm(blank());setEditingId("");setShowEditor(false);
+  setCanManage(false);setItems([]);setCandidates([]);setForm(blank());setEditingId("");setShowEditor(false);setSelected([]);
   void reload();void loadSuggestions();
  },[reload,loadSuggestions]);
 
@@ -64,6 +66,33 @@ export function PublicFactsEditor({projectId,onChange,proposedNextSteps}:{projec
    setShowEditor(false);setEditingId("");setForm(blank());await reload();onChange?.();
   }catch(e){setError(e instanceof Error?e.message:"Falha ao publicar.");}
   finally{setBusy(false);}
+ }
+ async function publishSelected(){
+  if(busy||selected.length===0)return;
+  setBusy(true);setError("");setMessage("");
+  const available=candidates.filter(candidate=>selected.includes(candidate.sourceReference)&&!recorded(candidate.sourceReference)?.approved_for_client);
+  const failures:string[]=[];
+  let published=0;
+  try{
+   for(const [index,candidate] of available.entries()){
+    setBulkProgress("Publicando "+(index+1)+" de "+available.length);
+    const existing=recorded(candidate.sourceReference);
+    const info=existing?fromFact(existing):candidate;
+    try{
+     const response=await fetch("/api/status-report/public-facts",{
+      method:"POST",headers:getClientAuthHeaders({"Content-Type":"application/json"}),
+      body:JSON.stringify({action:"publish",projectId,...info,...(existing?{id:existing.id}:{})})
+     });
+     const result=await response.json().catch(()=>({}));
+     if(!response.ok)throw Error(result.error||"Falha na publicação");
+     published++;
+    }catch(e){failures.push(candidate.title+": "+(e instanceof Error?e.message:"erro desconhecido"));}
+   }
+   setSelected(failures.length?selected.filter(ref=>failures.some(msg=>candidates.find(c=>c.sourceReference===ref)?.title===msg.split(":")[0])):[]);
+   setMessage(published+" informações publicadas. "+(failures.length?failures.length+" falharam e permaneceram selecionadas.":""));
+   if(failures.length)setError(failures.slice(0,3).join(" | "));
+   await reload();onChange?.();
+  }finally{setBusy(false);setBulkProgress("");}
  }
  async function withdraw(fact:Fact){
   if(busy)return;setBusy(true);setError("");setMessage("");
@@ -101,6 +130,7 @@ export function PublicFactsEditor({projectId,onChange,proposedNextSteps}:{projec
     <h3 className="font-semibold">Informações do projeto</h3>
     <button className="workspace-button-secondary text-xs" disabled={suggestionsLoading||busy} onClick={()=>void loadSuggestions()}>{suggestionsLoading?"Consultando...":"Atualizar dados"}</button>
    </div>
+   <div className="flex flex-wrap items-center justify-between gap-2"><label className="flex items-center gap-2 text-xs"><input type="checkbox" disabled={busy} checked={candidates.filter(c=>!recorded(c.sourceReference)?.approved_for_client).length>0&&candidates.filter(c=>!recorded(c.sourceReference)?.approved_for_client).every(c=>selected.includes(c.sourceReference))} onChange={e=>setSelected(e.target.checked?candidates.filter(c=>!recorded(c.sourceReference)?.approved_for_client).map(c=>c.sourceReference):[])} /> Selecionar informações não publicadas</label><button type="button" className="workspace-button-primary text-xs" disabled={busy||selected.length===0} onClick={()=>void publishSelected()}>{bulkProgress||`Publicar selecionadas (${selected.length})`}</button></div>
    {candidates.length===0?<p className="text-sm text-(--text-secondary)">Nenhuma informação disponível para seleção.</p>:
     <div className="max-h-80 space-y-2 overflow-y-auto">
      {candidates.map(candidate=>{
@@ -108,6 +138,7 @@ export function PublicFactsEditor({projectId,onChange,proposedNextSteps}:{projec
       const published=existing?.approved_for_client;
       return <article key={candidate.sourceReference} className="rounded-lg border border-(--border) bg-(--bg-surface) p-3">
        <div className="flex flex-wrap items-center justify-between gap-2">
+        {!published?<input aria-label={"Selecionar "+candidate.title} type="checkbox" checked={selected.includes(candidate.sourceReference)} disabled={busy} onChange={e=>setSelected(current=>e.target.checked?[...current,candidate.sourceReference]:current.filter(ref=>ref!==candidate.sourceReference))}/>:null}
         <div className="min-w-0 flex-1">
          <p className="text-sm font-semibold">{candidate.title}</p>
          <p className="text-xs text-(--text-secondary)">{candidate.origin} · {kinds.find(k=>k[0]===candidate.kind)?.[1]}{published?" · Publicado":existing?" · Não publicado":""}</p>
