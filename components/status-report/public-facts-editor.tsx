@@ -9,6 +9,17 @@ const kinds=[["objective","Objetivo"],["benefit","Benefício"],["deliverable","E
 const classes=[["confirmed","Confirmado"],["in_progress","Em andamento"],["hypothesis","Hipótese"],["ai_recommendation","Proposta para revisão"]] as const;
 const blank=():EditorialForm=>({kind:"deliverable",title:"",description:"",classification:"in_progress",dueDate:"",sourceReference:""});
 
+const riskReady=(info:{kind:string;description:string})=>info.kind!=="risk"||
+ ["Ponto de atenção:","Consequência:","Medida:","Situação da medida:"].every(label=>{
+  const line=info.description.split("\n").find(row=>row.trim().toLowerCase().startsWith(label.toLowerCase()));
+  return !!line?.slice(label.length).trim();
+ });
+const riskTemplate=(description:string,title:string)=>{
+ if(description.includes("Ponto de atenção:"))return description;
+ return "Ponto de atenção: "+title+"\nConsequência: \nMedida: \nSituação da medida: planejada";
+};
+
+
 export function PublicFactsEditor({projectId,onChange,proposedNextSteps}:{projectId:string;onChange?:()=>void;proposedNextSteps?:string|null}){
  const [items,setItems]=useState<Fact[]>([]);
  const [candidates,setCandidates]=useState<Candidate[]>([]);
@@ -70,7 +81,7 @@ export function PublicFactsEditor({projectId,onChange,proposedNextSteps}:{projec
  async function publishSelected(){
   if(busy||selected.length===0)return;
   setBusy(true);setError("");setMessage("");
-  const available=candidates.filter(candidate=>selected.includes(candidate.sourceReference)&&!recorded(candidate.sourceReference)?.approved_for_client);
+  const available=candidates.filter(candidate=>selected.includes(candidate.sourceReference)&&!recorded(candidate.sourceReference)?.approved_for_client&&riskReady(recorded(candidate.sourceReference)||candidate));
   const failures:string[]=[];
   const failedRefs:string[]=[];
   let published=0;
@@ -109,7 +120,7 @@ export function PublicFactsEditor({projectId,onChange,proposedNextSteps}:{projec
   finally{setBusy(false);}
  }
  function edit(info:EditorialForm,id=""){
-  setForm(info);setEditingId(id);setShowEditor(true);setError("");setMessage("Revise o texto e clique em Publicar.");
+  setForm(info.kind==="risk"?{...info,description:riskTemplate(info.description,info.title)}:info);setEditingId(id);setShowEditor(true);setError("");setMessage("Revise o texto e clique em Publicar.");
   window.requestAnimationFrame(()=>document.getElementById("client-fact-editor")?.scrollIntoView({behavior:"smooth",block:"start"}));
  }
  const fromFact=(f:Fact):EditorialForm=>({kind:f.kind,title:f.title,description:f.description,classification:f.classification,dueDate:f.due_date||"",sourceReference:f.source_reference||""});
@@ -131,22 +142,23 @@ export function PublicFactsEditor({projectId,onChange,proposedNextSteps}:{projec
     <h3 className="font-semibold">Informações do projeto</h3>
     <button className="workspace-button-secondary text-xs" disabled={suggestionsLoading||busy} onClick={()=>void loadSuggestions()}>{suggestionsLoading?"Consultando...":"Atualizar dados"}</button>
    </div>
-   <div className="flex flex-wrap items-center justify-between gap-2"><label className="flex items-center gap-2 text-xs"><input type="checkbox" disabled={busy} checked={candidates.filter(c=>!recorded(c.sourceReference)?.approved_for_client).length>0&&candidates.filter(c=>!recorded(c.sourceReference)?.approved_for_client).every(c=>selected.includes(c.sourceReference))} onChange={e=>setSelected(e.target.checked?candidates.filter(c=>!recorded(c.sourceReference)?.approved_for_client).map(c=>c.sourceReference):[])} /> Selecionar informações não publicadas</label><button type="button" className="workspace-button-primary text-xs" disabled={busy||selected.length===0} onClick={()=>void publishSelected()}>{bulkProgress||`Publicar selecionadas (${selected.length})`}</button></div>
+   <div className="flex flex-wrap items-center justify-between gap-2"><label className="flex items-center gap-2 text-xs"><input type="checkbox" disabled={busy} checked={candidates.filter(c=>!recorded(c.sourceReference)?.approved_for_client&&riskReady(recorded(c.sourceReference)||c)).length>0&&candidates.filter(c=>!recorded(c.sourceReference)?.approved_for_client).every(c=>selected.includes(c.sourceReference))} onChange={e=>setSelected(e.target.checked?candidates.filter(c=>!recorded(c.sourceReference)?.approved_for_client).map(c=>c.sourceReference):[])} /> Selecionar informações não publicadas</label><button type="button" className="workspace-button-primary text-xs" disabled={busy||selected.length===0} onClick={()=>void publishSelected()}>{bulkProgress||`Publicar selecionadas (${selected.length})`}</button></div>
    {candidates.length===0?<p className="text-sm text-(--text-secondary)">Nenhuma informação disponível para seleção.</p>:
     <div className="max-h-80 space-y-2 overflow-y-auto">
      {candidates.map(candidate=>{
       const existing=recorded(candidate.sourceReference);
       const published=existing?.approved_for_client;
+      const needsRiskRevision=existing? !riskReady(existing):!riskReady(candidate);
       return <article key={candidate.sourceReference} className="rounded-lg border border-(--border) bg-(--bg-surface) p-3">
        <div className="flex flex-wrap items-center justify-between gap-2">
-        {!published?<input aria-label={"Selecionar "+candidate.title} type="checkbox" checked={selected.includes(candidate.sourceReference)} disabled={busy} onChange={e=>setSelected(current=>e.target.checked?[...current,candidate.sourceReference]:current.filter(ref=>ref!==candidate.sourceReference))}/>:null}
+        {!published?<input aria-label={"Selecionar "+candidate.title} type="checkbox" checked={selected.includes(candidate.sourceReference)} disabled={busy||needsRiskRevision} onChange={e=>setSelected(current=>e.target.checked?[...current,candidate.sourceReference]:current.filter(ref=>ref!==candidate.sourceReference))}/>:null}
         <div className="min-w-0 flex-1">
          <p className="text-sm font-semibold">{candidate.title}</p>
          <p className="text-xs text-(--text-secondary)">{candidate.origin} · {kinds.find(k=>k[0]===candidate.kind)?.[1]}{published?" · Publicado":existing?" · Não publicado":""}</p>
          {candidate.description?<p className="mt-1 line-clamp-2 text-xs text-(--text-secondary)">{candidate.description}</p>:null}
         </div>
         <div className="flex flex-wrap gap-2">
-         {published?<span className="text-xs text-(--text-secondary)">Publicado</span>:
+         {published?<span className="text-xs text-(--text-secondary)">Publicado</span>:needsRiskRevision?<span className="text-xs text-(--text-secondary)">Completar informações antes de publicar</span>:
           <button type="button" disabled={busy} className="workspace-button-primary text-xs" onClick={()=>void publish(existing?fromFact(existing):candidate,existing?.id)}>Publicar</button>}
          <button type="button" disabled={busy} className="workspace-button-secondary text-xs" onClick={()=>edit(existing?fromFact(existing):candidate,existing?.id)}>Editar</button>
         </div>
@@ -167,6 +179,7 @@ export function PublicFactsEditor({projectId,onChange,proposedNextSteps}:{projec
    <div className="flex items-center justify-between"><h3 className="font-semibold">Editar informação para publicação</h3>
     <button type="button" className="workspace-button-secondary text-xs" onClick={()=>{setShowEditor(false);setEditingId("");}}>Cancelar</button>
    </div>
+   {form.kind==="risk"&&<p className="text-xs text-(--text-secondary)">Para divulgar o risco ao cliente, informe quatro linhas: Ponto de atenção, Consequência, Medida e Situação da medida (planejada, em execução ou concluída). Os dados do risco original não serão alterados.</p>}
    <div className="grid gap-3 sm:grid-cols-2">
     <label className="text-xs">Categoria<select className="workspace-select mt-1 w-full" value={form.kind} onChange={e=>setForm(v=>({...v,kind:e.target.value}))}>{kinds.map(([v,label])=><option key={v} value={v}>{label}</option>)}</select></label>
     <label className="text-xs">Classificação<select className="workspace-select mt-1 w-full" value={form.classification} onChange={e=>setForm(v=>({...v,classification:e.target.value}))}>{classes.map(([v,label])=><option key={v} value={v}>{label}</option>)}</select></label>
