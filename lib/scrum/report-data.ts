@@ -2,6 +2,7 @@ import { getSupabaseServerClient } from "@/lib/supabase/server";
 import { getProjectAccessRole, getProjectById } from "@/services/project-service";
 import { requireEffectiveTenant, TENANT_SCHEMA_READY } from "@/lib/tenant-runtime";
 import { CONSULT_ORG_ID } from "@/lib/consult-workspace";
+import {getApprovedRiskFields} from "@/lib/reports/risk-report-html";
 
 export type ReportAudience="client"|"internal";
 export type ScrumReportStory={id:string;sprint_id:string|null;title:string;workflow_stage:string;story_points:number|null;due_date:string|null;actual_end_date:string|null;blocked:boolean;blocker_reason:string;responsible:string|null};
@@ -43,7 +44,11 @@ export async function loadReportData(db:DB,org:string,projectId:string,audience:
   if(person.email&&person.nome?.trim())emailNames.set(person.email.trim().toLowerCase(),person.nome.trim());
  }
  const displayOwner=(value:string|null)=>value&&emailNames.has(value.toLowerCase())?emailNames.get(value.toLowerCase())!:value;
- const approvedRiskFacts=(approvedFacts.data||[]).filter(item=>item.kind==="risk"&&/^risk:[0-9a-f-]{36}$/i.test(item.source_reference||""));
+ const codeRows=await db.from("project_risk_display_codes").select("risk_id,code_number")
+  .eq("project_id",projectId).eq("organization_id",org).limit(1000);
+ if(codeRows.error)throw Error("Códigos permanentes dos riscos indisponíveis. Verifique a migração REP-03.8.");
+ const displayCodes=new Map((codeRows.data||[]).map(row=>[row.risk_id,"R"+String(row.code_number).padStart(2,"0")]));
+ const approvedRiskFacts=(approvedFacts.data||[]).filter(item=>{const x=getApprovedRiskFields(item.description||"");return item.kind==="risk"&&/^risk:[0-9a-f-]{36}$/i.test(item.source_reference||"")&&Boolean(x.consequence&&x.measure&&x.measureStatus);});
  const riskPublicMap=new Map(approvedRiskFacts.map(item=>[item.source_reference?.slice(5),item]));
  const norm=(value:string|null):number|null=>{
   const normalized=String(value||"").trim().normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase();
@@ -59,7 +64,7 @@ export async function loadReportData(db:DB,org:string,projectId:string,audience:
   const severity=score===null?"Não avaliado":score===9?"Crítico":score===6?"Alto":score>=3?"Moderado":"Baixo";
   const approved=riskPublicMap.get(r.id);
   return {
-   id:r.id,code:"R-"+r.id.slice(0,12).toUpperCase(),
+   id:r.id,code:displayCodes.get(r.id)||"Código não atribuído",
    title:audience==="client"?(approved?.title||"Risco autorizado"):r.titulo,
    description:audience==="client"?(approved?.description||""):(r.impacto||""),
    status:r.status,probability,impact,score,severity,

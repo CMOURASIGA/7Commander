@@ -1,5 +1,6 @@
 import {expect,test} from "@playwright/test";
 import {riskReportHtml} from "../../lib/reports/risk-report-html";
+import {isVagueNextStep} from "../../lib/reports/editorial-rules";
 import type {ReportRiskAssessment} from "../../lib/scrum/report-data";
 
 function fixtures(count:number):ReportRiskAssessment[]{
@@ -39,11 +40,11 @@ for(const size of [0,1,5,7,15]){
   expect(client).not.toContain("Pessoa interna");
   expect(client).not.toContain("Plano reservado para equipe");
   expect(client).not.toContain("R-000000000001");
-  if(size>0){expect(client).toContain("Ponto de atenção");expect(client).toContain("Medida prevista ou em execução");}
+  if(size>0){expect(client).not.toContain("<table");expect(client).toContain("Riscos visíveis: 0");}
   const ids=[...team.matchAll(/<td>(R-\d{12})<\/td>/g)].map(match=>match[1]);
   expect(ids).toHaveLength(size);
   for(const id of ids)expect(team).toContain(id);
-  expect((client.match(/<td>Risco \d+<\/td>/g)||[]).length).toBe(Math.min(size,5));
+  expect((client.match(/<td>Risco \d+<\/td>/g)||[]).length).toBe(0);
   if(size===0){
    expect(client).toContain("não significa ausência de exposição");
    expect(team).toContain("Não há avaliações de riscos formalizadas");
@@ -81,13 +82,13 @@ test("REP-02 uses same score and severity in matrix and team row",()=>{
 
 test("REP-03 client uses only structured authorized measures and never guesses implementation status",()=>{
  const data=fixtures(1);
- data[0]={...data[0],description:"Consequência: atraso de homologação\nMedida: executar validação técnica\nSituação da medida: planejada"};
+ data[0]={...data[0],description:"Ponto de atenção: Validação das entregas\nConsequência: atraso de homologação\nMedida: executar validação técnica\nSituação da medida: planejada"};
  const client=riskReportHtml(data,"client");
  expect(client).toContain("atraso de homologação");
  expect(client).toContain("executar validação técnica");
  expect(client).toContain("(planejada)");
  expect(client).not.toContain("Plano reservado para equipe");
- data[0].description="Consequência: indisponibilidade operacional";
+ data[0].description="Ponto de atenção: Indisponibilidade operacional\nConsequência: indisponibilidade operacional";
  const missing=riskReportHtml(data,"client");
  expect(missing).not.toContain("Medida ainda não comunicada");
  expect(missing).not.toContain("Revisar internamente");
@@ -100,4 +101,21 @@ test("REP-03 operational rows exclude mitigation text except in HTML details and
  expect(html).toContain("Validar controle de acesso.");
  expect(html).not.toContain("class=\"risk-annex\"");
  expect(riskReportHtml([risk],"internal",{includeMitigationAnnex:true})).toContain("Anexo opcional");
+});
+
+test("REP-03.8 blocks incomplete client risks and accepts fully approved executive fields",()=>{
+ const entry=fixtures(1)[0];
+ entry.description="Ponto de atenção: Integração das funcionalidades\nConsequência: Atraso na validação das entregas\nMedida: Realizar teste integrado\nSituação da medida: planejada";
+ const output=riskReportHtml([entry],"client");
+ expect(output).toContain("Integração das funcionalidades");
+ expect(output).toContain("Atraso na validação das entregas");
+ expect(output).toContain("Realizar teste integrado");
+ expect(output).toContain("planejada");
+ entry.description="Ponto de atenção: Integração das funcionalidades";
+ expect(riskReportHtml([entry],"client")).not.toContain("client-risk-table");
+});
+
+test("REP-03.8 recognizes vague client action but permits concrete follow-up",()=>{
+ expect(isVagueNextStep("Reunião com equipe","para ver se conseguimos dar prosseguimento às atividades")).toBe(true);
+ expect(isVagueNextStep("Executar testes integrados","Confirmar integração antes da homologação")).toBe(false);
 });
