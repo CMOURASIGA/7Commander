@@ -43,14 +43,14 @@ export async function loadReportData(db:DB,org:string,projectId:string,audience:
   if(["3","alta","alto"].includes(normalized))return 3;
   return null;
  };
- const riskAssessments:ReportRiskAssessment[]=(risks.data||[]).filter(r=>audience==="internal"||riskPublicMap.has(r.id)).map((r,index)=>{
+ const riskAssessments:ReportRiskAssessment[]=(risks.data||[]).filter(r=>audience==="internal"||riskPublicMap.has(r.id)).map(r=>{
   const probability=norm(r.probabilidade);
   const impact=norm(r.impacto);
   const score=probability&&impact?probability*impact:null;
   const severity=score===null?"Não avaliado":score===9?"Crítico":score===6?"Alto":score>=3?"Moderado":"Baixo";
   const approved=riskPublicMap.get(r.id);
   return {
-   id:r.id,code:"R"+String(index+1).padStart(2,"0"),
+   id:r.id,code:"R-"+r.id.slice(0,12).toUpperCase(),
    title:audience==="client"?(approved?.title||"Risco autorizado"):r.titulo,
    description:audience==="client"?(approved?.description||""):(r.impacto||""),
    status:r.status,probability,impact,score,severity,
