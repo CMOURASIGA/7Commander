@@ -8,6 +8,7 @@ import { getClientAuthHeaders } from "@/lib/client-auth";
 import { BRAND_LOGO_URL } from "@/lib/brand";
 import type {ReportData,ReportAudience} from "@/lib/scrum/report-data";
 import {riskReportHtml} from "@/lib/reports/risk-report-html";
+import {isVagueNextStep} from "@/lib/reports/editorial-rules";
 import {safeMarkdownHtml} from "@/lib/safe-markdown-html";
 import {PublicFactsEditor} from "@/components/status-report/public-facts-editor";
 import {downloadReportPdf} from "@/lib/reports/pdf-browser";
@@ -66,7 +67,7 @@ function reportDocument(project:Project, cards:Card[], risks:Risk[], decisions:D
   if(audience==="client"){
     const shareable=scrum?.publicFacts||[];
     const classify=(value:string)=>({confirmed:"Concluído ou confirmado",in_progress:"Em andamento",hypothesis:"Em avaliação",ai_recommendation:"Proposta"} as Record<string,string>)[value]||"A confirmar";
-    const publicItems=(kind:string)=>shareable.filter(x=>x.kind===kind && !(kind==="milestone"&&x.classification!=="confirmed")).slice(0,15).map(x=>({
+    const publicItems=(kind:string)=>shareable.filter(x=>x.kind===kind && !(kind==="milestone"&&x.classification!=="confirmed")&&!(kind==="next_step"&&isVagueNextStep(x.title,x.description))).slice(0,15).map(x=>({
       title:x.title,note:classify(x.classification)+(x.due_date?" · Prazo informado: "+x.due_date:"")+(x.description&&!/validar contexto|antes da divulga[cç][aã]o|informação interna/i.test(x.description)?" · "+x.description:"")
     }));
     const publicObjective=shareable.find(x=>x.kind==="objective"&&x.classification==="confirmed");
