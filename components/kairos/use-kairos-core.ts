@@ -35,7 +35,7 @@ export type KairosMessage = ChatMessage & { source?: MessageSource };
 export type VoiceState = "inativo" | "ouvindo" | "processando" | "respondendo" | "pausado" | "erro";
 export type VoiceUiState = "idle" | "listening" | "processing" | "paused";
 
-export type SaveKind = "decision" | "risk" | "knowledge" | "task";
+export type SaveKind = "decision" | "risk" | "knowledge" | "task" | "meeting" | "story" | "story-task";
 export type SaveDialog = { kind: SaveKind | "choose"; message: KairosMessage } | null;
 export type TaskDraft = { id: string; title: string; description: string; selected: boolean };
 
@@ -84,11 +84,43 @@ function splitTitleAndDescription(raw: string): { title: string; description: st
   };
 }
 
+const NON_ACTIONABLE_HEADINGS=/^(avancos|avanços|pendencias|pendências|compromissos|riscos?( e impedimentos)?|proximos passos|próximos passos|situacao geral|situação geral|resumo|status report|panorama|conclusao|conclusão)$/i;
+const ACTION_VERBS=/\b(entregar|implementar|validar|gerar|revisar|criar|atualizar|corrigir|desenvolver|configurar|disponibilizar|testar|documentar|integrar|migrar|preparar|aprovar|publicar|concluir|executar|levantar|definir|mapear|enviar|verificar|solicitar|construir|produzir|finalizar|encaminhar|entrega(?:r|rá)|deverá|precisa(?:rá)?|implementarão)\b/i;
+function actionableTask(draft:TaskDraft):boolean {
+ const title=removeMarkdown(draft.title).replace(/[.:]\s*$/,"");
+ if(!title||NON_ACTIONABLE_HEADINGS.test(title))return false;
+ const deliverable=/\b(entrega|implementa(?:ção|cao)|valida(?:ção|cao)|corre(?:ção|cao)|gera(?:ção|cao)|configura(?:ção|cao)|migra(?:ção|cao)|documenta(?:ção|cao)|testes?|integra(?:ção|cao))\b/i;
+ return ACTION_VERBS.test(title+" "+draft.description)||deliverable.test(title);
+}
+function filterActionableDrafts(drafts:TaskDraft[]):TaskDraft[] {
+ const seen=new Set<string>();
+ return drafts.filter(d=>{
+  if(!actionableTask(d))return false;
+  const normalized=removeMarkdown(d.title).toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/[^a-z0-9]+/g," ").trim();
+  if(seen.has(normalized))return false;
+  seen.add(normalized);return true;
+ });
+}
+export function getDecisionExcerpt(content:string):string {
+ const lines=content.replace(/\r\n/g,"\n").split("\n");
+ const start=lines.findIndex(line=>/^\s*(?:#{1,6}\s*)?(?:\*\*)?decis(?:ã|a)o(?:\s+(?:sugerida|proposta|para registrar))?(?:\*\*)?\s*:?\s*$/i.test(line.trim()));
+ if(start<0)return "";
+ const selected:string[]=[];
+ for(const line of lines.slice(start+1)){
+  if(/^\s*#{1,6}\s+/.test(line)&&selected.length)break;
+  if(/^\s*#{1,6}\s+/.test(line)&&!selected.length)break;
+  if(/^\s*(?:\*\*)?(?:risco|pendências|proximos passos|próximos passos|status report)(?:\*\*)?\s*:/i.test(line))break;
+  selected.push(line);
+  if(selected.join("\n").length>3000)break;
+ }
+ return selected.join("\n").trim().slice(0,3000);
+}
+
 export function getTaskDrafts(content: string): TaskDraft[] {
   const numberedItems = [...content.matchAll(/^\s*(\d+)[.)]\s+(.+)$/gm)];
 
   if (numberedItems.length > 1) {
-    return numberedItems.map((item, index) => {
+    return filterActionableDrafts(numberedItems.map((item, index) => {
       const start = (item.index ?? 0) + item[0].length;
       const end = numberedItems[index + 1]?.index ?? content.length;
       const description = content.slice(start, end)
@@ -102,12 +134,12 @@ export function getTaskDrafts(content: string): TaskDraft[] {
         description: removeMarkdown(description),
         selected: true,
       };
-    });
+    }));
   }
 
   const inlineNumberedItems = matchSequentialNumberedItems(content);
   if (inlineNumberedItems.length > 1) {
-    return inlineNumberedItems.map((item, index) => {
+    return filterActionableDrafts(inlineNumberedItems.map((item, index) => {
       const start = (item.index ?? 0) + item[0].length;
       const end = inlineNumberedItems[index + 1]?.index ?? content.length;
       const { title, description } = splitTitleAndDescription(content.slice(start, end));
@@ -117,14 +149,14 @@ export function getTaskDrafts(content: string): TaskDraft[] {
         description,
         selected: true,
       };
-    });
+    }));
   }
 
   const boldItems = [...content.matchAll(/^\s*\*\*([^*\n]+)\*\*\s*$/gm)]
     .filter((item) => !/^(atividades|proximos passos|próximos passos|contexto|diagnostico|diagnóstico)\b/i.test(removeMarkdown(item[1]).replace(/:\s*$/, "")));
 
   if (boldItems.length > 1) {
-    return boldItems.map((item, index) => {
+    return filterActionableDrafts(boldItems.map((item, index) => {
       const start = (item.index ?? 0) + item[0].length;
       const end = boldItems[index + 1]?.index ?? content.length;
       const description = content.slice(start, end)
@@ -137,7 +169,7 @@ export function getTaskDrafts(content: string): TaskDraft[] {
         description: removeMarkdown(description),
         selected: true,
       };
-    });
+    }));
   }
 
   // Itens de lista com titulo em negrito e descricao na mesma linha, ex.:
@@ -147,20 +179,31 @@ export function getTaskDrafts(content: string): TaskDraft[] {
   const bulletBoldItems = [...content.matchAll(/^\s*[-*]\s*\*\*([^*\n]+)\*\*\s*:?\s*(.*)$/gm)];
 
   if (bulletBoldItems.length > 1) {
-    return bulletBoldItems.map((item, index) => ({
+    return filterActionableDrafts(bulletBoldItems.map((item, index) => ({
       id: `task-bullet-${index + 1}`,
       title: removeMarkdown(item[1]).replace(/[.:]\s*$/, "") || `Atividade ${index + 1}`,
       description: removeMarkdown(item[2] ?? ""),
       selected: true,
-    }));
+    })));
   }
 
-  return [{
+  // Report sections frequently contain concrete actions as bullet items.
+  // The heading itself is never treated as a Task.
+  const actionBullets=[...content.matchAll(/^\s*[-*]\s+(?!\*\*)(.+)$/gm)]
+    .map((m,index)=>({id:"task-action-"+(index+1),
+      title:removeMarkdown(m[1]).split(/[.;]/)[0].trim().slice(0,180),
+      description:removeMarkdown(m[1]),selected:true}));
+  const concreteBullets=filterActionableDrafts(actionBullets);
+  if(concreteBullets.length)return concreteBullets;
+
+  // A report is knowledge/meeting input, not a single enormous Kanban task.
+  if((content.match(/^\s*#{1,6}\s+/gm)||[]).length>=2 || content.length>1200)return [];
+  return filterActionableDrafts([{
     id: "task-1",
     title: getSuggestedTitle(content, "task"),
     description: content,
     selected: true,
-  }];
+  }]);
 }
 
 export function getSuggestedTitle(content: string, kind: SaveKind): string {
@@ -299,11 +342,17 @@ export function useKairosCore(options?: UseKairosCoreOptions) {
   const [riskTitleError, setRiskTitleError] = useState<string | null>(null);
   const [knowledgeTitleError, setKnowledgeTitleError] = useState<string | null>(null);
   const [knowledgeContentError, setKnowledgeContentError] = useState<string | null>(null);
-  const [decisionForm, setDecisionForm] = useState({ title: "", context: "", impact: "", artifactId: "" });
+  const [decisionForm, setDecisionForm] = useState({ title: "", context: "", reason: "", impact: "", artifactId: "" });
   const [riskForm, setRiskForm] = useState({ title: "", impact: "", probability: "", mitigation: "", owner: "" });
   const [riskDrafts,setRiskDrafts] = useState<RiskDraft[]>([]);
   const [knowledgeForm, setKnowledgeForm] = useState({ title: "", category: "registro do Kairos", content: "" });
   const [taskForm, setTaskForm] = useState({ columnKey: "todo", priority: "media", dueDate: "" });
+  const [meetingForm,setMeetingForm]=useState({title:"",heldAt:new Date().toISOString().slice(0,16),participants:"",objective:"",summary:"",advances:"",decisions:"",commitments:"",pendingItems:"",risks:"",nextFollowUp:"",sourceArtifactId:""});
+  const [storyForm,setStoryForm]=useState({title:"",description:"",acceptanceCriteria:"",featureId:"",sprintId:"",responsible:"",priority:"media",startDate:"",dueDate:""});
+  const [storyTaskForm,setStoryTaskForm]=useState({storyId:"",title:"",description:"",responsible:""});
+  const [scrumChoices,setScrumChoices]=useState<{features:Array<{id:string;title:string}>;sprints:Array<{id:string;name:string;status:string}>;stories:Array<{id:string;title:string}>;members:Array<{email:string;name:string}>}>({features:[],sprints:[],stories:[],members:[]});
+  const [destinationLoadingId,setDestinationLoadingId]=useState<string|null>(null);
+
   const [taskDrafts, setTaskDrafts] = useState<TaskDraft[]>([]);
 
   const audioRef = useRef<HTMLAudioElement | null>(null);
@@ -714,16 +763,44 @@ export function useKairosCore(options?: UseKairosCoreOptions) {
   function openSaveDialog(kind: SaveKind, message: KairosMessage) {
     resetFieldErrors();
     if (kind === "decision") {
-      setDecisionForm({ title: getSuggestedTitle(message.content, kind), context: "", impact: "", artifactId: "" });
+      setDecisionForm({ title: getSuggestedTitle(message.content, kind), context: "", reason: getDecisionExcerpt(message.content), impact: "", artifactId: "" });
     } else if (kind === "risk") {
       const parsed = parseRiskDrafts(message.content);
       setRiskDrafts(parsed);
       setRiskForm({ title: parsed.length ? "" : getSuggestedTitle(message.content, kind), impact: "", probability: "", mitigation: "", owner: "" });
     } else if (kind === "knowledge") {
       setKnowledgeForm({ title: getSuggestedTitle(message.content, kind), category: "registro do Kairos", content: message.content });
+    } else if(kind==="meeting"){
+      setMeetingForm({title:"Reunião de acompanhamento",heldAt:new Date().toISOString().slice(0,16),participants:"",objective:"",summary:message.content,advances:"",decisions:"",commitments:"",pendingItems:"",risks:"",nextFollowUp:"",sourceArtifactId:""});
+    } else if(kind==="story"){
+      setStoryForm({title:"",description:message.content.slice(0,7000),acceptanceCriteria:"",featureId:"",sprintId:"",responsible:"",priority:"media",startDate:"",dueDate:""});
+    } else if(kind==="story-task"){
+      setStoryTaskForm({storyId:"",title:"",description:message.content.slice(0,7000),responsible:""});
     } else {
       setTaskDrafts(getTaskDrafts(message.content));
       setTaskForm({ columnKey: "todo", priority: "media", dueDate: "" });
+    }
+    if(["story","story-task"].includes(kind)&&activeProjectId){
+      void (async()=>{
+        try{
+          const headers=getClientAuthHeaders();
+          const key=encodeURIComponent(activeProjectId);
+          const [backlog,projects,members]=await Promise.all([
+            fetch("/api/scrum/backlog-items?projectId="+key,{headers,cache:"no-store"}),
+            fetch("/api/scrum?projectId="+key,{headers,cache:"no-store"}),
+            fetch("/api/scrum/project-members?projectId="+key,{headers,cache:"no-store"})
+          ]);
+          const stories=await fetch("/api/scrum/stories?projectId="+key,{headers,cache:"no-store"});
+          if(!backlog.ok||!projects.ok||!members.ok||!stories.ok)throw Error("Seletores de Scrum indisponíveis");
+          const [b,p,m,t]=await Promise.all([backlog.json(),projects.json(),members.json(),stories.json()]);
+          setScrumChoices({
+            features:(b.data||[]).filter((x:{item_type:string})=>x.item_type==="feature").map((x:{id:string;title:string})=>({id:x.id,title:x.title})),
+            sprints:(p.data?.sprints||[]).filter((x:{status:string})=>x.status!=="closed"),
+            stories:(t.data?.stories||[]).filter((x:{workflow_stage:string})=>x.workflow_stage!=="closed"),
+            members:m.data||[]
+          });
+        }catch{setScrumChoices({features:[],sprints:[],stories:[],members:[]});showToast("Não foi possível carregar as opções de Scrum do projeto.","error")}
+      })();
     }
     setSaveDialog({ kind, message });
   }
@@ -738,6 +815,7 @@ export function useKairosCore(options?: UseKairosCoreOptions) {
   async function handleSaveDecision() {
     if (!saveDialog || saveDialog.kind !== "decision" || !activeProjectId) return;
     if (!decisionForm.title.trim()) { setDecisionTitleError("Informe o titulo da decisao."); return; }
+    if (!decisionForm.reason.trim()) { showToast("Informe apenas a decisão específica, sem copiar o relatório completo.", "error"); return; }
     setDecisionTitleError(null);
     setDecisionLoadingId(saveDialog.message.id);
     try {
@@ -747,7 +825,7 @@ export function useKairosCore(options?: UseKairosCoreOptions) {
         body: JSON.stringify({
           title: decisionForm.title.trim(),
           context: decisionForm.context.trim(),
-          reason: saveDialog.message.content,
+          reason: decisionForm.reason.trim(),
           impact: decisionForm.impact.trim() || `Registrada via Kairos (${saveDialog.message.specialist})`,
           status: "aberta",
           projectId: activeProjectId,
@@ -844,6 +922,14 @@ export function useKairosCore(options?: UseKairosCoreOptions) {
     if (selectedTasks.length === 0) { showToast("Selecione ao menos uma atividade com titulo.", "error"); return; }
     setTaskLoadingId(saveDialog.message.id);
     try {
+      // Check the existing authorized board before creating any card. If the
+      // check fails, fail closed rather than risk duplicating a prior action.
+      const boardResponse=await fetch(`/api/projects/${activeProjectId}/tasks`,{headers:getClientAuthHeaders(),cache:"no-store"});
+      if(!boardResponse.ok)throw new Error("Não foi possível verificar atividades existentes.");
+      const boardPayload=await boardResponse.json();
+      const titles=new Set<string>((boardPayload.data?.columns??[]).flatMap((col:{cards:Array<{title:string}>})=>col.cards.map(card=>card.title.trim().toLocaleLowerCase("pt-BR"))));
+      const duplicate=selectedTasks.find(task=>titles.has(task.title.trim().toLocaleLowerCase("pt-BR")));
+      if(duplicate)throw new Error("Já existe uma atividade com este título no projeto: "+duplicate.title+". Revise antes de salvar.");
       for (const task of selectedTasks) {
         const response = await fetch(`/api/projects/${activeProjectId}/tasks`, {
           method: "POST",
@@ -866,6 +952,57 @@ export function useKairosCore(options?: UseKairosCoreOptions) {
     } finally {
       setTaskLoadingId(null);
     }
+  }
+
+  async function handleSaveStructuredDestination(){
+    if(!saveDialog||!activeProjectId||destinationLoadingId)return;
+    const kind=saveDialog.kind;
+    if(kind!=="meeting"&&kind!=="story"&&kind!=="story-task")return;
+    setDestinationLoadingId(saveDialog.message.id);
+    try{
+      const headers=getClientAuthHeaders({"Content-Type":"application/json"});
+      const key=encodeURIComponent(activeProjectId);
+      let endpoint="",body:Record<string,unknown>={};
+      if(kind==="meeting"){
+        if(!meetingForm.title.trim()||!meetingForm.heldAt)throw Error("Título e data da reunião são obrigatórios.");
+        endpoint="/api/projects/"+key+"/meetings";
+        body={...meetingForm,heldAt:new Date(meetingForm.heldAt).toISOString(),
+          nextFollowUp:meetingForm.nextFollowUp?new Date(meetingForm.nextFollowUp).toISOString():null,
+          sourceConversationId:conversationId};
+      }else if(kind==="story"){
+        if(!storyForm.title.trim())throw Error("Informe o título da US.");
+        endpoint="/api/scrum/stories";
+        const response=await fetch(endpoint+"?projectId="+key,{headers,cache:"no-store"});
+        if(!response.ok)throw Error("Não foi possível verificar US existentes.");
+        const result=await response.json();
+        if((result.data?.stories||[]).some((st:{title:string})=>st.title.trim().toLocaleLowerCase("pt-BR")===storyForm.title.trim().toLocaleLowerCase("pt-BR")))
+          throw Error("Já existe uma US com esse título neste projeto. Revise antes de salvar.");
+        body={action:"create",fromKairos:true,projectId:activeProjectId,title:storyForm.title.trim(),
+          description:storyForm.description,acceptanceCriteria:storyForm.acceptanceCriteria,
+          featureId:storyForm.featureId||null,sprintId:storyForm.sprintId||null,
+          responsible:storyForm.responsible,priority:storyForm.priority,
+          startDate:storyForm.startDate||null,dueDate:storyForm.dueDate||null,
+          stage:"new"};
+      }else{
+        if(!storyTaskForm.storyId||!storyTaskForm.title.trim())throw Error("Selecione a US e informe a Task.");
+        endpoint="/api/scrum/backlog-items";
+        const response=await fetch(endpoint+"?projectId="+key,{headers,cache:"no-store"});
+        if(!response.ok)throw Error("Não foi possível verificar as Tasks existentes.");
+        const result=await response.json();
+        if((result.data||[]).some((t:{item_type:string;story_id:string;title:string})=>t.item_type==="task"&&t.story_id===storyTaskForm.storyId&&t.title.trim().toLocaleLowerCase("pt-BR")===storyTaskForm.title.trim().toLocaleLowerCase("pt-BR")))
+          throw Error("Já existe uma Task com esse título nessa US.");
+        body={action:"create",fromKairos:true,projectId:activeProjectId,itemType:"task",
+          storyId:storyTaskForm.storyId,title:storyTaskForm.title.trim(),
+          description:storyTaskForm.description,responsible:storyTaskForm.responsible,
+          state:"todo"};
+      }
+      const res=await fetch(endpoint,{method:"POST",headers,body:JSON.stringify(body)});
+      const parsed=await res.json().catch(()=>({}));
+      if(!res.ok)throw Error(parsed.error||"Não foi possível registrar.");
+      setSaveDialog(null);
+      showToast(kind==="meeting"?"Reunião registrada.":kind==="story"?"US criada no Backlog.":"Task criada na US existente.","success");
+    }catch(e){showToast(e instanceof Error?e.message:"Não foi possível concluir o encaminhamento.","error")}
+    finally{setDestinationLoadingId(null)}
   }
 
   return {
@@ -892,6 +1029,7 @@ export function useKairosCore(options?: UseKairosCoreOptions) {
     riskForm, setRiskForm, riskDrafts, setRiskDrafts, riskTitleError, riskLoadingId, riskSavedIds, handleSaveRisk,
     knowledgeForm, setKnowledgeForm, knowledgeTitleError, knowledgeContentError, knowledgeLoadingId, knowledgeSavedIds, handleSaveKnowledge,
     taskDrafts, setTaskDrafts, taskForm, setTaskForm, taskLoadingId, handleSaveTask,
+    meetingForm,setMeetingForm,storyForm,setStoryForm,storyTaskForm,setStoryTaskForm,scrumChoices,destinationLoadingId,handleSaveStructuredDestination,
     // clearing field errors on edit
     setDecisionTitleError, setRiskTitleError, setKnowledgeTitleError, setKnowledgeContentError,
     // send

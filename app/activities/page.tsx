@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { getClientAuthEmail, getClientAuthHeaders } from "@/lib/client-auth";
 import { PageIntro, SectionLabel, StatusPill, SurfaceCard } from "@/components/ui/workspace-primitives";
@@ -93,6 +93,7 @@ export default function ActivitiesPage() {
   const [creatingTask, setCreatingTask] = useState(false);
   const [draggingTaskId, setDraggingTaskId] = useState<string | null>(null);
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
+  const handledDeepLink=useRef(false);
   const [taskDetail, setTaskDetail] = useState<TaskDetail | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
   const [cardSaveState,setCardSaveState] = useState<"idle"|"saving"|"saved"|"error">("idle");
@@ -153,7 +154,8 @@ export default function ActivitiesPage() {
     const payload = await response.json();
     const items = (payload?.data ?? []) as ProjectSummary[];
     setProjects(items);
-    setActiveProjectId(payload?.meta?.activeProjectId ?? items[0]?.id ?? null);
+    const requestedProject=new URLSearchParams(window.location.search).get("projectId");
+    setActiveProjectId(requestedProject&&items.some(p=>p.id===requestedProject)?requestedProject:(payload?.meta?.activeProjectId ?? items[0]?.id ?? null));
   }
 
   async function loadBoard(projectId: string) {
@@ -167,6 +169,18 @@ export default function ActivitiesPage() {
       if (!response.ok) throw new Error(payload?.error || "Erro ao carregar quadro.");
       setBoard((payload?.data ?? null) as TaskBoard | null);
       setAccessRole((payload?.meta?.accessRole ?? "none") as AccessRole);
+      if(!handledDeepLink.current){
+        const params=new URLSearchParams(window.location.search);
+        const targetTask=params.get("taskId");
+        if(targetTask&&params.get("projectId")===projectId){
+          handledDeepLink.current=true;
+          const authorized=(payload?.data as TaskBoard|null)?.columns.some(col=>col.cards.some(card=>card.id===targetTask));
+          if(authorized){
+            setSelectedTaskId(targetTask);
+            void loadTaskDetail(targetTask);
+          }else setStatus("A atividade não está disponível neste projeto ou sua conta não possui acesso.");
+        }
+      }
     } catch (error) {
       setBoard(null);
       setAccessRole("none");

@@ -18,7 +18,7 @@ async function scope(request:NextRequest,projectId:string,write=false){
   if(!uuid.test(projectId))return {error:fail("Projeto inválido.")} as const;
   const project=await getProjectById({projectId,userId:auth.context.userId,userEmail:auth.context.userEmail});
   if(!project)return {error:fail("Projeto não encontrado.",404)} as const;
-  const role=await getProjectAccessRole({projectId,userId:auth.context.userId,userEmail:auth.context.userEmail});
+  const role=await getProjectAccessRole({projectId,userId:auth.context.userId,userEmail:auth.context.userEmail,verifiedProject:project});
   if(role==="none" || write&&!["owner","editor"].includes(role))return {error:fail("Acesso negado.",403)} as const;
   const db=getSupabaseServerClient();if(!db)return {error:fail("Banco indisponível.",503)} as const;
   const org=TENANT_SCHEMA_READY?await requireEffectiveTenant(auth.context.userId):CONSULT_ORG_ID;
@@ -45,11 +45,13 @@ export async function GET(req:NextRequest){
   return respond({data:{stories:(stories.data||[]).map(st=>({...st,has_history:history.has(st.id)})),comments:comments.data}});
 }
 export async function POST(req:NextRequest){
+  const perfStart=performance.now();
   const body=await req.json().catch(()=>null) as Record<string,unknown>|null;
   if(!body||Array.isArray(body)||typeof body!=="object")return fail("Payload inválido.");
   const projectId=String(body.projectId||"");
   const context=await scope(req,projectId,true);
   if("error" in context)return context.error;
+  const perfAuth=performance.now();
   const {db,org,auth}=context;
   const action=String(body.action||"");
   const storyId=String(body.storyId||"");
@@ -78,6 +80,11 @@ export async function POST(req:NextRequest){
   }
   if(action!=="create"&&action!=="update")return fail("Ação não reconhecida.");
   const title=typeof body.title==="string"?body.title.trim():current?.title||"";
+  if(action==="create"&&body.fromKairos===true){
+    const duplicate=await db.from("scrum_user_stories").select("id").eq("organization_id",org).eq("project_id",projectId).ilike("title",title).limit(1);
+    if(duplicate.error)return fail("Não foi possível verificar duplicidade da US.",503);
+    if(duplicate.data?.length)return fail("US do Kairos já cadastrada com este título.",409);
+  }
   if(!title||title.length>180)return fail("Título obrigatório (até 180 caracteres).");
   const priority=body.priority===undefined?current?.priority||"media":String(body.priority);
   if(!["baixa","media","alta","critica"].includes(priority))return fail("Prioridade inválida.");
@@ -90,6 +97,11 @@ export async function POST(req:NextRequest){
   const days=body.durationDays===undefined?current?.duration_days??null:body.durationDays===""||body.durationDays===null?null:Number(body.durationDays);
   const points=body.storyPoints===undefined?current?.story_points??null:body.storyPoints===""||body.storyPoints===null?null:Number(body.storyPoints);
   if(days!==null&&(!Number.isInteger(days)||days<1||days>3650))return fail("Duração inválida.");
+  if(start&&due&&days!==null&&(action==="create"||body.startDate!==undefined||body.dueDate!==undefined||body.durationDays!==undefined)){
+    const calculated=new Date(String(start)+"T12:00:00Z");
+    calculated.setUTCDate(calculated.getUTCDate()+days-1);
+    if(calculated.toISOString().slice(0,10)!==due)return fail("Início, prazo em dias corridos e data de entrega são inconsistentes.",400);
+  }
   if(points!==null&&![1,2,3,4].includes(points))return fail("Story points devem ser 1, 2, 3 ou 4.");
   const actualEnd=body.actualEndDate===undefined?current?.actual_end_date||null:body.actualEndDate||null;
   if(actualEnd!==null&&!validDate(actualEnd))return fail("Data real inválida.");
@@ -114,6 +126,7 @@ export async function POST(req:NextRequest){
   if(target.error||target.status==="closed")return fail("A Sprint selecionada está encerrada ou indisponível.",409);
   const sortOrder=body.sortOrder===undefined?Number(current?.sort_order||0):Number(body.sortOrder);
   if(!Number.isInteger(sortOrder)||sortOrder<0||sortOrder>1000000)return fail("Ordem inválida.");
+  const perfValidation=performance.now();
   const patch={
     title,description:String(body.description===undefined?current?.description||"":body.description||"").slice(0,10000),
     acceptance_criteria:String(body.acceptanceCriteria===undefined?current?.acceptance_criteria||"":body.acceptanceCriteria||"").slice(0,10000),
@@ -126,7 +139,12 @@ export async function POST(req:NextRequest){
   };
   const result=action==="create"?
     await db.from("scrum_user_stories").insert({...patch,project_id:projectId,organization_id:org,created_by_email:auth.userEmail||"",workflow_stage:"new"}).select("id").single():
-    await db.from("scrum_user_stories").update(patch).eq("id",storyId).eq("organization_id",org).eq("project_id",projectId).select("id").single();
+    await db.from("scrum_user_stories").update(patch).eq("id",storyId).eq("organization_id",org).eq("project_id",projectId).select("id,workflow_stage,actual_end_date,updated_at").single();
   if(result.error)return fail("Não foi possível salvar a US: "+result.error.code,409);
-  return respond({data:result.data},action==="create"?201:200);
+  const perfEnd=performance.now();
+  const millis=(v:number)=>Math.max(0,Math.round(v*10)/10);
+  return NextResponse.json({data:result.data},{status:action==="create"?201:200,headers:{
+    "Cache-Control":"private,no-store",
+    "Server-Timing":`auth;dur=${millis(perfAuth-perfStart)},validate;dur=${millis(perfValidation-perfAuth)},write;dur=${millis(perfEnd-perfValidation)},total;dur=${millis(perfEnd-perfStart)}`
+  }});
 }

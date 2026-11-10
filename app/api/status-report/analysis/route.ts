@@ -29,8 +29,8 @@ export async function POST(request: NextRequest) {
   if (projectResult.error || !projectResult.data) return NextResponse.json({error:"Projeto sem acesso."},{status:404});
   const project = projectResult.data;
   const [tasksResult,risksResult,decisionsResult] = await Promise.all([
-    db.from("tasks").select("id,titulo,status,created_at,updated_at,due_date,responsavel,prioridade").eq("project_id",id).limit(500),
-    db.from("risks").select("id,titulo,impacto,probabilidade,mitigacao,responsavel,status,created_at,updated_at").eq("project_id",id).limit(200),
+    db.from("tasks").select("id,titulo,status,created_at,updated_at,due_date,responsavel,prioridade").eq("project_id",id).eq("organization_id",tenant).limit(500),
+    db.from("risks").select("id,titulo,impacto,probabilidade,mitigacao,responsavel,status,created_at,updated_at").eq("project_id",id).eq("organization_id",tenant).limit(200),
     db.from("decisions").select("id,titulo,impacto,contexto,status,created_at,updated_at").eq("project_id",id).limit(200),
   ]);
   if (tasksResult.error || risksResult.error || decisionsResult.error) return NextResponse.json({error:"Dados do projeto indisponíveis."},{status:503});
@@ -57,19 +57,26 @@ export async function POST(request: NextRequest) {
     projeto:project.nome, objetivo:project.objetivo||project.descricao||"Não registrado",
     periodo:period,publico:audience,
     criterio:mode==="current"?"Fotografia operacional atual, sem inferência histórica":"Eventos registrados no intervalo; situação dos riscos e tarefas é atual, não retrospectiva",
-    atividadesAtuais:tasks.map(x=>audience==="internal"?({titulo:x.titulo,status:x.status,prioridade:x.prioridade,prazo:x.due_date,responsavel:x.responsavel}):({titulo:x.titulo,status:x.status,prazo:x.due_date})),
-    riscosAtuais:risks.map(x=>audience==="internal"?({titulo:x.titulo,status:x.status,impacto:x.impacto,probabilidade:x.probabilidade,mitigacao:x.mitigacao,responsavel:x.responsavel}):({titulo:x.titulo,status:x.status})),
-    decisoesAtuais:decisions.map(x=>audience==="internal"?({titulo:x.titulo,status:x.status,impacto:x.impacto,contexto:x.contexto}):({titulo:x.titulo,status:x.status})),
-    eventosNoPeriodo:events.map(x=>({tipo:x.action_type,data:x.created_at})),
+    atividadesAtuais:audience==="internal"?tasks.map(x=>({titulo:x.titulo,status:x.status,prioridade:x.prioridade,prazo:x.due_date,responsavel:x.responsavel})):undefined,
+    resumoAtividadesCliente:audience==="client"?{total:scrum.kanban.total,concluidas:scrum.kanban.done,emAndamento:scrum.kanban.doing}:undefined,
+    riscosAtuais:audience==="internal"?risks.map(x=>({titulo:x.titulo,status:x.status,impacto:x.impacto,probabilidade:x.probabilidade,mitigacao:x.mitigacao,responsavel:x.responsavel})):undefined,
+    decisoesAtuais:audience==="internal"?decisions.map(x=>({titulo:x.titulo,status:x.status,impacto:x.impacto,contexto:x.contexto})):undefined,
+    fatosAprovadosCliente:audience==="client"?(scrum.publicFacts||[]):undefined,
+    eventosNoPeriodo:audience==="internal"?events.map(x=>({tipo:x.action_type,data:x.created_at})):undefined,
+    totalEventosNoPeriodo:events.length,
     registrosCriadosNoPeriodo:periodMetrics,
-    scrumAtual:{
+    scrumAtual:audience==="internal"?{
       sprints:scrum.scrum.sprints,
       usSemSprint:scrum.scrum.backlog_stories,
       totalUS:scrum.scrum.stories_total,
       tasksConcluidas:scrum.scrum.tasks_done,
       tasksTotais:scrum.scrum.tasks_total
+    }:{
+      totalUS:scrum.scrum.stories_total,
+      tasksConcluidas:scrum.scrum.tasks_done,
+      tasksTotais:scrum.scrum.tasks_total
     },
-    kanbanResumo:scrum.kanban,
+    kanbanResumo:audience==="internal"?scrum.kanban:{total:scrum.kanban.total,todo:scrum.kanban.todo,doing:scrum.kanban.doing,done:scrum.kanban.done,overdue:scrum.kanban.overdue},
     avisos:["Não equiparar quantidade de cartões a percentual de escopo.","Não inferir estado passado de registros atuais.","Não tratar ausência de histórico como ausência de trabalho."]
   };
   const openai = getOpenAIClient();
@@ -78,7 +85,7 @@ export async function POST(request: NextRequest) {
     const result = await openai.responses.create({
       model:"gpt-4o-mini",
       input:[
-        {role:"system",content:KAIROS_PM_REPORT_POLICY+"\nProduza exclusivamente JSON com três campos string: executiveSummary, riskAnalysis, nextSteps. Português executivo, cada campo com 2 a 5 frases objetivas. Use apenas os dados recebidos. Evite enumerar riscos genéricos, integre riscos semelhantes e indique mitigação existente ou ausente. Diferencie riscos reais de lacunas. Descreva Sprints e entregas quando existirem e separe-as do Kanban operacional. Não invente fatos, evolução histórica ou estimativa. Nenhum comando de escrita."},
+        {role:"system",content:KAIROS_PM_REPORT_POLICY+"\nA audiência é "+(audience==="client"?"CLIENTE: não divulgar nomes de colaboradores, Tasks internas, impedimentos técnicos restritos ou estimativas não acordadas. Priorize objetivo, benefícios documentados, entregas registradas, marcos formalizados, riscos relevantes e próximos passos propostos.":"EQUIPE: detalhar trabalho registrado, Sprints, US, Tasks, responsáveis, impedimentos, decisões e ações operacionais.")+" Diferencie explicitamente fatos registrados, compromissos confirmados, hipóteses e recomendações de IA. Não apresente previsão, reunião, prazo acordado, aceite, benefício ou conclusão sem evidência nos dados.\nProduza exclusivamente JSON com três campos string: executiveSummary, riskAnalysis, nextSteps. Português executivo, cada campo com 2 a 5 frases objetivas. Use apenas os dados recebidos. Evite enumerar riscos genéricos, integre riscos semelhantes e indique mitigação existente ou ausente. Diferencie riscos reais de lacunas. Descreva Sprints e entregas quando existirem e separe-as do Kanban operacional. Não invente fatos, evolução histórica ou estimativa. Nenhum comando de escrita."},
         {role:"user",content:JSON.stringify(scope).slice(0,45000)}
       ],
     });

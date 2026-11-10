@@ -1,6 +1,7 @@
 "use client";
 import {ScrumKairosActions} from "@/components/scrum/scrum-kairos-actions";
-import {useCallback,useEffect,useMemo,useState} from "react";
+import {MarkdownContent} from "@/components/ui/markdown-content";
+import {useCallback,useEffect,useMemo,useRef,useState} from "react";
 import {PageIntro,SurfaceCard} from "@/components/ui/workspace-primitives";
 import {useConfirm} from "@/components/ui/confirm-dialog";
 import {ScrumSelectors,useScrumData,apiGet,apiPost,Story,BacklogItem,ProjectMember,stages,transitions,dateBR,dateOnly,today,addDays,daysBetween} from "@/components/scrum/scrum-common";
@@ -22,11 +23,24 @@ function WorkItemIcon({type}:{type:Row["type"]}){
 function Icon({kind}:{kind:"view"|"edit"|"delete"|"add"}){return <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">{kind==="view"?<><path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/></>:kind==="edit"?<><path d="m4 20 4-1 11-11-3-3L5 16l-1 4Z"/><path d="m14 6 3 3"/></>:kind==="delete"?<><path d="M4 6h16M9 6V4h6v2M7 6l1 14h8l1-14M10 10v7M14 10v7"/></>:<path d="M12 4v16M4 12h16"/>}</svg>}
 const types={epic:"Epic",feature:"Feature",story:"User Story",task:"Task"} as const;
 export default function BacklogPage(){
- const data=useScrumData();const confirm=useConfirm();
+ const data=useScrumData();const confirm=useConfirm();const deepLinkHandled=useRef(false);
  const [items,setItems]=useState<BacklogItem[]>([]);const [members,setMembers]=useState<ProjectMember[]>([]);const [opened,setOpened]=useState<Row|null>(null);const [drawerOpen,setDrawerOpen]=useState(false);const [readOnly,setReadOnly]=useState(false);
  const [form,setForm]=useState<Form>(initial);const [saving,setSaving]=useState(false);const [comment,setComment]=useState("");const [transitionComment,setTransitionComment]=useState("");
- const [query,setQuery]=useState("");const [typeFilter,setTypeFilter]=useState("all");const [stateFilter,setStateFilter]=useState("all");const [sprintFilter,setSprintFilter]=useState("all");const [collapsed,setCollapsed]=useState<string[]>([]);
+ const [query,setQuery]=useState("");const [typeFilter,setTypeFilter]=useState("all");const [stateFilter,setStateFilter]=useState("all");const [sprintFilter,setSprintFilter]=useState("all");const [responsibleFilter,setResponsibleFilter]=useState("all");const [collapsed,setCollapsed]=useState<string[]>([]);
  const [error,setError]=useState("");
+ const [assignmentHistory,setAssignmentHistory]=useState<Array<{previous_responsible:string|null;new_responsible:string|null;changed_at:string}>>([]);
+ const [assignmentHistoryStatus,setAssignmentHistoryStatus]=useState("");
+ useEffect(()=>{
+  if(!drawerOpen||!opened?.item||!["epic","feature"].includes(opened.type)||!data.projectId){setAssignmentHistory([]);setAssignmentHistoryStatus("");return}
+  let alive=true;
+  setAssignmentHistoryStatus("Carregando histórico...");
+  void apiGet("/api/scrum/backlog-items?projectId="+encodeURIComponent(data.projectId)+"&historyItemId="+encodeURIComponent(opened.id))
+    .then((history:Array<{previous_responsible:string|null;new_responsible:string|null;changed_at:string}>)=>{
+      if(alive){setAssignmentHistory(history);setAssignmentHistoryStatus(history.length?"":"Nenhuma reatribuição registrada.")}
+    }).catch(()=>{if(alive){setAssignmentHistory([]);setAssignmentHistoryStatus("Histórico indisponível até a migração ser validada.")}});
+  return()=>{alive=false};
+ },[drawerOpen,opened?.id,opened?.type,data.projectId]);
+
  const loadItems=useCallback(async()=>{if(!data.projectId){setItems([]);return;}try{const rows=await apiGet("/api/scrum/backlog-items?projectId="+encodeURIComponent(data.projectId));setItems(rows as BacklogItem[])}catch(e){setError(e instanceof Error?e.message:"Erro ao carregar hierarquia.")}},[data.projectId]);
  useEffect(()=>{void loadItems()},[loadItems]);
  useEffect(()=>{let live=true;if(!data.projectId){setMembers([]);return}void apiGet("/api/scrum/project-members?projectId="+encodeURIComponent(data.projectId)).then((v:ProjectMember[])=>{if(live)setMembers(v)}).catch(()=>{if(live)setMembers([])});return()=>{live=false}},[data.projectId]);
@@ -57,14 +71,28 @@ export default function BacklogPage(){
   });
   return result;
  },[items,data.stories]);
+ useEffect(()=>{
+  if(deepLinkHandled.current)return;
+  const params=new URLSearchParams(window.location.search);
+  const requestedProject=params.get("projectId");
+  const itemId=params.get("itemId");
+  if(!requestedProject||!itemId)return;
+  if(!data.projects.some(project=>project.id===requestedProject))return;
+  if(data.projectId!==requestedProject){data.setProjectId(requestedProject);return}
+  const item=rows.find(row=>row.id===itemId);
+  if(!item)return;
+  deepLinkHandled.current=true;
+  open(item,item.type,true);
+ },[data.projects,data.projectId,rows]);
  const visible=rows.filter(r=>{
   const term=query.trim().toLowerCase().replace(/^#/,"");
   const matchesText=!term||r.title.toLowerCase().includes(term)||r.number===term||r.number.startsWith(term+".");
   const matchesType=typeFilter==="all"||r.type===typeFilter;
   const matchesState=stateFilter==="all"||r.state===stateFilter;
+  const matchesResponsible=responsibleFilter==="all"||(r.story?.responsible||r.item?.responsible||"")===responsibleFilter;
   const matchesSprint=sprintFilter==="all"||(r.story?sprintFilter==="unassigned"?!r.story.sprint_id:r.story.sprint_id===sprintFilter:true);
-  const filtersActive=query||typeFilter!=="all"||stateFilter!=="all"||sprintFilter!=="all";
-  return matchesText&&matchesType&&matchesState&&matchesSprint&&(!r.ancestorIds.some(p=>collapsed.includes(p))||Boolean(filtersActive));
+  const filtersActive=query||typeFilter!=="all"||stateFilter!=="all"||sprintFilter!=="all"||responsibleFilter!=="all";
+  return matchesText&&matchesType&&matchesState&&matchesResponsible&&matchesSprint&&(!r.ancestorIds.some(p=>collapsed.includes(p))||Boolean(filtersActive));
  });
  function open(row:Row|null,type:Row["type"],view=false,defaults?:Partial<Form>){
   setOpened(row);setDrawerOpen(true);setReadOnly(view);setComment("");setTransitionComment("");setError("");
@@ -107,9 +135,10 @@ export default function BacklogPage(){
     <input className="workspace-input w-full text-sm" value={query} onChange={e=>setQuery(e.target.value)} placeholder="Pesquisar título ou ordem (ex.: 1.2)"/>
     <select className="workspace-select" aria-label="Filtrar tipo" value={typeFilter} onChange={e=>setTypeFilter(e.target.value)}><option value="all">Todos os tipos</option>{(["epic","feature","story","task"] as const).map(t=><option key={t} value={t}>{types[t]}</option>)}</select>
     <select className="workspace-select" aria-label="Filtrar status" value={stateFilter} onChange={e=>setStateFilter(e.target.value)}><option value="all">Todos os status</option>{stages.map(([v,label])=><option key={v} value={v}>{label}</option>)}</select>
+    <select className="workspace-select" aria-label="Filtrar responsável" value={responsibleFilter} onChange={e=>setResponsibleFilter(e.target.value)}><option value="all">Todos os responsáveis</option><option value="">Não atribuídos</option>{members.map(m=><option key={m.email} value={m.email}>{m.name}</option>)}</select>
     <select className="workspace-select" aria-label="Filtrar Sprint" value={sprintFilter} onChange={e=>setSprintFilter(e.target.value)}><option value="all">Todas as Sprints</option><option value="unassigned">Sem Sprint</option>{data.sprints.map(s=><option key={s.id} value={s.id}>{s.name}</option>)}</select>
    </div>
-   <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-xs text-(--text-secondary)"><span>{visible.length} itens exibidos · {data.stories.length} US cadastradas</span><div className="flex gap-2"><button className="workspace-button-secondary px-2 py-1" onClick={()=>setCollapsed([...epics.map(e=>e.id),...features.map(f=>f.id)])}>Recolher</button><button className="workspace-button-secondary px-2 py-1" onClick={()=>setCollapsed([])}>Expandir</button><button className="workspace-button-secondary px-2 py-1" onClick={()=>{setQuery("");setTypeFilter("all");setStateFilter("all");setSprintFilter("all")}}>Limpar filtros</button></div></div>
+   <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-xs text-(--text-secondary)"><span>{visible.length} itens exibidos · {data.stories.length} US cadastradas</span><div className="flex gap-2"><button className="workspace-button-secondary px-2 py-1" onClick={()=>setCollapsed([...epics.map(e=>e.id),...features.map(f=>f.id)])}>Recolher</button><button className="workspace-button-secondary px-2 py-1" onClick={()=>setCollapsed([])}>Expandir</button><button className="workspace-button-secondary px-2 py-1" onClick={()=>{setQuery("");setTypeFilter("all");setStateFilter("all");setSprintFilter("all");setResponsibleFilter("all")}}>Limpar filtros</button></div></div>
    {(error||data.error)&&<p role="alert" className="mt-3 text-sm text-(--danger)">{error||data.error}</p>}
   </SurfaceCard>
   <SurfaceCard>
@@ -158,12 +187,20 @@ export default function BacklogPage(){
       </div>
       {opened?.story&&form.stage==="review"&&opened.story.workflow_stage!=="review"&&<label className="block text-xs">Justificativa obrigatória para REVIEW<textarea className="workspace-input mt-1 w-full" value={transitionComment} onChange={e=>setTransitionComment(e.target.value)}/></label>}
     </>}
+    {(mode==="epic"||mode==="feature")&&<label className="block text-xs">Responsável<select className="workspace-select mt-1 w-full" value={form.responsible} onChange={e=>setForm(f=>({...f,responsible:e.target.value}))}><option value="">Não atribuído</option>{members.map(m=><option value={m.email} key={m.email}>{m.name}</option>)}</select></label>}
+    {readOnly&&form.description&&<div className="rounded-lg border border-(--border) p-3"><p className="mb-2 text-xs font-semibold">Descrição formatada</p><MarkdownContent content={form.description}/></div>}
+    {readOnly&&mode==="story"&&form.acceptanceCriteria&&<div className="rounded-lg border border-(--border) p-3"><p className="mb-2 text-xs font-semibold">Critérios de aceite</p><MarkdownContent content={form.acceptanceCriteria}/></div>}
     {mode==="task"&&<label className="block text-xs">User Story pai<select className="workspace-select mt-1 w-full" value={form.storyId} onChange={e=>setForm(f=>({...f,storyId:e.target.value}))}><option value="">Selecione a US</option>{data.stories.map(st=><option value={st.id} key={st.id}>{st.title}</option>)}</select></label>}
     {mode==="task"&&<label className="block text-xs">Responsável<select className="workspace-select mt-1 w-full" value={form.responsible} onChange={e=>setForm(f=>({...f,responsible:e.target.value}))}><option value="">Não atribuído</option>{members.map(m=><option value={m.email} key={m.email}>{m.name}</option>)}</select></label>}
     <div className="grid grid-cols-2 gap-3"><p className="text-xs text-(--text-secondary)">A ordem é calculada automaticamente pela hierarquia dos itens.</p>{mode!=="story"&&<label className="text-xs">Status<select className="workspace-select mt-1 w-full" value={form.stage} onChange={e=>setForm(f=>({...f,stage:e.target.value}))}>{(mode==="task"?[["todo","TO DO"],["doing","DOING"],["done","DONE"]] as const:stages).map(([v,label])=><option key={v} value={v} disabled={mode==="task"?(opened?.item?!(v===opened.item.state||(opened.item.state==="todo"&&v==="doing")||(opened.item.state==="doing"&&(v==="done"||v==="todo"))||(opened.item.state==="done"&&v==="doing")):v!=="todo"):false}>{label}</option>)}</select></label>}</div>
    </fieldset>
    {!readOnly&&!isLocked&&<button className="workspace-button-primary mt-4 px-4 py-2 text-sm" disabled={saving||!form.title.trim()||mode==="feature"&&!form.parentId||mode==="task"&&!form.storyId} onClick={()=>void submit()}>{saving?"Salvando...":"Salvar "+types[mode]}</button>}
    {error&&<p role="alert" className="mt-3 text-sm text-(--danger)">{error}</p>}
+   {opened?.item&&["epic","feature"].includes(opened.type)&&<section className="mt-5 border-t border-(--border) pt-3">
+    <h3 className="text-sm font-semibold">Histórico do responsável</h3>
+    {assignmentHistoryStatus&&<p className="mt-2 text-xs text-(--text-secondary)">{assignmentHistoryStatus}</p>}
+    {assignmentHistory.map((h,index)=><p key={index} className="mt-2 text-xs text-(--text-secondary)">{new Date(h.changed_at).toLocaleString("pt-BR")} · {h.previous_responsible||"Não atribuído"} → {h.new_responsible||"Não atribuído"}</p>)}
+   </section>}
    {opened?.story&&<section className="mt-5 border-t border-(--border) pt-3"><h3 className="font-semibold text-sm">Histórico de comentários</h3>{allComments.map(c=><div key={c.id} className="mt-2 rounded-lg bg-(--bg-muted) p-3 text-xs"><p className="text-(--text-secondary)">{c.author_email} · {new Date(c.created_at).toLocaleString("pt-BR")}</p><p className="mt-1 whitespace-pre-wrap">{c.content}</p></div>)}{!isLocked&&!readOnly&&<><textarea className="workspace-input mt-3 w-full" rows={3} placeholder="Registrar acompanhamento..." value={comment} onChange={e=>setComment(e.target.value)}/><button className="workspace-button-secondary mt-2 px-3 py-2 text-xs" disabled={saving||!comment.trim()} onClick={()=>void addComment()}>Comentar</button></>}</section>}
   </aside></div>}
  </section>;

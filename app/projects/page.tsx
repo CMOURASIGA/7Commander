@@ -1,11 +1,14 @@
 "use client";
 
+import {measuredFetch} from "@/lib/client-performance";
+
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Decision, DecisionStatus } from "@/types/decision";
 import { getClientAuthHeaders } from "@/lib/client-auth";
 import { useCentralPilotReadOnly } from "@/lib/use-central-pilot-read-only";
 import { MarkdownContent } from "@/components/ui/markdown-content";
+import { normalizeDecisionText } from "@/lib/decision-excerpt";
 import { PageIntro, SectionLabel, StatusPill } from "@/components/ui/workspace-primitives";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 
@@ -150,6 +153,9 @@ export default function ProjectsPage() {
   const [selectedClientIdForCreate, setSelectedClientIdForCreate] = useState<string>("");
   const [activeProjectId, setActiveProjectId] = useState<string | null>(null);
   const [openRoutine, setOpenRoutine] = useState<RoutineKey | null>(null);
+  type ProjectTab = "project"|"risks"|"decisions"|"documents"|"members"|"meetings"|"activities";
+  const [activeTab,setActiveTab]=useState<ProjectTab>("project");
+  const selectTab=(tab:ProjectTab)=>{setActiveTab(tab);const routine:Partial<Record<ProjectTab,RoutineKey>>={risks:"risks",decisions:"decisions",documents:"knowledge",members:"members"};setOpenRoutine(routine[tab]??null);};
   const [newProjectName, setNewProjectName] = useState("");
   const [decisions, setDecisions] = useState<Decision[]>([]);
   const [loading, setLoading] = useState(true);
@@ -217,7 +223,7 @@ export default function ProjectsPage() {
 
   async function loadProjects() {
     try {
-      const response = await fetch("/api/projects", {
+      const response = await measuredFetch("/api/projects", {
         headers: getClientAuthHeaders(),
       });
       const payload = await response.json();
@@ -237,7 +243,7 @@ export default function ProjectsPage() {
 
   async function loadClients() {
     try {
-      const response = await fetch("/api/clients", {
+      const response = await measuredFetch("/api/clients", {
         headers: getClientAuthHeaders(),
       });
       const payload = await response.json();
@@ -253,7 +259,7 @@ export default function ProjectsPage() {
     setLoading(true);
     try {
       const query = projectId ? `?projectId=${encodeURIComponent(projectId)}` : "";
-      const response = await fetch(`/api/decisions${query}`, {
+      const response = await measuredFetch(`/api/decisions${query}`, {
         headers: getClientAuthHeaders(),
       });
       const payload = await response.json();
@@ -280,7 +286,7 @@ export default function ProjectsPage() {
     if(!approved)return;
     setArchivingProjectId(project.id);
     try {
-      const r=await fetch(`/api/projects/${project.id}`,{method:"PATCH",
+      const r=await measuredFetch(`/api/projects/${project.id}`,{method:"PATCH",
         headers:getClientAuthHeaders({"Content-Type":"application/json"}),
         body:JSON.stringify({status:"arquivado"})});
       const json=await r.json();
@@ -301,7 +307,7 @@ export default function ProjectsPage() {
     if(typed!==project.name){setProjectStatus("Exclusão cancelada: o nome informado não corresponde ao projeto.");return;}
     setDeletingProjectId(project.id);setProjectStatus(null);
     try{
-      const response=await fetch(`/api/projects/${project.id}`,{
+      const response=await measuredFetch(`/api/projects/${project.id}`,{
         method:"DELETE",headers:getClientAuthHeaders({"Content-Type":"application/json"}),
         body:JSON.stringify({confirmName:typed})
       });
@@ -320,7 +326,7 @@ export default function ProjectsPage() {
 
     setCreatingProject(true);
     try {
-      const response = await fetch("/api/projects", {
+      const response = await measuredFetch("/api/projects", {
         method: "POST",
         headers: getClientAuthHeaders({ "Content-Type": "application/json" }),
         body: JSON.stringify({
@@ -347,7 +353,7 @@ export default function ProjectsPage() {
     setMembersLoading(true);
     setInviteStatus(null);
     try {
-      const response = await fetch(`/api/projects/${projectId}/members`, {
+      const response = await measuredFetch(`/api/projects/${projectId}/members`, {
         headers: getClientAuthHeaders(),
       });
       const payload = await response.json();
@@ -370,7 +376,7 @@ export default function ProjectsPage() {
 
     setKnowledgeLoading(true);
     try {
-      const response = await fetch(`/api/knowledge?projectId=${encodeURIComponent(projectId)}`, {
+      const response = await measuredFetch(`/api/knowledge?projectId=${encodeURIComponent(projectId)}`, {
         headers: getClientAuthHeaders(),
       });
       const payload = await response.json();
@@ -390,7 +396,7 @@ export default function ProjectsPage() {
     }
     setRisksLoading(true);
     try {
-      const response = await fetch(`/api/projects/${projectId}/risks`, {
+      const response = await measuredFetch(`/api/projects/${projectId}/risks`, {
         headers: getClientAuthHeaders(),
       });
       const payload = await response.json();
@@ -406,10 +412,11 @@ export default function ProjectsPage() {
   async function handleActivateProject(projectId: string) {
     const previousProjectId=activeProjectId;
     setActiveProjectId(projectId);
-    setOpenRoutine(null);
+    const routines: Partial<Record<ProjectTab, RoutineKey>> = {risks:"risks",decisions:"decisions",documents:"knowledge",members:"members"};
+    setOpenRoutine(routines[activeTab] ?? null);
     setProjectStatus(null);
     try {
-      const response = await fetch("/api/projects/active", {
+      const response = await measuredFetch("/api/projects/active", {
         method: "PATCH",
         headers: getClientAuthHeaders({ "Content-Type": "application/json" }),
         body: JSON.stringify({ projectId }),
@@ -426,7 +433,7 @@ export default function ProjectsPage() {
     setInviting(true);
     setInviteStatus(null);
     try {
-      const response = await fetch(`/api/projects/${activeProjectId}/members`, {
+      const response = await measuredFetch(`/api/projects/${activeProjectId}/members`, {
         method: "POST",
         headers: getClientAuthHeaders({ "Content-Type": "application/json" }),
         body: JSON.stringify({
@@ -452,7 +459,7 @@ export default function ProjectsPage() {
     setRemovingMemberId(memberId);
     setInviteStatus(null);
     try {
-      const response = await fetch(`/api/projects/${activeProjectId}/members/${memberId}`, {
+      const response = await measuredFetch(`/api/projects/${activeProjectId}/members/${memberId}`, {
         method: "DELETE",
         headers: getClientAuthHeaders(),
       });
@@ -469,7 +476,7 @@ export default function ProjectsPage() {
   async function handleStatusChange(decisionId: string, status: DecisionStatus) {
     setUpdatingId(decisionId);
     try {
-      const response = await fetch(`/api/decisions/${decisionId}/status`, {
+      const response = await measuredFetch(`/api/decisions/${decisionId}/status`, {
         method: "PATCH",
         headers: getClientAuthHeaders({ "Content-Type": "application/json" }),
         body: JSON.stringify({
@@ -495,7 +502,7 @@ export default function ProjectsPage() {
     setCreatingDecision(true);
     setDecisionStatusMessage(null);
     try {
-      const response = await fetch(`/api/projects/${activeProjectId}/decisions`, {
+      const response = await measuredFetch(`/api/projects/${activeProjectId}/decisions`, {
         method: "POST",
         headers: getClientAuthHeaders({ "Content-Type": "application/json" }),
         body: JSON.stringify({
@@ -527,7 +534,7 @@ export default function ProjectsPage() {
   async function loadDecisionHistory(decisionId: string) {
     setHistoryLoadingId(decisionId);
     try {
-      const response = await fetch(`/api/decisions/${decisionId}/history`, {
+      const response = await measuredFetch(`/api/decisions/${decisionId}/history`, {
         headers: getClientAuthHeaders(),
       });
       const payload = await response.json();
@@ -556,7 +563,7 @@ export default function ProjectsPage() {
         formData.append("notes", ingestNotes.trim());
       }
 
-      const response = await fetch("/api/knowledge/ingest", {
+      const response = await measuredFetch("/api/knowledge/ingest", {
         method: "POST",
         headers: getClientAuthHeaders(),
         body: formData,
@@ -588,7 +595,7 @@ export default function ProjectsPage() {
     setSavingProject(true);
     setProjectStatus(null);
     try {
-      const response = await fetch(`/api/projects/${activeProjectId}`, {
+      const response = await measuredFetch(`/api/projects/${activeProjectId}`, {
         method: "PATCH",
         headers: getClientAuthHeaders({ "Content-Type": "application/json" }),
         body: JSON.stringify({
@@ -629,7 +636,7 @@ export default function ProjectsPage() {
     if (!confirmed) return;
     setDeletingKnowledgeId(item.id);
     try {
-      const response = await fetch(`/api/knowledge?id=${encodeURIComponent(item.id)}`, { method: "DELETE", headers: getClientAuthHeaders() });
+      const response = await measuredFetch(`/api/knowledge?id=${encodeURIComponent(item.id)}`, { method: "DELETE", headers: getClientAuthHeaders() });
       const payload = await response.json();
       if (!response.ok) throw new Error(payload?.error || "Falha ao excluir documento.");
       await loadKnowledge(activeProjectId);
@@ -643,7 +650,7 @@ export default function ProjectsPage() {
     setSavingRisk(true);
     setRiskStatusMessage(null);
     try {
-      const response = await fetch(`/api/projects/${activeProjectId}/risks`, {
+      const response = await measuredFetch(`/api/projects/${activeProjectId}/risks`, {
         method: "POST",
         headers: getClientAuthHeaders({ "Content-Type": "application/json" }),
         body: JSON.stringify({
@@ -682,7 +689,7 @@ export default function ProjectsPage() {
     setUpdatingRiskId(riskId);
     setRiskStatusMessage(null);
     try {
-      const response = await fetch(`/api/risks/${riskId}`, {
+      const response = await measuredFetch(`/api/risks/${riskId}`, {
         method: "PATCH",
         headers: getClientAuthHeaders({ "Content-Type": "application/json" }),
         body: JSON.stringify({ status }),
@@ -744,13 +751,19 @@ export default function ProjectsPage() {
             <StatusPill tone="accent">{projects.length} projetos</StatusPill>
             <StatusPill tone="success">{decisions.length} decisões</StatusPill>
             <Link href="/status-report" className="workspace-button-secondary">Status Report Executivo</Link>
-            <button type="button" onClick={() => void loadDecisions()} className="workspace-button-secondary">
+            <button type="button" onClick={() => void loadDecisions(activeProjectId)} className="workspace-button-secondary">
               Atualizar
             </button>
           </>
         }
       />
 
+      <nav aria-label="Quadros do projeto" className="workspace-card flex flex-wrap gap-2 p-3" role="tablist">
+        {([["project","Projeto"],["risks","Riscos"],["decisions","Decisões"],["documents","Documentos"],["members","Equipe"],["meetings","Reuniões"],["activities","Atividades"]] as const).map(([key,label]) => (
+          <button key={key} type="button" role="tab" aria-selected={activeTab===key}
+            onClick={()=>selectTab(key)} className={activeTab===key?"workspace-button-primary text-xs":"workspace-button-secondary text-xs"}>{label}</button>
+        ))}
+      </nav>
       <article className="workspace-card flex flex-col gap-3 p-4">
         <SectionLabel>Projetos</SectionLabel>
         <div className="mt-2 flex flex-wrap items-center justify-between gap-3">
@@ -766,7 +779,8 @@ export default function ProjectsPage() {
           {!readOnly && !checking ? <button type="button" className="workspace-button-secondary text-xs" onClick={()=>setManageProjectsOpen(x=>!x)}
             aria-expanded={manageProjectsOpen}>{manageProjectsOpen?"Fechar gerenciamento":"Gerenciar projetos"}</button> : null}
         </div>
-        {!readOnly && !checking && manageProjectsOpen?<section className="mt-3 rounded-xl border border-(--border) p-4" aria-label="Gerenciamento de projetos">
+        <div className={activeTab==="project"?"contents":"hidden"}>
+         {!readOnly && !checking && manageProjectsOpen?<section className="mt-3 rounded-xl border border-(--border) p-4" aria-label="Gerenciamento de projetos">
           <h4 className="text-sm font-semibold">Gerenciamento de projetos</h4>
           <p className="mt-1 text-xs text-(--text-secondary)">Exclusão é definitiva e somente permitida a administradores. Projetos com histórico operacional devem ser arquivados.</p>
           <div className="mt-3 space-y-2">
@@ -815,7 +829,7 @@ export default function ProjectsPage() {
           <div className="mt-3 flex flex-wrap items-center gap-2 rounded-lg border border-(--border) bg-(--bg-muted) px-3 py-2 text-xs">
             <span className="font-semibold text-(--text-primary)">Projeto em edição: {selectedProject.name}</span>
             <span className="text-(--text-secondary)">Cliente: {selectedProject.clientName ?? "Não vinculado"}</span>
-            <a href="#detalhes-projeto" className="ml-auto text-(--accent) underline">Editar vínculo e detalhes</a>
+            <button type="button" onClick={()=>selectTab("project")} className="ml-auto text-(--accent) underline">Editar vínculo e detalhes</button>
           </div>
         ) : null}
         {!readOnly && <ProjectRoutine
@@ -857,8 +871,9 @@ export default function ProjectsPage() {
           {ingestStatus ? <p className="text-xs text-(--text-primary)">{ingestStatus}</p> : null}
         </ProjectRoutine>}
 
-        <ProjectRoutine
-          title="Riscos do projeto"
+        </div>
+         <div className={activeTab==="risks"?"contents":"hidden"}>
+         <ProjectRoutine title="Riscos do projeto"
           description={readOnly ? "Consulte os riscos do projeto sem alterar registros." : "Registre, acompanhe status e defina a mitigacao dos riscos operacionais."}
           badge={risks.length ? `${risks.length} registros` : undefined}
           isOpen={openRoutine === "risks"}
@@ -964,20 +979,26 @@ export default function ProjectsPage() {
                   <p className="mt-1 text-[13px] text-(--text-secondary)">
                     Impacto: {risk.impact || "Nao informado"} | Probabilidade: {risk.probability || "Nao informada"}
                   </p>
-                  <p className="mt-1 text-[13px] text-(--text-secondary)">
-                    Dono: {risk.owner || "Nao definido"} | Mitigacao: {risk.mitigation || "Nao definida"}
-                  </p>
-                  <p className="mt-1 text-[13px] text-(--text-secondary)">
-                    Decisao: {risk.decisionId || "Nao vinculada"} | Tarefa: {risk.taskId || "Nao vinculada"}
-                  </p>
+                  <p className="mt-1 text-[13px] text-(--text-secondary)">Responsável: {risk.owner || "Não definido"}</p>
+                  <details className="mt-2"><summary className="cursor-pointer text-xs font-medium text-(--accent)">Ver mitigação</summary><MarkdownContent className="mt-2" content={risk.mitigation||"Não definida"}/></details>
+                  <p className="mt-1 text-xs text-(--text-secondary)">Vínculos: {risk.decisionId?"decisão":""}{risk.decisionId&&risk.taskId?" e ":""}{risk.taskId?"atividade":""}{!risk.decisionId&&!risk.taskId?"nenhum":""}</p>
                 </article>
               ))
             )}
           </div>
         </ProjectRoutine>
 
-        <ProjectRoutine
-          title="Conhecimento do projeto"
+        </div>
+         <div className={activeTab==="meetings"?"contents":"hidden"}>
+         {activeProjectId&&<section className="order-2 rounded-xl border border-(--border) bg-(--bg-surface) p-4">
+          <h2 className="text-sm font-semibold">Reuniões e acompanhamento</h2>
+          <p className="mt-1 text-xs text-(--text-secondary)">Registre reuniões, compare compromissos e vincule decisões e entregas existentes sem duplicar atividades.</p>
+          <Link className="workspace-button-secondary mt-3 inline-block rounded-lg px-3 py-2 text-sm" href={"/projects/"+encodeURIComponent(activeProjectId)+"/meetings"}>Abrir reuniões do projeto</Link>
+        </section>}
+
+        </div>
+         <div className={activeTab==="documents"?"contents":"hidden"}>
+         <ProjectRoutine title="Conhecimento do projeto"
           description={readOnly ? "Consulte o conhecimento do projeto sem remover documentos." : "Consulte documentos processados e remova conhecimentos que nao forem mais relevantes."}
           badge={knowledgeItems.length ? `${knowledgeItems.length} documentos` : undefined}
           isOpen={openRoutine === "knowledge"}
@@ -1017,8 +1038,9 @@ export default function ProjectsPage() {
           )}
         </ProjectRoutine>
 
-        {selectedProject ? (
-          <div id="detalhes-projeto" className="order-1 space-y-2 rounded-xl border border-(--border-strong) bg-(--accent-ghost) p-4">
+        </div>
+         <div className={activeTab==="project"?"contents":"hidden"}>
+         {selectedProject ? (<div id="detalhes-projeto" className="order-1 space-y-2 rounded-xl border border-(--border-strong) bg-(--accent-ghost) p-4">
             <p className="text-xs font-semibold uppercase tracking-wide text-(--text-secondary)">
               Detalhes do projeto ativo
             </p>
@@ -1099,9 +1121,9 @@ export default function ProjectsPage() {
           </div>
         ) : null}
 
-        {selectedProject ? (
-          <ProjectRoutine
-            title="Membros e compartilhamento"
+        </div>
+         <div className={activeTab==="members"?"contents":"hidden"}>
+         {selectedProject ? (<ProjectRoutine title="Membros e compartilhamento"
             description="Convide pessoas e administre as permissoes de acesso deste projeto."
             badge={members.length ? `${members.length} membros` : undefined}
             isOpen={openRoutine === "members"}
@@ -1178,10 +1200,15 @@ export default function ProjectsPage() {
             {inviteStatus ? <p className="text-xs text-(--text-primary)">{inviteStatus}</p> : null}
           </ProjectRoutine>
         ) : null}
-      </article>
-
-      <ProjectRoutine
-        title="Decisoes do projeto"
+      </div>
+         <div className={activeTab==="activities"?"rounded-xl border border-(--border) p-4":"hidden"}>
+           <h2 className="text-sm font-semibold">Atividades do projeto</h2>
+           <p className="mt-2 text-sm text-(--text-secondary)">Consulte e atualize atividades no quadro operacional existente, sem duplicar registros.</p>
+           <Link href={activeProjectId?`/activities?projectId=${encodeURIComponent(activeProjectId)}`:"/activities"} className="workspace-button-secondary mt-3 inline-flex">Abrir atividades do projeto selecionado</Link>
+         </div>
+       </article>
+       <div className={activeTab==="decisions"?"":"hidden"}>
+       <ProjectRoutine title="Decisoes do projeto"
         description={readOnly ? "Consulte o histórico das decisões operacionais." : "Crie, acompanhe o status e consulte o historico das decisoes operacionais."}
         badge={decisions.length ? `${decisions.length} registros` : undefined}
         isOpen={openRoutine === "decisions"}
@@ -1266,19 +1293,23 @@ export default function ProjectsPage() {
                   ))}
                 </select>
               </div>
-              <p className="mt-2 text-sm text-(--text-secondary)">{decision.reason || "Sem motivo registrado."}</p>
-              <p className="mt-1 text-sm text-(--text-secondary)">
-                Contexto: {decision.context || "Nao informado."}
+              <p className="mt-2 text-sm leading-6 text-(--text-secondary)">
+                {normalizeDecisionText(decision.reason || decision.context || "Sem justificativa registrada.").display.replace(/[#*`]/g,"").replace(/\s+/g," ").slice(0,220)}
+                {(decision.reason || decision.context || "").length>220?"…":""}
               </p>
-              <p className="mt-1 text-sm text-(--text-secondary)">
-                Projeto relacionado: {decision.projectId || "Nao informado."}
-              </p>
-              <p className="mt-1 text-sm text-(--text-secondary)">
-                Conversa: {decision.conversationId || "Nao vinculada"} | Artefato: {decision.artifactId || "Nao vinculado"}
-              </p>
-              <p className="mt-2 text-xs text-(--text-secondary)">
-                Impacto: {decision.impact || "Nao informado"} | {new Date(decision.createdAt).toLocaleString("pt-BR")}
-              </p>
+              <div className="mt-1 text-xs text-(--text-secondary)">
+                Projeto: {projects.find(project=>project.id===decision.projectId)?.name||selectedProject?.name||"Não vinculado"}
+                {" · "}{new Date(decision.createdAt).toLocaleString("pt-BR")}
+              </div>
+              <details className="mt-3 rounded-lg border border-(--border) p-3">
+                <summary className="cursor-pointer text-sm font-medium text-(--accent)">Ver detalhes da decisão</summary>
+                <div className="mt-3 space-y-4 text-sm">
+                  <section><h4 className="mb-1 font-semibold">Contexto</h4><MarkdownContent content={decision.context||"Não informado."}/></section>
+                  <section><h4 className="mb-1 font-semibold">Motivo e justificativa</h4><MarkdownContent content={normalizeDecisionText(decision.reason||"Não informado.").display}/>{normalizeDecisionText(decision.reason||"").hasEmbeddedReport&&<details className="mt-3 rounded-lg border border-(--border) p-3"><summary className="cursor-pointer text-xs text-(--accent)">Ver relatório de origem integral, preservado para auditoria</summary><MarkdownContent className="mt-3" content={decision.reason}/></details>}</section>
+                  <section><h4 className="mb-1 font-semibold">Impacto esperado</h4><MarkdownContent content={decision.impact||"Não informado."}/></section>
+                  {(decision.conversationId||decision.artifactId)&&<p className="text-xs text-(--text-secondary)">Origem: {decision.conversationId?"Conversa vinculada":""}{decision.conversationId&&decision.artifactId?" · ":""}{decision.artifactId?"Documento vinculado":""}</p>}
+                </div>
+              </details>
               <div className="mt-2">
                 <button
                   type="button"
@@ -1303,7 +1334,8 @@ export default function ProjectsPage() {
           ))}
         </div>
       )}
-      </ProjectRoutine>
-    </section>
-  );
+       </ProjectRoutine>
+       </div>
+     </section>
+   );
 }

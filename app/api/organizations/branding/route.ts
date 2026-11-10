@@ -11,7 +11,8 @@ export async function GET(request:NextRequest){
  const db=getSupabaseServerClient();
  const tenant=await getEffectiveTenantForUser(auth.context.userId);
  if(!db||!tenant)return NextResponse.json({error:"Empresa sem acesso."},{status:403});
- const result=await db.from("organizations").select("id,name,branding").eq("id",tenant).maybeSingle();
+ const summary=request.nextUrl.searchParams.get("summary")==="1";
+ const result=await db.from("organizations").select(summary?"id,name":"id,name,branding").eq("id",tenant).maybeSingle();
  if(result.error||!result.data)return NextResponse.json({error:"Empresa indisponível."},{status:404});
  return NextResponse.json({data:result.data},{headers:{"Cache-Control":"no-store"}});
 }

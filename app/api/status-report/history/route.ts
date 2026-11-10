@@ -16,7 +16,31 @@ export async function GET(req:NextRequest){
  .eq("project_id",projectId).eq("organization_id",context.organizationId);
  const scopedQuery=internalAccess?query:query.eq("audience","client");
  const r=id?await scopedQuery.eq("id",id).maybeSingle():await scopedQuery.order("created_at",{ascending:false}).limit(30);
- return r.error?res({error:"Falha ao consultar emissões."},503):res({data:r.data});
+ if(r.error)return res({error:"Falha ao consultar emissões."},503);
+ if(!internalAccess){
+  const redact=(record:Record<string,unknown>)=>{
+   const snapshot=record.report_data as Record<string,unknown>|undefined;
+   if(!snapshot)return {...record,generated_by_email:null};
+   const kanban=(snapshot.kanban||{}) as Record<string,unknown>;
+   const governance=(snapshot.governance||{}) as Record<string,unknown>;
+   const scrum=(snapshot.scrum||{}) as Record<string,unknown>;
+   const publicData={
+    ...snapshot,internal:undefined,
+    kanban:{...kanban,completed_titles:[]},
+    governance:{...governance,client_risks:[],client_decisions:[]},
+    scrum:{...scrum,sprints:[]}
+   };
+   // Old client snapshots may contain free-text narratives that were never
+   // reviewed for public disclosure. Do not return them to read-only clients.
+   return {...record,generated_by_email:null,report_data:publicData,narrative:{
+    executiveSummary:"Resumo do período disponível apenas por indicadores registrados.",
+    riskAnalysis:"Consultar riscos aprovados para divulgação.",
+    nextSteps:"Confirmar marcos e compromissos com a gestão do projeto."
+   }};
+  };
+  return res({data:Array.isArray(r.data)?r.data.map(item=>redact(item as unknown as Record<string,unknown>)):r.data?redact(r.data as unknown as Record<string,unknown>):null});
+ }
+ return res({data:r.data});
 }
 export async function POST(req:NextRequest){
  const auth=await requireApiAuth(req);if(!auth.ok)return auth.response;
@@ -34,10 +58,17 @@ export async function POST(req:NextRequest){
  try{
   const report=await loadReportData(context.db,context.organizationId,projectId,audience);
   const narrative=body.narrative&&typeof body.narrative==="object"&&!Array.isArray(body.narrative)?body.narrative as Record<string,unknown>:{};
-  const safeNarrative={
+  // A client snapshot must not accept an arbitrary narrative submitted by the
+  // browser, since an editor could accidentally archive internal discussion
+  // in an externally visible report. Public narratives are derived server-side.
+  const safeNarrative=audience==="internal"?{
    executiveSummary:typeof narrative.executiveSummary==="string"?narrative.executiveSummary.slice(0,3000):"",
    riskAnalysis:typeof narrative.riskAnalysis==="string"?narrative.riskAnalysis.slice(0,3000):"",
    nextSteps:typeof narrative.nextSteps==="string"?narrative.nextSteps.slice(0,3000):""
+  }:{
+   executiveSummary:`O projeto possui ${report.kanban.total} registros de atividades, com ${report.kanban.done} marcados como concluídos no sistema. O aceite externo não foi comprovado por esses indicadores.`,
+   riskAnalysis:`${report.governance.risks_open} riscos ativos constam nos registros autorizados. A ausência de registros não comprova ausência de riscos.`,
+   nextSteps:"Confirmar com a gestão do projeto os próximos marcos, responsáveis, prazos acordados e compromissos antes de comunicá-los como definitivos."
   };
   const created=await context.db.from("project_report_snapshots").insert({
    organization_id:context.organizationId,project_id:projectId,audience,

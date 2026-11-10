@@ -226,8 +226,10 @@ export async function getProjectAccessRole(params: {
   userId: string;
   userEmail?: string | null;
   projectId: string;
+  /** Must be resolved by getProjectById for this same request and identity. */
+  verifiedProject?: ProjectRecord;
 }): Promise<ProjectAccessRole> {
-  const project = await getProjectById({
+  const project = params.verifiedProject ?? await getProjectById({
     userId: params.userId,
     userEmail: params.userEmail,
     projectId: params.projectId,

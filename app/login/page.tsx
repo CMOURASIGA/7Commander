@@ -72,7 +72,7 @@ export default function LoginPage() {
   }
   return <section className="mx-auto max-w-xl rounded-[1.8rem] border border-(--border) bg-(--bg-surface) p-8 shadow-[var(--shadow-card)]">
     <div className="flex justify-center"><BrandLockup align="center" size="lg"/></div>
-    <div className="mt-6 text-center"><h1 className="text-2xl font-semibold">Entrar no 7Commander</h1><p className="mt-3 text-sm">Use suas credenciais autorizadas. A empresa será selecionada dentro do sistema.</p></div>
+    <div className="mt-6 text-center"><h1 className="text-2xl font-semibold">Entrar no Commander</h1><p className="mt-3 text-sm">Use suas credenciais autorizadas. A empresa será selecionada dentro do sistema.</p></div>
     <form onSubmit={submit} className="mt-6 grid gap-4 rounded-xl border p-5">
       <label className="grid gap-1 text-sm">E-mail<input type="email" autoComplete="username" required className="rounded border p-3" value={email} onChange={e=>setEmail(e.target.value)}/></label>
       <label className="grid gap-1 text-sm">Senha<input type="password" autoComplete="current-password" required className="rounded border p-3" value={password} onChange={e=>setPassword(e.target.value)}/></label>

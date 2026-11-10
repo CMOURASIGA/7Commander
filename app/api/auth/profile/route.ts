@@ -26,6 +26,19 @@ export async function POST(request: NextRequest) {
     const avatarUrl = typeof payload?.avatarUrl === "string" ? payload.avatarUrl.trim().slice(0, 400) : "";
     const provider = typeof payload?.provider === "string" ? payload.provider.trim().slice(0, 40) : "google";
 
+    // Never reassign an existing profile to a different Auth identity.
+    // A central/JIT user can have the same e-mail with a distinct local UID.
+    // Profile sync is optional metadata, never a permission grant.
+    const existing = await supabase.from("profiles")
+      .select("user_id").eq("email",email).maybeSingle();
+    if (existing.error) {
+      console.error("[/api/auth/profile] lookup failed", existing.error.code);
+      return NextResponse.json({data:{synced:false,reason:"profile_lookup_failed"}});
+    }
+    if (existing.data && existing.data.user_id !== auth.context.userId) {
+      return NextResponse.json({data:{synced:false,reason:"email_owned_by_other_identity"}});
+    }
+
     const upserted = await supabase
       .from("profiles")
       .upsert(
@@ -42,7 +55,7 @@ export async function POST(request: NextRequest) {
       .single();
 
     if (upserted.error || !upserted.data) {
-      console.error("[/api/auth/profile] sync skipped", upserted.error);
+      if (upserted.error?.code !== "23505") console.error("[/api/auth/profile] sync skipped", upserted.error?.code);
       return NextResponse.json({
         data: {
           synced: false,
