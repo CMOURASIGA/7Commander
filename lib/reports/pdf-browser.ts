@@ -25,7 +25,8 @@ function jpegBytes(dataUrl: string): Uint8Array {
 type PdfPageImage = { image: Uint8Array; width: number; height: number; physicalHeight: number };
 
 function assemblePdf(pages: PdfPageImage[]): Blob {
-  const count = 2 + pages.length * 3;
+  const count = 3 + pages.length * 3;
+  const fontId = count;
   const offsets = new Array<number>(count + 1).fill(0);
   const chunks: Uint8Array[] = [];
   let length = 0;
@@ -45,7 +46,7 @@ function assemblePdf(pages: PdfPageImage[]): Blob {
     const imageId = id + 1;
     const contentsId = id + 2;
     object(id, ascii("<< /Type /Page /Parent 2 0 R /MediaBox [0 0 " + A4_WIDTH + " " + A4_HEIGHT +
-      "] /Resources << /XObject << /ReportImage " + imageId + " 0 R >> >> /Contents " + contentsId + " 0 R >>"));
+      "] /Resources << /XObject << /ReportImage " + imageId + " 0 R >> /Font << /F1 " + fontId + " 0 R >> >> /Contents " + contentsId + " 0 R >>"));
     const header = ascii("<< /Type /XObject /Subtype /Image /Width " + page.width +
       " /Height " + page.height + " /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length " +
       page.image.length + " >>\nstream\n");
@@ -58,10 +59,12 @@ function assemblePdf(pages: PdfPageImage[]): Blob {
     const drawnHeight = page.physicalHeight;
     const bottom = A4_HEIGHT - MARGIN - drawnHeight;
     const command = ascii("q\n" + drawnWidth.toFixed(3) + " 0 0 " + drawnHeight.toFixed(3) +
-      " " + MARGIN + " " + bottom.toFixed(3) + " cm\n/ReportImage Do\nQ");
+      " " + MARGIN + " " + bottom.toFixed(3) + " cm\n/ReportImage Do\nQ\n" +
+      "BT /F1 9 Tf 470 13 Td (Pagina " + (index + 1) + " de " + pages.length + ") Tj ET");
     object(contentsId, ascii("<< /Length " + command.length + " >>\nstream\n" +
       new TextDecoder().decode(command) + "\nendstream"));
   }
+  object(fontId, ascii("<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>"));
   const startxref = length;
   push(ascii("xref\n0 " + (count + 1) + "\n0000000000 65535 f \n"));
   for (let id = 1; id <= count; id++) push(ascii(String(offsets[id]).padStart(10, "0") + " 00000 n \n"));
@@ -93,9 +96,10 @@ async function renderReport(html: string): Promise<{ canvas: HTMLCanvasElement; 
     const height = Math.ceil(main.getBoundingClientRect().height + 4);
     if (height < 1 || height > 14000) throw new Error("O relatório excedeu o tamanho permitido para exportação.");
     frame.style.height = height + "px";
-    const boundaries = Array.from(main.children)
-      .map(child => Math.max(0, Math.round(child.getBoundingClientRect().top - main.getBoundingClientRect().top)))
-      .filter(n => n > 0 && n < height);
+    const breakCandidates = Array.from(main.querySelectorAll<HTMLElement>(".panel, .hero, .risk-legend, .report-table tr, .risk-matrix tr, .item, .metric, .risk-summary, .foot"));
+    const mainTop = main.getBoundingClientRect().top;
+    const boundaries = Array.from(new Set(breakCandidates.map(child => Math.max(0, Math.round(child.getBoundingClientRect().top - mainTop)))
+      .filter(n => n > 0 && n < height))).sort((a,b)=>a-b);
     const { default: html2canvas } = await import("html2canvas");
     const canvas = await html2canvas(main, {
       backgroundColor: "#ffffff",
@@ -130,7 +134,7 @@ export async function downloadReportPdf(html: string, filename: string): Promise
     let end = maxEnd;
     if (maxEnd < canvas.height) {
       const breaks = boundaries.map(position => Math.floor(position * scale))
-        .filter(position => position > top + heightLimit * 0.55 && position <= maxEnd - 8);
+        .filter(position => position > top + heightLimit * 0.72 && position <= maxEnd - 8);
       if (breaks.length) end = breaks[breaks.length - 1];
     }
     const partHeight = end - top;
