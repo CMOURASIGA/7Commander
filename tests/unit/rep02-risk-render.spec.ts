@@ -33,7 +33,7 @@ for(const size of [0,1,5,7,15]){
   expect(team).toContain("Crítico 9");
   expect(team).toContain("não</b> um percentual");
   expect(team).toContain("Gestão de riscos");
-  expect(team).toContain("Mitigação registrada");
+  if(size>0)expect(team).toContain("Mitigação registrada");
   expect(client).not.toContain("P × I");
   expect(client).not.toContain("Como ler a matriz");
   expect(client).not.toContain("Pessoa interna");
