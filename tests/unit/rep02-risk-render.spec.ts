@@ -1,5 +1,6 @@
 import {expect,test} from "@playwright/test";
 import {riskReportHtml} from "../../lib/reports/risk-report-html";
+import {isVagueNextStep} from "../../lib/reports/editorial-rules";
 import type {ReportRiskAssessment} from "../../lib/scrum/report-data";
 
 function fixtures(count:number):ReportRiskAssessment[]{
@@ -112,4 +113,9 @@ test("REP-03.8 blocks incomplete client risks and accepts fully approved executi
  expect(output).toContain("planejada");
  entry.description="Ponto de atenção: Integração das funcionalidades";
  expect(riskReportHtml([entry],"client")).not.toContain("client-risk-table");
+});
+\n
+test("REP-03.8 recognizes vague client action but permits concrete follow-up",()=>{
+ expect(isVagueNextStep("Reunião com equipe","para ver se conseguimos dar prosseguimento às atividades")).toBe(true);
+ expect(isVagueNextStep("Executar testes integrados","Confirmar integração antes da homologação")).toBe(false);
 });
