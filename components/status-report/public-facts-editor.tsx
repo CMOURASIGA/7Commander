@@ -10,11 +10,9 @@ const kinds=[["objective","Objetivo"],["benefit","Benefício"],["deliverable","E
 const classes=[["confirmed","Confirmado"],["in_progress","Em andamento"],["hypothesis","Hipótese"],["ai_recommendation","Proposta para revisão"]] as const;
 const blank=():EditorialForm=>({kind:"deliverable",title:"",description:"",classification:"in_progress",dueDate:"",sourceReference:""});
 
-const riskReady=(info:{kind:string;description:string})=>info.kind!=="risk"||
- ["Ponto de atenção:","Consequência:","Medida:","Situação da medida:"].every(label=>{
-  const line=info.description.split("\n").find(row=>row.trim().toLowerCase().startsWith(label.toLowerCase()));
-  return !!line?.slice(label.length).trim();
- });
+const riskReady=(info:{kind:string;description:string})=>
+ info.kind!=="risk"||info.description.split("\n").some(line=>
+  /^ponto de aten[çc][aã]o\s*:\s*\S/i.test(line.trim()));
 const executiveRiskTitle=(title:string)=>{
  const normal=title.normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase();
  if(/registros de auditoria.*(?:pipeline|etl)/.test(normal))return "Rastreabilidade do processamento de dados";
@@ -23,11 +21,10 @@ const executiveRiskTitle=(title:string)=>{
  return title;
 };
 const riskTemplate=(description:string,title:string)=>{
- const labels=["Ponto de atenção:","Consequência:","Medida:","Situação da medida:"];
- const pieces=description.split("\n");
- const additions=labels.filter(label=>!pieces.some(line=>line.trim().toLowerCase().startsWith(label.toLowerCase())))
-   .map(label=>label+" "+(label==="Ponto de atenção:"?executiveRiskTitle(title):label==="Situação da medida:"?"":""));
- return [...pieces.filter(Boolean),...additions].join("\n");
+ const lines=description.split("\n").filter(Boolean);
+ if(!lines.some(line=>/^ponto de aten[çc][aã]o\s*:/i.test(line.trim())))
+  lines.unshift("Ponto de atenção: "+executiveRiskTitle(title));
+ return lines.join("\n");
 };
 
 
@@ -92,7 +89,7 @@ export function PublicFactsEditor({projectId,onChange,proposedNextSteps}:{projec
  async function publishSelected(){
   if(busy||selected.length===0)return;
   setBusy(true);setError("");setMessage("");
-  const available=candidates.filter(candidate=>selected.includes(candidate.sourceReference)&&!recorded(candidate.sourceReference)?.approved_for_client&&riskReady(recorded(candidate.sourceReference)||candidate));
+  const available=candidates.filter(candidate=>selected.includes(candidate.sourceReference)&&(!recorded(candidate.sourceReference)?.approved_for_client||!riskReady(recorded(candidate.sourceReference)!))&&riskReady(candidate));
   const failures:string[]=[];
   const failedRefs:string[]=[];
   let published=0;
@@ -100,7 +97,7 @@ export function PublicFactsEditor({projectId,onChange,proposedNextSteps}:{projec
    for(const [index,candidate] of available.entries()){
     setBulkProgress("Publicando "+(index+1)+" de "+available.length);
     const existing=recorded(candidate.sourceReference);
-    const info=existing?fromFact(existing):candidate;
+    const info=existing&&riskReady(existing)?fromFact(existing):candidate;
     try{
      const response=await fetch("/api/status-report/public-facts",{
       method:"POST",headers:getClientAuthHeaders({"Content-Type":"application/json"}),
@@ -136,6 +133,8 @@ export function PublicFactsEditor({projectId,onChange,proposedNextSteps}:{projec
  }
  const fromFact=(f:Fact):EditorialForm=>({kind:f.kind,title:f.title,description:f.description,classification:f.classification,dueDate:f.due_date||"",sourceReference:f.source_reference||""});
  const recorded=(ref:string)=>items.find(f=>f.source_reference===ref);
+ const editorialInfo=(candidate:Candidate,existing?:Fact):EditorialForm=>
+  existing&&riskReady(existing)?fromFact(existing):candidate;
  const proposed=proposedNextSteps?.trim()?{kind:"next_step",title:"Próximos passos do projeto",description:proposedNextSteps.slice(0,3000),classification:"ai_recommendation",dueDate:"",sourceReference:"kairos:proposta:"+projectId}:null;
 
  if(!projectId||loading||!canManage)return null;
@@ -149,19 +148,19 @@ export function PublicFactsEditor({projectId,onChange,proposedNextSteps}:{projec
   {error?<p role="alert" className="text-sm text-red-700">{error}</p>:null}
   {message?<p role="status" className="text-sm text-(--text-secondary)">{message}</p>:null}
    {items.some(item=>item.kind==="next_step"&&item.approved_for_client&&isVagueNextStep(item.title,item.description))&&<p role="alert" className="text-sm text-amber-700">Alguns próximos passos publicados anteriormente precisam ser reescritos como ações objetivas antes de aparecerem na versão Cliente.</p>}
-   {items.some(item=>item.kind==="risk"&&item.approved_for_client&&!riskReady(item))&&<p role="alert" className="text-sm text-amber-700">Alguns riscos aprovados anteriormente precisam de consequência, medida e situação comunicável. Eles não serão incluídos no relatório Cliente até você completar e publicar novamente, sem alterar o registro técnico.</p>}
+   {items.some(item=>item.kind==="risk"&&item.approved_for_client&&!riskReady(item))&&<p role="alert" className="text-sm text-amber-700">Alguns riscos aprovados anteriormente não tinham ponto de atenção legível. Selecione Publicar ou Editar para atualizar o texto diretamente a partir do cadastro do risco.</p>}
   <div className="space-y-2 rounded-xl border border-(--border) bg-(--bg-muted) p-3">
    <div className="flex flex-wrap items-center justify-between gap-2">
     <h3 className="font-semibold">Informações do projeto</h3>
     <button className="workspace-button-secondary text-xs" disabled={suggestionsLoading||busy} onClick={()=>void loadSuggestions()}>{suggestionsLoading?"Consultando...":"Atualizar dados"}</button>
    </div>
-   <div className="flex flex-wrap items-center justify-between gap-2"><label className="flex items-center gap-2 text-xs"><input type="checkbox" disabled={busy} checked={candidates.filter(c=>!recorded(c.sourceReference)?.approved_for_client&&riskReady(recorded(c.sourceReference)||c)).length>0&&candidates.filter(c=>!recorded(c.sourceReference)?.approved_for_client&&riskReady(recorded(c.sourceReference)||c)).every(c=>selected.includes(c.sourceReference))} onChange={e=>setSelected(e.target.checked?candidates.filter(c=>!recorded(c.sourceReference)?.approved_for_client&&riskReady(recorded(c.sourceReference)||c)).map(c=>c.sourceReference):[])} /> Selecionar informações não publicadas</label><button type="button" className="workspace-button-primary text-xs" disabled={busy||selected.length===0} onClick={()=>void publishSelected()}>{bulkProgress||`Publicar selecionadas (${selected.length})`}</button></div>
+   <div className="flex flex-wrap items-center justify-between gap-2"><label className="flex items-center gap-2 text-xs"><input type="checkbox" disabled={busy} checked={candidates.filter(c=>(!recorded(c.sourceReference)?.approved_for_client||!riskReady(recorded(c.sourceReference)!))&&riskReady(c)).length>0&&candidates.filter(c=>!recorded(c.sourceReference)?.approved_for_client&&riskReady(recorded(c.sourceReference)||c)).every(c=>selected.includes(c.sourceReference))} onChange={e=>setSelected(e.target.checked?candidates.filter(c=>!recorded(c.sourceReference)?.approved_for_client&&riskReady(recorded(c.sourceReference)||c)).map(c=>c.sourceReference):[])} /> Selecionar informações não publicadas</label><button type="button" className="workspace-button-primary text-xs" disabled={busy||selected.length===0} onClick={()=>void publishSelected()}>{bulkProgress||`Publicar selecionadas (${selected.length})`}</button></div>
    {candidates.length===0?<p className="text-sm text-(--text-secondary)">Nenhuma informação disponível para seleção.</p>:
     <div className="max-h-80 space-y-2 overflow-y-auto">
      {candidates.map(candidate=>{
       const existing=recorded(candidate.sourceReference);
       const published=Boolean(existing?.approved_for_client&&riskReady(existing));
-      const needsRiskRevision=existing? !riskReady(existing):!riskReady(candidate);
+      const needsRiskRevision=!riskReady(candidate);
       return <article key={candidate.sourceReference} className="rounded-lg border border-(--border) bg-(--bg-surface) p-3">
        <div className="flex flex-wrap items-center justify-between gap-2">
         {!published?<input aria-label={"Selecionar "+candidate.title} type="checkbox" checked={selected.includes(candidate.sourceReference)} disabled={busy||needsRiskRevision} onChange={e=>setSelected(current=>e.target.checked?[...current,candidate.sourceReference]:current.filter(ref=>ref!==candidate.sourceReference))}/>:null}
@@ -172,9 +171,9 @@ export function PublicFactsEditor({projectId,onChange,proposedNextSteps}:{projec
           {candidate.internalContext?<p className="mt-1 text-xs text-(--text-secondary)">Consulta interna do risco: {candidate.internalContext}</p>:null}
         </div>
         <div className="flex flex-wrap gap-2">
-         {published?<span className="text-xs text-(--text-secondary)">Publicado</span>:needsRiskRevision?<span className="text-xs text-(--text-secondary)">Completar informações antes de publicar</span>:
-          <button type="button" disabled={busy} className="workspace-button-primary text-xs" onClick={()=>void publish(existing?fromFact(existing):candidate,existing?.id)}>Publicar</button>}
-         <button type="button" disabled={busy} className="workspace-button-secondary text-xs" onClick={()=>edit(existing?fromFact(existing):candidate,existing?.id)}>Editar</button>
+         {published?<span className="text-xs text-(--text-secondary)">Publicado</span>:needsRiskRevision?<span className="text-xs text-(--text-secondary)">Revisar o conteúdo disponível</span>:
+          <button type="button" disabled={busy} className="workspace-button-primary text-xs" onClick={()=>void publish(editorialInfo(candidate,existing),existing?.id)}>Publicar</button>}
+         <button type="button" disabled={busy} className="workspace-button-secondary text-xs" onClick={()=>edit(editorialInfo(candidate,existing),existing?.id)}>Editar</button>
         </div>
        </div>
       </article>;
@@ -193,7 +192,7 @@ export function PublicFactsEditor({projectId,onChange,proposedNextSteps}:{projec
    <div className="flex items-center justify-between"><h3 className="font-semibold">Editar informação para publicação</h3>
     <button type="button" className="workspace-button-secondary text-xs" onClick={()=>{setShowEditor(false);setEditingId("");}}>Cancelar</button>
    </div>
-   {form.kind==="risk"&&<p className="text-xs text-(--text-secondary)">Para divulgar o risco ao cliente, informe quatro linhas: Ponto de atenção, Consequência, Medida e Situação da medida (planejada, em execução ou concluída). Os dados do risco original não serão alterados.</p>}
+   {form.kind==="risk"&&<p className="text-xs text-(--text-secondary)">Os dados existentes do risco foram aproveitados. Você pode editar o ponto de atenção e a medida. Consequência e situação da mitigação são opcionais e só serão exibidas se tiverem evidência confirmada. Publicar autoriza o texto apresentado, sem alterar o risco original.</p>}
    <div className="grid gap-3 sm:grid-cols-2">
     <label className="text-xs">Categoria<select className="workspace-select mt-1 w-full" value={form.kind} onChange={e=>setForm(v=>({...v,kind:e.target.value}))}>{kinds.map(([v,label])=><option key={v} value={v}>{label}</option>)}</select></label>
     <label className="text-xs">Classificação<select className="workspace-select mt-1 w-full" value={form.classification} onChange={e=>setForm(v=>({...v,classification:e.target.value}))}>{classes.map(([v,label])=><option key={v} value={v}>{label}</option>)}</select></label>
