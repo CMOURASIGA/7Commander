@@ -161,6 +161,19 @@ class DocumentComposer{
   if(tag==="img")return;
   if(tag==="table"){this.table(element as HTMLTableElement);return;}
   if(element.classList.contains("metrics")){this.metrics(element);return;}
+  if(element.classList.contains("client-risk-item")){
+   const title=element.querySelector(".client-risk-head strong")?.textContent?.trim()||"Risco";
+   const severity=element.querySelector(".client-risk-head b")?.textContent?.trim()||"";
+   const paragraphs=Array.from(element.querySelectorAll(":scope > p"));
+   // Keep the heading with the first part of its mitigation on the same A4 page.
+   this.reserve(110);
+   this.y+=8;
+   this.paragraph(title,{size:11,bold:true,color:"173a59",space:4});
+   if(severity)this.paragraph("Criticidade: "+severity,{size:9,bold:true,color:"755328",indent:0,space:5});
+   for(const paragraph of paragraphs)this.paragraph(paragraph.textContent?.trim()||"",{size:9.3,space:10});
+   this.y+=9;
+   return;
+  }
   if(tag==="h1"||tag==="h2"||tag==="h3"){this.heading(element.textContent?.trim()||"",tag==="h1"?1:tag==="h2"?2:3);return;}
   if(tag==="p"||tag==="small"||tag==="li"||tag==="blockquote"||tag==="summary"){
    this.paragraph(element.textContent?.trim()||"",{size:tag==="small"?8:9.4});return;

@@ -41,6 +41,25 @@ const css = `
 .operational-risk-table{table-layout:fixed;font-size:11px}.operational-risk-table th:nth-child(1){width:12%}.operational-risk-table th:nth-child(2){width:25%}.operational-risk-table th:nth-child(3){width:12%}.operational-risk-table th:nth-child(4){width:15%}.operational-risk-table th:nth-child(5){width:11%}.operational-risk-table th:nth-child(6){width:25%}
 .client-risk-table th:nth-child(1){width:27%}.client-risk-table th:nth-child(2){width:27%}.client-risk-table th:nth-child(3){width:31%}.client-risk-table th:nth-child(4){width:15%}
 .risk-detail-row td{background:#f5f8fc}.risk-detail-row summary{cursor:pointer;font-weight:600}.risk-detail-row p{max-width:700px;white-space:pre-wrap}.risk-panel strong{color:#19334b}
+/* Client report risks must be vertical, never inherit the horizontal .item layout. */
+.client-risk-list{display:grid;gap:12px;margin:15px 0}
+.client-risk-item.item{display:block;min-width:0;padding:15px 17px;border:1px solid #dce6ef;border-radius:10px;background:#fbfdff}
+.client-risk-item.item:last-child{border-bottom:1px solid #dce6ef}
+.client-risk-head{display:flex;flex-wrap:wrap;align-items:flex-start;justify-content:space-between;gap:10px 18px;margin-bottom:11px}
+.client-risk-head strong{display:block;flex:1 1 250px;font-size:14px;line-height:1.48}
+.client-risk-head b{display:inline-block;flex:none;border-radius:6px;padding:5px 10px;background:#edf3fa;color:#234763;font-size:11px;line-height:1.25}
+.client-risk-item p{display:block;margin:9px 0 0;color:#425e76;font-size:13px;line-height:1.68;overflow-wrap:break-word;white-space:normal}
+.client-risk-item p b{color:#19334b;font-weight:700}
+.client-risk-item p+p{padding-top:7px;border-top:1px solid #edf2f7}
+.risk-panel>.muted{display:block;margin-top:13px;line-height:1.65}
+/* Delivery descriptions and next-step statuses must not become a narrow right-hand column. */
+.client-report .panel:not(.risk-panel) .item{display:block;padding:12px 0;line-height:1.55}
+.client-report .panel:not(.risk-panel) .item>div{display:block;font-weight:650;color:#19334b;margin-bottom:7px;overflow-wrap:break-word}
+.client-report .panel:not(.risk-panel) .item>span{display:block;margin-top:5px;color:#53687b;font-size:12.5px;line-height:1.65;overflow-wrap:break-word}
+
+@media(max-width:550px){.client-risk-head{gap:8px}.client-risk-head strong{flex-basis:100%}.client-risk-item.item{padding:13px}}
+@media print{.client-risk-item.item{break-inside:avoid;page-break-inside:avoid}.client-risk-head{break-after:avoid}}
+
 .risk-annex{break-before:page}.report-table td,.report-table th{line-height:1.45}.scrum-overview{break-inside:avoid;page-break-inside:avoid}.scrum-overview .metrics{margin-bottom:10px!important}
 @media print{.pdf-hide{display:none!important}.report-table tr{break-inside:avoid}.risk-legend{break-inside:avoid}.risk-annex{break-before:page}}
 
@@ -74,7 +93,7 @@ function reportDocument(project:Project, cards:Card[], risks:Risk[], decisions:D
     const publicObjectiveText=publicObjective?.description||publicObjective?.title||"";
     const published=Boolean(scrum?.publicFactsAvailable);
     const approvalNotice=published?"":"Informações ainda não disponíveis para divulgação.";
-    return `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Status Report Cliente - ${htmlEscape(project.name)}</title><style>${css}</style></head><body><main class="wrap">
+    return `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Status Report Cliente - ${htmlEscape(project.name)}</title><style>${css}</style></head><body><main class="wrap client-report">
     <header class="hero"><div class="top"><img class="logo" src="${logo}" alt="Consult Services Tecnologia"><div class="topright">RELATÓRIO PARA CLIENTE<br><small>Visão de objetivos, entregas e compromissos</small></div></div><p class="eyebrow">COMMANDER · ACOMPANHAMENTO DO PROJETO</p><h1>${htmlEscape(project.name)}</h1>${publicObjectiveText?`<p class="desc">${htmlEscape(publicObjectiveText)}</p>`:""}<div class="chips"><span class="chip">Referência: ${htmlEscape(period)}</span><span class="chip">Emissão: ${htmlEscape(issueDate)}</span><span class="chip">Público: Cliente</span></div></header>
     <div class="note">Informações autorizadas para acompanhamento. As contagens não indicam aceite contratual nem percentual físico de conclusão.</div>
     ${publicItems("benefit").length?`<section class="panel"><h3>01 · Benefícios</h3><h2>Benefícios documentados</h2>${list(publicItems("benefit"),approvalNotice)}</section>`:""}
