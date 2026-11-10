@@ -98,7 +98,7 @@ async function renderReport(html: string): Promise<{ canvas: HTMLCanvasElement; 
     const height = Math.ceil(main.getBoundingClientRect().height + 4);
     if (height < 1 || height > 14000) throw new Error("O relatório excedeu o tamanho permitido para exportação.");
     frame.style.height = height + "px";
-    const breakCandidates = Array.from(main.querySelectorAll<HTMLElement>(".panel, .hero, .risk-legend, .report-table tr, .risk-matrix tr, .item, .metric, .risk-summary, .foot"));
+    const breakCandidates = Array.from(main.querySelectorAll<HTMLElement>(".panel, .hero, .scrum-overview, .risk-legend, .report-table tr, .risk-matrix tr, .item, .metric, .risk-summary, .foot"));
     const mainTop = main.getBoundingClientRect().top;
     const boundaries = Array.from(new Set(breakCandidates.map(child => Math.max(0, Math.round(child.getBoundingClientRect().top - mainTop)))
       .filter(n => n > 0 && n < height))).sort((a,b)=>a-b);
