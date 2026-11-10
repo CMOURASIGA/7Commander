@@ -15,8 +15,11 @@ const riskReady=(info:{kind:string;description:string})=>info.kind!=="risk"||
   return !!line?.slice(label.length).trim();
  });
 const riskTemplate=(description:string,title:string)=>{
- if(description.includes("Ponto de atenção:"))return description;
- return "Ponto de atenção: "+title+"\nConsequência: \nMedida: \nSituação da medida: planejada";
+ const labels=["Ponto de atenção:","Consequência:","Medida:","Situação da medida:"];
+ const pieces=description.split("\n");
+ const additions=labels.filter(label=>!pieces.some(line=>line.trim().toLowerCase().startsWith(label.toLowerCase())))
+   .map(label=>label+" "+(label==="Ponto de atenção:"?title:label==="Situação da medida:"?"planejada":""));
+ return [...pieces.filter(Boolean),...additions].join("\n");
 };
 
 
@@ -137,17 +140,18 @@ export function PublicFactsEditor({projectId,onChange,proposedNextSteps}:{projec
   </header>
   {error?<p role="alert" className="text-sm text-red-700">{error}</p>:null}
   {message?<p role="status" className="text-sm text-(--text-secondary)">{message}</p>:null}
+   {items.some(item=>item.kind==="risk"&&item.approved_for_client&&!riskReady(item))&&<p role="alert" className="text-sm text-amber-700">Alguns riscos aprovados anteriormente precisam de consequência, medida e situação comunicável. Eles não serão incluídos no relatório Cliente até você completar e publicar novamente, sem alterar o registro técnico.</p>}
   <div className="space-y-2 rounded-xl border border-(--border) bg-(--bg-muted) p-3">
    <div className="flex flex-wrap items-center justify-between gap-2">
     <h3 className="font-semibold">Informações do projeto</h3>
     <button className="workspace-button-secondary text-xs" disabled={suggestionsLoading||busy} onClick={()=>void loadSuggestions()}>{suggestionsLoading?"Consultando...":"Atualizar dados"}</button>
    </div>
-   <div className="flex flex-wrap items-center justify-between gap-2"><label className="flex items-center gap-2 text-xs"><input type="checkbox" disabled={busy} checked={candidates.filter(c=>!recorded(c.sourceReference)?.approved_for_client&&riskReady(recorded(c.sourceReference)||c)).length>0&&candidates.filter(c=>!recorded(c.sourceReference)?.approved_for_client).every(c=>selected.includes(c.sourceReference))} onChange={e=>setSelected(e.target.checked?candidates.filter(c=>!recorded(c.sourceReference)?.approved_for_client).map(c=>c.sourceReference):[])} /> Selecionar informações não publicadas</label><button type="button" className="workspace-button-primary text-xs" disabled={busy||selected.length===0} onClick={()=>void publishSelected()}>{bulkProgress||`Publicar selecionadas (${selected.length})`}</button></div>
+   <div className="flex flex-wrap items-center justify-between gap-2"><label className="flex items-center gap-2 text-xs"><input type="checkbox" disabled={busy} checked={candidates.filter(c=>!recorded(c.sourceReference)?.approved_for_client&&riskReady(recorded(c.sourceReference)||c)).length>0&&candidates.filter(c=>!recorded(c.sourceReference)?.approved_for_client&&riskReady(recorded(c.sourceReference)||c)).every(c=>selected.includes(c.sourceReference))} onChange={e=>setSelected(e.target.checked?candidates.filter(c=>!recorded(c.sourceReference)?.approved_for_client&&riskReady(recorded(c.sourceReference)||c)).map(c=>c.sourceReference):[])} /> Selecionar informações não publicadas</label><button type="button" className="workspace-button-primary text-xs" disabled={busy||selected.length===0} onClick={()=>void publishSelected()}>{bulkProgress||`Publicar selecionadas (${selected.length})`}</button></div>
    {candidates.length===0?<p className="text-sm text-(--text-secondary)">Nenhuma informação disponível para seleção.</p>:
     <div className="max-h-80 space-y-2 overflow-y-auto">
      {candidates.map(candidate=>{
       const existing=recorded(candidate.sourceReference);
-      const published=existing?.approved_for_client;
+      const published=Boolean(existing?.approved_for_client&&riskReady(existing));
       const needsRiskRevision=existing? !riskReady(existing):!riskReady(candidate);
       return <article key={candidate.sourceReference} className="rounded-lg border border-(--border) bg-(--bg-surface) p-3">
        <div className="flex flex-wrap items-center justify-between gap-2">
