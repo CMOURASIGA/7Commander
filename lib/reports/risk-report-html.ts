@@ -21,7 +21,7 @@ export function getApprovedRiskFields(text:string){
  const blocks=String(text||"").split(/\n+/).map(x=>x.trim()).filter(Boolean);
  const point=blocks.find(x=>/^(?:ponto de atenção|risco executivo)\s*:/i.test(x));
  const consequence=blocks.find(x=>/^(?:consequência|consequencia|possível consequência|impacto para o cliente)\s*:/i.test(x));
- const measure=blocks.find(x=>/^(?:medida|mitigação|mitigacao|ação prevista|plano)\s*:/i.test(x));
+ const measure=blocks.find(x=>/^(?:medida(?: registrada)?|mitigação|mitigacao|ação prevista|plano)\s*:/i.test(x));
  const status=blocks.find(x=>/^(?:situação da medida|status da mitigação)\s*:/i.test(x));
  const trimLabel=(x?:string)=>x?.replace(/^[^:]+:\s*/,"").trim()||"";
  return {point:trimLabel(point),consequence:trimLabel(consequence),measure:trimLabel(measure),measureStatus:trimLabel(status)};
@@ -29,21 +29,27 @@ export function getApprovedRiskFields(text:string){
 export function riskReportHtml(risks:ReportRiskAssessment[],audience:ReportAudience,options:{includeMitigationAnnex?:boolean}={}){
  const esc=escapeHtml;
  const sorted=sortedRisks(risks);
- const clientVisible=audience==="client"?sorted.filter(r=>{const x=getApprovedRiskFields(r.description);return Boolean(x.point&&x.consequence&&x.measure&&["planejada","em execução","concluída"].includes(x.measureStatus.toLowerCase()));}):sorted;
+ const clientVisible=audience==="client"?sorted.filter(r=>Boolean(getApprovedRiskFields(r.description).point)):sorted;
  const rated=sorted.filter(r=>r.score!==null);
  const count=(severity:string)=>clientVisible.filter(r=>r.severity===severity).length;
  const summary='<p class="risk-summary">Riscos visíveis: '+clientVisible.length+' · Críticos: '+count("Crítico")+' · Altos: '+count("Alto")+' · Moderados: '+count("Moderado")+' · Baixos: '+count("Baixo")+' · Não avaliados: '+count("Não avaliado")+'.</p>';
  const empty='<p class="empty">Não há avaliações de riscos formalizadas nesta seleção. Isso não significa ausência de exposição; recomenda-se uma revisão.</p>';
  if(audience==="client"){
   const top=clientVisible.slice(0,5);
-  const rows=top.map(r=>{
+  // Only approved, available facts are shown. Optional consequence and execution
+  // stage do not become mandatory because the source risk has no such fields.
+  const cards=top.map(r=>{
    const {point,consequence,measure,measureStatus}=getApprovedRiskFields(r.description);
-   const title=compact(point||r.title,105);
-   return '<tr><td>'+esc(title)+'</td><td>'+esc(consequence||"")+'</td><td>'+esc(measure)+(measureStatus?' <small>('+esc(measureStatus)+')</small>':"")+'</td><td><strong>'+esc(r.severity)+'</strong></td></tr>';
+   return '<article class="item client-risk-item"><div class="client-risk-head"><strong>'+esc(compact(point||r.title,115))+'</strong><b>'+esc(r.severity)+'</b></div>'+
+      (consequence?'<p><b>Possível consequência:</b> '+esc(consequence)+'</p>':"")+
+      (measure?'<p><b>Medida registrada:</b> '+esc(measure)+'</p>':"")+
+      (measureStatus?'<p><b>Situação da medida:</b> '+esc(measureStatus)+'</p>':"")+
+      '</article>';
   }).join("");
   return '<section class="panel risk-panel"><h3>04 · Riscos relevantes</h3><h2>Riscos e Planos de Mitigação</h2>'+summary+
-   (top.length?'<div class="report-table-wrap"><table class="report-table client-risk-table"><thead><tr><th>Ponto de atenção</th><th>Possível consequência</th><th>Medida prevista ou em execução</th><th>Criticidade</th></tr></thead><tbody>'+rows+'</tbody></table></div>':empty)+
-   
+   (top.length?'<div class="client-risk-list">'+cards+'</div>':empty)+
+   (clientVisible.length>5?'<p class="muted">Cinco riscos autorizados de maior prioridade apresentados. Outros registros permanecem no cadastro do projeto.</p>':"")+
+   (top.some(r=>getApprovedRiskFields(r.description).measure&&!getApprovedRiskFields(r.description).measureStatus)?'<p class="muted">As medidas citadas constam do registro do projeto. Sua execução não está confirmada nesta emissão.</p>':"")+
    '</section>';
  }
  const rows=sorted.map(r=>{

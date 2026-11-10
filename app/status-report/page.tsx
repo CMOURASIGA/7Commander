@@ -11,7 +11,7 @@ import {riskReportHtml} from "@/lib/reports/risk-report-html";
 import {isVagueNextStep} from "@/lib/reports/editorial-rules";
 import {safeMarkdownHtml} from "@/lib/safe-markdown-html";
 import {PublicFactsEditor} from "@/components/status-report/public-facts-editor";
-import {downloadReportPdf} from "@/lib/reports/pdf-browser";
+import {downloadReportDocumentPdf} from "@/lib/reports/pdf-document";
 
 type Project = { id:string; name:string; objective?:string; status?:string; clientName?:string|null };
 type Card = { id:string; title:string; status:string; dueDate?:string|null; responsible?:string|null; columnKey:string };
@@ -233,7 +233,7 @@ export default function StatusReportPage() {
   const html=archivedHtml();
   if(format==="pdf"){
    setPdfBusy(true);
-   try{await downloadReportPdf(html,"status-report-arquivado-"+historyId+".pdf");setStatus("PDF da emissão arquivada gerado.");}
+   try{await downloadReportDocumentPdf(html,"status-report-arquivado-"+historyId+".pdf");setStatus("PDF da emissão arquivada gerado.");}
    catch(e){setStatus(e instanceof Error?e.message:"Não foi possível exportar PDF.");}
    finally{setPdfBusy(false);}
    return;
@@ -252,7 +252,7 @@ export default function StatusReportPage() {
    const pdfHtml=audience==="internal"&&includeMitigationAnnex
     ?renumberReportSections(reportDocument(project,cards,risks,decisions,period,issueDate,analysis,periodEvents,periodMetrics,audience,scrumReport,true)).replaceAll(BRAND_LOGO_URL,brandLogoData).replaceAll("CONSULT SERVICES TECNOLOGIA",htmlEscape(brandName))
     :documentHtml;
-   await downloadReportPdf(pdfHtml,filename);
+   await downloadReportDocumentPdf(pdfHtml,filename);
    setStatus("PDF gerado, registrando emissão...");
    await issue();
   }catch(e){setStatus(e instanceof Error?e.message:"Não foi possível gerar o PDF.");}
@@ -289,6 +289,6 @@ export default function StatusReportPage() {
  </section>
  <p role="status" className="text-sm text-(--text-secondary)">{busy?"Consolidando dados...":status}</p><div className="flex flex-wrap items-center gap-3"><button type="button" className="workspace-button-secondary rounded-lg px-4 py-2 text-sm" disabled={!projectId||analysisLoading} onClick={()=>setAnalysisRequest(prev=>({key:analysisKey,revision:prev.revision+1}))}>{analysisLoading?"Analisando...":"Gerar análise Kairos"}</button><p role="status" className="text-sm text-(--text-secondary)">{analysisStatus}</p></div>
  {documentHtml?<iframe title="Prévia do Status Report" srcDoc={documentHtml} sandbox="allow-scripts" className="h-[900px] w-full rounded-xl border border-(--border) bg-white"/>:<div className="rounded-xl border border-(--border) p-10 text-center text-sm">Nenhuma prévia disponível.</div>}
- <p className="text-xs text-(--text-secondary)">Os botões Baixar PDF e Baixar HTML utilizam o mesmo relatório e registram a emissão no histórico. O PDF é criado em páginas A4, sem a janela de impressão. Revise as informações autorizadas antes de enviar ao cliente.</p>
+ <p className="text-xs text-(--text-secondary)">Os botões Baixar PDF e Baixar HTML utilizam o mesmo relatório e registram a emissão no histórico. O PDF possui texto selecionável, tabelas e paginação próprias de documento A4, sem capturar o HTML como imagem. Revise as informações autorizadas antes de enviar ao cliente.</p>
  </main>
 }

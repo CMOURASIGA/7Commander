@@ -3,6 +3,7 @@ import {requireApiAuth} from "@/lib/api-auth";
 import {getReportScope} from "@/lib/scrum/report-data";
 import {getApprovedRiskFields} from "@/lib/reports/risk-report-html";
 import {isVagueNextStep} from "@/lib/reports/editorial-rules";
+import {executiveRiskTitle} from "@/lib/reports/risk-editorial";
 
 export const dynamic="force-dynamic";
 const uuid=/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -53,7 +54,15 @@ export async function GET(request:NextRequest){
   for(const row of stories.data||[]){
    add(row.workflow_stage==="closed"?"deliverable":"next_step",row.title,row.description||"","in_progress",row.due_date||"","story:"+row.id,"User Story");
   }
-  for(const row of risks.data||[])add("risk",row.titulo,"","in_progress","","risk:"+row.id,"Risco", "Impacto cadastrado: "+(row.impacto||"não informado")+" | Probabilidade: "+(row.probabilidade||"não informada")+" | Mitigação técnica: "+(row.mitigacao||"não registrada"));
+  for(const row of risks.data||[]){
+   // Explicitly show the source information to the editor before authorization.
+   // Impact may be a severity label, not a consequence: never invent one.
+   const publicText="Ponto de atenção: "+executiveRiskTitle(row.titulo)+
+     (row.mitigacao?.trim()?"\nMedida registrada: "+row.mitigacao.trim():"");
+   add("risk",row.titulo,publicText,"in_progress","","risk:"+row.id,"Risco",
+     "Avaliação: impacto "+(row.impacto||"não informado")+", probabilidade "+(row.probabilidade||"não informada")+
+     ". Situação do risco: "+row.status+". A execução da mitigação não é confirmada por esses dados.");
+  }
   // Decisões não representam automaticamente ações futuras. Próximos passos devem ser registrados com finalidade própria.
   // Public facts and proposed drafts are managed separately; suggestions are never persisted.
   return out({data:entries.slice(0,160)});
@@ -89,10 +98,12 @@ export async function POST(request:NextRequest){
     return out({error:"Campos de publicação inválidos."},400);
   if(kind==="risk"){
    if(!/^risk:[0-9a-f-]{36}$/i.test(sourceReference))return out({error:"Para publicar risco, vincule-o ao cadastro oficial do projeto."},400);
-   const approved=getApprovedRiskFields(description);
-   if(!approved.point||!approved.consequence||!approved.measure||
-      !["planejada","em execução","concluída"].includes(approved.measureStatus.toLowerCase()))
-    return out({error:"Antes de publicar o risco, use Editar e preencha Ponto de atenção, Consequência, Medida e Situação da medida (planejada, em execução ou concluída)."},422);
+   // The source risk has already been checked against this project and tenant below.
+   // One explicit publication action approves only the content shown to the editor.
+   // Consequence and execution stage are optional, as they are not required fields
+   // in the official risk registry. An absent field is never invented.
+   if(!getApprovedRiskFields(description).point)
+    return out({error:"Selecione o risco do projeto ou informe um ponto de atenção antes de publicar."},422);
   }
   if(kind==="next_step"&&isVagueNextStep(title,description))return out({error:"Descreva o próximo passo como ação objetiva e sua finalidade. Não informe prazo ou responsável sem confirmação."},422);
   // Untrusted source references cannot bypass tenant boundaries.
