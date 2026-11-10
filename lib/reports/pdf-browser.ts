@@ -72,7 +72,8 @@ function assemblePdf(pages: PdfPageImage[]): Blob {
   return new Blob(chunks as BlobPart[], { type: "application/pdf" });
 }
 
-async function renderReport(html: string): Promise<{ canvas: HTMLCanvasElement; boundaries: number[] }> {
+type HeaderSpan = { start: number; end: number; tableEnd: number };
+async function renderReport(html: string): Promise<{ canvas: HTMLCanvasElement; boundaries: number[]; headers: HeaderSpan[] }> {
   const frame = document.createElement("iframe");
   frame.setAttribute("aria-hidden", "true");
   frame.style.cssText = "position:fixed;left:0;top:0;width:760px;height:1200px;border:0;opacity:0;pointer-events:none;z-index:-1";
@@ -100,6 +101,13 @@ async function renderReport(html: string): Promise<{ canvas: HTMLCanvasElement; 
     const mainTop = main.getBoundingClientRect().top;
     const boundaries = Array.from(new Set(breakCandidates.map(child => Math.max(0, Math.round(child.getBoundingClientRect().top - mainTop)))
       .filter(n => n > 0 && n < height))).sort((a,b)=>a-b);
+    const headers:HeaderSpan[]=Array.from(main.querySelectorAll<HTMLTableElement>(".report-table, .risk-matrix")).flatMap(table=>{
+      const thead=table.querySelector("thead");
+      if(!thead)return [];
+      const tableRect=table.getBoundingClientRect();
+      const headRect=thead.getBoundingClientRect();
+      return [{start:Math.round(headRect.top-mainTop),end:Math.round(headRect.bottom-mainTop),tableEnd:Math.round(tableRect.bottom-mainTop)}];
+    });
     const { default: html2canvas } = await import("html2canvas");
     const canvas = await html2canvas(main, {
       backgroundColor: "#ffffff",
@@ -116,7 +124,7 @@ async function renderReport(html: string): Promise<{ canvas: HTMLCanvasElement; 
     // Canvas pixels can be read only if all document images remain same-origin/data URIs.
     try { canvas.toDataURL("image/jpeg", 0.8); }
     catch { throw new Error("Não foi possível incorporar a logo ao PDF. Verifique a imagem da empresa."); }
-    return { canvas, boundaries };
+    return { canvas, boundaries, headers };
   } finally {
     frame.remove();
   }
@@ -124,13 +132,15 @@ async function renderReport(html: string): Promise<{ canvas: HTMLCanvasElement; 
 
 /** Create and download an actual PDF file, with no print dialog. */
 export async function downloadReportPdf(html: string, filename: string): Promise<void> {
-  const { canvas, boundaries } = await renderReport(html);
+  const { canvas, boundaries, headers } = await renderReport(html);
   const scale = canvas.width / 760;
   const heightLimit = Math.floor(canvas.width * (A4_HEIGHT - MARGIN * 2) / (A4_WIDTH - MARGIN * 2));
   const pages: PdfPageImage[] = [];
   let top = 0;
   while (top < canvas.height) {
-    const maxEnd = Math.min(canvas.height, top + heightLimit);
+    const header=headers.find(h=>top>Math.floor(h.end*scale)+5 && top<Math.floor(h.tableEnd*scale)-10);
+    const repeatedHeight=header?Math.min(Math.ceil((header.end-header.start)*scale),Math.floor(heightLimit*0.15)):0;
+    const maxEnd = Math.min(canvas.height, top + heightLimit-repeatedHeight);
     let end = maxEnd;
     if (maxEnd < canvas.height) {
       const breaks = boundaries.map(position => Math.floor(position * scale))
@@ -141,17 +151,20 @@ export async function downloadReportPdf(html: string, filename: string): Promise
     if (partHeight <= 0) throw new Error("Não foi possível paginar o PDF.");
     const pageCanvas = document.createElement("canvas");
     pageCanvas.width = canvas.width;
-    pageCanvas.height = partHeight;
+    pageCanvas.height = partHeight + repeatedHeight;
     const ctx = pageCanvas.getContext("2d");
     if (!ctx) throw new Error("Exportação de PDF indisponível neste navegador.");
     ctx.fillStyle = "#ffffff";
     ctx.fillRect(0, 0, pageCanvas.width, pageCanvas.height);
-    ctx.drawImage(canvas, 0, top, canvas.width, partHeight, 0, 0, canvas.width, partHeight);
+    if(header&&repeatedHeight>0){
+      ctx.drawImage(canvas, 0,Math.floor(header.start*scale),canvas.width,repeatedHeight,0,0,canvas.width,repeatedHeight);
+    }
+    ctx.drawImage(canvas, 0, top, canvas.width, partHeight, 0, repeatedHeight, canvas.width, partHeight);
     pages.push({
       image: jpegBytes(pageCanvas.toDataURL("image/jpeg", 0.92)),
       width: pageCanvas.width,
       height: pageCanvas.height,
-      physicalHeight: partHeight * (A4_WIDTH - MARGIN * 2) / canvas.width,
+      physicalHeight: pageCanvas.height * (A4_WIDTH - MARGIN * 2) / canvas.width,
     });
     top = end;
   }
