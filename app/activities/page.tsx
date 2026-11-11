@@ -91,6 +91,7 @@ export default function ActivitiesPage() {
   const [newTaskTitle, setNewTaskTitle] = useState("");
   const [newTaskDescription, setNewTaskDescription] = useState("");
   const [creatingTask, setCreatingTask] = useState(false);
+  const [deletingTaskId,setDeletingTaskId]=useState<string|null>(null);
   const [draggingTaskId, setDraggingTaskId] = useState<string | null>(null);
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   const handledDeepLink=useRef(false);
@@ -308,6 +309,26 @@ export default function ActivitiesPage() {
     }
   }
 
+  async function deleteTask(taskId:string,title:string){
+    if(!canEdit||deletingTaskId)return;
+    const authorized=await confirm({
+      title:"Excluir atividade?",
+      description:'A atividade "'+title+'" será excluída definitivamente. Comentários, checklists, membros e anexos associados também serão removidos. Atividades ligadas a risco oficial ou Sprint são bloqueadas.',
+      confirmLabel:"Excluir atividade",tone:"danger"
+    });
+    if(!authorized)return;
+    setDeletingTaskId(taskId);setStatus(null);
+    try{
+      const response=await fetch("/api/tasks/"+encodeURIComponent(taskId),{method:"DELETE",headers:getClientAuthHeaders()});
+      const data=await response.json().catch(()=>({}));
+      if(!response.ok)throw new Error(data.error||"Falha ao excluir atividade.");
+      if(selectedTaskId===taskId)closeTaskDrawer();
+      setStatus("Atividade excluída. Auditoria preservada.");window.dispatchEvent(new Event("7commander:tasks-changed"));
+      if(activeProjectId)await loadBoard(activeProjectId);
+    }catch(e){setStatus(e instanceof Error?e.message:"Falha ao excluir atividade.");}
+    finally{setDeletingTaskId(null);}
+  }
+
   async function moveTask(taskId: string, targetColumnId: string, targetPosition: number) {
     if (!canEdit) return;
     try {
@@ -517,7 +538,7 @@ export default function ActivitiesPage() {
                           {card.priority} | {card.status}
                         </p>
                       </button>
-                      <div className="px-3 pb-3">
+                      <div className="px-3 pb-3 flex items-center justify-between gap-2">
                         <button
                           type="button"
                           onClick={() =>
@@ -530,6 +551,7 @@ export default function ActivitiesPage() {
                         >
                           ✨ Kairos
                         </button>
+                        {canEdit&&<button type="button" aria-label={"Excluir atividade "+card.title} title="Excluir atividade" className="workspace-button-danger px-3 py-2 text-xs" disabled={deletingTaskId===card.id} onClick={()=>void deleteTask(card.id,card.title)}>Excluir</button>}
                       </div>
                     </div>
                   ))
@@ -563,6 +585,7 @@ export default function ActivitiesPage() {
                     <span className="workspace-pill">
                       {taskDetail.accessRole}
                     </span>
+                    {canEditDetail&&<button type="button" className="workspace-button-danger px-3 py-2 text-xs" disabled={deletingTaskId===selectedTaskId} onClick={()=>void deleteTask(taskDetail.card.id,taskDetail.card.title)}>Excluir atividade</button>}
                     <button
                       type="button"
                       onClick={closeTaskDrawer}

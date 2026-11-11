@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireApiAuth } from "@/lib/api-auth";
-import { updateTaskCard } from "@/services/task-board-service";
+import { updateTaskCard, deleteTaskCard } from "@/services/task-board-service";
 
 type UpdateTaskPayload = {
   title?: string;
@@ -48,4 +48,19 @@ export async function PATCH(
     console.error("[/api/tasks/[taskId]] PATCH error", error);
     return NextResponse.json({ error: "Erro ao atualizar atividade." }, { status: 500 });
   }
+}
+
+export async function DELETE(request:NextRequest,context:{params:Promise<{taskId:string}>}){
+ const auth=await requireApiAuth(request);
+ if(!auth.ok)return auth.response;
+ const {taskId}=await context.params;
+ if(!/^[0-9a-f-]{36}$/i.test(taskId))return NextResponse.json({error:"Identificador de atividade inválido."},{status:400});
+ try{
+  const result=await deleteTaskCard({userId:auth.context.userId,userEmail:auth.context.userEmail,taskId});
+  return NextResponse.json(result.deleted?{success:true,message:result.reason}:{error:result.reason},
+   {status:result.deleted?200:409});
+ }catch(error){
+  console.error("[api/tasks] DELETE failed",error);
+  return NextResponse.json({error:"Não foi possível excluir a atividade."},{status:500});
+ }
 }
