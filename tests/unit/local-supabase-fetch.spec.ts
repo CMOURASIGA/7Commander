@@ -13,6 +13,10 @@ test("permits reading data and auth login but denies storage and functions write
   expect(isSupabaseDataMutation(base+"/rest/v1/projects",{method:"GET"})).toBe(false);
   expect(isSupabaseDataMutation(base+"/rest/v1/rpc/dangerous_function",{method:"GET"})).toBe(true);
   expect(isSupabaseDataMutation(base+"/auth/v1/token?grant_type=password",{method:"POST"})).toBe(false);
+  expect(isSupabaseDataMutation(base+"/auth/v1/logout",{method:"POST"})).toBe(false);
+  expect(isSupabaseDataMutation(base+"/auth/v1/signup",{method:"POST"})).toBe(true);
+  expect(isSupabaseDataMutation(base+"/auth/v1/user",{method:"PUT"})).toBe(true);
+  expect(isSupabaseDataMutation(base+"/auth/v1/admin/users",{method:"POST"})).toBe(true);
   expect(isSupabaseDataMutation(base+"/storage/v1/object/docs",{method:"POST"})).toBe(true);
   expect(isSupabaseDataMutation(base+"/functions/v1/process",{method:"POST"})).toBe(true);
 });
