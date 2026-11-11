@@ -75,15 +75,14 @@ export default function DecisionsHubPage() {
       <div className="mb-3 flex justify-between gap-3"><h2 className="font-semibold">Registro de decisões</h2><StatusPill>{filtered.length} encontradas</StatusPill></div>
       {error?<p role="alert" className="text-sm text-(--danger)">{error}</p>:loading?<p className="text-sm">Carregando decisões...</p>:
         filtered.length===0?<p className="rounded-xl border border-dashed border-(--border) p-5 text-sm">Nenhuma decisão encontrada. Abra o projeto para registrar uma nova decisão ou utilize o Kairos.</p>:
-        <div className="space-y-2">{filtered.map(d=><div key={d.id} className="flex items-center justify-between gap-3 rounded-xl border border-(--border) p-3">
-  <div className="min-w-0 flex-1">setDetail(d)}
-          className="flex w-full flex-wrap items-center justify-between gap-3 rounded-xl border border-(--border) p-3 text-left hover:border-(--accent)">
-          <div className="min-w-0 flex-1"><p className="text-sm font-semibold">{d.title}</p>
-            <p className="mt-1 text-xs text-(--text-secondary)">{projectNames.get(d.projectId??"")||"Sem projeto vinculado"} · {new Date(d.createdAt).toLocaleDateString("pt-BR")}</p>
-          </div><span className="rounded-full bg-(--bg-muted) px-3 py-1 text-xs">{statuses[d.status]}</span>
-        </div>
-  <IconActionButton icon="eye" tone="neutral" label={"Visualizar decisão "+d.title} onClick={()=>setDetail(d)}/>
-</div>)}</div>}
+        <div className="space-y-2">{filtered.map(d=><div key={d.id} className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-(--border) p-3">
+    <div className="min-w-0 flex-1">
+      <p className="text-sm font-semibold">{d.title}</p>
+      <p className="mt-1 text-xs text-(--text-secondary)">{projectNames.get(d.projectId??"")||"Sem projeto vinculado"} · {new Date(d.createdAt).toLocaleDateString("pt-BR")}</p>
+    </div>
+    <span className="rounded-full bg-(--bg-muted) px-3 py-1 text-xs">{statuses[d.status]}</span>
+    <IconActionButton icon="eye" tone="neutral" label={"Visualizar decisão "+d.title} onClick={()=>setDetail(d)}/>
+  </div>)}</div>}
     </div>
     {detail?<div className="fixed inset-0 z-50">
       <button type="button" aria-label="Fechar decisão" className="absolute inset-0 bg-black/35" onClick={()=>setDetail(null)}/>
