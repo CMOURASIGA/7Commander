@@ -1,5 +1,6 @@
 "use client";
 
+import { AgileWorkspaceNav } from "@/components/scrum/agile-workspace-nav";
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { getClientAuthEmail, getClientAuthHeaders } from "@/lib/client-auth";
@@ -381,6 +382,7 @@ export default function ActivitiesPage() {
 
   return (
     <section className="space-y-4">
+      <AgileWorkspaceNav/>
       <PageIntro
         eyebrow="7Commander"
         title="Atividades operacionais"
