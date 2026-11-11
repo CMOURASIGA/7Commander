@@ -560,20 +560,23 @@ export default function ActivitiesPage() {
                         </p>
                         <p className="mt-1 text-[11px] text-(--text-secondary)" title="Origem verificada no histórico de criação">Criado por: {card.createdSource==="kairos"?"Kairos":card.createdSource==="user"?"usuário":"origem anterior não informada"}</p>
                       </button>
-                      <div className="flex flex-wrap items-center justify-between gap-2 px-3 pb-3">
-                        <button
-                          type="button"
-                          onClick={() =>
-                            openKairosPanel({
-                              projectId: activeProjectId,
-                              seedMessage: `Analise riscos e proximos passos para o card "${card.title}".`,
-                            })
-                          }
-                          className="kanban-kairos-chip"
-                        >
-                          Analisar com Kairos
-                        </button>
-                        <div className="flex flex-wrap items-center gap-2"><IconActionButton icon="eye" tone="neutral" label={"Visualizar atividade "+card.title} onClick={()=>{setSelectedTaskId(card.id);void loadTaskDetail(card.id);}}/>{canEdit&&<IconActionButton icon="trash" tone="danger" label={"Excluir atividade "+card.title} disabled={deletingTaskId===card.id} onClick={()=>void deleteTask(card.id,card.title)}/>}</div>
+                      <div className="flex flex-wrap items-center justify-end gap-2 px-3 pb-3">
+                        <div className="cs-record-actions" role="group" aria-label={"Ações da atividade "+card.title}>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              openKairosPanel({
+                                projectId: activeProjectId,
+                                seedMessage: `Analise riscos e proximos passos para o card "${card.title}".`,
+                              })
+                            }
+                            className="kanban-kairos-chip"
+                          >
+                            Analisar com Kairos
+                          </button>
+                          <IconActionButton icon="eye" tone="neutral" label={"Visualizar atividade "+card.title} onClick={()=>{setSelectedTaskId(card.id);void loadTaskDetail(card.id);}}/>
+                          {canEdit&&<IconActionButton icon="trash" tone="danger" label={"Excluir atividade "+card.title} disabled={deletingTaskId===card.id} onClick={()=>void deleteTask(card.id,card.title)}/>}
+                        </div>
                       </div>
                     </div>
                   ))
