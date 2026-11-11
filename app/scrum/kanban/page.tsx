@@ -1,4 +1,5 @@
 "use client";
+import { AgileWorkspaceNav } from "@/components/scrum/agile-workspace-nav";
 import {ScrumKairosActions} from "@/components/scrum/scrum-kairos-actions";
 import {MarkdownContent} from "@/components/ui/markdown-content";
 import {useEffect,useRef,useState} from "react";
@@ -131,6 +132,7 @@ export default function ScrumKanbanPage(){
  }
  const counts={total:stories.length,done:stories.filter(s=>s.workflow_stage==="closed").length,blocked:stories.filter(s=>s.blocked).length,overdue:stories.filter(s=>s.workflow_stage!=="closed"&&s.due_date&&s.due_date<today()).length};
  return <section className="space-y-3">
+      <AgileWorkspaceNav context={data.projects.find(p=>p.id===data.projectId)?.name}/>
   <PageIntro eyebrow="Scrum e Sprints" title="Kanban Scrum" description="Acompanhe User Stories e Tasks em quadros separados. REVIEW exige justificativa e o avanço de Tasks atualiza a US." aside={<div className="flex gap-2"><button className={mode==="stories"?"workspace-button-primary rounded-lg px-3 py-2 text-sm":"workspace-button-secondary rounded-lg px-3 py-2 text-sm"} onClick={()=>setMode("stories")}>User Stories</button><button className={mode==="tasks"?"workspace-button-primary rounded-lg px-3 py-2 text-sm":"workspace-button-secondary rounded-lg px-3 py-2 text-sm"} onClick={()=>setMode("tasks")}>Tasks</button></div>}/>
   <SurfaceCard>
    <ScrumSelectors projects={data.projects} projectId={data.projectId} onProject={data.setProjectId} sprints={data.sprints} sprintId={data.sprintId} onSprint={data.setSprintId}/>
