@@ -17,6 +17,9 @@ type ClientItem = {
 export default function ClientsPage() {
   const { readOnly, checking } = useCentralPilotReadOnly();
   const [clients, setClients] = useState<ClientItem[]>([]);
+  const [search,setSearch]=useState("");
+  const [statusFilter,setStatusFilter]=useState<"todos"|"ativo"|"inativo">("todos");
+  const [drawerOpen,setDrawerOpen]=useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
@@ -74,6 +77,7 @@ export default function ClientsPage() {
         status: "ativo",
       });
       setEditingId(null);
+      setDrawerOpen(false);
       setStatusMessage(editingId ? "Cliente atualizado." : "Cliente criado.");
       await loadClients();
     } catch (error) {
@@ -86,6 +90,7 @@ export default function ClientsPage() {
   function handleEdit(client: ClientItem) {
     if (readOnly || checking) return;
     setEditingId(client.id);
+    setDrawerOpen(true);
     setStatusMessage(null);
     setForm({
       name: client.name,
@@ -121,6 +126,14 @@ export default function ClientsPage() {
     }
   }
 
+  const filteredClients=clients.filter(client=>(statusFilter==="todos"||client.status===statusFilter)&&
+    [client.name,client.contact,client.description].join(" ").toLowerCase().includes(search.trim().toLowerCase()));
+  function openCreate(){
+    setEditingId(null);
+    setForm({name:"",description:"",contact:"",status:"ativo"});
+    setStatusMessage(null);
+    setDrawerOpen(true);
+  }
   return (
     <section className="space-y-3">
       <PageIntro
@@ -137,8 +150,25 @@ export default function ClientsPage() {
         }
       />
 
+      <div className="workspace-card flex flex-wrap items-center gap-3 p-4">
+        <label className="flex-1 text-sm">Buscar cliente
+          <input className="workspace-input mt-1 w-full" value={search} onChange={e=>setSearch(e.target.value)}
+            placeholder="Nome, contato ou descrição"/>
+        </label>
+        <label className="text-sm">Situação
+          <select className="workspace-select mt-1 w-full" value={statusFilter}
+            onChange={e=>setStatusFilter(e.target.value as "todos"|"ativo"|"inativo")}>
+            <option value="todos">Todos</option><option value="ativo">Ativos</option><option value="inativo">Inativos</option>
+          </select>
+        </label>
+        {!readOnly&&!checking?<button type="button" className="workspace-button-primary mt-5" onClick={openCreate}>Adicionar cliente</button>:null}
+      </div>
       {!checking && readOnly ? <p className="rounded-lg border border-(--border) p-3 text-sm" role="status">Acesso somente leitura: cadastro e manutenção de clientes indisponíveis para este perfil.</p> : null}
-      {!readOnly && !checking ? <SurfaceCard>
+      {!readOnly && !checking && drawerOpen ? <div className="fixed inset-0 z-50">
+        <button type="button" aria-label="Fechar editor de cliente" className="absolute inset-0 bg-black/35" onClick={()=>setDrawerOpen(false)}/>
+        <aside className="relative ml-auto h-dvh w-full max-w-xl overflow-y-auto bg-(--bg-surface) p-5 shadow-2xl" role="dialog" aria-modal="true" aria-label={editingId?"Editar cliente":"Criar cliente"}>
+        <div className="mb-4 flex items-center justify-between"><h2 className="text-lg font-semibold">{editingId?"Editar cliente":"Adicionar cliente"}</h2><button className="workspace-button-secondary" onClick={()=>setDrawerOpen(false)}>Fechar</button></div>
+        <SurfaceCard>
         <SectionLabel>
           {editingId ? "Editar cliente" : "Novo cliente"}
         </SectionLabel>
@@ -194,19 +224,22 @@ export default function ClientsPage() {
           ) : null}
         </div>
         {statusMessage ? <p className="mt-2 text-xs text-(--text-primary)">{statusMessage}</p> : null}
-      </SurfaceCard> : null}
+        </SurfaceCard>
+        </aside>
+      </div> : null}
       {readOnly && statusMessage ? <p role="alert" className="text-sm">{statusMessage}</p> : null}
 
+      {statusMessage&&!drawerOpen?<p role="status" className="workspace-card p-3 text-sm">{statusMessage}</p>:null}
       <SurfaceCard>
-        <SectionLabel>Lista operacional</SectionLabel>
+        <SectionLabel>Carteira de clientes</SectionLabel>
         <h3 className="mt-2 text-base font-semibold text-(--text-primary)">Clientes registrados</h3>
         {loading ? (
           <p className="mt-2 text-sm text-(--text-secondary)">Carregando...</p>
-        ) : clients.length === 0 ? (
-          <p className="workspace-empty-state mt-3 text-sm">Nenhum cliente cadastrado.</p>
+        ) : filteredClients.length === 0 ? (
+          <p className="workspace-empty-state mt-3 text-sm">Nenhum cliente encontrado para os filtros selecionados.</p>
         ) : (
           <div className="mt-3 space-y-2">
-            {clients.map((client) => (
+            {filteredClients.map((client) => (
               <div
                 key={client.id}
                 className="workspace-card-muted flex flex-wrap items-start justify-between gap-3 p-3"
