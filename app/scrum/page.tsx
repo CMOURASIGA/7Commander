@@ -1,4 +1,5 @@
 "use client";
+import { AgileWorkspaceNav } from "@/components/scrum/agile-workspace-nav";
 import {ScrumKairosActions} from "@/components/scrum/scrum-kairos-actions";
 import Link from "next/link";
 import {useState} from "react";
@@ -30,6 +31,7 @@ export default function ScrumPage(){
  if(value==="closed"&&!await confirm({title:"Encerrar Sprint?",description:"A Sprint será encerrada definitivamente. Todas as US vinculadas ficarão protegidas contra alterações e exclusões.",confirmLabel:"Encerrar Sprint",tone:"danger"}))return;
  setSaving(true);try{await apiPost("/api/scrum",{action:"update_sprint",projectId:data.projectId,sprintId:selected.id,status:value});await data.refresh()}catch(e){data.setError(e instanceof Error?e.message:"Falha ao mudar Sprint")}finally{setSaving(false)}}
  return <section className="space-y-4">
+      <AgileWorkspaceNav context={data.projects.find(p=>p.id===data.projectId)?.name}/>
    <PageIntro eyebrow="Gestão de projetos" title="Scrum e Sprints" description="Painel gerencial de Sprints, histórias e impedimentos. As User Stories são independentes do Kanban de atividades." aside={<button className="workspace-button-primary rounded-lg px-4 py-2 text-sm" onClick={()=>setDrawer(true)}>+ Criar Sprint</button>}/>
    <SurfaceCard><ScrumSelectors projects={data.projects} projectId={data.projectId} onProject={data.setProjectId} sprints={data.sprints} sprintId={data.sprintId} onSprint={data.setSprintId}/>{data.error&&<p role="alert" className="mt-3 text-sm text-(--danger)">{data.error}</p>}</SurfaceCard>
    {selected?<SurfaceCard>
