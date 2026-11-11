@@ -33,6 +33,33 @@ export async function middleware(request:NextRequest) {
       code:'COMMANDER_LOCAL_READ_ONLY',
     },{status:403,headers:{'Cache-Control':'no-store'}});
   }
+  // Local development uses the Commander's existing internal Auth identity.
+  // Never bypass this gate for API routes: their auth + RLS checks remain mandatory.
+  if (localWriteGuardEnabled() && request.nextUrl.hostname==="localhost") {
+    if (publicPage(request.nextUrl.pathname) || request.nextUrl.pathname.startsWith("/api/"))
+      return NextResponse.next();
+    const token=request.cookies.get(LOCAL_ACCESS_COOKIE)?.value??"";
+    const url=process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const key=process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+    if(!token||!url||!key)return redirect(request,"/login");
+    const auth=createClient(url,key,{auth:{persistSession:false,autoRefreshToken:false,detectSessionInUrl:false}});
+    const session=await auth.auth.getUser(token);
+    const userId=session.data.user?.id;
+    if(session.error||!userId)return redirect(request,"/login");
+    const db=createClient(url,key,{
+      auth:{persistSession:false,autoRefreshToken:false,detectSessionInUrl:false},
+      global:{headers:{Authorization:"Bearer "+token},fetch:readOnlySupabaseFetch(fetch)},
+    });
+    const [internal,member]=await Promise.all([
+      db.from("internal_user_access").select("active")
+        .eq("user_id",userId).eq("active",true).maybeSingle(),
+      db.from("organization_members").select("organization_id")
+        .eq("user_id",userId).eq("status","active").limit(1),
+    ]);
+    if(internal.error||!internal.data||member.error||!member.data?.length)
+      return redirect(request,"/central-access?reason=denied");
+    return secureNext();
+  }
   if(process.env.COMMANDER_CENTRAL_AUTH_ENABLED!=='true'||
      process.env.SERVICE_7SERVICE_ENFORCE_USER_ACCESS!=='true'||
      publicPage(request.nextUrl.pathname)) return NextResponse.next();
