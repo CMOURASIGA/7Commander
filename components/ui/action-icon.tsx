@@ -1,6 +1,6 @@
 import type {SVGProps} from "react";
 
-export type ActionIconName="plus"|"trash"|"arrow-left"|"pencil"|"x"|"refresh"|"external-link"|"eye"|"star"|"circle-minus"|"check"|"download"|"copy";
+export type ActionIconName="plus"|"trash"|"arrow-left"|"pencil"|"x"|"refresh"|"external-link"|"eye"|"star"|"circle-minus"|"check"|"download"|"copy"|"message-square"|"archive"|"history"|"user-minus"|"thumbs-up"|"thumbs-down"|"pin"|"slash"|"check-circle";
 export function ActionIcon({name,...props}:SVGProps<SVGSVGElement>&{name:ActionIconName}){
  const path:Record<ActionIconName,string>={
   plus:"M12 5v14M5 12h14",
@@ -15,7 +15,16 @@ export function ActionIcon({name,...props}:SVGProps<SVGSVGElement>&{name:ActionI
   "circle-minus":"M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20ZM8 12h8",
   check:"m5 12 4 4L19 6",
   download:"M12 3v12m-4-4 4 4 4-4M5 17v4h14v-4",
-  copy:"M8 8h12v12H8zM16 8V4H4v12h4"
+  copy:"M8 8h12v12H8zM16 8V4H4v12h4",
+  "message-square":"M4 4h16v13H8l-4 4V4Z",
+  archive:"M3 4h18v5H3zM5 9v11h14V9M10 13h4",
+  history:"M3 12a9 9 0 1 0 3-6M3 3v5h5M12 7v5l3 2",
+  "user-minus":"M9 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8ZM2 21v-3a7 7 0 0 1 14 0v3M17 12h5",
+  "thumbs-up":"M7 10v11H4V10h3ZM7 10l4-7h2v6h6a2 2 0 0 1 2 2l-1 8a2 2 0 0 1-2 2H7",
+  "thumbs-down":"M7 14V3H4v11h3ZM7 14l4 7h2v-6h6a2 2 0 0 0 2-2l-1-8a2 2 0 0 0-2-2H7",
+  pin:"m15 3 6 6-4 1-3 6-4-4-6 4 4-6 1-4 6-3ZM12 15l-7 7",
+  slash:"M4 4l16 16M12 22a10 10 0 0 0 8-16M12 2a10 10 0 0 0-8 16",
+  "check-circle":"M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20Zm-4-10 3 3 5-6"
  };
  return <svg {...props} xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"
   width={props.width??20} height={props.height??20} fill="none"
