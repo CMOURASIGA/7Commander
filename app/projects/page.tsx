@@ -423,6 +423,9 @@ export default function ProjectsPage() {
     const routines: Partial<Record<ProjectTab, RoutineKey>> = {risks:"risks",decisions:"decisions",documents:"knowledge",members:"members"};
     setOpenRoutine(routines[activeTab] ?? null);
     setProjectStatus(null);
+    // Local project selection is UI-only. Persisting the active project would
+    // mutate the shared production Supabase and is deliberately not permitted.
+    if (localReadOnly) return;
     try {
       const response = await measuredFetch("/api/projects/active", {
         method: "PATCH",
@@ -601,7 +604,7 @@ export default function ProjectsPage() {
   }
 
   async function handleSaveProjectDetails() {
-    if (!activeProjectId || savingProject) return;
+    if (documentWriteBlocked || !activeProjectId || savingProject) return;
     setSavingProject(true);
     setProjectStatus(null);
     try {
@@ -639,7 +642,7 @@ export default function ProjectsPage() {
     if (documentWriteBlocked || !activeProjectId || deletingKnowledgeId) return;
     const confirmed = await confirm({
       title: `Excluir "${item.title}"?`,
-      description: "Depois você poderá enviar o arquivo original novamente.",
+      description: "O conhecimento extraído será removido; o fluxo atual não mantém cópia do arquivo original para download.",
       confirmLabel: "Excluir",
       tone: "danger",
     });
