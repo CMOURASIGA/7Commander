@@ -51,7 +51,7 @@ export async function middleware(request:NextRequest) {
       global:{headers:{Authorization:"Bearer "+token},fetch:readOnlySupabaseFetch(fetch)},
     });
     const [internal,member]=await Promise.all([
-      db.from("internal_user_access").select("active")
+      db.from("platform_admins").select("active")
         .eq("user_id",userId).eq("active",true).maybeSingle(),
       db.from("organization_members").select("organization_id")
         .eq("user_id",userId).eq("status","active").limit(1),
