@@ -4,6 +4,8 @@ import { useEffect, useState } from "react";
 import { getClientAuthHeaders } from "@/lib/client-auth";
 import { useCentralPilotReadOnly } from "@/lib/use-central-pilot-read-only";
 import { PageIntro, SectionLabel, StatusPill, SurfaceCard } from "@/components/ui/workspace-primitives";
+import {ActionIcon} from "@/components/ui/action-icon";
+import {useConfirm} from "@/components/ui/confirm-dialog";
 
 type ClientItem = {
   id: string;
@@ -16,6 +18,7 @@ type ClientItem = {
 
 export default function ClientsPage() {
   const { readOnly, checking } = useCentralPilotReadOnly();
+  const confirm=useConfirm();
   const [clients, setClients] = useState<ClientItem[]>([]);
   const [search,setSearch]=useState("");
   const [statusFilter,setStatusFilter]=useState<"todos"|"ativo"|"inativo">("todos");
@@ -102,6 +105,8 @@ export default function ClientsPage() {
 
   async function handleDelete(clientId: string) {
     if (readOnly || checking) return;
+    const client=clients.find(item=>item.id===clientId);
+    if(!client || !await confirm({title:`Excluir cliente "${client.name}"?`,description:"Esta ação remove o cadastro e pode ser bloqueada caso existam vínculos. Confirme apenas se realmente deseja excluí-lo.",confirmLabel:"Excluir cliente",tone:"danger"}))return;
     setStatusMessage(null);
     try {
       const response = await fetch(`/api/clients/${clientId}`, {
@@ -243,30 +248,24 @@ export default function ClientsPage() {
             {filteredClients.map((client) => (
               <div
                 key={client.id}
-                className="workspace-card-muted flex flex-wrap items-start justify-between gap-3 p-3"
+                className="workspace-card-muted grid grid-cols-[minmax(0,1fr)_auto] items-start gap-3 p-3"
               >
-                <div>
+                <div className="min-w-0">
                   <p className="text-sm font-semibold text-(--text-primary)">{client.name}</p>
                   <p className="text-xs text-(--text-secondary)">Contato: {client.contact || "Nao informado"}</p>
                   <p className="text-xs text-(--text-secondary)">Status: {client.status}</p>
-                  <p className="mt-1 text-xs text-(--text-secondary)">
-                    {client.description || "Sem descricao."}
+                  <p className="mt-1 line-clamp-3 text-xs text-(--text-secondary)" title={client.description||undefined}>
+                    {client.description || "Sem descrição."}
                   </p>
                 </div>
-                {!readOnly && !checking ? <div className="flex gap-2">
-                  <button
-                    type="button"
-                    onClick={() => handleEdit(client)}
-                    className="workspace-button-secondary px-3 py-2 text-[13px]"
-                  >
-                    Editar
+                {!readOnly && !checking ? <div className="flex shrink-0 items-center gap-2">
+                  <button type="button" onClick={() => handleEdit(client)} aria-label={"Editar "+client.name}
+                    title="Editar cliente" className="workspace-button-secondary inline-flex h-9 w-9 items-center justify-center p-2">
+                    <ActionIcon name="pencil"/>
                   </button>
-                  <button
-                    type="button"
-                    onClick={() => void handleDelete(client.id)}
-                    className="workspace-button-secondary px-3 py-2 text-[13px]"
-                  >
-                    Remover
+                  <button type="button" onClick={() => void handleDelete(client.id)} aria-label={"Excluir "+client.name}
+                    title="Excluir cliente" className="workspace-button-danger inline-flex h-9 w-9 items-center justify-center p-2">
+                    <ActionIcon name="trash"/>
                   </button>
                 </div> : null}
               </div>
