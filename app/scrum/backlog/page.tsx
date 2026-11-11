@@ -1,4 +1,5 @@
 "use client";
+import { AgileWorkspaceNav } from "@/components/scrum/agile-workspace-nav";
 import {ScrumKairosActions} from "@/components/scrum/scrum-kairos-actions";
 import {MarkdownContent} from "@/components/ui/markdown-content";
 import {useCallback,useEffect,useMemo,useRef,useState} from "react";
@@ -128,6 +129,7 @@ export default function BacklogPage(){
  const memberName=(email:string|null|undefined)=>!email?"Não atribuído":members.find(m=>m.email.toLowerCase()===email.toLowerCase())?.name||"Nome não cadastrado";
  const allComments=opened?.story?data.comments.filter(c=>c.story_id===opened.id):[];
  return <section className="space-y-3">
+      <AgileWorkspaceNav context={data.projects.find(p=>p.id===data.projectId)?.name}/>
   <PageIntro eyebrow="Scrum e Sprints" title="Backlog do projeto" description="Hierarquia Epic → Feature → User Story → Task. Gerencie e priorize os itens independentemente de Sprint." aside={<div className="flex flex-wrap gap-2">{(["epic","feature","story","task"] as const).map(t=><button key={t} className="workspace-button-secondary rounded-lg px-3 py-2 text-xs" onClick={()=>open(null,t)}>+ {types[t]}</button>)}</div>}/>
   <SurfaceCard>
    <label className="block text-xs font-medium">Projeto<select className="workspace-select mt-1 w-full" value={data.projectId} onChange={e=>data.setProjectId(e.target.value)}><option value="">Selecione</option>{data.projects.map(p=><option value={p.id} key={p.id}>{p.name}</option>)}</select></label>
