@@ -440,7 +440,7 @@ export default function ProjectsPage() {
   }
 
   async function handleInviteMember() {
-    if (!activeProjectId || !inviteEmail.trim() || inviting) return;
+    if (documentWriteBlocked || !activeProjectId || !inviteEmail.trim() || inviting) return;
     setInviting(true);
     setInviteStatus(null);
     try {
@@ -466,7 +466,7 @@ export default function ProjectsPage() {
   }
 
   async function handleRevokeMember(memberId: string) {
-    if (!activeProjectId || !memberId || removingMemberId) return;
+    if (documentWriteBlocked || !activeProjectId || !memberId || removingMemberId) return;
     setRemovingMemberId(memberId);
     setInviteStatus(null);
     try {
@@ -882,7 +882,7 @@ export default function ProjectsPage() {
                     <select
                       value={risk.status}
                       onChange={(event) => void handleRiskStatusChange(risk.id, event.target.value as RiskItem["status"])}
-                      disabled={updatingRiskId === risk.id}
+                      disabled={documentWriteBlocked || updatingRiskId === risk.id}
                       className="rounded-md border border-(--border) bg-white px-2 py-1 text-[13px] text-(--text-primary)"
                     >
                       <option value="aberto">aberto</option>
@@ -1184,7 +1184,7 @@ export default function ProjectsPage() {
                 <button
                   type="button"
                   onClick={() => void handleInviteMember()}
-                  disabled={inviting}
+                  disabled={documentWriteBlocked || inviting}
                   className="rounded-lg bg-(--accent) px-3 py-2 text-xs font-medium text-white disabled:opacity-50"
                 >
                   {inviting ? "Enviando..." : "Convidar"}
@@ -1216,7 +1216,7 @@ export default function ProjectsPage() {
                       <button
                         type="button"
                         onClick={() => void handleRevokeMember(member.id)}
-                        disabled={removingMemberId === member.id}
+                        disabled={documentWriteBlocked || removingMemberId === member.id}
                         className="rounded-md border border-(--border) bg-(--bg-muted) px-2 py-1 text-[13px] text-(--text-primary)"
                       >
                         {removingMemberId === member.id ? "Revogando..." : "Revogar"}
