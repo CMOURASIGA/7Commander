@@ -897,27 +897,30 @@ export default function ProjectsPage() {
             ) : (
               risks.map((risk) => (
                 <article key={risk.id} className="rounded-lg border border-(--border) bg-white p-3">
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <p className="text-xs font-semibold text-(--text-primary)">{risk.title}</p>
-                     {(!readOnly || localReadOnly)&&<IconActionButton icon="pencil" tone="edit" label={"Editar risco "+risk.title} disabled={documentWriteBlocked} onClick={()=>{setEditingRiskId(risk.id);setRiskForm({title:risk.title,impact:risk.impact,probability:risk.probability,mitigation:risk.mitigation,owner:risk.owner,status:risk.status,decisionId:risk.decisionId||"",taskId:risk.taskId||""});setRiskDrawerOpen(true);}}/>}
-                    <select
-                      value={risk.status}
-                      onChange={(event) => void handleRiskStatusChange(risk.id, event.target.value as RiskItem["status"])}
-                      disabled={documentWriteBlocked || updatingRiskId === risk.id}
-                      className="rounded-md border border-(--border) bg-white px-2 py-1 text-[13px] text-(--text-primary)"
-                    >
-                      <option value="aberto">aberto</option>
-                      <option value="em_mitigacao">em_mitigacao</option>
-                      <option value="mitigado">mitigado</option>
-                      <option value="encerrado">encerrado</option>
-                    </select>
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <p className="min-w-0 flex-1 text-sm font-semibold text-(--text-primary)">{risk.title}</p>
+                    <div className="cs-record-actions" role="group" aria-label={"Ações do risco "+risk.title}>
+                      {(!readOnly || localReadOnly)&&<IconActionButton icon="pencil" tone="edit" label={"Editar risco "+risk.title} disabled={documentWriteBlocked} onClick={()=>{setEditingRiskId(risk.id);setRiskForm({title:risk.title,impact:risk.impact,probability:risk.probability,mitigation:risk.mitigation,owner:risk.owner,status:risk.status,decisionId:risk.decisionId||"",taskId:risk.taskId||""});setRiskDrawerOpen(true);}}/>}
+                      <label className="sr-only" htmlFor={"risk-status-"+risk.id}>Status do risco {risk.title}</label>
+                      <select id={"risk-status-"+risk.id} aria-label={"Alterar status do risco "+risk.title}
+                        value={risk.status}
+                        onChange={(event) => void handleRiskStatusChange(risk.id, event.target.value as RiskItem["status"])}
+                        disabled={documentWriteBlocked || updatingRiskId === risk.id}
+                        className="workspace-select cs-record-status"
+                      >
+                        <option value="aberto">Aberto</option>
+                        <option value="em_mitigacao">Em mitigação</option>
+                        <option value="mitigado">Mitigado</option>
+                        <option value="encerrado">Encerrado</option>
+                      </select>
+                    </div>
                   </div>
                   <p className="mt-1 text-[13px] text-(--text-secondary)">
                     Impacto: {risk.impact || "Nao informado"} | Probabilidade: {risk.probability || "Nao informada"}
                   </p>
                   <p className="mt-1 text-[13px] text-(--text-secondary)">Responsável: {risk.owner || "Não definido"}</p>
                   <details className="mt-2"><summary className="cursor-pointer text-xs font-medium text-(--accent)">Ver mitigação</summary><MarkdownContent className="mt-2" content={risk.mitigation||"Não definida"}/></details>
-                  <p className="mt-1 text-xs text-(--text-secondary)">Vínculos: {risk.decisionId?"decisão":""}{risk.decisionId&&risk.taskId?" e ":""}{risk.taskId?"atividade":""}{!risk.decisionId&&!risk.taskId?"nenhum":""}</p>
+                  {(risk.decisionId||risk.taskId)&&<p className="mt-1 text-xs text-(--text-secondary)">Vínculos: {risk.decisionId?"decisão":""}{risk.decisionId&&risk.taskId?" e ":""}{risk.taskId?"atividade":""}</p>}
                 </article>
               ))
             )}
@@ -1264,23 +1267,21 @@ export default function ProjectsPage() {
         <div className="space-y-3">
           {decisions.map((decision) => (
             <article key={decision.id} className="rounded-xl border border-(--border) bg-(--bg-surface) p-4">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <p className="text-base font-semibold text-(--text-primary)">{decision.title}</p>
-                 {(!readOnly || localReadOnly)&&<IconActionButton icon="pencil" tone="edit" label={"Editar decisão "+decision.title} disabled={documentWriteBlocked} onClick={()=>{setEditingDecisionId(decision.id);setDecisionForm({title:decision.title,context:decision.context,reason:decision.reason,impact:decision.impact,status:decision.status});setDecisionDrawerOpen(true);}}/>}
-                <select
-                  value={decision.status}
-                  onChange={(event) =>
-                    void handleStatusChange(decision.id, event.target.value as DecisionStatus)
-                  }
-                  disabled={documentWriteBlocked || updatingId === decision.id}
-                  className="rounded-md border border-(--border) bg-white px-2 py-1 text-xs text-(--text-primary)"
-                >
-                  {STATUS_OPTIONS.map((status) => (
-                    <option key={status} value={status}>
-                      {STATUS_LABELS[status]}
-                    </option>
-                  ))}
-                </select>
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <p className="min-w-0 flex-1 text-base font-semibold text-(--text-primary)">{decision.title}</p>
+                <div className="cs-record-actions" role="group" aria-label={"Ações da decisão "+decision.title}>
+                  {(!readOnly || localReadOnly)&&<IconActionButton icon="pencil" tone="edit" label={"Editar decisão "+decision.title} disabled={documentWriteBlocked} onClick={()=>{setEditingDecisionId(decision.id);setDecisionForm({title:decision.title,context:decision.context,reason:decision.reason,impact:decision.impact,status:decision.status});setDecisionDrawerOpen(true);}}/>}
+                  <select aria-label={"Alterar status da decisão "+decision.title}
+                    value={decision.status}
+                    onChange={(event) => void handleStatusChange(decision.id, event.target.value as DecisionStatus)}
+                    disabled={documentWriteBlocked || updatingId === decision.id}
+                    className="workspace-select cs-record-status"
+                  >
+                    {STATUS_OPTIONS.map((status) => (
+                      <option key={status} value={status}>{STATUS_LABELS[status]}</option>
+                    ))}
+                  </select>
+                </div>
               </div>
               <p className="mt-2 text-sm leading-6 text-(--text-secondary)">
                 {normalizeDecisionText(decision.reason || decision.context || "Sem justificativa registrada.").display.replace(/[#*`]/g,"").replace(/\s+/g," ").slice(0,220)}
