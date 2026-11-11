@@ -171,54 +171,28 @@ function extractQuotedValue(message: string): string | null {
   return quote?.[1]?.trim() || null;
 }
 
-function detectCreateTaskIntent(message: string): { title: string; columnKey: "todo" | "doing" | "done" } | null {
-  const normalized = normalizeLoose(message);
-  if (!/(criar|cria|adicione|adicionar|adiciona).*(tarefa|card|atividade)/.test(normalized)) return null;
 
-  const quoted = extractQuotedValue(message);
-  if (quoted) {
-    return {
-      title: quoted,
-      columnKey: detectColumnFromMessage(message),
-    };
-  }
-
-  const tail = message.match(/(?:tarefa|card|atividade)\s*[:\-]?\s*(.+)$/i)?.[1]?.trim() ?? "";
-  if (!tail) return null;
-  const sanitized = tail
-    .replace(/\s+(em|para)\s+(to do|doing|done|em andamento|concluida|concluído|todo)\s*$/i, "")
-    .trim();
-  if (!sanitized) return null;
-
-  return {
-    title: sanitized.slice(0, 180),
-    columnKey: detectColumnFromMessage(message),
-  };
+/** Mutations only run for explicit short, one-line imperative commands. */
+export function detectCreateTaskIntent(message:string):{title:string;columnKey:"todo"|"doing"|"done"}|null{
+ const input=message.trim();if(input.length>350||/\r|\n/.test(input))return null;
+ const match=input.match(/^(?:kairos[,:\s]+)?(?:crie|criar|cadastre|cadastrar|adicione|adicionar)\s+(?:uma?\s+)?(?:nova?\s+)?(?:tarefa|card|atividade)\s*(?::|-|com\s+(?:o\s+)?t[ií]tulo)?\s+(.+)$/i);
+ if(!match)return null;
+ const value=match[1].trim();
+ const quoted=value.match(/^["'“]([^"'“”]{3,160})["'”](?:\s+(?:em|para)\s+(?:to do|doing|done|em andamento))?\.?$/i);
+ const title=(quoted?.[1]||"").trim();
+ if(!title)return null;
+ return {title,columnKey:detectColumnFromMessage(input)};
 }
-
-function detectMoveTaskIntent(message: string): { title: string; columnKey: "todo" | "doing" | "done" } | null {
-  const normalized = normalizeLoose(message);
-  if (!/(mover|move|movimenta|coloca|joga).*(tarefa|card|atividade)/.test(normalized)) return null;
-
-  const quoted = extractQuotedValue(message);
-  const columnKey = detectColumnFromMessage(message);
-  if (quoted) {
-    return { title: quoted, columnKey };
-  }
-
-  const between = message.match(/(?:tarefa|card|atividade)\s*[:\-]?\s*(.+?)\s+(?:para|em)\s+(?:to do|doing|done|em andamento|concluida|concluído|todo)/i)?.[1]?.trim();
-  if (!between) return null;
-  return { title: between.slice(0, 180), columnKey };
+export function detectMoveTaskIntent(message:string):{title:string;columnKey:"todo"|"doing"|"done"}|null{
+ const input=message.trim();if(input.length>300||/\r|\n/.test(input))return null;
+ const match=input.match(/^(?:kairos[,:\s]+)?(?:mova|mover|movimente|movimentar)\s+(?:a\s+)?(?:tarefa|card|atividade)\s+["'“]([^"'“”]{3,160})["'”]\s+(?:para|em)\s+(to do|doing|done|em andamento)\.?$/i);
+ if(!match)return null;
+ return {title:match[1].trim(),columnKey:detectColumnFromMessage(match[2])};
 }
-
-function detectConfirmRiskIntent(message: string): { title: string } | null {
-  const normalized = normalizeLoose(message);
-  if (!/(confirmar|confirmo|registrar|criar).*(risco)/.test(normalized)) return null;
-  const quoted = extractQuotedValue(message);
-  if (quoted) return { title: quoted.slice(0, 180) };
-  const tail = message.match(/(?:risco)\s*[:\-]?\s*(.+)$/i)?.[1]?.trim() ?? "";
-  if (!tail) return null;
-  return { title: tail.slice(0, 180) };
+export function detectConfirmRiskIntent(message:string):{title:string}|null{
+ const input=message.trim();if(input.length>300||/\r|\n/.test(input))return null;
+ const match=input.match(/^(?:kairos[,:\s]+)?(?:registre|registrar|crie|criar|cadastre|cadastrar)\s+(?:o\s+)?risco\s+["'“]([^"'“”]{3,160})["'”]\.?$/i);
+ return match?.[1]?.trim()?{title:match[1].trim()}:null;
 }
 
 async function maybeHandleTaskCommand(params: {
@@ -235,7 +209,7 @@ async function maybeHandleTaskCommand(params: {
     };
   }
 
-  if(hasExplicitBatchCreationRequest(params.message)){
+  if(/^(?:kairos[,\s:]+)?(?:crie|criar|cadastre|cadastrar|registre|registrar|adicione|adicionar)\b/i.test(params.message.trim()) && hasExplicitBatchCreationRequest(params.message)){
     const answer=await createKanbanActivityBatch({userId:params.userId,userEmail:params.userEmail,
       projectId:params.projectId,projectName:params.projectName||"projeto ativo",message:params.message});
     return {handled:true,answer};
