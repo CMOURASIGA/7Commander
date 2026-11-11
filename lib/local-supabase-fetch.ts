@@ -1,20 +1,16 @@
 /**
- * Defense in depth for Supabase calls made by the application in local
- * read-only mode. Does not replace database RLS / a read-only DB role.
- * Supabase Auth must remain available so existing users can sign in.
+ * Application-level guard for writes through configured Supabase clients.
+ * Not a database permission boundary. Never expose service_role to browsers.
  */
-export function isSupabaseDataMutation(
-  input: string | URL | Request,
-  init?: RequestInit,
-): boolean {
-  const url = new URL(typeof input === "string" ? input : input instanceof URL ? input.href : input.url);
+export function isSupabaseDataMutation(input: string | URL | Request, init?: RequestInit): boolean {
+  const raw = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+  const url = new URL(raw);
   const method = (init?.method ?? (input instanceof Request ? input.method : "GET")).toUpperCase();
   if (!["https:", "http:"].includes(url.protocol)) return true;
-  const dataEndpoint = ["/rest/v1/", "/storage/v1/", "/functions/v1/"].some(
-    (prefix) => url.pathname.startsWith(prefix),
-  );
-  // PostgREST RPC uses POST even when conceptually reading. Deny it by default:
-  // we cannot prove a SQL function is side-effect free.
+  // Authentication needs POST for login / refreshing an existing user session.
+  if (url.pathname.startsWith("/auth/v1/")) return false;
+  // SQL RPCs must be denied regardless of HTTP verb, since functions may write.
+  if (url.pathname.startsWith("/rest/v1/rpc/")) return true;
   return !["GET", "HEAD", "OPTIONS"].includes(method);
 }
 
