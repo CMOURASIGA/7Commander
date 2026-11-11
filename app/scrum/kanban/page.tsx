@@ -1,3 +1,4 @@
+import {IconActionButton} from "@/components/ui/icon-action-button";
 "use client";
 import { AgileWorkspaceNav } from "@/components/scrum/agile-workspace-nav";
 import {ScrumKairosActions} from "@/components/scrum/scrum-kairos-actions";
@@ -173,9 +174,9 @@ export default function ScrumKanbanPage(){
         <p className="mt-1 text-[10px] text-(--text-secondary)">{dateBR(s.due_date)} · {s.story_points??"–"} pt</p>
         {s.blocked&&<span className="text-[10px] font-semibold text-(--danger)">Bloqueada</span>}
         <div className="mt-2 flex items-center gap-1">
-         <button type="button" className="rounded-md border border-(--border) p-1.5" title="Visualizar US e comentários" aria-label={"Visualizar "+s.title} onClick={()=>view(s)}><ScrumIcon kind="eye" size={14}/></button>
-         <button type="button" className="rounded-md border border-(--border) p-1.5" title="Editar US" aria-label={"Editar "+s.title} disabled={closed} onClick={()=>view(s,true)}><ScrumIcon kind="pencil" size={14}/></button>
-         <button type="button" className="rounded-md border border-(--border) p-1.5" title="Comentários" aria-label={"Comentar "+s.title} onClick={()=>view(s)}><ScrumIcon kind="message" size={14}/></button>
+         <IconActionButton icon="eye" label={"Visualizar "+s.title} tone="neutral" onClick={()=>view(s)}/>
+         <IconActionButton icon="pencil" label={"Editar "+s.title} tone="edit" disabled={closed} onClick={()=>view(s,true)}/>
+         <IconActionButton icon="message-square" label={"Comentar "+s.title} tone="neutral" onClick={()=>view(s)}/>
         </div>
         {!closed&&transitions[key]?.length>0&&<select aria-label={"Alterar status de "+s.title} className="workspace-select mt-2 w-full text-[11px]" disabled={Boolean(saving)||pendingCards.includes(s.id)} value={key} onChange={e=>{const stage=e.target.value;setTransition({story:s,stage})}}>
          <option value={key}>Mover para…</option>{transitions[key].map(next=><option value={next} key={next}>{stages.find(x=>x[0]===next)?.[1]||next}</option>)}
