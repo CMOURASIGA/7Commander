@@ -1,4 +1,5 @@
 "use client";
+import {IconActionButton} from "@/components/ui/icon-action-button";
 
 import { useEffect, useState } from "react";
 import { MemoryPriority, MemoryRecord } from "@/types/memory";
@@ -247,46 +248,11 @@ export default function MemoryPage() {
               <p className="mt-3 text-sm leading-6 text-(--text-primary)">{memory.content}</p>
 
               <div className="mt-4 flex flex-wrap gap-2">
-                <button
-                  type="button"
-                  onClick={() => void patchMemory(memory.id, { priority: "P0", type: "fixed" })}
-                  disabled={updatingId === memory.id}
-                  className="workspace-button-secondary px-3 py-2 text-[13px]"
-                >
-                  Fixar (P0)
-                </button>
-                <button
-                  type="button"
-                  onClick={() => void sendFeedback(memory.id, "useful")}
-                  disabled={updatingId === memory.id}
-                  className="workspace-button-secondary px-3 py-2 text-[13px]"
-                >
-                  Util
-                </button>
-                <button
-                  type="button"
-                  onClick={() => void sendFeedback(memory.id, "not_useful")}
-                  disabled={updatingId === memory.id}
-                  className="workspace-button-secondary px-3 py-2 text-[13px]"
-                >
-                  Nao util
-                </button>
-                <button
-                  type="button"
-                  onClick={() => void patchMemory(memory.id, { priority: "P4", type: "obsolete" })}
-                  disabled={updatingId === memory.id}
-                  className="workspace-button-secondary px-3 py-2 text-[13px]"
-                >
-                  Marcar obsoleta
-                </button>
-                <button
-                  type="button"
-                  onClick={() => void handleEdit(memory)}
-                  disabled={updatingId === memory.id}
-                  className="workspace-button-primary px-3 py-2 text-[13px]"
-                >
-                  Editar
-                </button>
+                <IconActionButton icon="pin" tone="success" label={"Fixar memória "+memory.id} disabled={updatingId === memory.id} onClick={() => void patchMemory(memory.id, { priority: "P0", type: "fixed" })}/>
+                <IconActionButton icon="thumbs-up" tone="success" label={"Marcar útil "+memory.id} disabled={updatingId === memory.id} onClick={() => void sendFeedback(memory.id, "useful")}/>
+                <IconActionButton icon="thumbs-down" tone="neutral" label={"Marcar não útil "+memory.id} disabled={updatingId === memory.id} onClick={() => void sendFeedback(memory.id, "not_useful")}/>
+                <IconActionButton icon="archive" tone="danger" label={"Marcar memória obsoleta "+memory.id} disabled={updatingId === memory.id} onClick={() => void patchMemory(memory.id, { priority: "P4", type: "obsolete" })}/>
+                <IconActionButton icon="pencil" tone="edit" label={"Editar memória "+memory.id} disabled={updatingId === memory.id} onClick={() => void handleEdit(memory)}/>
               </div>
             </SurfaceCard>
           ))}
