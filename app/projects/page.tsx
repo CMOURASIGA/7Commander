@@ -149,6 +149,8 @@ function KnowledgeContent({ content }: { content: string }) {
 
 export default function ProjectsPage() {
   const { readOnly, checking } = useCentralPilotReadOnly();
+  const localReadOnly = process.env.NEXT_PUBLIC_COMMANDER_LOCAL_READ_ONLY === "true";
+  const documentWriteBlocked = readOnly || checking || localReadOnly;
   const confirm = useConfirm();
   const [projects, setProjects] = useState<ProjectSummary[]>([]);
   const [clients, setClients] = useState<ClientSummary[]>([]);
@@ -559,7 +561,7 @@ export default function ProjectsPage() {
   }
 
   async function handleIngestKnowledge() {
-    if (!activeProjectId || !ingestFile || ingesting) return;
+    if (documentWriteBlocked || !activeProjectId || !ingestFile || ingesting) return;
     setIngesting(true);
     setIngestStatus(null);
 
@@ -634,7 +636,7 @@ export default function ProjectsPage() {
   }
 
   async function handleDeleteKnowledge(item: KnowledgeItem) {
-    if (!activeProjectId || deletingKnowledgeId) return;
+    if (documentWriteBlocked || !activeProjectId || deletingKnowledgeId) return;
     const confirmed = await confirm({
       title: `Excluir "${item.title}"?`,
       description: "Depois você poderá enviar o arquivo original novamente.",
@@ -843,44 +845,7 @@ export default function ProjectsPage() {
             <button type="button" onClick={()=>selectTab("project")} className="ml-auto text-(--accent) underline">Editar vínculo e detalhes</button>
           </div>
         ) : null}
-        {!readOnly && <ProjectRoutine
-          title="Ingestao de arquivos"
-          description={readOnly ? "Ingestão indisponível para acesso somente leitura." : "Envie documentos para extrair conhecimento e atualizar o contexto do projeto."}
-          badge={ingestFile ? "arquivo selecionado" : undefined}
-          isOpen={openRoutine === "ingestion"}
-          onToggle={() => setOpenRoutine((current) => current === "ingestion" ? null : "ingestion")}
-        >
-          <SectionLabel>Ingestão de documento/imagem</SectionLabel>
-          <p className="text-xs text-(--text-secondary)">
-            Envie arquivo para o projeto ativo. O 7Commander extrai conteúdo, salva conhecimento e atualiza o contexto do projeto.
-          </p>
-          <label className="workspace-button-secondary inline-flex cursor-pointer text-xs text-(--accent)">
-            Selecionar arquivo do projeto
-            <input
-              type="file"
-              onChange={(event) => setIngestFile(event.target.files?.[0] ?? null)}
-              className="hidden"
-            />
-          </label>
-          <p className="text-xs text-(--text-secondary)">
-            {ingestFile ? `Arquivo selecionado: ${ingestFile.name}` : "Nenhum arquivo selecionado"}
-          </p>
-          <input
-            value={ingestNotes}
-            onChange={(event) => setIngestNotes(event.target.value)}
-            placeholder="Orientacoes opcionais para interpretacao do arquivo"
-            className="workspace-input text-xs"
-          />
-          <button
-            type="button"
-            onClick={() => void handleIngestKnowledge()}
-            disabled={!activeProjectId || !ingestFile || ingesting}
-            className="workspace-button-primary"
-          >
-            {ingesting ? "Processando..." : "Enviar e estruturar projeto"}
-          </button>
-          {ingestStatus ? <p className="text-xs text-(--text-primary)">{ingestStatus}</p> : null}
-        </ProjectRoutine>}
+
 
         </div>
          <div className={activeTab==="risks"?"contents":"hidden"}>
@@ -1026,6 +991,37 @@ export default function ProjectsPage() {
 
         </div>
          <div className={activeTab==="documents"?"contents":"hidden"}>
+         <section className="mb-3 rounded-xl border border-(--border) bg-(--bg-surface) p-4" aria-label="Envio de documentos do projeto">
+           <div className="flex flex-wrap items-center justify-between gap-3">
+             <div>
+               <h2 className="text-sm font-semibold text-(--text-primary)">Documentos do projeto</h2>
+               <p className="mt-1 text-xs text-(--text-secondary)">O fluxo atual importa conteúdo para o Kairos. O arquivo original ainda não fica disponível para download.</p>
+             </div>
+             <button type="button" className="workspace-button-primary disabled:cursor-not-allowed disabled:opacity-50"
+               disabled={documentWriteBlocked || !activeProjectId}
+               title={documentWriteBlocked ? "Upload bloqueado: este ambiente utiliza o Supabase oficial somente para leitura." : !activeProjectId ? "Selecione um projeto" : "Abrir formulário de ingestão"}
+               aria-expanded={openRoutine === "ingestion"}
+               onClick={() => setOpenRoutine(current=>current==="ingestion"?"knowledge":"ingestion")}>
+               Adicionar documento
+             </button>
+           </div>
+           {documentWriteBlocked ? <p role="status" className="mt-3 rounded-lg border border-(--border) bg-(--bg-muted) p-3 text-xs text-(--text-secondary)">
+             Somente leitura: envio, exclusão e análise de novos documentos estão bloqueados para preservar os dados oficiais.
+           </p> : null}
+           {openRoutine === "ingestion" && !documentWriteBlocked ? <div className="mt-4 space-y-3 border-t border-(--border) pt-4">
+             <p className="text-xs text-(--text-secondary)">A ingestão extrai conteúdo e pode atualizar campos do projeto. Não é armazenamento do arquivo original.</p>
+             <label className="workspace-button-secondary inline-flex cursor-pointer text-xs">
+               Selecionar arquivo para análise
+               <input type="file" className="hidden" onChange={event=>setIngestFile(event.target.files?.[0]??null)}/>
+             </label>
+             <p className="text-xs">{ingestFile ? `Selecionado: ${ingestFile.name}` : "Nenhum arquivo selecionado"}</p>
+             <input className="workspace-input text-xs" value={ingestNotes} onChange={event=>setIngestNotes(event.target.value)}
+               placeholder="Orientações opcionais para a extração"/>
+             <button type="button" className="workspace-button-primary disabled:opacity-50" disabled={!ingestFile || ingesting}
+               onClick={()=>void handleIngestKnowledge()}>{ingesting?"Processando...":"Analisar e importar conteúdo"}</button>
+             {ingestStatus ? <p role="status" className="text-xs">{ingestStatus}</p> : null}
+           </div> : null}
+         </section>
          <ProjectRoutine title="Conhecimento do projeto"
           description={readOnly ? "Consulte o conhecimento do projeto sem remover documentos." : "Consulte documentos processados e remova conhecimentos que nao forem mais relevantes."}
           badge={knowledgeItems.length ? `${knowledgeItems.length} documentos` : undefined}
@@ -1047,8 +1043,8 @@ export default function ProjectsPage() {
                 <article key={item.id} className="rounded-lg border border-(--border) bg-white p-3">
                   <div className="flex items-start justify-between gap-3">
                     <p className="text-xs font-semibold text-(--text-primary)">{item.title}</p>
-                    <button type="button" onClick={() => void handleDeleteKnowledge(item)} disabled={deletingKnowledgeId === item.id} className="workspace-button-danger px-3 py-2 text-[13px]">
-                      {deletingKnowledgeId === item.id ? "Excluindo..." : "Excluir documento"}
+                    <button type="button" onClick={() => void handleDeleteKnowledge(item)} disabled={documentWriteBlocked || deletingKnowledgeId === item.id} title={documentWriteBlocked?"Somente leitura":undefined} className="workspace-button-danger px-3 py-2 text-[13px]">
+                      {deletingKnowledgeId === item.id ? "Excluindo..." : "Excluir registro"}
                     </button>
                   </div>
                   <p className="mt-1 text-[13px] text-(--text-secondary)">
