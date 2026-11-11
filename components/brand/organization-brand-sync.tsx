@@ -8,9 +8,9 @@ function publishBrand(brand: ClientBrandSettings) {
   // The API confirms the active tenant. Browser storage only caches styling.
   const serialized=JSON.stringify(brand);
   const previous=window.localStorage.getItem(CLIENT_BRAND_STORAGE_KEY);
+  applyClientBrandSettings(brand);
   if(previous===serialized)return;
   window.localStorage.setItem(CLIENT_BRAND_STORAGE_KEY,serialized);
-  applyClientBrandSettings(brand);
   window.dispatchEvent(new CustomEvent("client-brand-updated", { detail: brand }));
 }
 
