@@ -1,9 +1,9 @@
 import {test,expect} from "@playwright/test";
 import {localWriteGuardEnabled,shouldBlockLocalApiMutation} from "../../lib/local-write-guard";
 
-test("local read only is opt-in and only valid in development",()=>{
+test("local read only remains enabled when next start uses production mode",()=>{
   expect(localWriteGuardEnabled({NODE_ENV:"development",COMMANDER_LOCAL_READ_ONLY:"true"} as NodeJS.ProcessEnv)).toBe(true);
-  expect(localWriteGuardEnabled({NODE_ENV:"production",COMMANDER_LOCAL_READ_ONLY:"true"} as NodeJS.ProcessEnv)).toBe(false);
+  expect(localWriteGuardEnabled({NODE_ENV:"production",COMMANDER_LOCAL_READ_ONLY:"true"} as NodeJS.ProcessEnv)).toBe(true);
   expect(localWriteGuardEnabled({NODE_ENV:"development",COMMANDER_LOCAL_READ_ONLY:"false"} as NodeJS.ProcessEnv)).toBe(false);
 });
 test("all Next.js API mutation methods are blocked",()=>{
