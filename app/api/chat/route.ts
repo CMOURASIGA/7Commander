@@ -99,6 +99,12 @@ export async function POST(request: NextRequest) {
     });
   } catch (error) {
     console.error("[/api/chat] error", error);
+    if(error instanceof Error && error.message.includes("Esta conversa pertence a outro projeto")){
+      return NextResponse.json({error:"Esta conversa pertence a outro projeto. Inicie uma nova conversa para continuar com o projeto escolhido.",code:"CONVERSATION_PROJECT_MISMATCH"},{status:409});
+    }
+    if(error instanceof Error && error.message.includes("Esta conversa antiga nao possui projeto")){
+      return NextResponse.json({error:error.message,code:"CONVERSATION_PROJECT_MISMATCH"},{status:409});
+    }
     return NextResponse.json({ error: "Erro interno ao processar chat." }, { status: 500 });
   }
 }
