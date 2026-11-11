@@ -169,6 +169,7 @@ export default function StatusReportPage() {
  const [board,setBoard]=useState<Board|null>(null);
  const [audience,setAudience]=useState<ReportAudience>("client");
  const [scrumReport,setScrumReport]=useState<ReportData|null>(null);
+ const [retryRevision,setRetryRevision]=useState(0);
  const [factsRevision,setFactsRevision]=useState(0);
  const [scrumStatus,setScrumStatus]=useState("Consultando indicadores do projeto...");
  const [history,setHistory]=useState<Array<{id:string;audience:string;created_at:string;generated_by_email:string|null}>>([]);
@@ -200,7 +201,7 @@ export default function StatusReportPage() {
    .then(async r=>{const j=await r.json();if(!r.ok)throw Error(j.error||"Consulta indisponível");if(live){setScrumReport(j.data);setScrumStatus("Indicadores operacionais consultados.")}})
    .catch(e=>{if(live)setScrumStatus(e instanceof Error?e.message:"Falha ao consultar Scrum.")});
   return()=>{live=false};
- },[projectId,audience,factsRevision]);
+ },[projectId,audience,factsRevision,retryRevision]);
  useEffect(()=>{if(!projectId)return;let live=true;void measuredFetch("/api/status-report/history?projectId="+encodeURIComponent(projectId),{headers:getClientAuthHeaders(),cache:"no-store"})
   .then(r=>r.json()).then(j=>{if(live)setHistory(j.data||[])}).catch(()=>{});return()=>{live=false};},[projectId]);
  useEffect(()=>{let mounted=true;void (async()=>{try{
@@ -212,7 +213,7 @@ export default function StatusReportPage() {
    const responses=await Promise.all(endpoints);if(responses.some(x=>!x.ok))throw Error("Não foi possível consultar todos os registros do projeto. Relatório não gerado.");
    const payloads=await Promise.all(responses.map(x=>x.json()));if(cancelled)return;
    setBoard(payloads[0].data);setRisks(payloads[1].data??[]);setDecisions(payloads[2].data??[]);setStatus("Dados consultados; relatório pronto para exportação.");
-  }catch(e){if(!cancelled)setStatus(e instanceof Error?e.message:"Erro ao consolidar dados.");}finally{if(!cancelled)setBusy(false);}})();return()=>{cancelled=true}},[projectId]);
+  }catch(e){if(!cancelled)setStatus(e instanceof Error?e.message:"Erro ao consolidar dados.");}finally{if(!cancelled)setBusy(false);}})();return()=>{cancelled=true}},[projectId,retryRevision]);
  useEffect(()=>{if(!projectId||analysisRequest.key!==analysisKey){setAnalysisLoading(false);setAnalysis(null);setPeriodEvents(null);setPeriodMetrics(null);setAnalysisStatus(projectId?"Análise Kairos opcional. Os indicadores operacionais estão disponíveis.":"Selecione um projeto.");return;}if(periodMode==="period"&&(!start||!end||start>end)){setAnalysis(null);setAnalysisStatus("Corrija as datas do período.");return;}let cancelled=false;setAnalysis(null);setPeriodEvents(null);setPeriodMetrics(null);setAnalysisLoading(true);setAnalysisStatus("Kairos analisando os registros autorizados...");void(async()=>{try{const response=await measuredFetch("/api/status-report/analysis",{method:"POST",headers:getClientAuthHeaders({"Content-Type":"application/json"}),body:JSON.stringify({projectId,mode:periodMode,start,end,audience}),cache:"no-store"});const payload=await response.json();if(!response.ok)throw Error(payload.error||"Falha na análise.");if(!cancelled){setAnalysis(payload.data?.analysis??null);setPeriodEvents(payload.data?.periodEvents??null);setPeriodMetrics(payload.data?.periodMetrics??null);setAnalysisStatus(payload.data?.source==="ai"?"Análise Kairos gerada. Revise antes de enviar ao cliente.":payload.warning||"Análise de IA indisponível.");}}catch(e){if(!cancelled){setAnalysisStatus(e instanceof Error?e.message:"Falha na análise.");setAnalysis(null);}}finally{if(!cancelled)setAnalysisLoading(false);}})();return()=>{cancelled=true};},[projectId,periodMode,start,end,audience,analysisKey,analysisRequest.key,analysisRequest.revision]);
  const project=projects.find(x=>x.id===projectId);
  const cards=useMemo(()=>board?.columns.flatMap(x=>x.cards)||[],[board]);
@@ -319,7 +320,10 @@ export default function StatusReportPage() {
   <button type="button" className="workspace-button-primary px-4 py-2 text-sm disabled:opacity-50" disabled={!documentHtml||issuing} onClick={()=>void issue()}>{issuing?"Registrando...":"Registrar emissão no histórico"}</button>
  </section>
  <p role="status" aria-live="polite" className="workspace-card border-l-4 border-(--accent) p-3 text-sm">{status}</p>
- {!documentHtml&&projectId?<p role="alert" className="text-sm text-(--warning)">Prévia não disponível. {busy?"Carregando registros do projeto.":!scrumReport?scrumStatus:!board?"Dados do Kanban indisponíveis.": "Confira a origem dos dados antes de emitir."}</p>:null}
+ {!documentHtml&&projectId?<div role="alert" className="workspace-card flex flex-wrap items-center justify-between gap-3 p-3 text-sm text-(--warning)">
+   <span>Prévia não disponível. {busy?"Carregando registros do projeto.":!scrumReport?scrumStatus:!board?"Dados do Kanban indisponíveis.": "Confira a origem dos dados antes de emitir."}</span>
+   <button type="button" className="workspace-button-secondary px-3 py-2 text-xs" disabled={busy} onClick={()=>setRetryRevision(r=>r+1)}>Reconsultar dados</button>
+  </div>:null}
  {audience==="internal"&&<label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={includeMitigationAnnex} onChange={e=>setIncludeMitigationAnnex(e.target.checked)}/> Incluir anexo de mitigação completa no PDF da Equipe (opcional)</label>}
  <p role="status" className="text-xs text-(--text-secondary)">{scrumStatus}</p>
  {projectId&&<PublicFactsEditor projectId={projectId} proposedNextSteps={analysis?.nextSteps} onChange={()=>setFactsRevision(n=>n+1)}/>}
