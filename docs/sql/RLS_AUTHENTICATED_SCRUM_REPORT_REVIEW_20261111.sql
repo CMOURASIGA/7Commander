@@ -1,3 +1,10 @@
+-- OBSOLETE / DO NOT EXECUTE. This earlier broad grant proposal is retained only
+-- for audit history. It includes INSERT/UPDATE/DELETE privileges and has not
+-- received the required security review or tenant access validation.
+-- For the minimum owner/admin SELECT proposal refer to:
+-- docs/sql/SCRUM_READ_ONLY_OWNER_RLS_REVIEW_20261111.sql
+-- Never run this file on production or use it as a migration.
+
 -- REVIEW ONLY | Commander LOCAL CRUD / authenticated role
 -- DO NOT apply to the shared production Supabase without explicit database authorization,
 -- regression testing, rollback and review of direct PostgREST data exposure.
