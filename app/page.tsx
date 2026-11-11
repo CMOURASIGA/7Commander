@@ -205,6 +205,7 @@ export default function HomePage() {
         {href:"/clients",title:"Clientes",description:"Cadastros e vínculos"},
         {href:"/scrum",title:"Scrum",description:"Sprints e planejamento"},
         {href:"/activities",title:"Atividades",description:"Kanban e prioridades"},
+        {href:"/decisions",title:"Decisões",description:"Governança e histórico"},
       ].map(action=><Link key={action.href} href={action.href}
         className="workspace-card p-4 transition-colors hover:border-(--accent)">
         <h3 className="text-sm font-semibold text-(--text-primary)">{action.title}</h3>
