@@ -1,7 +1,7 @@
 # UX-ICON-01 | Ações de manutenção padronizadas (proposta em homologação)
 
 **Branch:** `work/local-kairos-operacional-20261111`
-**Situação:** implementado no 7Commander local, **ainda não homologado**. Não registrar como componente adotado na biblioteca oficial até verificação visual, acessibilidade e ganho comprovado.
+**Situação:** UX-ICON-02 implementada transversalmente no código da branch local, **ainda não homologada**. Não registrar como componente adotado na biblioteca oficial até verificação visual, acessibilidade e ganho comprovado.
 
 ## Referências fornecidas pelo responsável em 11/11/2026
 
@@ -45,3 +45,33 @@
 7. Registrar evidência de melhoria antes de promover ao repositório de componentes.
 
 **Escopo seguinte:** após homologação, aplicar em Riscos, Decisões, Equipe e demais grids/listas com CRUD, reutilizando o mesmo componente.
+
+## UX-ICON-02 | Aplicação global em ações CRUD (11/11/2026)
+
+**Implementado no código da branch local:**
+
+- Clientes: visualizar, editar, excluir.
+- Projetos: arquivar, excluir, editar riscos e decisões, consultar histórico, visualizar/excluir conhecimento e revogar membro.
+- Stakeholders: editar, excluir.
+- Backlog: adicionar filho, visualizar, editar, excluir (mantidos bloqueios por histórico e Sprint).
+- Kanban de US: visualizar, editar, comentar, alternar leitura/edição.
+- Atividades: visualizar/excluir card, editar/excluir comentários, remover etiquetas e membros.
+- Memória: fixar, classificar feedback, arquivar obsoleto e editar.
+- Prospect e Planejamento: editar registro e atualizar etapa de workflow.
+- Decisões: visualizar registro em painel lateral.
+- Status Report: publicar, editar e retirar fatos individuais da versão Cliente.
+- Avaliações Operacionais: aceitar, rejeitar e solicitar revisão de registro.
+- Administração: editar empresa, suspender/reativar empresa e ativar/suspender usuário.
+- Notificações Scrum: marcar como lida.
+- Kairos: ações primárias de registrar risco e decisão passaram a exibir ícone junto com texto.
+
+**Exceções intencionais e documentadas:**
+1. Botões de ação principal, como Criar, Salvar, Gerar PDF, Publicar em lote, Registrar reunião e Iniciar Daily, mantêm **texto** para evitar ambiguidade, com ícone de apoio quando apropriado.
+2. Filtros, seletores e transições de status com múltiplas opções permanecem controles `select` ou navegação, pois um ícone isolado não comunica a escolha.
+3. Diálogos de confirmação preservam ações escritas `Confirmar` e `Cancelar`. Sua identificação clara é importante principalmente para exclusões.
+4. `/activities/overview` é demonstrador sintético, não um fluxo de CRUD do sistema oficial. Não tratá-lo como componente adotado.
+5. A biblioteca 7Components oficial somente receberá o componente após homologação do usuário e resultados documentados.
+
+**Testes estáticos adicionados:** `tests/unit/ux-icon-global.spec.ts`. Ainda dependem de execução com `npm run typecheck && npm run lint && npm run test:unit && npm run build`.
+
+**Aceite visual:** verificar no localhost 44×44 px, contraste dos traços, posicionamento e funcionamento dos controles, incluindo responsividade. Confirmar que exclusões em Clientes, Atividades e Projetos não executam sem a confirmação exigida pelo módulo.
