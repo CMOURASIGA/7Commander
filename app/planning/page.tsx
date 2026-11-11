@@ -126,6 +126,7 @@ export default function PlanningPage(){
    onClick={()=>{setKind(k.value);setPage(1);reset();setStatus(null)}}
    aria-pressed={kind===k.value}
    className={kind===k.value?"rounded-lg bg-(--accent) px-3 py-2 text-sm font-semibold text-white":"rounded-lg border border-(--border) px-3 py-2 text-sm"}>{k.label}</button>)}</div>
+  {status&&!editorOpen?<p role="status" aria-live="polite" className="workspace-card border-l-4 border-(--accent) p-3 text-sm">{status}</p>:null}
   <section className="workspace-card flex flex-wrap items-center justify-between gap-3 p-4">
     <div><h2 className="text-sm font-semibold">{info.label}</h2><p className="mt-1 text-xs text-(--text-secondary)">{info.help}</p></div>
     <button className="workspace-button-primary text-xs" type="button" onClick={()=>{reset();setEditorOpen(true)}}>Adicionar {kind==="prospect"?"prospect":"registro"}</button>
