@@ -31,6 +31,8 @@ jobs:
         run: npm run lint
       - name: Unit regressions
         run: npm run test:unit
+      - name: Kairos skills contract gate
+        run: npm run skills:eval
       - name: Build (no deploy)
         run: npm run build
         env:
