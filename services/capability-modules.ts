@@ -39,7 +39,7 @@ export function pickModulesByIntent(message:string):CapabilityModuleId[]{
  const add=(regex:RegExp,id:CapabilityModuleId)=>{if(regex.test(input))selected.add(id);};
  add(/projeto|diagnostic|analise geral|escopo|situacao|maturidade|estrategia|valor/, "project_diagnosis");
  add(/risco|mitig|ameaca|contingenc|exposic|probabilidade|impacto/, "risk_analysis");
- add(/kanban|card|atividade|tarefa|to do|doing|done|quadro/, "kanban_execution");
+ add(/kanban|card|atividade|tarefa|to do|doing|done|quadro|wip|aging/, "kanban_execution");
  add(/backlog|epico|feature|user stor|historia|criterio de aceite|invest|roadmap|planejamento/, "backlog_planning");
  add(/scrum|sprint|daily|velocity|burn.down|impedimento/, "scrum_management");
  add(/decis|trade.off|governanca|alternativa|aprovacao/, "decision_governance");
