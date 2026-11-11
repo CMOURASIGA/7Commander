@@ -10,9 +10,12 @@ type Document = {id:string;title:string;category:string;createdAt:string};
 
 export function riskLevel(input:string):number|null {
   const value=(input??"").normalize("NFD").replace(/[\u0300-\u036f]/g,"").trim().toLowerCase();
-  if (["1","baixo","baixa"].includes(value)) return 1;
-  if (["2","medio","media","moderado","moderada"].includes(value)) return 2;
-  if (["3","alto","alta","critico","critica"].includes(value)) return 3;
+  if (["1","baixo","baixa","low"].includes(value)) return 1;
+  if (["2","medio","media","moderado","moderada","medium"].includes(value)) return 2;
+  if (["3","alto","alta","critico","critica","high"].includes(value)) return 3;
+  // Accept existing formatted categories without altering the stored risk.
+  const labeled=value.match(/^(baixo|baixa|medio|media|alto|alta|critico|critica)\s*\(([123])\)$/);
+  if (labeled) return Number(labeled[2]);
   return null;
 }
 export function riskSeverity(risk:Risk):string {
