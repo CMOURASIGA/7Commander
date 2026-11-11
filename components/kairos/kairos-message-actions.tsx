@@ -2,6 +2,7 @@
 
 import type { KairosCore, KairosMessage } from "@/components/kairos/use-kairos-core";
 import { hasSaveSuggestion } from "@/components/kairos/use-kairos-core";
+import {ActionIcon} from "@/components/ui/action-icon";
 
 /**
  * Linha de acoes abaixo de uma resposta do Kairos: ouvir em audio,
@@ -44,6 +45,7 @@ export function KairosMessageActions({ core, message, compact = false }: { core:
             disabled={core.decisionLoadingId === message.id || core.decisionSavedIds[message.id]}
             className={`workspace-button-secondary ${sizeClass}`}
           >
+            <ActionIcon name={core.decisionSavedIds[message.id]?"check-circle":"plus"} width={18} height={18}/>
             {core.decisionSavedIds[message.id] ? "Decisao salva" : "Registrar decisao sugerida"}
           </button>
         ) : null}
@@ -54,6 +56,7 @@ export function KairosMessageActions({ core, message, compact = false }: { core:
             disabled={core.riskLoadingId === message.id || core.riskSavedIds[message.id]}
             className={`workspace-button-secondary ${sizeClass}`}
           >
+            <ActionIcon name={core.riskSavedIds[message.id]?"check-circle":"plus"} width={18} height={18}/>
             {core.riskSavedIds[message.id] ? "Risco salvo" : "Registrar risco identificado"}
           </button>
         ) : null}

@@ -34,7 +34,7 @@ export async function GET(req:NextRequest){
   return reply({data:audit.data||[]});
  }
  const r=await ctx.db.from("scrum_backlog_items").select("*").eq("organization_id",ctx.org).eq("project_id",projectId).order("sort_order",{ascending:true}).order("created_at",{ascending:true}).limit(1000);
- return r.error?bad("Falha ao consultar hierarquia do backlog.",503):reply({data:r.data||[]});
+ return r.error?bad(`Falha ao consultar hierarquia do backlog (código ${r.error.code||"DB_ERROR"}). Verifique as permissões de leitura da tabela Scrum.`,503):reply({data:r.data||[]});
 }
 export async function POST(req:NextRequest){
  const perfStart=performance.now();

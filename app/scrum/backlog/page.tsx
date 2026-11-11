@@ -1,4 +1,6 @@
 "use client";
+import {IconActionButton} from "@/components/ui/icon-action-button";
+import { AgileWorkspaceNav } from "@/components/scrum/agile-workspace-nav";
 import {ScrumKairosActions} from "@/components/scrum/scrum-kairos-actions";
 import {MarkdownContent} from "@/components/ui/markdown-content";
 import {useCallback,useEffect,useMemo,useRef,useState} from "react";
@@ -128,6 +130,7 @@ export default function BacklogPage(){
  const memberName=(email:string|null|undefined)=>!email?"Não atribuído":members.find(m=>m.email.toLowerCase()===email.toLowerCase())?.name||"Nome não cadastrado";
  const allComments=opened?.story?data.comments.filter(c=>c.story_id===opened.id):[];
  return <section className="space-y-3">
+      <AgileWorkspaceNav context={data.projects.find(p=>p.id===data.projectId)?.name}/>
   <PageIntro eyebrow="Scrum e Sprints" title="Backlog do projeto" description="Hierarquia Epic → Feature → User Story → Task. Gerencie e priorize os itens independentemente de Sprint." aside={<div className="flex flex-wrap gap-2">{(["epic","feature","story","task"] as const).map(t=><button key={t} className="workspace-button-secondary rounded-lg px-3 py-2 text-xs" onClick={()=>open(null,t)}>+ {types[t]}</button>)}</div>}/>
   <SurfaceCard>
    <label className="block text-xs font-medium">Projeto<select className="workspace-select mt-1 w-full" value={data.projectId} onChange={e=>data.setProjectId(e.target.value)}><option value="">Selecione</option>{data.projects.map(p=><option value={p.id} key={p.id}>{p.name}</option>)}</select></label>
@@ -150,14 +153,14 @@ export default function BacklogPage(){
      <td className="p-2"><div className="flex items-center gap-2" style={{paddingLeft:r.depth*18}}>
       {(r.type==="epic"||r.type==="feature"||r.type==="story")?<button type="button" className="shrink-0 text-xs" aria-label={collapsed.includes(r.id)?"Expandir":"Recolher"} onClick={()=>setCollapsed(c=>c.includes(r.id)?c.filter(x=>x!==r.id):[...c,r.id])}>{collapsed.includes(r.id)?"▸":"▾"}</button>:<span className="w-3"/>}
       <span className={r.type==="epic"?"font-semibold":""}>{r.title}</span>
-      {(r.type==="epic"||r.type==="feature"||r.type==="story")&&<button type="button" title="Adicionar filho" className="rounded-md border border-(--border) p-1" onClick={()=>open(null,r.type==="epic"?"feature":r.type==="feature"?"story":"task",false,r.type==="epic"?{parentId:r.id}:r.type==="feature"?{featureId:r.id}:{storyId:r.id})}><Icon kind="add"/></button>}
+      {(r.type==="epic"||r.type==="feature"||r.type==="story")&&<IconActionButton icon="plus" tone="success" label={"Adicionar item subordinado a "+r.title} onClick={()=>open(null,r.type==="epic"?"feature":r.type==="feature"?"story":"task",false,r.type==="epic"?{parentId:r.id}:r.type==="feature"?{featureId:r.id}:{storyId:r.id})}/>}
      </div></td>
      <td className="p-2 text-xs"><div className="flex items-center gap-2">{(r.story?.responsible||r.item?.responsible)?<span className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-sky-100 text-[11px] font-semibold text-sky-800">{memberName(r.story?.responsible||r.item?.responsible).slice(0,1).toUpperCase()}</span>:null}<span className="truncate" title={memberName(r.story?.responsible||r.item?.responsible)}>{memberName(r.story?.responsible||r.item?.responsible)}</span></div></td>
      <td className="p-2 text-xs">{r.state.toUpperCase()}</td>
-     <td className="p-2"><div className="flex gap-1">
-      <button title="Visualizar" aria-label={"Visualizar "+r.title} className="rounded-md border border-(--border) p-1.5" onClick={()=>open(r,r.type,true)}><Icon kind="view"/></button>
-      <button title="Editar" aria-label={"Editar "+r.title} className="rounded-md border border-(--border) p-1.5" onClick={()=>open(r,r.type)}><Icon kind="edit"/></button>
-      <button title="Excluir" aria-label={"Excluir "+r.title} className="rounded-md border border-(--border) p-1.5 text-(--danger)" disabled={saving||Boolean(r.story&&(r.story.has_history||r.story.sprint_id||r.story.workflow_stage!=="new"))} onClick={()=>void remove(r)}><Icon kind="delete"/></button>
+     <td className="p-2"><div className="cs-record-actions" role="group" aria-label={"Ações do item "+r.title}>
+      <IconActionButton icon="eye" label={"Visualizar "+r.title} tone="neutral" onClick={()=>open(r,r.type,true)}/>
+      <IconActionButton icon="pencil" label={"Editar "+r.title} tone="edit" onClick={()=>open(r,r.type)}/>
+      <IconActionButton icon="trash" label={"Excluir "+r.title} tone="danger" disabled={saving||Boolean(r.story&&(r.story.has_history||r.story.sprint_id||r.story.workflow_stage!=="new"))} onClick={()=>void remove(r)}/>
      </div></td>
     </tr>)}</tbody>
    </table>{!visible.length&&<p className="p-4 text-sm text-(--text-secondary)">Nenhum item encontrado. Ajuste os filtros ou cadastre um Epic.</p>}</div>
