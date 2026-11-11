@@ -7,7 +7,8 @@ export function localWriteGuardEnabled(env:NodeJS.ProcessEnv=process.env):boolea
   return env.COMMANDER_LOCAL_READ_ONLY==="true";
 }
 export function localReadOnlyChatAllowed(pathname:string,method:string):boolean {
-  return pathname==="/api/chat" && method.toUpperCase()==="POST";
+  return (pathname==="/api/chat" && method.toUpperCase()==="POST")
+    || (pathname==="/api/auth/local-session" && ["POST","DELETE"].includes(method.toUpperCase()));
 }
 export function shouldBlockLocalApiMutation(input:{
   pathname:string;
