@@ -17,41 +17,22 @@ if (-not (Test-Path ".env.local")) {
 $envPath = (Resolve-Path ".env.local").Path
 $text = Get-Content -Raw -LiteralPath $envPath
 $text = [regex]::Replace($text, '(?m)^NEXT_PUBLIC_APP_URL=.*$', 'NEXT_PUBLIC_APP_URL=http://localhost:3000')
-if ($text -match '(?m)^COMMANDER_LOCAL_READ_ONLY=') {
-  $text = [regex]::Replace($text, '(?m)^COMMANDER_LOCAL_READ_ONLY=.*$', 'COMMANDER_LOCAL_READ_ONLY=true')
-} else {
-  $text = $text.TrimEnd() + "`r`nCOMMANDER_LOCAL_READ_ONLY=true`r`n"
-}
-if ($text -match '(?m)^NEXT_PUBLIC_COMMANDER_LOCAL_READ_ONLY=') {
-  $text = [regex]::Replace($text, '(?m)^NEXT_PUBLIC_COMMANDER_LOCAL_READ_ONLY=.*
-
-Write-Host ""
-Write-Host "IMPORTANTE: configure as credenciais apenas no seu .env.local, nunca no GitHub." -ForegroundColor Yellow
-Write-Host "O bloqueio local cobre metodos de escrita nas APIs Next.js, nao o acesso direto ao Supabase." -ForegroundColor Yellow
-Write-Host "Nao copie chaves service_role de producao para desenvolver."
-Write-Host "Revise NEXT_PUBLIC_SUPABASE_URL, NEXT_PUBLIC_SUPABASE_ANON_KEY, SUPABASE_SERVICE_ROLE_KEY, OPENAI_API_KEY."
-Write-Host ""
-
-if ($InstallDependencies) { npm ci --no-audit --no-fund; if($LASTEXITCODE -ne 0){throw "npm ci falhou"} }
-if ($StartDev) {
-  npm run env:check
-  if ($LASTEXITCODE -ne 0) { throw "Preencha primeiro as variaveis exigidas." }
-  npm run dev
-}
-, 'NEXT_PUBLIC_COMMANDER_LOCAL_READ_ONLY=true')
-} else {
-  $text = $text.TrimEnd() + "`r`nNEXT_PUBLIC_COMMANDER_LOCAL_READ_ONLY=true`r`n"
+foreach ($name in @("COMMANDER_LOCAL_READ_ONLY", "NEXT_PUBLIC_COMMANDER_LOCAL_READ_ONLY")) {
+  if ($text -match "(?m)^$name=") {
+    $text = [regex]::Replace($text, "(?m)^$name=.*$", "$name=true")
+  } else {
+    $text = $text.TrimEnd() + "`r`n$name=true`r`n"
+  }
 }
 Set-Content -LiteralPath $envPath -Value $text -Encoding utf8
 
 Write-Host ""
-Write-Host "IMPORTANTE: configure as credenciais apenas no seu .env.local, nunca no GitHub." -ForegroundColor Yellow
-Write-Host "O bloqueio local cobre metodos de escrita nas APIs Next.js, nao o acesso direto ao Supabase." -ForegroundColor Yellow
-Write-Host "Nao copie chaves service_role de producao para desenvolver."
+Write-Host "Configuracao local somente leitura ativada." -ForegroundColor Green
+Write-Host "A protecao HTTP e do cliente Supabase nao substitui permissao SQL read-only." -ForegroundColor Yellow
+Write-Host "Nao copie chaves service_role de producao para desenvolver." -ForegroundColor Yellow
 Write-Host "Revise NEXT_PUBLIC_SUPABASE_URL, NEXT_PUBLIC_SUPABASE_ANON_KEY, SUPABASE_SERVICE_ROLE_KEY, OPENAI_API_KEY."
-Write-Host ""
 
-if ($InstallDependencies) { npm ci --no-audit --no-fund; if($LASTEXITCODE -ne 0){throw "npm ci falhou"} }
+if ($InstallDependencies) { npm ci --no-audit --no-fund; if ($LASTEXITCODE -ne 0) { throw "npm ci falhou" } }
 if ($StartDev) {
   npm run env:check
   if ($LASTEXITCODE -ne 0) { throw "Preencha primeiro as variaveis exigidas." }
