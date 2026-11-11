@@ -9,7 +9,7 @@ test("documents upload is visible in Documents tab but locked during local read-
   expect(source).toContain("Documentos do projeto");
   expect(source).toContain("Adicionar documento");
   expect(source).toContain('disabled={documentWriteBlocked || !activeProjectId}');
-  expect(source).toContain('documentWriteBlocked || !activeProjectId || !ingestFile');
+  expect(source).toContain('disabled={!ingestFile || ingesting}');
   expect(source).not.toContain('title="Ingestao de arquivos"');
 });
 
