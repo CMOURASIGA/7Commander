@@ -1,5 +1,5 @@
-import {IconActionButton} from "@/components/ui/icon-action-button";
 "use client";
+import {IconActionButton} from "@/components/ui/icon-action-button";
 import {useEffect,useState} from "react";
 import {decodeStakeholders,encodeStakeholders,STAKEHOLDER_GROUP_LABELS,STAKEHOLDER_LIMIT, type ProjectStakeholder,type StakeholderGroup} from "@/lib/projects/stakeholders";
 type Draft=Omit<ProjectStakeholder,"id">;
