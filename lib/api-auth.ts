@@ -234,6 +234,14 @@ export async function requireApiAuth(request: NextRequest): Promise<{
     }
   }
 
+  // Local read-only never falls back to legacy keys or caller-supplied IDs.
+  // A missing, malformed or unverified Supabase JWT must fail closed.
+  if (localWriteGuardEnabled()) return {
+    ok:false,
+    response:NextResponse.json({error:"Login Supabase obrigatório no modo leitura."},
+      {status:401,headers:{"Cache-Control":"no-store"}}),
+  };
+
   // Public Preview may expose only the UI, never operational data through
   // legacy API keys or caller supplied identities. Supabase JWT remains required.
   if (process.env.VERCEL_ENV === "preview") {
