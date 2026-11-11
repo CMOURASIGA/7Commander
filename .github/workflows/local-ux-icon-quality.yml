@@ -1,0 +1,37 @@
+name: Local UX icon quality (no deploy)
+on:
+  push:
+    branches:
+      - work/local-kairos-operacional-20261111
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: local-ux-icon-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  quality:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Checkout local development branch
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - name: Setup Node 22
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Install locked dependencies
+        run: npm ci --no-audit --no-fund
+      - name: TypeScript
+        run: npm run typecheck
+      - name: Lint
+        run: npm run lint
+      - name: Unit regressions
+        run: npm run test:unit
+      - name: Build (no deploy)
+        run: npm run build
+        env:
+          NEXT_TELEMETRY_DISABLED: '1'
