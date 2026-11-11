@@ -1072,7 +1072,7 @@ export default function ProjectsPage() {
                     <p className="mt-1 text-xs text-(--text-secondary)">{item.category} · {item.source} · {new Date(item.createdAt).toLocaleString("pt-BR")}</p>
                     <span className="mt-2 inline-flex rounded-full bg-(--success-soft) px-2 py-1 text-xs font-medium text-(--success)">Processado</span>
                   </div>
-                  <div className="flex flex-wrap items-center gap-2">
+                  <div className="cs-record-actions" role="group" aria-label={"Ações do documento "+item.title}>
                     <IconActionButton icon="eye" tone="neutral" label={"Visualizar conteúdo de "+item.title} onClick={()=>setDocumentPreviewId(item.id)}/>
                     <IconActionButton icon="trash" tone="danger" label={"Excluir registro "+item.title} disabled={documentWriteBlocked || deletingKnowledgeId === item.id} onClick={()=>void handleDeleteKnowledge(item)}/>
                   </div>
