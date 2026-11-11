@@ -27,8 +27,14 @@ export default function OperationalDecisions(){
  async function executePreview(){if(!previewId)return;setPreviewBusy(true);setPreview(null);setPreviewError("");try{const params=new URLSearchParams({module:previewModule,id:previewId});const r=await fetch("/api/operational-decisions/preview?"+params,{headers:getClientAuthHeaders(),cache:"no-store"});const j=await r.json();if(!r.ok)throw Error(j.error||"Falha na avaliação");if(j.readOnly!==true||j.persisted!==false||j.externalProviderCalled!==false)throw Error("Garantia de prévia sem gravação não confirmada");setPreview(j.data);}catch(e){setPreviewError(e instanceof Error?e.message:"Falha na prévia");}finally{setPreviewBusy(false);}}
  const visible=items.filter(x=>filter==="all"||x.module===filter);
  return <main className="mx-auto max-w-6xl space-y-5 p-4 md:p-6">
-  <h1 className="text-2xl font-semibold">Central de Decisões Operacionais</h1>
-  <p className="text-sm text-(--text-secondary)">Avaliações consultivas, sem execução automática de tarefas, alterações de status ou decisões comerciais. Não substitui o Kairos.</p>
+  <header className="workspace-card flex flex-wrap items-start justify-between gap-3 border-b-2 border-(--accent) p-5">
+    <div><p className="text-xs font-semibold uppercase tracking-wide text-(--accent)">Governança e avaliação</p>
+      <h1 className="mt-2 text-2xl font-semibold">Avaliações operacionais</h1>
+      <p className="mt-2 text-sm text-(--text-secondary)">Pareceres consultivos e revisões humanas. Não executa mudanças automaticamente nem substitui o Kairos.</p>
+    </div>
+    <a href="/decisions" className="workspace-button-secondary px-4 py-2 text-xs">Ver decisões dos projetos</a>
+  </header>
+  <p role="note" className="rounded-lg border border-(--border) bg-(--bg-muted) p-3 text-xs text-(--text-secondary)">Esta área avalia evidências e recomendações. As decisões cadastradas nos projetos são mantidas em uma área separada.</p>
   <section className="rounded-xl border border-(--border) bg-white p-4 space-y-3" aria-label="Prévia sem gravação">
    <div><h2 className="font-semibold">Prévia de registros existentes, sem gravação</h2><p className="text-sm text-(--text-secondary)">Selecione um registro da empresa ativa. Classificação por regras locais, sem Jev, sem alterar registros, sem criar avaliações e sem consumir cotas. Funciona mesmo com o laboratório desativado.</p></div>
    <label className="block text-sm">Módulo<select className="workspace-select mt-1 w-full" value={previewModule} onChange={e=>setPreviewModule(e.target.value)}>{modules.map(m=><option key={m} value={m}>{moduleLabels[m]}</option>)}</select></label>
