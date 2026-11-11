@@ -64,7 +64,7 @@ export function ProjectOverview({project,risks,decisions,documents,risksLoading,
           <button className="workspace-button-secondary text-xs" onClick={()=>onOpenTab("risks")}>Ver todos</button></div>
         {risksLoading?<p className="text-sm">Carregando riscos...</p>:filtered.length?filtered.slice(0,6).map(r=><article key={r.id} className="rounded-lg border border-(--border) p-3">
           <div className="flex flex-wrap items-center gap-2">
-            <span className="rounded-full bg-(--bg-muted) px-2 py-1 text-xs font-semibold">{riskSeverity(r)}</span>
+            <span className={`rounded-full px-2 py-1 text-xs font-semibold ${riskSeverity(r)==="Crítico"?"bg-(--danger-soft) text-(--danger)":riskSeverity(r)==="Alto"?"bg-(--warning-soft) text-(--warning)":"bg-(--bg-muted) text-(--text-secondary)"}`}>{riskSeverity(r)}</span>
             <strong className="flex-1 text-sm">{r.title}</strong>
           </div>
           <p className="mt-2 text-xs text-(--text-secondary)">Impacto: {r.impact||"Não informado"} · Probabilidade: {r.probability||"Não informada"} · Responsável: {r.owner||"Não definido"}</p>
