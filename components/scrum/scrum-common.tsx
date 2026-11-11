@@ -27,8 +27,30 @@ export function useScrumData(){
  const patchStory=useCallback((id:string,patch:Partial<Story>)=>setStories(prev=>prev.map(story=>story.id===id?{...story,...patch}:story)),[]);
  const [loading,setLoading]=useState(true);const [error,setError]=useState("");
  useEffect(()=>{let alive=true;void apiGet("/api/scrum").then((data:Project[])=>{if(alive){setProjects(data);setProjectId(old=>old||data[0]?.id||"")}}).catch(e=>{if(alive){setError(e.message);setLoading(false)}});return()=>{alive=false}},[]);
- const refresh=useCallback(async()=>{if(!projectId){setSprints([]);setStories([]);setLoading(false);return}setLoading(true);setError("");
-  try{const [a,b]=await Promise.all([apiGet("/api/scrum?projectId="+encodeURIComponent(projectId)),apiGet("/api/scrum/stories?projectId="+encodeURIComponent(projectId))]);setSprints(a.sprints);setStories(b.stories);setComments(b.comments);setSprintId(old=>a.sprints.some((x:Sprint)=>x.id===old)?old:a.sprints[0]?.id||"");}catch(e){setError(e instanceof Error?e.message:"Erro na consulta.");}finally{setLoading(false)}
+ const refresh=useCallback(async()=>{if(!projectId){setSprints([]);setStories([]);setComments([]);setSprintId("");setLoading(false);return}setLoading(true);setError("");
+  const [sprintResult,storyResult]=await Promise.allSettled([
+    apiGet("/api/scrum?projectId="+encodeURIComponent(projectId)),
+    apiGet("/api/scrum/stories?projectId="+encodeURIComponent(projectId))
+  ]);
+  if(sprintResult.status==="fulfilled"){
+    const rows=Array.isArray(sprintResult.value?.sprints)?sprintResult.value.sprints as Sprint[]:[];
+    setSprints(rows);
+    setSprintId(old=>rows.some(s=>s.id===old)?old:rows[0]?.id||"");
+  }else{
+    setSprints([]);setSprintId("");
+  }
+  if(storyResult.status==="fulfilled"){
+    setStories(Array.isArray(storyResult.value?.stories)?storyResult.value.stories:[]);
+    setComments(Array.isArray(storyResult.value?.comments)?storyResult.value.comments:[]);
+  }else{
+    setStories([]);setComments([]);
+  }
+  const issues=[
+    sprintResult.status==="rejected"?"Sprints: "+(sprintResult.reason instanceof Error?sprintResult.reason.message:"consulta indisponível"):null,
+    storyResult.status==="rejected"?"US e histórico: "+(storyResult.reason instanceof Error?storyResult.reason.message:"consulta indisponível"):null
+  ].filter(Boolean);
+  setError(issues.join(" | "));
+  setLoading(false);
  },[projectId]);
  useEffect(()=>{void refresh()},[refresh]);
  return {projects,projectId,setProjectId,sprints,sprintId,setSprintId,stories,comments,setStoryStage,patchStory,loading,error,setError,refresh};

@@ -1,5 +1,7 @@
 "use client";
+import {IconActionButton} from "@/components/ui/icon-action-button";
 
+import { AgileWorkspaceNav } from "@/components/scrum/agile-workspace-nav";
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { getClientAuthEmail, getClientAuthHeaders } from "@/lib/client-auth";
@@ -381,6 +383,7 @@ export default function ActivitiesPage() {
 
   return (
     <section className="space-y-4">
+      <AgileWorkspaceNav/>
       <PageIntro
         eyebrow="7Commander"
         title="Atividades operacionais"
@@ -401,9 +404,24 @@ export default function ActivitiesPage() {
         }
       />
 
-      <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-(--border) bg-(--bg-surface) px-4 py-3">
-        <p className="text-sm text-(--text-secondary)">Novo fluxo multicontexto em preparação com dados sintéticos.</p>
-        <Link href="/activities/overview" className="rounded-lg border border-(--border) px-3 py-2 text-sm font-medium">Visualizar protótipo operacional</Link>
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4" aria-label="Indicadores das atividades do projeto">
+        {(()=>{
+          const cards=board?.columns.flatMap(column=>column.cards)??[];
+          const open=cards.filter(card=>card.columnKey!=="done"&&card.status!=="concluida");
+          const late=open.filter(card=>card.dueDate?((daysToDelivery(card.dueDate)??0)<0):false);
+          const unassigned=open.filter(card=>!card.responsible?.trim());
+          const doing=open.filter(card=>card.columnKey==="doing"||card.status==="em_andamento");
+          return [
+            {label:"Atividades",value:cards.length,detail:"Cards do projeto selecionado"},
+            {label:"Em andamento",value:doing.length,detail:"Execução em curso"},
+            {label:"Atrasadas",value:late.length,detail:"Com vencimento anterior a hoje"},
+            {label:"Sem responsável",value:unassigned.length,detail:"Cards abertos sem atribuição"},
+          ].map(metric=><article key={metric.label} className="workspace-card p-4">
+            <p className="text-xs text-(--text-secondary)">{metric.label}</p>
+            <p className="mt-2 text-2xl font-semibold">{loading?"...":metric.value}</p>
+            <p className="mt-1 text-xs text-(--text-secondary)">{metric.detail}</p>
+          </article>);
+        })()}
       </div>
 
       <SurfaceCard>
@@ -542,20 +560,23 @@ export default function ActivitiesPage() {
                         </p>
                         <p className="mt-1 text-[11px] text-(--text-secondary)" title="Origem verificada no histórico de criação">Criado por: {card.createdSource==="kairos"?"Kairos":card.createdSource==="user"?"usuário":"origem anterior não informada"}</p>
                       </button>
-                      <div className="flex flex-wrap items-center justify-between gap-2 px-3 pb-3">
-                        <button
-                          type="button"
-                          onClick={() =>
-                            openKairosPanel({
-                              projectId: activeProjectId,
-                              seedMessage: `Analise riscos e proximos passos para o card "${card.title}".`,
-                            })
-                          }
-                          className="kanban-kairos-chip"
-                        >
-                          Analisar com Kairos
-                        </button>
-                        {canEdit&&<button type="button" aria-label={"Excluir atividade "+card.title} title="Excluir atividade" className="workspace-button-danger inline-flex items-center justify-center p-2" disabled={deletingTaskId===card.id} onClick={()=>void deleteTask(card.id,card.title)}><ActionIcon name="trash"/></button>}
+                      <div className="flex flex-wrap items-center justify-end gap-2 px-3 pb-3">
+                        <div className="cs-record-actions" role="group" aria-label={"Ações da atividade "+card.title}>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              openKairosPanel({
+                                projectId: activeProjectId,
+                                seedMessage: `Analise riscos e proximos passos para o card "${card.title}".`,
+                              })
+                            }
+                            className="kanban-kairos-chip"
+                          >
+                            Analisar com Kairos
+                          </button>
+                          <IconActionButton icon="eye" tone="neutral" label={"Visualizar atividade "+card.title} onClick={()=>{setSelectedTaskId(card.id);void loadTaskDetail(card.id);}}/>
+                          {canEdit&&<IconActionButton icon="trash" tone="danger" label={"Excluir atividade "+card.title} disabled={deletingTaskId===card.id} onClick={()=>void deleteTask(card.id,card.title)}/>}
+                        </div>
                       </div>
                     </div>
                   ))
@@ -589,7 +610,7 @@ export default function ActivitiesPage() {
                     <span className="workspace-pill">
                       {taskDetail.accessRole}
                     </span>
-                    {canEditDetail&&<button type="button" className="workspace-button-danger inline-flex items-center gap-2 px-3 py-2 text-xs" disabled={deletingTaskId===selectedTaskId} onClick={()=>void deleteTask(taskDetail.card.id,taskDetail.card.title)}><ActionIcon name="trash"/> Excluir</button>}
+                    {canEditDetail&&<IconActionButton icon="trash" tone="danger" label={"Excluir "+taskDetail.card.title} disabled={deletingTaskId===selectedTaskId} onClick={()=>void deleteTask(taskDetail.card.id,taskDetail.card.title)}/>}
                     <button
                       type="button"
                       onClick={closeTaskDrawer}
@@ -684,13 +705,7 @@ export default function ActivitiesPage() {
                         >
                           {label.name}
                           {canEditDetail ? (
-                            <button
-                              type="button"
-                              onClick={() => void applyDetailAction({ action: "remove_label", labelId: label.id })}
-                              className="text-[13px]"
-                            >
-                              x
-                            </button>
+                            <IconActionButton icon="x" tone="danger" label={"Remover etiqueta "+label.name} onClick={()=>void applyDetailAction({action:"remove_label",labelId:label.id})}/>
                           ) : null}
                         </span>
                       ))}
@@ -758,13 +773,7 @@ export default function ActivitiesPage() {
                       <div key={member.id} className="flex min-w-0 items-center justify-between gap-2 rounded border border-(--border) bg-white px-2 py-1 text-xs">
                         <span className="min-w-0 truncate">{member.memberEmail}</span>
                         {canEditDetail ? (
-                          <button
-                            type="button"
-                            onClick={() => void applyDetailAction({ action: "remove_member", memberId: member.id })}
-                            className="text-(--text-secondary)"
-                          >
-                            remover
-                          </button>
+                          <IconActionButton icon="user-minus" tone="danger" label={"Remover membro "+member.memberEmail} onClick={()=>void applyDetailAction({action:"remove_member",memberId:member.id})}/>
                         ) : null}
                       </div>
                     ))}
@@ -885,10 +894,8 @@ export default function ActivitiesPage() {
                             <p className="mt-1 text-(--text-primary)">{comment.content}</p>
                             {canEditDetail && currentUserEmail === comment.authorEmail.toLowerCase() ? (
                               <div className="mt-2 flex gap-2">
-                                <button type="button" onClick={() => { setEditingCommentId(comment.id); setEditingCommentText(comment.content); }} className="text-xs font-medium text-(--accent)">Editar</button>
-                                <button
-                                  type="button"
-                                  onClick={() =>
+                                <IconActionButton icon="pencil" tone="edit" label={"Editar comentário de "+comment.authorEmail} onClick={()=>{setEditingCommentId(comment.id);setEditingCommentText(comment.content);}}/>
+                                <IconActionButton icon="trash" tone="danger" label={"Excluir comentário de "+comment.authorEmail} onClick={() =>
                                     void (async () => {
                                       const confirmed = await confirm({
                                         title: "Excluir comentario?",
@@ -898,11 +905,7 @@ export default function ActivitiesPage() {
                                       });
                                       if (confirmed) await applyDetailAction({ action: "delete_comment", commentId: comment.id });
                                     })()
-                                  }
-                                  className="text-xs font-medium text-(--danger)"
-                                >
-                                  Excluir
-                                </button>
+                                  }/>
                               </div>
                             ) : null}
                           </>

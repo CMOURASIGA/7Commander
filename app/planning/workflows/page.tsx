@@ -1,4 +1,5 @@
 "use client";
+import {IconActionButton} from "@/components/ui/icon-action-button";
 import Link from "next/link";
 import {useEffect,useState} from "react";
 import {getClientAuthHeaders} from "@/lib/client-auth";
@@ -56,7 +57,7 @@ export default function WorkflowsPage(){
    <div className="flex flex-wrap items-center justify-between"><strong>{run.status.toUpperCase()}</strong><span className="text-xs">Baseline v{run.baseline_version}</span></div>
    <p className="text-xs text-(--text-secondary)">Atualizado em {new Date(run.updated_at).toLocaleString("pt-BR")}</p>
    {run.checkpoint?.nota?<p className="text-sm">{run.checkpoint.nota}</p>:null}
-   <div className="flex flex-wrap gap-2">{(available[run.status]||[]).map(next=><button key={next} className="workspace-button-secondary px-3 py-2 text-xs" disabled={busy} onClick={()=>void move(run,next)}>→ {next}</button>)}</div>
+   <div className="flex flex-wrap gap-2">{(available[run.status]||[]).map(next=><IconActionButton key={next} icon="refresh" tone="edit" label={"Alterar execução para "+next} disabled={busy} onClick={()=>void move(run,next)}/>)}</div>
   </article>)}
   {status?<p role="status" className="rounded-lg border p-3 text-sm">{status}</p>:null}
  </section>

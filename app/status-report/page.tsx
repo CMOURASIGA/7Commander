@@ -169,6 +169,7 @@ export default function StatusReportPage() {
  const [board,setBoard]=useState<Board|null>(null);
  const [audience,setAudience]=useState<ReportAudience>("client");
  const [scrumReport,setScrumReport]=useState<ReportData|null>(null);
+ const [retryRevision,setRetryRevision]=useState(0);
  const [factsRevision,setFactsRevision]=useState(0);
  const [scrumStatus,setScrumStatus]=useState("Consultando indicadores do projeto...");
  const [history,setHistory]=useState<Array<{id:string;audience:string;created_at:string;generated_by_email:string|null}>>([]);
@@ -200,7 +201,7 @@ export default function StatusReportPage() {
    .then(async r=>{const j=await r.json();if(!r.ok)throw Error(j.error||"Consulta indisponível");if(live){setScrumReport(j.data);setScrumStatus("Indicadores operacionais consultados.")}})
    .catch(e=>{if(live)setScrumStatus(e instanceof Error?e.message:"Falha ao consultar Scrum.")});
   return()=>{live=false};
- },[projectId,audience,factsRevision]);
+ },[projectId,audience,factsRevision,retryRevision]);
  useEffect(()=>{if(!projectId)return;let live=true;void measuredFetch("/api/status-report/history?projectId="+encodeURIComponent(projectId),{headers:getClientAuthHeaders(),cache:"no-store"})
   .then(r=>r.json()).then(j=>{if(live)setHistory(j.data||[])}).catch(()=>{});return()=>{live=false};},[projectId]);
  useEffect(()=>{let mounted=true;void (async()=>{try{
@@ -212,7 +213,7 @@ export default function StatusReportPage() {
    const responses=await Promise.all(endpoints);if(responses.some(x=>!x.ok))throw Error("Não foi possível consultar todos os registros do projeto. Relatório não gerado.");
    const payloads=await Promise.all(responses.map(x=>x.json()));if(cancelled)return;
    setBoard(payloads[0].data);setRisks(payloads[1].data??[]);setDecisions(payloads[2].data??[]);setStatus("Dados consultados; relatório pronto para exportação.");
-  }catch(e){if(!cancelled)setStatus(e instanceof Error?e.message:"Erro ao consolidar dados.");}finally{if(!cancelled)setBusy(false);}})();return()=>{cancelled=true}},[projectId]);
+  }catch(e){if(!cancelled)setStatus(e instanceof Error?e.message:"Erro ao consolidar dados.");}finally{if(!cancelled)setBusy(false);}})();return()=>{cancelled=true}},[projectId,retryRevision]);
  useEffect(()=>{if(!projectId||analysisRequest.key!==analysisKey){setAnalysisLoading(false);setAnalysis(null);setPeriodEvents(null);setPeriodMetrics(null);setAnalysisStatus(projectId?"Análise Kairos opcional. Os indicadores operacionais estão disponíveis.":"Selecione um projeto.");return;}if(periodMode==="period"&&(!start||!end||start>end)){setAnalysis(null);setAnalysisStatus("Corrija as datas do período.");return;}let cancelled=false;setAnalysis(null);setPeriodEvents(null);setPeriodMetrics(null);setAnalysisLoading(true);setAnalysisStatus("Kairos analisando os registros autorizados...");void(async()=>{try{const response=await measuredFetch("/api/status-report/analysis",{method:"POST",headers:getClientAuthHeaders({"Content-Type":"application/json"}),body:JSON.stringify({projectId,mode:periodMode,start,end,audience}),cache:"no-store"});const payload=await response.json();if(!response.ok)throw Error(payload.error||"Falha na análise.");if(!cancelled){setAnalysis(payload.data?.analysis??null);setPeriodEvents(payload.data?.periodEvents??null);setPeriodMetrics(payload.data?.periodMetrics??null);setAnalysisStatus(payload.data?.source==="ai"?"Análise Kairos gerada. Revise antes de enviar ao cliente.":payload.warning||"Análise de IA indisponível.");}}catch(e){if(!cancelled){setAnalysisStatus(e instanceof Error?e.message:"Falha na análise.");setAnalysis(null);}}finally{if(!cancelled)setAnalysisLoading(false);}})();return()=>{cancelled=true};},[projectId,periodMode,start,end,audience,analysisKey,analysisRequest.key,analysisRequest.revision]);
  const project=projects.find(x=>x.id===projectId);
  const cards=useMemo(()=>board?.columns.flatMap(x=>x.cards)||[],[board]);
@@ -295,10 +296,34 @@ export default function StatusReportPage() {
  <div className="text-sm"><label className="block">Período de referência<select className="mt-1 block w-full rounded-lg border border-(--border) bg-(--bg-surface) px-3 py-2" value={periodMode} onChange={e=>setPeriodMode(e.target.value==="period"?"period":"current")}><option value="current">Situação atual</option><option value="period">Período personalizado</option></select></label>{periodMode==="period"&&<div className="mt-2 grid grid-cols-2 gap-2"><label>Início<input type="date" className="mt-1 block w-full rounded border p-2" value={start} max={end} onChange={e=>setStart(e.target.value)}/></label><label>Fim<input type="date" className="mt-1 block w-full rounded border p-2" value={end} min={start} onChange={e=>setEnd(e.target.value)}/></label></div>}</div>
  <div className="flex flex-wrap gap-2 self-end"><button type="button" onClick={()=>void download()} disabled={!documentHtml||busy||pdfBusy||issuing} className="workspace-button-secondary px-4 py-2 text-sm disabled:opacity-50">Baixar HTML</button><button type="button" onClick={()=>void downloadPdf()} disabled={!documentHtml||busy||pdfBusy||issuing} className="workspace-button-primary px-4 py-2 text-sm disabled:opacity-50">{pdfBusy?"Gerando PDF...":"Baixar PDF"}</button></div>
  </section>
- <section className="grid gap-3 rounded-xl border border-(--border) bg-(--bg-surface) p-4 md:grid-cols-[1fr_auto]">
- <label className="text-sm">Tipo de relatório<select className="mt-1 block w-full rounded-lg border border-(--border) bg-(--bg-surface) px-3 py-2" value={audience} onChange={e=>setAudience(e.target.value==="internal"?"internal":"client")}><option value="client">Executivo · Cliente</option><option value="internal">Gerencial · Equipe interna</option></select></label>
- <button type="button" className="self-end rounded-lg bg-(--accent) px-4 py-2 text-sm text-white disabled:opacity-50" disabled={!documentHtml||issuing} onClick={()=>void issue()}>{issuing?"Registrando...":"Registrar emissão no histórico"}</button>
+ <section className="workspace-card space-y-3 p-4" aria-label="Seleção de público do relatório">
+   <div><h2 className="text-base font-semibold">Público e conteúdo</h2>
+     <p className="mt-1 text-xs text-(--text-secondary)">Os relatórios utilizam os mesmos fatos de origem e aplicam regras de visibilidade distintas.</p>
+   </div>
+   <div className="grid gap-2 sm:grid-cols-2">
+     <button type="button" aria-pressed={audience==="client"} onClick={()=>setAudience("client")}
+       className={audience==="client"?"rounded-lg border-2 border-(--accent) bg-(--accent-soft) p-4 text-left":"rounded-lg border border-(--border) p-4 text-left"}>
+       <span className="block text-sm font-semibold">Cliente · Executivo</span>
+       <span className="mt-1 block text-xs text-(--text-secondary)">Objetivos, entregas autorizadas, riscos relevantes, marcos e próximos passos.</span>
+     </button>
+     <button type="button" aria-pressed={audience==="internal"} onClick={()=>setAudience("internal")}
+       className={audience==="internal"?"rounded-lg border-2 border-(--accent) bg-(--accent-soft) p-4 text-left":"rounded-lg border border-(--border) p-4 text-left"}>
+       <span className="block text-sm font-semibold">Equipe · Gerencial</span>
+       <span className="mt-1 block text-xs text-(--text-secondary)">Backlog, Sprints, US, Tasks, responsáveis, decisões e impedimentos.</span>
+     </button>
+   </div>
  </section>
+ <section className="workspace-card flex flex-wrap items-center justify-between gap-3 p-4">
+  <div><p className="text-sm font-semibold">Relatório selecionado: {audience==="client"?"Executivo · Cliente":"Gerencial · Equipe"}</p>
+    <p className="mt-1 text-xs text-(--text-secondary)">Para alterar o público, utilize os dois cartões acima.</p>
+  </div>
+  <button type="button" className="workspace-button-primary px-4 py-2 text-sm disabled:opacity-50" disabled={!documentHtml||issuing} onClick={()=>void issue()}>{issuing?"Registrando...":"Registrar emissão no histórico"}</button>
+ </section>
+ <p role="status" aria-live="polite" className="workspace-card border-l-4 border-(--accent) p-3 text-sm">{status}</p>
+ {!documentHtml&&projectId?<div role="alert" className="workspace-card flex flex-wrap items-center justify-between gap-3 p-3 text-sm text-(--warning)">
+   <span>Prévia não disponível. {busy?"Carregando registros do projeto.":!scrumReport?scrumStatus:!board?"Dados do Kanban indisponíveis.": "Confira a origem dos dados antes de emitir."}</span>
+   <button type="button" className="workspace-button-secondary px-3 py-2 text-xs" disabled={busy} onClick={()=>setRetryRevision(r=>r+1)}>Reconsultar dados</button>
+  </div>:null}
  {audience==="internal"&&<label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={includeMitigationAnnex} onChange={e=>setIncludeMitigationAnnex(e.target.checked)}/> Incluir anexo de mitigação completa no PDF da Equipe (opcional)</label>}
  <p role="status" className="text-xs text-(--text-secondary)">{scrumStatus}</p>
  {projectId&&<PublicFactsEditor projectId={projectId} proposedNextSteps={analysis?.nextSteps} onChange={()=>setFactsRevision(n=>n+1)}/>}

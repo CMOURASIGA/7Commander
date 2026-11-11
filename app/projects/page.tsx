@@ -1,4 +1,5 @@
 "use client";
+import {IconActionButton} from "@/components/ui/icon-action-button";
 
 import {measuredFetch} from "@/lib/client-performance";
 
@@ -13,6 +14,7 @@ import { PageIntro, SectionLabel, StatusPill } from "@/components/ui/workspace-p
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import {ActionIcon} from "@/components/ui/action-icon";
 import {ProjectStakeholdersEditor} from "@/components/projects/project-stakeholders-editor";
+import {ProjectOverview} from "@/components/projects/project-overview";
 
 const STATUS_LABELS: Record<DecisionStatus, string> = {
   aberta: "Aberta",
@@ -149,14 +151,18 @@ function KnowledgeContent({ content }: { content: string }) {
 
 export default function ProjectsPage() {
   const { readOnly, checking } = useCentralPilotReadOnly();
+  const localReadOnly = process.env.NEXT_PUBLIC_COMMANDER_LOCAL_READ_ONLY === "true";
+  const documentWriteBlocked = readOnly || checking || localReadOnly;
   const confirm = useConfirm();
   const [projects, setProjects] = useState<ProjectSummary[]>([]);
   const [clients, setClients] = useState<ClientSummary[]>([]);
   const [selectedClientIdForCreate, setSelectedClientIdForCreate] = useState<string>("");
   const [activeProjectId, setActiveProjectId] = useState<string | null>(null);
   const [openRoutine, setOpenRoutine] = useState<RoutineKey | null>(null);
-  type ProjectTab = "project"|"risks"|"decisions"|"documents"|"members"|"meetings"|"activities";
-  const [activeTab,setActiveTab]=useState<ProjectTab>("project");
+  type ProjectTab = "overview"|"project"|"risks"|"decisions"|"documents"|"members"|"meetings"|"activities";
+  const [activeTab,setActiveTab]=useState<ProjectTab>("overview");
+  const [documentPreviewId,setDocumentPreviewId]=useState<string|null>(null);
+  const [projectPickerOpen,setProjectPickerOpen]=useState(false);
   const selectTab=(tab:ProjectTab)=>{setActiveTab(tab);const routine:Partial<Record<ProjectTab,RoutineKey>>={risks:"risks",decisions:"decisions",documents:"knowledge",members:"members"};setOpenRoutine(routine[tab]??null);};
   const [newProjectName, setNewProjectName] = useState("");
   const [decisions, setDecisions] = useState<Decision[]>([]);
@@ -226,6 +232,7 @@ export default function ProjectsPage() {
   });
 
   const selectedProject = projects.find((item) => item.id === activeProjectId) ?? null;
+  const previewDocument=knowledgeItems.find(item=>item.id===documentPreviewId)??null;
 
   async function loadProjects() {
     try {
@@ -421,6 +428,9 @@ export default function ProjectsPage() {
     const routines: Partial<Record<ProjectTab, RoutineKey>> = {risks:"risks",decisions:"decisions",documents:"knowledge",members:"members"};
     setOpenRoutine(routines[activeTab] ?? null);
     setProjectStatus(null);
+    // Local project selection is UI-only. Persisting the active project would
+    // mutate the shared production Supabase and is deliberately not permitted.
+    if (localReadOnly) return;
     try {
       const response = await measuredFetch("/api/projects/active", {
         method: "PATCH",
@@ -435,7 +445,7 @@ export default function ProjectsPage() {
   }
 
   async function handleInviteMember() {
-    if (!activeProjectId || !inviteEmail.trim() || inviting) return;
+    if (documentWriteBlocked || !activeProjectId || !inviteEmail.trim() || inviting) return;
     setInviting(true);
     setInviteStatus(null);
     try {
@@ -461,7 +471,7 @@ export default function ProjectsPage() {
   }
 
   async function handleRevokeMember(memberId: string) {
-    if (!activeProjectId || !memberId || removingMemberId) return;
+    if (documentWriteBlocked || !activeProjectId || !memberId || removingMemberId) return;
     setRemovingMemberId(memberId);
     setInviteStatus(null);
     try {
@@ -559,7 +569,7 @@ export default function ProjectsPage() {
   }
 
   async function handleIngestKnowledge() {
-    if (!activeProjectId || !ingestFile || ingesting) return;
+    if (documentWriteBlocked || !activeProjectId || !ingestFile || ingesting) return;
     setIngesting(true);
     setIngestStatus(null);
 
@@ -599,7 +609,7 @@ export default function ProjectsPage() {
   }
 
   async function handleSaveProjectDetails() {
-    if (!activeProjectId || savingProject) return;
+    if (documentWriteBlocked || !activeProjectId || savingProject) return;
     setSavingProject(true);
     setProjectStatus(null);
     try {
@@ -634,10 +644,10 @@ export default function ProjectsPage() {
   }
 
   async function handleDeleteKnowledge(item: KnowledgeItem) {
-    if (!activeProjectId || deletingKnowledgeId) return;
+    if (documentWriteBlocked || !activeProjectId || deletingKnowledgeId) return;
     const confirmed = await confirm({
       title: `Excluir "${item.title}"?`,
-      description: "Depois você poderá enviar o arquivo original novamente.",
+      description: "O conhecimento extraído será removido; o fluxo atual não mantém cópia do arquivo original para download.",
       confirmLabel: "Excluir",
       tone: "danger",
     });
@@ -739,16 +749,19 @@ export default function ProjectsPage() {
   }, [activeProjectId, openRoutine]);
 
   useEffect(() => {
-    if (activeProjectId && openRoutine === "knowledge") void loadKnowledge(activeProjectId);
-  }, [activeProjectId, openRoutine]);
+    if (activeProjectId && activeTab === "documents") void loadKnowledge(activeProjectId);
+  }, [activeProjectId, activeTab]);
 
   useEffect(() => {
-    if (activeProjectId && openRoutine === "decisions") void loadDecisions(activeProjectId);
-  }, [activeProjectId, openRoutine]);
+    if (activeProjectId && (openRoutine === "decisions" || activeTab === "overview")) void loadDecisions(activeProjectId);
+  }, [activeProjectId, openRoutine, activeTab]);
 
   useEffect(() => {
-    if (activeProjectId && openRoutine === "risks") void loadRisks(activeProjectId);
-  }, [activeProjectId, openRoutine]);
+    if (activeProjectId && (openRoutine === "risks" || activeTab === "overview")) void loadRisks(activeProjectId);
+  }, [activeProjectId, openRoutine, activeTab]);
+  useEffect(() => {
+    if (activeProjectId && activeTab === "overview") void loadKnowledge(activeProjectId);
+  }, [activeProjectId, activeTab]);
 
   return (
     <section className="space-y-3">
@@ -769,15 +782,38 @@ export default function ProjectsPage() {
         }
       />
 
+      {selectedProject ? <section className="workspace-card sticky top-0 z-20 flex flex-wrap items-center justify-between gap-3 border-b-2 border-(--accent) p-4" aria-label="Contexto do projeto ativo">
+        <div className="min-w-0">
+          <p className="text-xs font-semibold text-(--text-secondary)">Projeto ativo · {selectedProject.clientName||"Cliente não vinculado"}</p>
+          <h2 className="mt-1 text-lg font-semibold text-(--text-primary)">{selectedProject.name}</h2>
+          <p className="mt-1 text-xs text-(--text-secondary)">Fase: {selectedProject.maturity||"Não informada"} · Status: {selectedProject.status}</p>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <button className="workspace-button-secondary text-xs" type="button" aria-expanded={projectPickerOpen} onClick={()=>setProjectPickerOpen(!projectPickerOpen)}>Trocar projeto ({projects.length})</button>
+          <Link className="workspace-button-primary text-xs" href="/status-report">Status Report Executivo</Link>
+        </div>
+        {projectPickerOpen ? <div className="w-full rounded-lg border border-(--border) bg-(--bg-surface) p-3">
+          <label className="text-xs font-semibold" htmlFor="project-switcher">Selecionar projeto</label>
+          <select id="project-switcher" className="workspace-select mt-2 w-full" value={activeProjectId??""} onChange={event=>{setProjectPickerOpen(false);setDocumentPreviewId(null);if(event.target.value)void handleActivateProject(event.target.value);}}>
+            {projects.map(project=><option key={project.id} value={project.id}>{project.name} · {project.clientName||"Sem cliente"}</option>)}
+          </select>
+        </div> : null}
+      </section> : null}
+
       <nav aria-label="Quadros do projeto" className="workspace-card flex flex-wrap gap-2 p-3" role="tablist">
-        {([["project","Projeto"],["risks","Riscos"],["decisions","Decisões"],["documents","Documentos"],["members","Equipe"],["meetings","Reuniões"],["activities","Atividades"]] as const).map(([key,label]) => (
+        {([["overview","Visão geral"],["project","Projeto"],["risks",`Riscos ${risks.length}`],["decisions",`Decisões ${decisions.length}`],["documents",`Documentos ${knowledgeItems.length}`],["members",`Equipe ${members.length}`],["meetings","Reuniões"],["activities","Atividades"]] as const).map(([key,label]) => (
           <button key={key} type="button" role="tab" aria-selected={activeTab===key}
-            onClick={()=>selectTab(key)} className={activeTab===key?"workspace-button-primary text-xs":"workspace-button-secondary text-xs"}>{label}</button>
+            onClick={()=>selectTab(key)} className={activeTab===key?"border-b-2 border-(--accent) px-3 py-2 text-xs font-semibold text-(--accent)":"border-b-2 border-transparent px-3 py-2 text-xs text-(--text-secondary) hover:text-(--accent)"}>{label}</button>
         ))}
       </nav>
+      {activeTab==="overview" && selectedProject ? <ProjectOverview key={selectedProject.id}
+        project={selectedProject} risks={risks} decisions={decisions} documents={knowledgeItems}
+        risksLoading={risksLoading} decisionsLoading={loading} documentsLoading={knowledgeLoading}
+        onOpenTab={selectTab} onOpenDocument={setDocumentPreviewId}
+      /> : null}
       <article className="workspace-card flex flex-col gap-3 p-4">
         <SectionLabel>Projetos</SectionLabel>
-        <div className="mt-2 flex flex-wrap items-center justify-between gap-3">
+        <div className={activeTab==="project"?"mt-2 flex flex-wrap items-center justify-between gap-3":"hidden"}>
           <label className="flex min-w-0 flex-1 flex-col gap-1 text-sm font-semibold text-(--text-primary)">
             Projeto em edição
             <select aria-label="Selecionar projeto" value={activeProjectId ?? ""}
@@ -797,14 +833,8 @@ export default function ProjectsPage() {
           <div className="mt-3 space-y-2">
             {projects.map(project=><div key={project.id} className="flex flex-wrap items-center justify-between gap-2 border-b border-(--border) py-2">
               <span className="text-sm">{project.name}</span>
-              {project.status !== "arquivado" ? <button type="button" disabled={archivingProjectId===project.id}
-                onClick={()=>void handleArchiveProject(project)} className="workspace-button-secondary px-3 py-2 text-xs disabled:opacity-50">
-                {archivingProjectId===project.id?"Arquivando...":"Arquivar"}
-              </button> : <span className="text-xs">Arquivado</span>}
-              <button type="button" disabled={deletingProjectId===project.id}
-                onClick={()=>void handleDeleteProject(project)} className="workspace-button-danger px-3 py-2 text-xs disabled:opacity-50">
-                {deletingProjectId===project.id?"Excluindo...":"Excluir"}
-              </button>
+              {project.status !== "arquivado" ? <IconActionButton icon="archive" tone="neutral" label={"Arquivar "+project.name} disabled={archivingProjectId===project.id} onClick={()=>void handleArchiveProject(project)}/> : <span className="text-xs">Arquivado</span>}
+              <IconActionButton icon="trash" tone="danger" label={"Excluir "+project.name} disabled={deletingProjectId===project.id} onClick={()=>void handleDeleteProject(project)}/>
             </div>)}
           </div>
         </section>:null}
@@ -843,48 +873,11 @@ export default function ProjectsPage() {
             <button type="button" onClick={()=>selectTab("project")} className="ml-auto text-(--accent) underline">Editar vínculo e detalhes</button>
           </div>
         ) : null}
-        {!readOnly && <ProjectRoutine
-          title="Ingestao de arquivos"
-          description={readOnly ? "Ingestão indisponível para acesso somente leitura." : "Envie documentos para extrair conhecimento e atualizar o contexto do projeto."}
-          badge={ingestFile ? "arquivo selecionado" : undefined}
-          isOpen={openRoutine === "ingestion"}
-          onToggle={() => setOpenRoutine((current) => current === "ingestion" ? null : "ingestion")}
-        >
-          <SectionLabel>Ingestão de documento/imagem</SectionLabel>
-          <p className="text-xs text-(--text-secondary)">
-            Envie arquivo para o projeto ativo. O 7Commander extrai conteúdo, salva conhecimento e atualiza o contexto do projeto.
-          </p>
-          <label className="workspace-button-secondary inline-flex cursor-pointer text-xs text-(--accent)">
-            Selecionar arquivo do projeto
-            <input
-              type="file"
-              onChange={(event) => setIngestFile(event.target.files?.[0] ?? null)}
-              className="hidden"
-            />
-          </label>
-          <p className="text-xs text-(--text-secondary)">
-            {ingestFile ? `Arquivo selecionado: ${ingestFile.name}` : "Nenhum arquivo selecionado"}
-          </p>
-          <input
-            value={ingestNotes}
-            onChange={(event) => setIngestNotes(event.target.value)}
-            placeholder="Orientacoes opcionais para interpretacao do arquivo"
-            className="workspace-input text-xs"
-          />
-          <button
-            type="button"
-            onClick={() => void handleIngestKnowledge()}
-            disabled={!activeProjectId || !ingestFile || ingesting}
-            className="workspace-button-primary"
-          >
-            {ingesting ? "Processando..." : "Enviar e estruturar projeto"}
-          </button>
-          {ingestStatus ? <p className="text-xs text-(--text-primary)">{ingestStatus}</p> : null}
-        </ProjectRoutine>}
+
 
         </div>
          <div className={activeTab==="risks"?"contents":"hidden"}>
-         {!readOnly&&activeProjectId&&<div className="mb-3 flex justify-end"><button type="button" className="workspace-button-primary inline-flex items-center gap-2 px-4 py-2 text-sm" onClick={()=>{setEditingRiskId(null);setRiskForm({title:"",impact:"",probability:"",mitigation:"",owner:"",status:"aberto",decisionId:"",taskId:""});setRiskDrawerOpen(true);}}><ActionIcon name="plus"/> Criar risco</button></div>}
+         {(!readOnly || localReadOnly)&&activeProjectId&&<div className="mb-3 flex justify-end"><button type="button" disabled={documentWriteBlocked} title={documentWriteBlocked?"Somente leitura":undefined} className="workspace-button-primary inline-flex items-center gap-2 px-4 py-2 text-sm disabled:cursor-not-allowed disabled:opacity-50" onClick={()=>{setEditingRiskId(null);setRiskForm({title:"",impact:"",probability:"",mitigation:"",owner:"",status:"aberto",decisionId:"",taskId:""});setRiskDrawerOpen(true);}}><ActionIcon name="plus"/> Criar risco</button></div>}
          <ProjectRoutine title="Riscos do projeto"
           description={readOnly ? "Consulte os riscos do projeto sem alterar registros." : "Registre, acompanhe status e defina a mitigacao dos riscos operacionais."}
           badge={risks.length ? `${risks.length} registros` : undefined}
@@ -904,31 +897,30 @@ export default function ProjectsPage() {
             ) : (
               risks.map((risk) => (
                 <article key={risk.id} className="rounded-lg border border-(--border) bg-white p-3">
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <p className="text-xs font-semibold text-(--text-primary)">{risk.title}</p>
-                     {!readOnly&&<button type="button" title={"Editar risco "+risk.title} aria-label={"Editar risco "+risk.title}
-                      className="workspace-button-secondary inline-flex items-center gap-1 p-2 text-xs" onClick={()=>{
-                        setEditingRiskId(risk.id);setRiskForm({title:risk.title,impact:risk.impact,probability:risk.probability,
-                        mitigation:risk.mitigation,owner:risk.owner,status:risk.status,decisionId:risk.decisionId||"",taskId:risk.taskId||""});setRiskDrawerOpen(true);
-                      }}><ActionIcon name="pencil"/></button>}
-                    <select
-                      value={risk.status}
-                      onChange={(event) => void handleRiskStatusChange(risk.id, event.target.value as RiskItem["status"])}
-                      disabled={updatingRiskId === risk.id}
-                      className="rounded-md border border-(--border) bg-white px-2 py-1 text-[13px] text-(--text-primary)"
-                    >
-                      <option value="aberto">aberto</option>
-                      <option value="em_mitigacao">em_mitigacao</option>
-                      <option value="mitigado">mitigado</option>
-                      <option value="encerrado">encerrado</option>
-                    </select>
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <p className="min-w-0 flex-1 text-sm font-semibold text-(--text-primary)">{risk.title}</p>
+                    <div className="cs-record-actions" role="group" aria-label={"Ações do risco "+risk.title}>
+                      {(!readOnly || localReadOnly)&&<IconActionButton icon="pencil" tone="edit" label={"Editar risco "+risk.title} disabled={documentWriteBlocked} onClick={()=>{setEditingRiskId(risk.id);setRiskForm({title:risk.title,impact:risk.impact,probability:risk.probability,mitigation:risk.mitigation,owner:risk.owner,status:risk.status,decisionId:risk.decisionId||"",taskId:risk.taskId||""});setRiskDrawerOpen(true);}}/>}
+                      <label className="sr-only" htmlFor={"risk-status-"+risk.id}>Status do risco {risk.title}</label>
+                      <select id={"risk-status-"+risk.id} aria-label={"Alterar status do risco "+risk.title}
+                        value={risk.status}
+                        onChange={(event) => void handleRiskStatusChange(risk.id, event.target.value as RiskItem["status"])}
+                        disabled={documentWriteBlocked || updatingRiskId === risk.id}
+                        className="workspace-select cs-record-status"
+                      >
+                        <option value="aberto">Aberto</option>
+                        <option value="em_mitigacao">Em mitigação</option>
+                        <option value="mitigado">Mitigado</option>
+                        <option value="encerrado">Encerrado</option>
+                      </select>
+                    </div>
                   </div>
                   <p className="mt-1 text-[13px] text-(--text-secondary)">
                     Impacto: {risk.impact || "Nao informado"} | Probabilidade: {risk.probability || "Nao informada"}
                   </p>
                   <p className="mt-1 text-[13px] text-(--text-secondary)">Responsável: {risk.owner || "Não definido"}</p>
                   <details className="mt-2"><summary className="cursor-pointer text-xs font-medium text-(--accent)">Ver mitigação</summary><MarkdownContent className="mt-2" content={risk.mitigation||"Não definida"}/></details>
-                  <p className="mt-1 text-xs text-(--text-secondary)">Vínculos: {risk.decisionId?"decisão":""}{risk.decisionId&&risk.taskId?" e ":""}{risk.taskId?"atividade":""}{!risk.decisionId&&!risk.taskId?"nenhum":""}</p>
+                  {(risk.decisionId||risk.taskId)&&<p className="mt-1 text-xs text-(--text-secondary)">Vínculos: {risk.decisionId?"decisão":""}{risk.decisionId&&risk.taskId?" e ":""}{risk.taskId?"atividade":""}</p>}
                 </article>
               ))
             )}
@@ -1026,12 +1018,42 @@ export default function ProjectsPage() {
 
         </div>
          <div className={activeTab==="documents"?"contents":"hidden"}>
-         <ProjectRoutine title="Conhecimento do projeto"
-          description={readOnly ? "Consulte o conhecimento do projeto sem remover documentos." : "Consulte documentos processados e remova conhecimentos que nao forem mais relevantes."}
-          badge={knowledgeItems.length ? `${knowledgeItems.length} documentos` : undefined}
-          isOpen={openRoutine === "knowledge"}
-          onToggle={() => setOpenRoutine((current) => current === "knowledge" ? null : "knowledge")}
-        >
+         <section className="mb-3 rounded-xl border border-(--border) bg-(--bg-surface) p-4" aria-label="Envio de documentos do projeto">
+           <div className="flex flex-wrap items-center justify-between gap-3">
+             <div>
+               <h2 className="text-sm font-semibold text-(--text-primary)">Documentos do projeto</h2>
+               <p className="mt-1 text-xs text-(--text-secondary)">O fluxo atual importa conteúdo para o Kairos. O arquivo original ainda não fica disponível para download.</p>
+             </div>
+             <button type="button" className="workspace-button-primary disabled:cursor-not-allowed disabled:opacity-50"
+               disabled={documentWriteBlocked || !activeProjectId}
+               title={documentWriteBlocked ? "Upload bloqueado: este ambiente utiliza o Supabase oficial somente para leitura." : !activeProjectId ? "Selecione um projeto" : "Abrir formulário de ingestão"}
+               aria-expanded={openRoutine === "ingestion"}
+               onClick={() => setOpenRoutine(current=>current==="ingestion"?"knowledge":"ingestion")}>
+               Adicionar documento
+             </button>
+           </div>
+           {documentWriteBlocked ? <p role="status" className="mt-3 rounded-lg border border-(--border) bg-(--bg-muted) p-3 text-xs text-(--text-secondary)">
+             Somente leitura: envio, exclusão e análise de novos documentos estão bloqueados para preservar os dados oficiais.
+           </p> : null}
+           {openRoutine === "ingestion" && !documentWriteBlocked ? <div className="mt-4 space-y-3 border-t border-(--border) pt-4">
+             <p className="text-xs text-(--text-secondary)">A ingestão extrai conteúdo e pode atualizar campos do projeto. Não é armazenamento do arquivo original.</p>
+             <label className="workspace-button-secondary inline-flex cursor-pointer text-xs">
+               Selecionar arquivo para análise
+               <input type="file" className="hidden" onChange={event=>setIngestFile(event.target.files?.[0]??null)}/>
+             </label>
+             <p className="text-xs">{ingestFile ? `Selecionado: ${ingestFile.name}` : "Nenhum arquivo selecionado"}</p>
+             <input className="workspace-input text-xs" value={ingestNotes} onChange={event=>setIngestNotes(event.target.value)}
+               placeholder="Orientações opcionais para a extração"/>
+             <button type="button" className="workspace-button-primary disabled:opacity-50" disabled={!ingestFile || ingesting}
+               onClick={()=>void handleIngestKnowledge()}>{ingesting?"Processando...":"Analisar e importar conteúdo"}</button>
+             {ingestStatus ? <p role="status" className="text-xs">{ingestStatus}</p> : null}
+           </div> : null}
+         </section>
+         <section className="rounded-xl border border-(--border) bg-(--bg-surface) p-4" aria-label="Conteúdo processado dos documentos">
+           <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+             <h2 className="text-sm font-semibold">Conteúdo processado</h2>
+             <span className="text-xs text-(--text-secondary)">{knowledgeItems.length} registros</span>
+           </div>
           <p className="text-xs font-semibold uppercase tracking-wide text-(--text-secondary)">
             Conhecimento ingerido no projeto
           </p>
@@ -1044,27 +1066,21 @@ export default function ProjectsPage() {
           ) : (
             <div className="space-y-2">
               {knowledgeItems.map((item) => (
-                <article key={item.id} className="rounded-lg border border-(--border) bg-white p-3">
-                  <div className="flex items-start justify-between gap-3">
-                    <p className="text-xs font-semibold text-(--text-primary)">{item.title}</p>
-                    <button type="button" onClick={() => void handleDeleteKnowledge(item)} disabled={deletingKnowledgeId === item.id} className="workspace-button-danger px-3 py-2 text-[13px]">
-                      {deletingKnowledgeId === item.id ? "Excluindo..." : "Excluir documento"}
-                    </button>
+                <article key={item.id} className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-(--border) bg-(--bg-surface) p-3">
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-semibold text-(--text-primary)">{item.title}</p>
+                    <p className="mt-1 text-xs text-(--text-secondary)">{item.category} · {item.source} · {new Date(item.createdAt).toLocaleString("pt-BR")}</p>
+                    <span className="mt-2 inline-flex rounded-full bg-(--success-soft) px-2 py-1 text-xs font-medium text-(--success)">Processado</span>
                   </div>
-                  <p className="mt-1 text-[13px] text-(--text-secondary)">
-                    {item.category} | {item.source} | {new Date(item.createdAt).toLocaleString("pt-BR")}
-                  </p>
-                  <details className="group">
-                    <summary className="mt-2 cursor-pointer text-xs font-medium text-(--accent)">
-                      Ver conteúdo estruturado
-                    </summary>
-                    <KnowledgeContent content={item.content} />
-                  </details>
+                  <div className="cs-record-actions" role="group" aria-label={"Ações do documento "+item.title}>
+                    <IconActionButton icon="eye" tone="neutral" label={"Visualizar conteúdo de "+item.title} onClick={()=>setDocumentPreviewId(item.id)}/>
+                    <IconActionButton icon="trash" tone="danger" label={"Excluir registro "+item.title} disabled={documentWriteBlocked || deletingKnowledgeId === item.id} onClick={()=>void handleDeleteKnowledge(item)}/>
+                  </div>
                 </article>
               ))}
             </div>
           )}
-        </ProjectRoutine>
+        </section>
 
         </div>
          <div className={activeTab==="project"?"contents":"hidden"}>
@@ -1072,6 +1088,8 @@ export default function ProjectsPage() {
             <p className="text-xs font-semibold uppercase tracking-wide text-(--text-secondary)">
               Detalhes do projeto ativo
             </p>
+            {documentWriteBlocked ? <p className="text-xs text-(--text-secondary)">Somente leitura: informações disponíveis para consulta. A edição está desabilitada.</p> : null}
+            <fieldset disabled={documentWriteBlocked} className="space-y-2">
             <input
               value={projectForm.name}
               onChange={(event) => setProjectForm((prev) => ({ ...prev, name: event.target.value }))}
@@ -1112,7 +1130,7 @@ export default function ProjectsPage() {
               key={activeProjectId||"project"}
               value={projectForm.stakeholders}
               onChange={stakeholders=>{setProjectForm(prev=>({...prev,stakeholders}));setProjectStatus("Stakeholders alterados. Salve os detalhes do projeto para confirmar.");}}
-              readOnly={readOnly}
+              readOnly={documentWriteBlocked}
             />
             <div className="grid gap-2 md:grid-cols-3">
               <input
@@ -1146,6 +1164,7 @@ export default function ProjectsPage() {
               {savingProject ? "Salvando..." : "Salvar detalhes do projeto"}
             </button>
             {projectStatus ? <p className="text-xs text-(--text-primary)">{projectStatus}</p> : null}
+            </fieldset>
           </div>
         ) : null}
 
@@ -1183,7 +1202,7 @@ export default function ProjectsPage() {
                 <button
                   type="button"
                   onClick={() => void handleInviteMember()}
-                  disabled={inviting}
+                  disabled={documentWriteBlocked || inviting}
                   className="rounded-lg bg-(--accent) px-3 py-2 text-xs font-medium text-white disabled:opacity-50"
                 >
                   {inviting ? "Enviando..." : "Convidar"}
@@ -1212,14 +1231,7 @@ export default function ProjectsPage() {
                       </p>
                     </div>
                     {canManageMembers && member.role !== "owner" ? (
-                      <button
-                        type="button"
-                        onClick={() => void handleRevokeMember(member.id)}
-                        disabled={removingMemberId === member.id}
-                        className="rounded-md border border-(--border) bg-(--bg-muted) px-2 py-1 text-[13px] text-(--text-primary)"
-                      >
-                        {removingMemberId === member.id ? "Revogando..." : "Revogar"}
-                      </button>
+                      <IconActionButton icon="user-minus" tone="danger" label={"Revogar acesso de "+member.memberEmail} disabled={documentWriteBlocked || removingMemberId === member.id} onClick={()=>void handleRevokeMember(member.id)}/>
                     ) : null}
                   </div>
                 ))
@@ -1236,7 +1248,7 @@ export default function ProjectsPage() {
          </div>
        </article>
        <div className={activeTab==="decisions"?"":"hidden"}>
-       {!readOnly&&activeProjectId&&<div className="mb-3 flex justify-end"><button type="button" className="workspace-button-primary inline-flex items-center gap-2 px-4 py-2 text-sm" onClick={()=>{setEditingDecisionId(null);setDecisionForm({title:"",context:"",reason:"",impact:"",status:"aberta"});setDecisionDrawerOpen(true);}}><ActionIcon name="plus"/> Criar decisão</button></div>}
+       {(!readOnly || localReadOnly)&&activeProjectId&&<div className="mb-3 flex justify-end"><button type="button" disabled={documentWriteBlocked} title={documentWriteBlocked?"Somente leitura":undefined} className="workspace-button-primary inline-flex items-center gap-2 px-4 py-2 text-sm disabled:cursor-not-allowed disabled:opacity-50" onClick={()=>{setEditingDecisionId(null);setDecisionForm({title:"",context:"",reason:"",impact:"",status:"aberta"});setDecisionDrawerOpen(true);}}><ActionIcon name="plus"/> Criar decisão</button></div>}
        <ProjectRoutine title="Decisoes do projeto"
         description={readOnly ? "Consulte o histórico das decisões operacionais." : "Crie, acompanhe o status e consulte o historico das decisoes operacionais."}
         badge={decisions.length ? `${decisions.length} registros` : undefined}
@@ -1255,27 +1267,21 @@ export default function ProjectsPage() {
         <div className="space-y-3">
           {decisions.map((decision) => (
             <article key={decision.id} className="rounded-xl border border-(--border) bg-(--bg-surface) p-4">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <p className="text-base font-semibold text-(--text-primary)">{decision.title}</p>
-                 {!readOnly&&<button type="button" title={"Editar decisão "+decision.title} aria-label={"Editar decisão "+decision.title}
-                  className="workspace-button-secondary inline-flex items-center gap-1 p-2 text-xs" onClick={()=>{
-                    setEditingDecisionId(decision.id);setDecisionForm({title:decision.title,context:decision.context,reason:decision.reason,
-                     impact:decision.impact,status:decision.status});setDecisionDrawerOpen(true);
-                  }}><ActionIcon name="pencil"/></button>}
-                <select
-                  value={decision.status}
-                  onChange={(event) =>
-                    void handleStatusChange(decision.id, event.target.value as DecisionStatus)
-                  }
-                  disabled={updatingId === decision.id}
-                  className="rounded-md border border-(--border) bg-white px-2 py-1 text-xs text-(--text-primary)"
-                >
-                  {STATUS_OPTIONS.map((status) => (
-                    <option key={status} value={status}>
-                      {STATUS_LABELS[status]}
-                    </option>
-                  ))}
-                </select>
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <p className="min-w-0 flex-1 text-base font-semibold text-(--text-primary)">{decision.title}</p>
+                <div className="cs-record-actions" role="group" aria-label={"Ações da decisão "+decision.title}>
+                  {(!readOnly || localReadOnly)&&<IconActionButton icon="pencil" tone="edit" label={"Editar decisão "+decision.title} disabled={documentWriteBlocked} onClick={()=>{setEditingDecisionId(decision.id);setDecisionForm({title:decision.title,context:decision.context,reason:decision.reason,impact:decision.impact,status:decision.status});setDecisionDrawerOpen(true);}}/>}
+                  <select aria-label={"Alterar status da decisão "+decision.title}
+                    value={decision.status}
+                    onChange={(event) => void handleStatusChange(decision.id, event.target.value as DecisionStatus)}
+                    disabled={documentWriteBlocked || updatingId === decision.id}
+                    className="workspace-select cs-record-status"
+                  >
+                    {STATUS_OPTIONS.map((status) => (
+                      <option key={status} value={status}>{STATUS_LABELS[status]}</option>
+                    ))}
+                  </select>
+                </div>
               </div>
               <p className="mt-2 text-sm leading-6 text-(--text-secondary)">
                 {normalizeDecisionText(decision.reason || decision.context || "Sem justificativa registrada.").display.replace(/[#*`]/g,"").replace(/\s+/g," ").slice(0,220)}
@@ -1295,14 +1301,8 @@ export default function ProjectsPage() {
                 </div>
               </details>
               <div className="mt-2">
-                <button
-                  type="button"
-                  onClick={() => void loadDecisionHistory(decision.id)}
-                  disabled={historyLoadingId === decision.id}
-                  className="rounded-md border border-(--border) bg-(--bg-muted) px-2 py-1 text-[13px] text-(--text-primary)"
-                >
-                  {historyLoadingId === decision.id ? "Carregando historico..." : "Ver historico de status"}
-                </button>
+                <IconActionButton icon="history" tone="neutral" label={"Consultar histórico de "+decision.title}
+                   disabled={historyLoadingId===decision.id} onClick={()=>void loadDecisionHistory(decision.id)}/>
                 {decisionHistoryById[decision.id]?.length ? (
                   <div className="mt-2 space-y-1 rounded-lg border border-(--border) bg-(--bg-muted) p-2 text-[13px] text-(--text-secondary)">
                     {decisionHistoryById[decision.id].map((item) => (
@@ -1380,6 +1380,14 @@ export default function ProjectsPage() {
          </aside>
        </div>}
        </div>
+       {previewDocument ? <div className="fixed inset-0 z-50">
+         <button type="button" className="absolute inset-0 bg-black/35" aria-label="Fechar visualização de documento" onClick={()=>setDocumentPreviewId(null)}/>
+         <aside role="dialog" aria-modal="true" aria-label="Conteúdo do documento" className="relative ml-auto h-dvh w-full max-w-2xl overflow-y-auto border-l border-(--border) bg-(--bg-surface) p-5 shadow-2xl">
+           <div className="flex items-start justify-between gap-3"><div><h2 className="text-lg font-semibold">{previewDocument.title}</h2><p className="mt-1 text-xs text-(--text-secondary)">{previewDocument.category} · Conteúdo processado</p></div>
+             <button className="workspace-button-secondary" type="button" onClick={()=>setDocumentPreviewId(null)}>Fechar</button></div>
+           <div className="mt-5"><KnowledgeContent content={previewDocument.content}/></div>
+         </aside>
+       </div> : null}
      </section>
    );
 }

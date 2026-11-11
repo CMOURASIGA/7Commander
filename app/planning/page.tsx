@@ -1,4 +1,5 @@
 "use client";
+import {IconActionButton} from "@/components/ui/icon-action-button";
 import {useCallback,useEffect,useState} from "react";
 import Link from "next/link";
 import {getClientAuthHeaders} from "@/lib/client-auth";
@@ -20,6 +21,7 @@ export default function PlanningPage(){
  const[owner,setOwner]=useState(""),[nextAction,setNextAction]=useState("");
  const[stage,setStage]=useState("novo"),[prospectId,setProspectId]=useState(""),[prospects,setProspects]=useState<Array<{id:string;title:string}>>([]);
  const[active,setActive]=useState<RecordItem|null>(null),[status,setStatus]=useState<string|null>(null);
+ const[editorOpen,setEditorOpen]=useState(false);
  const[history,setHistory]=useState<Array<{version:number;action:string;created_at:string;actor_id:string}>>([]);
  const[publicQuery,setPublicQuery]=useState(""),[publicConfirmed,setPublicConfirmed]=useState(false);
  const[reqCategory,setReqCategory]=useState("funcional"),[reqAcceptance,setReqAcceptance]=useState(""),[reqSource,setReqSource]=useState(""),[reqPriority,setReqPriority]=useState("media");
@@ -40,7 +42,7 @@ export default function PlanningPage(){
   if(mounted&&r.ok)setProjects((j.data??[]).map((p:{id:string;name:string})=>({id:p.id,name:p.name})));
  }catch{}}void fetchProjects();return()=>{mounted=false}},[]);
  function reset(){setHistory([]);setActive(null);setTitle("");setDescription("");setSourceUrl("");setOwner("");setNextAction("");setStage("novo");setProspectId("");setReqCategory("funcional");setReqAcceptance("");setReqSource("");setReqPriority("media");}
- function edit(item:RecordItem){setHistory([]);setActive(item);setTitle(item.title);setDescription(item.description);setSourceUrl(item.source_url||"");setOwner(String(item.payload.owner||""));setNextAction(String(item.payload.nextAction||""));setStage(String(item.payload.stage||"novo"));setProspectId(String(item.payload.prospectId||""));setReqCategory(String(item.payload.category||"funcional"));setReqAcceptance(String(item.payload.acceptance||""));setReqSource(String(item.payload.source||""));setReqPriority(String(item.payload.priority||"media"));setStatus(null);}
+ function edit(item:RecordItem){setEditorOpen(true);setHistory([]);setActive(item);setTitle(item.title);setDescription(item.description);setSourceUrl(item.source_url||"");setOwner(String(item.payload.owner||""));setNextAction(String(item.payload.nextAction||""));setStage(String(item.payload.stage||"novo"));setProspectId(String(item.payload.prospectId||""));setReqCategory(String(item.payload.category||"funcional"));setReqAcceptance(String(item.payload.acceptance||""));setReqSource(String(item.payload.source||""));setReqPriority(String(item.payload.priority||"media"));setStatus(null);}
  async function reviewRequirements(){
   if(!projectId){setStatus("Selecione um projeto para revisar requisitos.");return;}
   setBusy(true);setStatus("Analisando requisitos por regras determinísticas...");
@@ -67,7 +69,7 @@ export default function PlanningPage(){
    const r=await fetch(`/api/planning/${active.id}/convert`,{method:"POST",headers:getClientAuthHeaders()});
    const j=await r.json();if(!r.ok)throw Error(j.error||"Falha na conversão");
    setStatus(j.data?.already_converted?"Prospect já convertido.":"Cliente criado com sucesso.");
-   reset();await load();
+   reset();setEditorOpen(false);await load();
   }catch(e){setStatus(e instanceof Error?e.message:"Falha na conversão");}finally{setBusy(false);}
  }
  async function showHistory(){
@@ -125,7 +127,16 @@ export default function PlanningPage(){
    onClick={()=>{setKind(k.value);setPage(1);reset();setStatus(null)}}
    aria-pressed={kind===k.value}
    className={kind===k.value?"rounded-lg bg-(--accent) px-3 py-2 text-sm font-semibold text-white":"rounded-lg border border-(--border) px-3 py-2 text-sm"}>{k.label}</button>)}</div>
-  <div className="grid gap-5 lg:grid-cols-[1fr_1fr]">
+  {status&&!editorOpen?<p role="status" aria-live="polite" className="workspace-card border-l-4 border-(--accent) p-3 text-sm">{status}</p>:null}
+  <section className="workspace-card flex flex-wrap items-center justify-between gap-3 p-4">
+    <div><h2 className="text-sm font-semibold">{info.label}</h2><p className="mt-1 text-xs text-(--text-secondary)">{info.help}</p></div>
+    <button className="workspace-button-primary text-xs" type="button" onClick={()=>{reset();setEditorOpen(true)}}>Adicionar {kind==="prospect"?"prospect":"registro"}</button>
+  </section>
+  <div className="space-y-4">
+   {editorOpen?<div className="fixed inset-0 z-50">
+     <button type="button" aria-label="Fechar editor" className="absolute inset-0 bg-black/35" onClick={()=>setEditorOpen(false)}/>
+     <aside role="dialog" aria-modal="true" aria-label={active?"Editar registro":"Adicionar registro"} className="relative ml-auto h-dvh w-full max-w-2xl overflow-y-auto bg-(--bg-surface) p-4 shadow-2xl">
+       <div className="mb-3 flex justify-end"><button type="button" className="workspace-button-secondary px-3 py-2 text-xs" onClick={()=>setEditorOpen(false)}>Fechar</button></div>
    <section className="rounded-xl border border-(--border) bg-white p-4">
     <h2 className="text-lg font-semibold">{active?"Editar registro":"Novo registro"} · {info.label}</h2>
     <p className="mb-4 text-sm text-(--text-secondary)">{info.help}</p>
@@ -197,22 +208,28 @@ export default function PlanningPage(){
       {active&&kind==="opportunity"&&active.project_id?<><Link href="/projects" className="workspace-button-secondary px-3 py-2">Ver projeto vinculado</Link><Link href={`/planning/backlog?projectId=${encodeURIComponent(active.project_id)}`} className="workspace-button-secondary px-3 py-2">Preparar Kanban deste projeto</Link></>:null}
       {active&&kind==="prospect"&&active.status==="won"?<button disabled={busy} className="workspace-button-primary px-3 py-2" onClick={()=>void convertProspect()}>Converter em cliente</button>:null}
       {active?<button type="button" className="workspace-button-secondary px-3 py-2" disabled={busy} onClick={()=>void showHistory()}>Ver histórico e aprovações</button>:null}
-      {active?<button className="workspace-button-secondary px-3 py-2" disabled={busy} onClick={reset}>Cancelar edição</button>:null}
+      {active?<button className="workspace-button-secondary px-3 py-2" disabled={busy} onClick={()=>{reset();setEditorOpen(false)}}>Cancelar edição</button>:null}
      </div>
      {history.length>0?<div className="rounded-lg border border-(--border) p-3"><h3 className="font-semibold">Histórico de alterações e aprovações</h3><ul className="mt-2 space-y-1 text-sm">{history.map((h,i)=><li key={h.version+"-"+i}>Versão {h.version} · {h.action} · {new Date(h.created_at).toLocaleString("pt-BR")}</li>)}</ul></div>:null}
      {status?<p role="status" aria-live="polite" className="rounded-lg border border-(--border) p-3 text-sm">{status}</p>:null}
     </div>
    </section>
+     </aside>
+   </div>:null}
    <section className="rounded-xl border border-(--border) bg-white p-4">
     <div className="mb-4 flex items-center justify-between gap-2"><h2 className="text-lg font-semibold">Registros</h2>
      <button onClick={()=>void load()} className="workspace-button-secondary px-3 py-2 text-xs" disabled={loading}>{loading?"Carregando...":"Atualizar"}</button></div>
     <p className="mb-3 text-xs text-(--text-secondary)">{total} registro(s), página {page}. A consulta é sob demanda e limitada a 25 itens.</p>
-    <div className="space-y-2">{items.map(item=><button key={item.id} type="button" onClick={()=>edit(item)}
-      className="block w-full rounded-lg border border-(--border) p-3 text-left hover:bg-(--bg-muted)">
-      <span className="block font-medium">{item.title}</span>
-      <span className="text-xs text-(--text-secondary)">{item.status} · v{item.version} · {new Date(item.updated_at).toLocaleDateString("pt-BR")}</span>
-      <p className="mt-1 line-clamp-2 text-sm text-(--text-secondary)">{item.description||"Sem descrição"}</p>
-     </button>)}{!loading&&!items.length?<p className="text-sm text-(--text-secondary)">Nenhum registro encontrado nesta categoria.</p>:null}</div>
+    <div className="space-y-2">{items.map(item=><div key={item.id} className="flex items-center justify-between gap-3 rounded-lg border border-(--border) p-3"><div className="min-w-0 flex-1">
+      <span className="flex flex-wrap items-center justify-between gap-2">
+        <span className="font-medium">{item.title}</span>
+        <span className="rounded-full bg-(--bg-muted) px-2 py-1 text-xs font-semibold">{item.status}</span>
+      </span>
+      <span className="mt-1 block text-xs text-(--text-secondary)">Versão {item.version} · Atualizado em {new Date(item.updated_at).toLocaleDateString("pt-BR")}</span>
+      <p className="mt-2 line-clamp-2 text-sm text-(--text-secondary)">{item.description||"Sem descrição"}</p>
+      {item.payload.nextAction?<p className="mt-2 text-xs text-(--text-secondary)">Próxima ação: {String(item.payload.nextAction)}</p>:null}
+      {item.payload.owner?<p className="mt-1 text-xs text-(--text-secondary)">Responsável: {String(item.payload.owner)}</p>:null}
+     </div><IconActionButton icon="pencil" tone="edit" label={"Editar "+item.title} onClick={()=>edit(item)}/></div>)}{!loading&&!items.length?<p className="text-sm text-(--text-secondary)">Nenhum registro encontrado nesta categoria.</p>:null}</div>
     <div className="mt-4 flex gap-2">
      <button type="button" disabled={page===1} onClick={()=>setPage(p=>p-1)} className="workspace-button-secondary px-3 py-2 text-xs disabled:opacity-40">Anterior</button>
      <button type="button" disabled={page*25>=total} onClick={()=>setPage(p=>p+1)} className="workspace-button-secondary px-3 py-2 text-xs disabled:opacity-40">Próxima</button>

@@ -40,7 +40,11 @@ export async function GET(req:NextRequest){
     db.from("scrum_story_comments").select("id,story_id,author_email,content,created_at").eq("organization_id",org).eq("project_id",projectId).order("created_at",{ascending:true}).limit(1000),
     db.from("scrum_story_events").select("story_id,event_type,from_sprint,to_sprint").eq("organization_id",org).eq("project_id",projectId).limit(2000)
   ]);
-  if(stories.error||comments.error||events.error)return fail("Não foi possível consultar as US e seu histórico.",503);
+  if(stories.error||comments.error||events.error){
+    const failed=stories.error?{name:"User Stories",code:stories.error.code}:comments.error?{name:"Comentários",code:comments.error.code}:{name:"Histórico",code:events.error!.code};
+    // Postgres error codes may be shown; never return database details or SQL.
+    return fail(`Consulta de ${failed.name} indisponível (código ${failed.code||"DB_ERROR"}). Verifique as permissões RLS do usuário autenticado.`,503);
+  }
   const history=new Set((events.data||[]).filter(e=>e.event_type!=="created"||e.from_sprint!==null||e.to_sprint!==null).map(e=>e.story_id));
   return respond({data:{stories:(stories.data||[]).map(st=>({...st,has_history:history.has(st.id)})),comments:comments.data}});
 }

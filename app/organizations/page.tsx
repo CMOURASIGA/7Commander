@@ -26,6 +26,16 @@ export default function OrganizationChooser(){
     setError("O Commander confirmou seu vínculo, mas NÃO alterou a empresa ativa. O isolamento multempresa ainda está pendente.");
     return;
    }
+   // Independent GET confirms that the server now resolves the selected
+   // tenant. Browser storage never decides authorization or active company.
+   const confirmed=await fetch("/api/organizations/branding?summary=1",{
+     headers:getClientAuthHeaders(),cache:"no-store"
+   });
+   const confirmation=await confirmed.json().catch(()=>({}));
+   if(!confirmed.ok || confirmation.data?.id!==selected){
+     setError("A empresa selecionada não foi confirmada pelo servidor. A tela não será redirecionada para evitar uma identidade incorreta.");
+     return;
+   }
    window.localStorage.setItem("7commander:company-changed",String(Date.now()));
    window.dispatchEvent(new CustomEvent("7commander:organization-selected",{detail:{organizationId:selected}}));
    window.location.assign("/"); // Clears in-memory project and Kairos context after authorized switch.
