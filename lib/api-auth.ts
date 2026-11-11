@@ -9,7 +9,7 @@ import { authorizeCentralPilot } from "@/lib/central-runtime";
 import { recordCentralDecision } from "@/lib/central-decision-audit";
 import { TENANT_SCHEMA_READY, getEffectiveTenantForUser } from "@/lib/tenant-runtime";
 import { localWriteGuardEnabled } from "@/lib/local-write-guard";
-import { bindLocalIdentity } from "@/lib/local-request-identity";
+import { beginLocalIdentity, verifyLocalIdentity } from "@/lib/local-request-identity";
 
 const USER_ID_HEADER = "x-kairos-user-id";
 const API_KEY_HEADER = "x-kairos-api-key";
@@ -68,6 +68,9 @@ export async function requireApiAuth(request: NextRequest): Promise<{
   const requestApiKey = extractApiKeyFromRequest(request);
   const bearerToken = extractBearerToken(request);
   const authRequired = isAuthRequired();
+  // Establish request-local async context synchronously, BEFORE the first
+  // await. It remains unusable until Supabase Auth verifies this JWT.
+  if (localWriteGuardEnabled()) beginLocalIdentity(bearerToken);
 
   if (bearerToken && seemsJwtToken(bearerToken) && bearerToken !== configuredApiKey) {
     const { NEXT_PUBLIC_SUPABASE_URL, NEXT_PUBLIC_SUPABASE_ANON_KEY } = getPublicEnv();
@@ -84,7 +87,9 @@ export async function requireApiAuth(request: NextRequest): Promise<{
       if (userResult.data.user && !userResult.error) {
         if (localWriteGuardEnabled()) {
           const userId = userResult.data.user.id;
-          bindLocalIdentity(bearerToken,userId);
+          if (!verifyLocalIdentity(bearerToken,userId)) return {
+            ok:false,response:NextResponse.json({error:"Contexto de autenticação inválido."},{status:401})
+          };
           const db = getSupabaseServerClient();
           if (!db) return {ok:false,response:NextResponse.json({error:"Acesso local não configurado."},{status:503})};
           // This path is intentionally internal-only. Centrally provisioned
