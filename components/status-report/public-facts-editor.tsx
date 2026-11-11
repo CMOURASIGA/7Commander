@@ -169,7 +169,7 @@ export function PublicFactsEditor({projectId,onChange,proposedNextSteps}:{projec
         </div>
         <div className="flex flex-wrap gap-2">
          {published?<span className="text-xs text-(--text-secondary)">Publicado</span>:needsRiskRevision?<span className="text-xs text-(--text-secondary)">Revisar o conteúdo disponível</span>:
-          <button type="button" disabled={busy} className="workspace-button-primary text-xs" onClick={()=>void publish(editorialInfo(candidate,existing),existing?.id)}>Publicar</button>}
+          <IconActionButton icon="check-circle" tone="success" label="Publicar informação sugerida" disabled={busy} onClick={()=>void publish(editorialInfo(candidate,existing),existing?.id)}/>}
          <IconActionButton icon="pencil" tone="edit" label="Editar informação sugerida" disabled={busy} onClick={()=>edit(editorialInfo(candidate,existing),existing?.id)}/>
         </div>
        </div>
@@ -181,7 +181,7 @@ export function PublicFactsEditor({projectId,onChange,proposedNextSteps}:{projec
    <h3 className="font-semibold">Sugestão de próximos passos</h3>
    <p className="whitespace-pre-wrap text-sm">{proposed.description}</p>
    <div className="flex gap-2">
-    <button disabled={busy||!!recorded(proposed.sourceReference)?.approved_for_client} className="workspace-button-primary text-xs" onClick={()=>void publish(recorded(proposed.sourceReference)?fromFact(recorded(proposed.sourceReference)!):proposed,recorded(proposed.sourceReference)?.id)}>Publicar</button>
+    <IconActionButton icon="check-circle" tone="success" label="Publicar próximo passo sugerido" disabled={busy||!!recorded(proposed.sourceReference)?.approved_for_client} onClick={()=>void publish(recorded(proposed.sourceReference)?fromFact(recorded(proposed.sourceReference)!):proposed,recorded(proposed.sourceReference)?.id)}/>
     <IconActionButton icon="pencil" tone="edit" label="Editar sugestão" disabled={busy} onClick={()=>edit(recorded(proposed.sourceReference)?fromFact(recorded(proposed.sourceReference)!):proposed,recorded(proposed.sourceReference)?.id)}/>
    </div>
   </div>:null}
@@ -205,7 +205,7 @@ export function PublicFactsEditor({projectId,onChange,proposedNextSteps}:{projec
    {items.length===0?<p className="text-sm text-(--text-secondary)">Nenhuma informação publicada ainda.</p>:items.map(fact=><article key={fact.id} className="flex flex-wrap items-start justify-between gap-2 rounded-lg border border-(--border) p-3">
     <div><p className="text-sm font-medium">{fact.title}</p><p className="text-xs text-(--text-secondary)">{kinds.find(k=>k[0]===fact.kind)?.[1]} · {fact.approved_for_client?(riskReady(fact)?"Publicado":"Revisar conteúdo para o Cliente"):"Não publicado"}</p></div>
     <div className="flex flex-wrap gap-2">
-     {!fact.approved_for_client?<button className="workspace-button-primary text-xs" disabled={busy} onClick={()=>void publish(fromFact(fact),fact.id)}>Publicar</button>:null}
+     {!fact.approved_for_client?<IconActionButton icon="check-circle" tone="success" label={"Publicar "+fact.title} disabled={busy} onClick={()=>void publish(fromFact(fact),fact.id)}/>:null}
      <IconActionButton icon="pencil" tone="edit" label={"Editar "+fact.title} disabled={busy} onClick={()=>edit(fromFact(fact),fact.id)}/>
      {fact.approved_for_client?<IconActionButton icon="archive" tone="danger" label={"Retirar publicação de "+fact.title} disabled={busy} onClick={()=>void withdraw(fact)}/>:null}
     </div>
