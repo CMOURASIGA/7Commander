@@ -3,6 +3,7 @@ import { requireApiAuth } from "@/lib/api-auth";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
 import { getEffectiveTenantForUser } from "@/lib/tenant-runtime";
 import { authorizeCentralPilot } from "@/lib/central-runtime";
+import { localAuthEnabled, localWriteGuardEnabled } from "@/lib/local-write-guard";
 
 export const dynamic = "force-dynamic";
 const headers = { "Cache-Control": "private, no-store, max-age=0" };
@@ -17,6 +18,19 @@ export async function GET(request: NextRequest) {
   const orgId=await getEffectiveTenantForUser(auth.context.userId);
   if (!db || !orgId) return NextResponse.json(
     {readOnly:true,canSwitchCompany:false},{status:403,headers});
+  // In local JWT + RLS mode, capability discovery must not depend on
+  // internal_user_access (not selectable by authenticated Postgres role).
+  if (localAuthEnabled() || localWriteGuardEnabled()) {
+    const admin=await db.from("platform_admins").select("user_id")
+      .eq("user_id",auth.context.userId).eq("active",true).maybeSingle();
+    const membership=await db.from("organization_members").select("organization_id")
+      .eq("organization_id",orgId).eq("user_id",auth.context.userId)
+      .eq("status","active").maybeSingle();
+    if (admin.error || membership.error || !admin.data || !membership.data)
+      return NextResponse.json({readOnly:true,canSwitchCompany:false},{status:403,headers});
+    const canWrite=localAuthEnabled() && !localWriteGuardEnabled();
+    return NextResponse.json({readOnly:!canWrite,canSwitchCompany:canWrite},{headers});
+  }
   const [admin, access, link]=await Promise.all([
     db.from("platform_admins").select("user_id").eq("user_id",auth.context.userId)
       .eq("active",true).maybeSingle(),
