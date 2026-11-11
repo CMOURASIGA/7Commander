@@ -20,7 +20,7 @@ test("API GET and static pages remain reachable",()=>{
   expect(shouldBlockLocalApiMutation({enabled:true,pathname:"/projects",method:"POST"})).toBe(false);
   expect(shouldBlockLocalApiMutation({enabled:false,pathname:"/api/tasks",method:"DELETE"})).toBe(false);
 });
-test("only chat POST is allowed through the API mutation gate",()=>{
+test("chat and local cookie sync are the only allowed POST operations",()=>{
   expect(shouldBlockLocalApiMutation({enabled:true,pathname:"/api/chat",method:"POST"})).toBe(false);
   expect(shouldBlockLocalApiMutation({enabled:true,pathname:"/api/chat",method:"DELETE"})).toBe(true);
   expect(shouldBlockLocalApiMutation({enabled:true,pathname:"/api/auth/profile",method:"POST"})).toBe(true);
