@@ -702,13 +702,7 @@ export default function ActivitiesPage() {
                         >
                           {label.name}
                           {canEditDetail ? (
-                            <button
-                              type="button"
-                              onClick={() => void applyDetailAction({ action: "remove_label", labelId: label.id })}
-                              className="text-[13px]"
-                            >
-                              x
-                            </button>
+                            <IconActionButton icon="x" tone="danger" label={"Remover etiqueta "+label.name} onClick={()=>void applyDetailAction({action:"remove_label",labelId:label.id})}/>
                           ) : null}
                         </span>
                       ))}
@@ -776,13 +770,7 @@ export default function ActivitiesPage() {
                       <div key={member.id} className="flex min-w-0 items-center justify-between gap-2 rounded border border-(--border) bg-white px-2 py-1 text-xs">
                         <span className="min-w-0 truncate">{member.memberEmail}</span>
                         {canEditDetail ? (
-                          <button
-                            type="button"
-                            onClick={() => void applyDetailAction({ action: "remove_member", memberId: member.id })}
-                            className="text-(--text-secondary)"
-                          >
-                            remover
-                          </button>
+                          <IconActionButton icon="user-minus" tone="danger" label={"Remover membro "+member.memberEmail} onClick={()=>void applyDetailAction({action:"remove_member",memberId:member.id})}/>
                         ) : null}
                       </div>
                     ))}
