@@ -41,6 +41,11 @@ const localReadOnly = values.COMMANDER_LOCAL_READ_ONLY === "true" && values.NEXT
 const needed = localReadOnly ? required.filter(key => key !== "SUPABASE_SERVICE_ROLE_KEY" && key !== "OPENAI_API_KEY") : required;
 const missing = needed.filter((key) => !values[key]);
 
+if (localReadOnly && values.SUPABASE_SERVICE_ROLE_KEY) {
+  console.error("Modo local read-only nao pode conter SUPABASE_SERVICE_ROLE_KEY. Remova o valor do .env.local.");
+  process.exit(1);
+}
+
 if (missing.length > 0) {
   console.error("Variaveis obrigatorias ausentes no .env.local:");
   for (const key of missing) console.error(`- ${key}`);
