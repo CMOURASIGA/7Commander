@@ -1228,7 +1228,7 @@ export default function ProjectsPage() {
                       </p>
                     </div>
                     {canManageMembers && member.role !== "owner" ? (
-                      <IconActionButton icon="user-minus" tone="danger" label={"Revogar acesso de "+(member.email||member.id)} disabled={documentWriteBlocked || removingMemberId === member.id} onClick={()=>void handleRevokeMember(member.id)}/>
+                      <IconActionButton icon="user-minus" tone="danger" label={"Revogar acesso de "+member.memberEmail} disabled={documentWriteBlocked || removingMemberId === member.id} onClick={()=>void handleRevokeMember(member.id)}/>
                     ) : null}
                   </div>
                 ))
