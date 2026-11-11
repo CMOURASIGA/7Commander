@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { getClientAuthHeaders } from "@/lib/client-auth";
 import { useCentralPilotReadOnly } from "@/lib/use-central-pilot-read-only";
 import { PageIntro, SectionLabel, StatusPill, SurfaceCard } from "@/components/ui/workspace-primitives";
-import {ActionIcon} from "@/components/ui/action-icon";
+import {IconActionButton} from "@/components/ui/icon-action-button";
 import {useConfirm} from "@/components/ui/confirm-dialog";
 
 type ClientItem = {
@@ -259,14 +259,10 @@ export default function ClientsPage() {
                   </p>
                 </div>
                 {!readOnly && !checking ? <div className="flex shrink-0 items-center gap-2">
-                  <button type="button" onClick={() => handleEdit(client)} aria-label={"Editar "+client.name}
-                    title="Editar cliente" className="workspace-button-secondary inline-flex h-9 w-9 items-center justify-center p-2">
-                    <ActionIcon name="pencil"/>
-                  </button>
-                  <button type="button" onClick={() => void handleDelete(client.id)} aria-label={"Excluir "+client.name}
-                    title="Excluir cliente" className="workspace-button-danger inline-flex h-9 w-9 items-center justify-center p-2">
-                    <ActionIcon name="trash"/>
-                  </button>
+                  <IconActionButton icon="pencil" tone="edit" label={"Editar "+client.name}
+                    onClick={()=>handleEdit(client)}/>
+                  <IconActionButton icon="trash" tone="danger" label={"Excluir "+client.name}
+                    onClick={()=>void handleDelete(client.id)}/>
                 </div> : null}
               </div>
             ))}
