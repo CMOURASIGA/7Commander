@@ -295,6 +295,23 @@ export default function StatusReportPage() {
  <div className="text-sm"><label className="block">Período de referência<select className="mt-1 block w-full rounded-lg border border-(--border) bg-(--bg-surface) px-3 py-2" value={periodMode} onChange={e=>setPeriodMode(e.target.value==="period"?"period":"current")}><option value="current">Situação atual</option><option value="period">Período personalizado</option></select></label>{periodMode==="period"&&<div className="mt-2 grid grid-cols-2 gap-2"><label>Início<input type="date" className="mt-1 block w-full rounded border p-2" value={start} max={end} onChange={e=>setStart(e.target.value)}/></label><label>Fim<input type="date" className="mt-1 block w-full rounded border p-2" value={end} min={start} onChange={e=>setEnd(e.target.value)}/></label></div>}</div>
  <div className="flex flex-wrap gap-2 self-end"><button type="button" onClick={()=>void download()} disabled={!documentHtml||busy||pdfBusy||issuing} className="workspace-button-secondary px-4 py-2 text-sm disabled:opacity-50">Baixar HTML</button><button type="button" onClick={()=>void downloadPdf()} disabled={!documentHtml||busy||pdfBusy||issuing} className="workspace-button-primary px-4 py-2 text-sm disabled:opacity-50">{pdfBusy?"Gerando PDF...":"Baixar PDF"}</button></div>
  </section>
+ <section className="workspace-card space-y-3 p-4" aria-label="Seleção de público do relatório">
+   <div><h2 className="text-base font-semibold">Público e conteúdo</h2>
+     <p className="mt-1 text-xs text-(--text-secondary)">Os relatórios utilizam os mesmos fatos de origem e aplicam regras de visibilidade distintas.</p>
+   </div>
+   <div className="grid gap-2 sm:grid-cols-2">
+     <button type="button" aria-pressed={audience==="client"} onClick={()=>setAudience("client")}
+       className={audience==="client"?"rounded-lg border-2 border-(--accent) bg-(--accent-soft) p-4 text-left":"rounded-lg border border-(--border) p-4 text-left"}>
+       <span className="block text-sm font-semibold">Cliente · Executivo</span>
+       <span className="mt-1 block text-xs text-(--text-secondary)">Objetivos, entregas autorizadas, riscos relevantes, marcos e próximos passos.</span>
+     </button>
+     <button type="button" aria-pressed={audience==="internal"} onClick={()=>setAudience("internal")}
+       className={audience==="internal"?"rounded-lg border-2 border-(--accent) bg-(--accent-soft) p-4 text-left":"rounded-lg border border-(--border) p-4 text-left"}>
+       <span className="block text-sm font-semibold">Equipe · Gerencial</span>
+       <span className="mt-1 block text-xs text-(--text-secondary)">Backlog, Sprints, US, Tasks, responsáveis, decisões e impedimentos.</span>
+     </button>
+   </div>
+ </section>
  <section className="grid gap-3 rounded-xl border border-(--border) bg-(--bg-surface) p-4 md:grid-cols-[1fr_auto]">
  <label className="text-sm">Tipo de relatório<select className="mt-1 block w-full rounded-lg border border-(--border) bg-(--bg-surface) px-3 py-2" value={audience} onChange={e=>setAudience(e.target.value==="internal"?"internal":"client")}><option value="client">Executivo · Cliente</option><option value="internal">Gerencial · Equipe interna</option></select></label>
  <button type="button" className="self-end rounded-lg bg-(--accent) px-4 py-2 text-sm text-white disabled:opacity-50" disabled={!documentHtml||issuing} onClick={()=>void issue()}>{issuing?"Registrando...":"Registrar emissão no histórico"}</button>
