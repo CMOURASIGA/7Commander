@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { LOCAL_ACCESS_COOKIE } from './lib/local-ssr-cookie';
-import { localWriteGuardEnabled, shouldBlockLocalApiMutation } from './lib/local-write-guard';
+import { localAuthEnabled, localWriteGuardEnabled, shouldBlockLocalApiMutation } from './lib/local-write-guard';
 import { readOnlySupabaseFetch } from './lib/local-supabase-fetch';
 
 const PUBLIC_PAGES = new Set(['/login','/central-access']);
@@ -35,7 +35,7 @@ export async function middleware(request:NextRequest) {
   }
   // Local development uses the Commander's existing internal Auth identity.
   // Never bypass this gate for API routes: their auth + RLS checks remain mandatory.
-  if (localWriteGuardEnabled() && request.nextUrl.hostname==="localhost") {
+  if ((localAuthEnabled() || localWriteGuardEnabled()) && ["localhost","127.0.0.1"].includes(request.nextUrl.hostname)) {
     if (publicPage(request.nextUrl.pathname) || request.nextUrl.pathname.startsWith("/api/"))
       return NextResponse.next();
     const token=request.cookies.get(LOCAL_ACCESS_COOKIE)?.value??"";
@@ -48,7 +48,7 @@ export async function middleware(request:NextRequest) {
     if(session.error||!userId)return redirect(request,"/login");
     const db=createClient(url,key,{
       auth:{persistSession:false,autoRefreshToken:false,detectSessionInUrl:false},
-      global:{headers:{Authorization:"Bearer "+token},fetch:readOnlySupabaseFetch(fetch)},
+      global:{headers:{Authorization:"Bearer "+token}, ...(localWriteGuardEnabled()?{fetch:readOnlySupabaseFetch(fetch)}:{})},
     });
     const [internal,member]=await Promise.all([
       db.from("platform_admins").select("active")
