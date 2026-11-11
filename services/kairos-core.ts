@@ -1,4 +1,5 @@
 import { getOpenAIClient } from "@/lib/openai";
+import { localWriteGuardEnabled } from "@/lib/local-write-guard";
 import { getEffectiveTenantForUser } from "@/lib/tenant-runtime";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
 import { KAIROS_PM_REPORT_POLICY } from "@/lib/kairos-pm-report-policy";
@@ -327,7 +328,7 @@ export async function generateKairosResponse(params: GenerateParams): Promise<{
       userEmail: params.userEmail,
       message: params.message,
       preferredProjectId: params.projectId ?? null,
-      autoCreateOnExplicitRequest: true,
+      autoCreateOnExplicitRequest: !localWriteGuardEnabled(),
     }),
     getKairosProfile(params.userId),
   ]);
@@ -370,7 +371,7 @@ export async function generateKairosResponse(params: GenerateParams): Promise<{
     })
     : [];
 
-  const taskCommand = await maybeHandleTaskCommand({
+  const taskCommand = localWriteGuardEnabled() ? {handled:false,answer:""} : await maybeHandleTaskCommand({
     userId: params.userId,
     userEmail: params.userEmail,
     message: params.message,
@@ -378,7 +379,7 @@ export async function generateKairosResponse(params: GenerateParams): Promise<{
     projectName: projectResolution.project?.name ?? null,
   });
 
-  const riskCommand = await maybeHandleRiskCommand({
+  const riskCommand = localWriteGuardEnabled() ? {handled:false,answer:""} : await maybeHandleRiskCommand({
     userId: params.userId,
     message: params.message,
     projectId: projectResolution.project?.id ?? null,
@@ -386,7 +387,7 @@ export async function generateKairosResponse(params: GenerateParams): Promise<{
   });
 
   if (taskCommand.handled) {
-    await saveMemory({
+    if (!localWriteGuardEnabled()) await saveMemory({
       userId: params.userId,
       type: "interaction",
       priority: "P2",
@@ -407,7 +408,7 @@ export async function generateKairosResponse(params: GenerateParams): Promise<{
   }
 
   if (riskCommand.handled) {
-    await saveMemory({
+    if (!localWriteGuardEnabled()) await saveMemory({
       userId: params.userId,
       type: "interaction",
       priority: "P2",
@@ -482,7 +483,7 @@ export async function generateKairosResponse(params: GenerateParams): Promise<{
   const openai = getOpenAIClient();
   if (!openai) {
     const fallbackAnswer = buildLocalFallbackAnswer(params.message, "OPENAI_API_KEY nao configurada.");
-    await saveMemory({
+    if (!localWriteGuardEnabled()) await saveMemory({
       userId: params.userId,
       type: "interaction",
       priority: "P2",
@@ -518,7 +519,7 @@ export async function generateKairosResponse(params: GenerateParams): Promise<{
 
     const answer = response.output_text?.trim() || "Nao foi possivel gerar resposta.";
 
-    await saveMemory({
+    if (!localWriteGuardEnabled()) await saveMemory({
       userId: params.userId,
       type: "interaction",
       priority: "P2",
@@ -539,7 +540,7 @@ export async function generateKairosResponse(params: GenerateParams): Promise<{
   } catch (error) {
     const reason = error instanceof Error ? error.message : "Falha na chamada OpenAI.";
     const fallbackAnswer = buildLocalFallbackAnswer(params.message, reason);
-    await saveMemory({
+    if (!localWriteGuardEnabled()) await saveMemory({
       userId: params.userId,
       type: "interaction",
       priority: "P2",
