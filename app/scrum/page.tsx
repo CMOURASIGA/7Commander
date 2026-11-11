@@ -38,7 +38,7 @@ export default function ScrumPage(){
        sprints={data.sprints} sprintId={data.sprintId} onSprint={data.setSprintId}/>
      {data.error ? <div role="alert" className="mt-3 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-(--border) bg-(--bg-muted) p-3">
        <div className="min-w-0 flex-1">
-         <p className="text-sm font-semibold text-(--danger)">Falha ao consultar dados da Sprint</p>
+         <p className="text-sm font-semibold text-(--danger)">{data.sprints.length?"Consulta parcial do Scrum":"Falha ao consultar Sprints"}</p>
          <p className="mt-1 text-xs text-(--text-secondary)">{data.error}</p>
          <p className="mt-1 text-xs text-(--text-secondary)">A falha de consulta não exclui nem altera Sprints cadastradas.</p>
        </div>
