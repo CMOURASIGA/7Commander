@@ -1,5 +1,6 @@
 "use client";
 
+import { AgileWorkspaceNav } from "@/components/scrum/agile-workspace-nav";
 import { useEffect, useState } from "react";
 import { getClientAuthHeaders } from "@/lib/client-auth";
 import { DailySnapshot, DailyTask } from "@/services/daily-service";
@@ -189,6 +190,7 @@ export function DailyClient() {
 
   return (
     <section className="space-y-4">
+      <AgileWorkspaceNav/>
       <PageIntro eyebrow="Workspace ativo" title="Daily do projeto" description="Cards selecionados no Kanban para orientar o trabalho de hoje." />
 
       <SurfaceCard>
