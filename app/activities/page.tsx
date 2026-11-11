@@ -573,7 +573,7 @@ export default function ActivitiesPage() {
                         >
                           Analisar com Kairos
                         </button>
-                        {canEdit&&<IconActionButton icon="trash" tone="danger" label={"Excluir atividade "+card.title} disabled={deletingTaskId===card.id} onClick={()=>void deleteTask(card.id,card.title)}/>}
+                        <div className="flex flex-wrap items-center gap-2"><IconActionButton icon="eye" tone="neutral" label={"Visualizar atividade "+card.title} onClick={()=>{setSelectedTaskId(card.id);void loadTaskDetail(card.id);}}/>{canEdit&&<IconActionButton icon="trash" tone="danger" label={"Excluir atividade "+card.title} disabled={deletingTaskId===card.id} onClick={()=>void deleteTask(card.id,card.title)}/>}</div>
                       </div>
                     </div>
                   ))
