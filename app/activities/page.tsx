@@ -407,7 +407,7 @@ export default function ActivitiesPage() {
         {(()=>{
           const cards=board?.columns.flatMap(column=>column.cards)??[];
           const open=cards.filter(card=>card.columnKey!=="done"&&card.status!=="concluida");
-          const late=open.filter(card=>card.dueDate&&daysToDelivery(card.dueDate)<0);
+          const late=open.filter(card=>card.dueDate?((daysToDelivery(card.dueDate)??0)<0):false);
           const unassigned=open.filter(card=>!card.responsible?.trim());
           const doing=open.filter(card=>card.columnKey==="doing"||card.status==="em_andamento");
           return [
