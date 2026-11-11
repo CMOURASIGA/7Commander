@@ -1070,6 +1070,8 @@ export default function ProjectsPage() {
             <p className="text-xs font-semibold uppercase tracking-wide text-(--text-secondary)">
               Detalhes do projeto ativo
             </p>
+            {documentWriteBlocked ? <p className="text-xs text-(--text-secondary)">Somente leitura: informações disponíveis para consulta. A edição está desabilitada.</p> : null}
+            <fieldset disabled={documentWriteBlocked} className="space-y-2">
             <input
               value={projectForm.name}
               onChange={(event) => setProjectForm((prev) => ({ ...prev, name: event.target.value }))}
@@ -1110,7 +1112,7 @@ export default function ProjectsPage() {
               key={activeProjectId||"project"}
               value={projectForm.stakeholders}
               onChange={stakeholders=>{setProjectForm(prev=>({...prev,stakeholders}));setProjectStatus("Stakeholders alterados. Salve os detalhes do projeto para confirmar.");}}
-              readOnly={readOnly}
+              readOnly={documentWriteBlocked}
             />
             <div className="grid gap-2 md:grid-cols-3">
               <input
@@ -1144,6 +1146,7 @@ export default function ProjectsPage() {
               {savingProject ? "Salvando..." : "Salvar detalhes do projeto"}
             </button>
             {projectStatus ? <p className="text-xs text-(--text-primary)">{projectStatus}</p> : null}
+            </fieldset>
           </div>
         ) : null}
 
