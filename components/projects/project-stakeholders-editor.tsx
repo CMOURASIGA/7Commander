@@ -41,7 +41,7 @@ export function ProjectStakeholdersEditor({value,onChange,readOnly=false}:{value
      <td className="min-w-28 px-3 py-3 text-(--text-secondary) break-words">{row.organization||"Não informado"}</td>
      <td className="min-w-52 px-3 py-3 text-(--text-secondary) break-words whitespace-normal">{row.role||"Não informado"}</td>
      <td className="px-3 py-3 text-(--text-secondary)">{STAKEHOLDER_GROUP_LABELS[row.group]}</td>
-     {!readOnly&&<td className="min-w-32 px-3 py-2"><div className="flex flex-wrap gap-2"><IconActionButton icon="pencil" tone="edit" label={"Editar "+row.name} onClick={()=>start(row)}/><IconActionButton icon="trash" tone="danger" label={"Excluir "+row.name} onClick={()=>remove(row.id)}/></div></td>}
+     {!readOnly&&<td className="min-w-32 px-3 py-2"><div className="cs-record-actions" role="group" aria-label={"Ações de "+row.name}><IconActionButton icon="pencil" tone="edit" label={"Editar "+row.name} onClick={()=>start(row)}/><IconActionButton icon="trash" tone="danger" label={"Excluir "+row.name} onClick={()=>remove(row.id)}/></div></td>}
     </tr>)}</tbody>
    </table>
   </div>:<p className="rounded-lg border border-dashed border-(--border) p-3 text-xs text-(--text-secondary)">Nenhum stakeholder cadastrado neste projeto.</p>}
