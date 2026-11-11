@@ -13,6 +13,7 @@ import { PageIntro, SectionLabel, StatusPill } from "@/components/ui/workspace-p
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import {ActionIcon} from "@/components/ui/action-icon";
 import {ProjectStakeholdersEditor} from "@/components/projects/project-stakeholders-editor";
+import {ProjectOverview} from "@/components/projects/project-overview";
 
 const STATUS_LABELS: Record<DecisionStatus, string> = {
   aberta: "Aberta",
@@ -157,8 +158,10 @@ export default function ProjectsPage() {
   const [selectedClientIdForCreate, setSelectedClientIdForCreate] = useState<string>("");
   const [activeProjectId, setActiveProjectId] = useState<string | null>(null);
   const [openRoutine, setOpenRoutine] = useState<RoutineKey | null>(null);
-  type ProjectTab = "project"|"risks"|"decisions"|"documents"|"members"|"meetings"|"activities";
-  const [activeTab,setActiveTab]=useState<ProjectTab>("project");
+  type ProjectTab = "overview"|"project"|"risks"|"decisions"|"documents"|"members"|"meetings"|"activities";
+  const [activeTab,setActiveTab]=useState<ProjectTab>("overview");
+  const [documentPreviewId,setDocumentPreviewId]=useState<string|null>(null);
+  const [projectPickerOpen,setProjectPickerOpen]=useState(false);
   const selectTab=(tab:ProjectTab)=>{setActiveTab(tab);const routine:Partial<Record<ProjectTab,RoutineKey>>={risks:"risks",decisions:"decisions",documents:"knowledge",members:"members"};setOpenRoutine(routine[tab]??null);};
   const [newProjectName, setNewProjectName] = useState("");
   const [decisions, setDecisions] = useState<Decision[]>([]);
@@ -228,6 +231,7 @@ export default function ProjectsPage() {
   });
 
   const selectedProject = projects.find((item) => item.id === activeProjectId) ?? null;
+  const previewDocument=knowledgeItems.find(item=>item.id===documentPreviewId)??null;
 
   async function loadProjects() {
     try {
@@ -748,12 +752,15 @@ export default function ProjectsPage() {
   }, [activeProjectId, activeTab]);
 
   useEffect(() => {
-    if (activeProjectId && openRoutine === "decisions") void loadDecisions(activeProjectId);
-  }, [activeProjectId, openRoutine]);
+    if (activeProjectId && (openRoutine === "decisions" || activeTab === "overview")) void loadDecisions(activeProjectId);
+  }, [activeProjectId, openRoutine, activeTab]);
 
   useEffect(() => {
-    if (activeProjectId && openRoutine === "risks") void loadRisks(activeProjectId);
-  }, [activeProjectId, openRoutine]);
+    if (activeProjectId && (openRoutine === "risks" || activeTab === "overview")) void loadRisks(activeProjectId);
+  }, [activeProjectId, openRoutine, activeTab]);
+  useEffect(() => {
+    if (activeProjectId && activeTab === "overview") void loadKnowledge(activeProjectId);
+  }, [activeProjectId, activeTab]);
 
   return (
     <section className="space-y-3">
@@ -774,15 +781,38 @@ export default function ProjectsPage() {
         }
       />
 
+      {selectedProject ? <section className="workspace-card sticky top-0 z-20 flex flex-wrap items-center justify-between gap-3 border-b-2 border-(--accent) p-4" aria-label="Contexto do projeto ativo">
+        <div className="min-w-0">
+          <p className="text-xs font-semibold text-(--text-secondary)">Projeto ativo · {selectedProject.clientName||"Cliente não vinculado"}</p>
+          <h2 className="mt-1 text-lg font-semibold text-(--text-primary)">{selectedProject.name}</h2>
+          <p className="mt-1 text-xs text-(--text-secondary)">Fase: {selectedProject.maturity||"Não informada"} · Status: {selectedProject.status}</p>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <button className="workspace-button-secondary text-xs" type="button" aria-expanded={projectPickerOpen} onClick={()=>setProjectPickerOpen(!projectPickerOpen)}>Trocar projeto ({projects.length})</button>
+          <Link className="workspace-button-primary text-xs" href="/status-report">Status Report Executivo</Link>
+        </div>
+        {projectPickerOpen ? <div className="w-full rounded-lg border border-(--border) bg-(--bg-surface) p-3">
+          <label className="text-xs font-semibold" htmlFor="project-switcher">Selecionar projeto</label>
+          <select id="project-switcher" className="workspace-select mt-2 w-full" value={activeProjectId??""} onChange={event=>{setProjectPickerOpen(false);setDocumentPreviewId(null);if(event.target.value)void handleActivateProject(event.target.value);}}>
+            {projects.map(project=><option key={project.id} value={project.id}>{project.name} · {project.clientName||"Sem cliente"}</option>)}
+          </select>
+        </div> : null}
+      </section> : null}
+
       <nav aria-label="Quadros do projeto" className="workspace-card flex flex-wrap gap-2 p-3" role="tablist">
-        {([["project","Projeto"],["risks","Riscos"],["decisions","Decisões"],["documents","Documentos"],["members","Equipe"],["meetings","Reuniões"],["activities","Atividades"]] as const).map(([key,label]) => (
+        {([["overview","Visão geral"],["project","Projeto"],["risks",`Riscos ${risks.length}`],["decisions",`Decisões ${decisions.length}`],["documents",`Documentos ${knowledgeItems.length}`],["members",`Equipe ${members.length}`],["meetings","Reuniões"],["activities","Atividades"]] as const).map(([key,label]) => (
           <button key={key} type="button" role="tab" aria-selected={activeTab===key}
-            onClick={()=>selectTab(key)} className={activeTab===key?"workspace-button-primary text-xs":"workspace-button-secondary text-xs"}>{label}</button>
+            onClick={()=>selectTab(key)} className={activeTab===key?"border-b-2 border-(--accent) px-3 py-2 text-xs font-semibold text-(--accent)":"border-b-2 border-transparent px-3 py-2 text-xs text-(--text-secondary) hover:text-(--accent)"}>{label}</button>
         ))}
       </nav>
+      {activeTab==="overview" && selectedProject ? <ProjectOverview key={selectedProject.id}
+        project={selectedProject} risks={risks} decisions={decisions} documents={knowledgeItems}
+        risksLoading={risksLoading} decisionsLoading={loading} documentsLoading={knowledgeLoading}
+        onOpenTab={selectTab} onOpenDocument={setDocumentPreviewId}
+      /> : null}
       <article className="workspace-card flex flex-col gap-3 p-4">
         <SectionLabel>Projetos</SectionLabel>
-        <div className="mt-2 flex flex-wrap items-center justify-between gap-3">
+        <div className={activeTab==="project"?"mt-2 flex flex-wrap items-center justify-between gap-3":"hidden"}>
           <label className="flex min-w-0 flex-1 flex-col gap-1 text-sm font-semibold text-(--text-primary)">
             Projeto em edição
             <select aria-label="Selecionar projeto" value={activeProjectId ?? ""}
@@ -1052,12 +1082,7 @@ export default function ProjectsPage() {
                   <p className="mt-1 text-[13px] text-(--text-secondary)">
                     {item.category} | {item.source} | {new Date(item.createdAt).toLocaleString("pt-BR")}
                   </p>
-                  <details className="group">
-                    <summary className="mt-2 cursor-pointer text-xs font-medium text-(--accent)">
-                      Ver conteúdo estruturado
-                    </summary>
-                    <KnowledgeContent content={item.content} />
-                  </details>
+                  <button type="button" className="workspace-button-secondary mt-2 text-xs" onClick={()=>setDocumentPreviewId(item.id)}>Ver conteúdo estruturado</button>
                 </article>
               ))}
             </div>
@@ -1381,6 +1406,14 @@ export default function ProjectsPage() {
          </aside>
        </div>}
        </div>
+       {previewDocument ? <div className="fixed inset-0 z-50">
+         <button type="button" className="absolute inset-0 bg-black/35" aria-label="Fechar visualização de documento" onClick={()=>setDocumentPreviewId(null)}/>
+         <aside role="dialog" aria-modal="true" aria-label="Conteúdo do documento" className="relative ml-auto h-dvh w-full max-w-2xl overflow-y-auto border-l border-(--border) bg-(--bg-surface) p-5 shadow-2xl">
+           <div className="flex items-start justify-between gap-3"><div><h2 className="text-lg font-semibold">{previewDocument.title}</h2><p className="mt-1 text-xs text-(--text-secondary)">{previewDocument.category} · Conteúdo processado</p></div>
+             <button className="workspace-button-secondary" type="button" onClick={()=>setDocumentPreviewId(null)}>Fechar</button></div>
+           <div className="mt-5"><KnowledgeContent content={previewDocument.content}/></div>
+         </aside>
+       </div> : null}
      </section>
    );
 }
