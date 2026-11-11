@@ -1,3 +1,4 @@
+import {IconActionButton} from "@/components/ui/icon-action-button";
 "use client";
 
 import {measuredFetch} from "@/lib/client-performance";
@@ -832,14 +833,8 @@ export default function ProjectsPage() {
           <div className="mt-3 space-y-2">
             {projects.map(project=><div key={project.id} className="flex flex-wrap items-center justify-between gap-2 border-b border-(--border) py-2">
               <span className="text-sm">{project.name}</span>
-              {project.status !== "arquivado" ? <button type="button" disabled={archivingProjectId===project.id}
-                onClick={()=>void handleArchiveProject(project)} className="workspace-button-secondary px-3 py-2 text-xs disabled:opacity-50">
-                {archivingProjectId===project.id?"Arquivando...":"Arquivar"}
-              </button> : <span className="text-xs">Arquivado</span>}
-              <button type="button" disabled={deletingProjectId===project.id}
-                onClick={()=>void handleDeleteProject(project)} className="workspace-button-danger px-3 py-2 text-xs disabled:opacity-50">
-                {deletingProjectId===project.id?"Excluindo...":"Excluir"}
-              </button>
+              {project.status !== "arquivado" ? <IconActionButton icon="archive" tone="neutral" label={"Arquivar "+project.name} disabled={archivingProjectId===project.id} onClick={()=>void handleArchiveProject(project)}/> : <span className="text-xs">Arquivado</span>}
+              <IconActionButton icon="trash" tone="danger" label={"Excluir "+project.name} disabled={deletingProjectId===project.id} onClick={()=>void handleDeleteProject(project)}/>
             </div>)}
           </div>
         </section>:null}
@@ -904,11 +899,7 @@ export default function ProjectsPage() {
                 <article key={risk.id} className="rounded-lg border border-(--border) bg-white p-3">
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <p className="text-xs font-semibold text-(--text-primary)">{risk.title}</p>
-                     {(!readOnly || localReadOnly)&&<button type="button" disabled={documentWriteBlocked} title={documentWriteBlocked?"Somente leitura":"Editar risco "+risk.title} aria-label={"Editar risco "+risk.title}
-                      className="workspace-button-secondary inline-flex items-center gap-1 p-2 text-xs" onClick={()=>{
-                        setEditingRiskId(risk.id);setRiskForm({title:risk.title,impact:risk.impact,probability:risk.probability,
-                        mitigation:risk.mitigation,owner:risk.owner,status:risk.status,decisionId:risk.decisionId||"",taskId:risk.taskId||""});setRiskDrawerOpen(true);
-                      }}><ActionIcon name="pencil"/></button>}
+                     {(!readOnly || localReadOnly)&&<IconActionButton icon="pencil" tone="edit" label={"Editar risco "+risk.title} disabled={documentWriteBlocked} onClick={()=>{setEditingRiskId(risk.id);setRiskForm({title:risk.title,impact:risk.impact,probability:risk.probability,mitigation:risk.mitigation,owner:risk.owner,status:risk.status,decisionId:risk.decisionId||"",taskId:risk.taskId||""});setRiskDrawerOpen(true);}}/>}
                     <select
                       value={risk.status}
                       onChange={(event) => void handleRiskStatusChange(risk.id, event.target.value as RiskItem["status"])}
@@ -1079,13 +1070,8 @@ export default function ProjectsPage() {
                     <span className="mt-2 inline-flex rounded-full bg-(--success-soft) px-2 py-1 text-xs font-medium text-(--success)">Processado</span>
                   </div>
                   <div className="flex flex-wrap items-center gap-2">
-                    <button type="button" className="workspace-button-secondary text-xs" onClick={()=>setDocumentPreviewId(item.id)}>Ver conteúdo estruturado</button>
-                    <button type="button" onClick={() => void handleDeleteKnowledge(item)}
-                      disabled={documentWriteBlocked || deletingKnowledgeId === item.id}
-                      title={documentWriteBlocked?"Somente leitura":undefined}
-                      className="workspace-button-danger px-3 py-2 text-xs disabled:opacity-50">
-                      {deletingKnowledgeId === item.id ? "Excluindo..." : "Excluir"}
-                    </button>
+                    <IconActionButton icon="eye" tone="neutral" label={"Visualizar conteúdo de "+item.title} onClick={()=>setDocumentPreviewId(item.id)}/>
+                    <IconActionButton icon="trash" tone="danger" label={"Excluir registro "+item.title} disabled={documentWriteBlocked || deletingKnowledgeId === item.id} onClick={()=>void handleDeleteKnowledge(item)}/>
                   </div>
                 </article>
               ))}
@@ -1242,14 +1228,7 @@ export default function ProjectsPage() {
                       </p>
                     </div>
                     {canManageMembers && member.role !== "owner" ? (
-                      <button
-                        type="button"
-                        onClick={() => void handleRevokeMember(member.id)}
-                        disabled={documentWriteBlocked || removingMemberId === member.id}
-                        className="rounded-md border border-(--border) bg-(--bg-muted) px-2 py-1 text-[13px] text-(--text-primary)"
-                      >
-                        {removingMemberId === member.id ? "Revogando..." : "Revogar"}
-                      </button>
+                      <IconActionButton icon="user-minus" tone="danger" label={"Revogar acesso de "+(member.email||member.id)} disabled={documentWriteBlocked || removingMemberId === member.id} onClick={()=>void handleRevokeMember(member.id)}/>
                     ) : null}
                   </div>
                 ))
@@ -1287,11 +1266,7 @@ export default function ProjectsPage() {
             <article key={decision.id} className="rounded-xl border border-(--border) bg-(--bg-surface) p-4">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <p className="text-base font-semibold text-(--text-primary)">{decision.title}</p>
-                 {(!readOnly || localReadOnly)&&<button type="button" disabled={documentWriteBlocked} title={documentWriteBlocked?"Somente leitura":"Editar decisão "+decision.title} aria-label={"Editar decisão "+decision.title}
-                  className="workspace-button-secondary inline-flex items-center gap-1 p-2 text-xs" onClick={()=>{
-                    setEditingDecisionId(decision.id);setDecisionForm({title:decision.title,context:decision.context,reason:decision.reason,
-                     impact:decision.impact,status:decision.status});setDecisionDrawerOpen(true);
-                  }}><ActionIcon name="pencil"/></button>}
+                 {(!readOnly || localReadOnly)&&<IconActionButton icon="pencil" tone="edit" label={"Editar decisão "+decision.title} disabled={documentWriteBlocked} onClick={()=>{setEditingDecisionId(decision.id);setDecisionForm({title:decision.title,context:decision.context,reason:decision.reason,impact:decision.impact,status:decision.status});setDecisionDrawerOpen(true);}}/>}
                 <select
                   value={decision.status}
                   onChange={(event) =>
