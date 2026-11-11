@@ -58,3 +58,11 @@ Entrar com operador interno ativo já existente em Supabase Auth, sem cadastro o
 **Limitações:** a proteção é de aplicação, não uma credencial SQL com privilégio SELECT exclusivo. Operações próprias de login (Auth token) podem criar/atualizar registros de sessão do Supabase Auth. RLS controla quais dados podem ser lidos e o guard HTTP limita as escritas instrumentadas. Navegadores, ferramentas e código externo à aplicação exigem controles próprios. Endpoints que pressupõem privilégios administrativos podem retornar 403/503 em modo leitura; isso deve ser tratado por API, sem restaurar `service_role`.
 
 Foi verificado que `platform_admins` permite SELECT do próprio usuário e que `internal_user_access` não permite SELECT a `authenticated`. Por isso este modo local está restrito a administradores de plataforma ativos.
+
+## Correção de contexto multiempresa (11/11)
+
+O acesso visual local autenticou, mas mostrou 0 projetos e "Empresa ativa não confirmada". A causa identificada foi a falta de habilitação dos flags de leitura multiempresa no setup local: a aplicação recorria ao `CONSULT_ORG_ID` fixo, ignorando o `profiles.active_organization_id` da identidade autenticada.
+
+Consulta SQL **somente leitura** confirmou que o usuário interno tem `7CONSULTING` como organização ativa e possui projetos registrados nela. Nenhuma alteração no banco foi feita.
+
+O `setup-local.ps1` agora força `SEVEN_COMMANDER_TENANT_SCHEMA_READY=true` e `SEVEN_COMMANDER_MULTI_TENANT_READY=true` somente no arquivo `.env.local`. O código existente de `getEffectiveTenantForUser` resolve a empresa por perfil e membership, sob RLS. A troca de empresa via POST continua bloqueada no modo de leitura: a validação inicial deve usar a empresa já ativa, sem alterar perfil.
