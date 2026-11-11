@@ -11,6 +11,7 @@ test("blocks inserts, updates, deletes and PostgREST RPC",()=>{
 test("permits reading data and auth login but denies storage and functions writes",()=>{
   const base="https://example.supabase.co";
   expect(isSupabaseDataMutation(base+"/rest/v1/projects",{method:"GET"})).toBe(false);
+  expect(isSupabaseDataMutation(base+"/rest/v1/rpc/dangerous_function",{method:"GET"})).toBe(true);
   expect(isSupabaseDataMutation(base+"/auth/v1/token?grant_type=password",{method:"POST"})).toBe(false);
   expect(isSupabaseDataMutation(base+"/storage/v1/object/docs",{method:"POST"})).toBe(true);
   expect(isSupabaseDataMutation(base+"/functions/v1/process",{method:"POST"})).toBe(true);
