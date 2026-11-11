@@ -5,7 +5,10 @@ export type CapabilityModuleId =
  | "project_diagnosis" | "risk_analysis" | "kanban_execution" | "backlog_planning"
  | "scrum_management" | "decision_governance" | "executive_report"
  | "integrations_and_data" | "process_bpmn" | "stakeholder_governance"
- | "meeting_followup" | "quality_review" | "document_analysis" | "writing_support" | "study_translation";
+ | "meeting_followup" | "quality_review" | "document_analysis" | "writing_support" | "study_translation"
+ | "tailoring_methodology" | "product_vision_roadmap" | "flow_metrics_forecasting"
+ | "team_health_retro" | "change_control" | "charter_business_case"
+ | "scope_wbs" | "schedule_management";
 
 type ModuleSelection = {id:CapabilityModuleId;prompt:string};
 const MODULE_PATHS:Record<CapabilityModuleId,string[]>={
@@ -15,7 +18,11 @@ const MODULE_PATHS:Record<CapabilityModuleId,string[]>={
  executive_report:["executive-report"],integrations_and_data:["integrations-and-data"],
  process_bpmn:["process-bpmn"],stakeholder_governance:["stakeholder-governance"],
  meeting_followup:["meeting-followup"],quality_review:["quality-review"],
- document_analysis:["document-analysis"],writing_support:["writing-support"],study_translation:["study-and-translation"]
+ document_analysis:["document-analysis"],writing_support:["writing-support"],study_translation:["study-and-translation"],
+ tailoring_methodology:["tailoring-methodology"],product_vision_roadmap:["product-vision-roadmap"],
+ flow_metrics_forecasting:["flow-metrics-forecasting"],team_health_retro:["team-health-retro"],
+ change_control:["change-control"],charter_business_case:["charter-business-case"],
+ scope_wbs:["scope-wbs"],schedule_management:["schedule-management"]
 } as Record<CapabilityModuleId,string[]>;
 const CORE_PROMPT_PATHS = [path.join(process.cwd(), "prompts/core/pm-ai-partner.md")];
 
@@ -45,6 +52,15 @@ export function pickModulesByIntent(message:string):CapabilityModuleId[]{
  add(/documento|storyboard|transcricao|arquivo|discovery|briefing|leitura estruturada/, "document_analysis");
  add(/escrever|redigir|texto|comunicado|mensagem|proposta|post|artigo/, "writing_support");
  add(/explicar|estudar|prova|revisao didat|traduz|translation|idioma|ingles|espanhol/, "study_translation");
+ // Methodology routing complements existing domain skills; it never grants tools or permissions.
+ add(/tailoring|preditiv|adaptativ|hibrid|ciclo de vida|metodologia|abordagem de gestao/, "tailoring_methodology");
+ add(/product goal|product vision|visao de produto|hipotese de valor|roadmap|release planning|beneficio esperado|resultado de negocio/, "product_vision_roadmap");
+ add(/throughput|cycle time|lead time|work item age|aging|wip|cfd|fluxo acumulado|monte carlo|previsao probabilistica|previsao de fluxo/, "flow_metrics_forecasting");
+ add(/retrospectiva|retrospective|saude da equipe|lideranca servidora|facilitac|colaborac|sobrecarga do time/, "team_health_retro");
+ add(/controle de mudanca|solicitacao de mudanca|change request|baseline alterad|linha de base afetad|impacto da mudanca/, "change_control");
+ add(/termo de abertura|business case|charter|justificativa do projeto|criterios de sucesso|viabilidade do projeto/, "charter_business_case");
+ add(/eap|wbs|fora de escopo|dicionario da eap|decomposicao de entregaveis|linha de base do escopo/, "scope_wbs");
+ add(/cronograma|caminho critico|dependencias de prazo|estimativa de tres pontos|marcos do projeto|planejamento em ondas/, "schedule_management");
  if(!selected.size)selected.add("project_diagnosis");
  return Array.from(selected).slice(0,5);
 }

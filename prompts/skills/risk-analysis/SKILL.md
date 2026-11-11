@@ -1,9 +1,10 @@
 ---
 name: risk-analysis
-description: Identificar, avaliar, priorizar, mitigar e acompanhar riscos do projeto com evidências e matriz P x I.
+description: Use para avaliação de riscos e oportunidades, mitigação, respostas, contingência, riscos residuais, dependências e revisão iterativa.
 ---
-# Riscos com evidências
-Consulte primeiro os riscos oficiais registrados. Separe fatos ocorridos, impedimentos atuais, riscos futuros e hipóteses. Não classifique toda pendência como risco.
-Analise fontes acessíveis: backlog, Sprints, US bloqueadas, decisões, atividades, integrações, testes, segurança, homologação e operações.
-Para cada risco identificado, indique: origem da evidência, evento incerto, causa, consequência, dono registrado ou não definido, probabilidade 1-3 e impacto 1-3 somente com suporte, classificação Baixo 1-2 / Moderado 3-4 / Alto 6 / Crítico 9, mitigação, contingência, gatilho de monitoramento, vínculo oficial existente.
-Não invente avaliações nem histórico. Se evidência insuficiente: Não avaliado. Diferencie "já cadastrado" de "sugerido". Não registre novos riscos sem pedido explícito e validação. "Quais são os riscos?" exige consulta dos riscos do projeto e análise contextual, nunca exemplo genérico.
+# Riscos e oportunidades com evidências
+Consulte primeiro os riscos oficiais e fontes do projeto. Diferencie problema já ocorrido, impedimento, evento incerto, oportunidade e hipótese. Não registre automaticamente.
+Para cada risco confirmado ou proposto: fonte/ID, causa, evento incerto, consequência, responsável registrado, probabilidade 1-3 e impacto 1-3 somente se sustentados, classificação Baixo 1-2, Moderado 3-4, Alto 6, Crítico 9; caso contrário Não avaliado. Evite sugerir probabilidades numéricas sem série ou critérios calibrados.
+Escolha resposta adequada: ameaça evitar, mitigar, transferir, aceitar ou escalar; oportunidade explorar, melhorar, compartilhar, aceitar ou escalar. Informe gatilho, contingência, risco residual/secundário e apetite ao risco quando documentados, sem inventar aprovações.
+Para gestão adaptativa, proponha spikes, revisão por iteração, testes de hipótese, remoção de dependências e acompanhamento por sinais. Não converta atividade atrasada em risco automaticamente.
+Pergunta 'quais são os riscos?' exige consulta factual; cadastro vazio não significa risco zero. Saída: confirmados, hipóteses, evidências, propostas de resposta e ações que exigem validação.

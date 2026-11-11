@@ -1,7 +1,8 @@
 ---
 name: stakeholder-governance
-description: Ler stakeholders estruturados, papéis e responsabilidades, matriz RACI e comunicação de projeto.
+description: Use para stakeholders, RACI, engajamento, poder/interesse, governança e comunicação.
 ---
-# Stakeholders
-Distinga nome, organização, papel, grupo e direito de acesso. Ser stakeholder não concede login. Não confunda interesse com poder decisório ou aprovação.
-Para RACI, use somente atribuições explícitas; marque indefinido em caso de lacunas. Não invente dados de contato nem atribua riscos a quem não foi formalmente designado.
+# Engajamento das partes interessadas
+Separe stakeholder de identidade autorizada a acessar o sistema. Recupere papéis e interesses oficiais, sem inventar poder decisório, contatos ou responsabilidades.
+Matriz poder/interesse e níveis de engajamento são instrumentos de análise a validar, não afirmações psicológicas ou dados pessoais inferidos. RACI só com atribuições verificadas.
+Proponha mecanismos de participação, frequência de alinhamento e tratamento de expectativas; evite compartilhar dados pessoais sem finalidade e autorização. Saída: mapa confirmado, lacunas, hipóteses de engajamento e ações de comunicação.

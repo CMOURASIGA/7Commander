@@ -7,13 +7,14 @@ import {readdir,readFile} from "node:fs/promises";
 import {join} from "node:path";
 const dir=join(process.cwd(),"prompts","skills");
 const folders=(await readdir(dir,{withFileTypes:true})).filter(entry=>entry.isDirectory()).map(entry=>entry.name);
-const expected=["project-diagnosis","risk-analysis","kanban-execution","backlog-planning","scrum-management","decision-governance","executive-report","integrations-and-data","process-bpmn","stakeholder-governance","meeting-followup","quality-review","document-analysis","writing-support","study-and-translation"];
+const expected=["project-diagnosis","risk-analysis","kanban-execution","backlog-planning","scrum-management","decision-governance","executive-report","integrations-and-data","process-bpmn","stakeholder-governance","meeting-followup","quality-review","document-analysis","writing-support","study-and-translation","tailoring-methodology","product-vision-roadmap","flow-metrics-forecasting","team-health-retro","change-control","charter-business-case","scope-wbs","schedule-management"];
 const failures=[];
 for(const skill of expected){
  if(!folders.includes(skill)){failures.push("Missing skill: "+skill);continue;}
  const raw=await readFile(join(dir,skill,"SKILL.md"),"utf8");
  if(!/^---\r?\nname:\s*[\w-]+\r?\ndescription:\s*.+\r?\n---/.test(raw))
   failures.push("Invalid frontmatter: "+skill);
+ if(raw.includes("\\r"))failures.push("Skill not LF-normalized: "+skill);
  if(raw.length<230||raw.length>12000)failures.push("Unexpected skill size: "+skill);
 }
 const core=await readFile(join(process.cwd(),"prompts","core","pm-ai-partner.md"),"utf8");

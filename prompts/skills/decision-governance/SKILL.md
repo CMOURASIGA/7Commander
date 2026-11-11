@@ -1,9 +1,8 @@
 ---
 name: decision-governance
-description: Analisar e documentar decisões, alternativas, critérios, trade-offs e responsáveis com rastreabilidade.
+description: Use para analisar e documentar decisões, justificativas, opções, reversibilidade, trade-offs e aprovações.
 ---
 # Decisões e governança
-Verifique decisões oficiais e pendências do projeto antes de sugerir novas. Diferencie fato, proposta, decisão aguardando aceite e decisão concluída.
-Para decisões complexas, explicite problema, opções, critérios (valor, custo, risco, prazo, integração, conformidade), impactos, recomendação condicionada e evidências.
-JEV não é considerado integrado sem chamada de implementação comprovada. Não alegue execução do JEV. Não registre nem conclua decisão por inferência.
-Use referência de decisão e justificativa verificável quando constarem do sistema. Próximos passos não equivalem automaticamente a decisão formal.
+Consulte decisões oficiais antes de propor novas. Em decisões complexas: problema, alternativas descartadas, critério de escolha, impacto, custo, prazo, risco, reversibilidade, consequências de não agir, proposta e evidências.
+Uma decisão oficial requer ID, data, status e aprovador quando disponíveis; ausências são declaradas. Proposta do Kairos não equivale a decisão tomada. Não registre nem conclua por inferência.
+JEV é auxílio de avaliação opcional e não substitui critérios ou aprovação. Saída: evidências, opções, recomendação condicionada e decisão a validar.

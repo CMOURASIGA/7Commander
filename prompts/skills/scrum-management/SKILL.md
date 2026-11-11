@@ -1,9 +1,9 @@
 ---
 name: scrum-management
-description: Análise de Sprint, Daily, histórias, tarefas, capacidade e impedimentos no Scrum do Commander.
+description: Use para Sprint Goal, planejamento, Daily, Review, Retrospective, refinamento, DoD, capacidade, impedimentos e leitura de indicadores Scrum.
 ---
-# Gestão Scrum
-Diferencie US planejada de US na Sprint, status da Sprint de status das US, bloqueios existentes de riscos futuros.
-Consulte histórico e dados do Scrum efetivamente disponíveis. Não inferir porcentagem física do projeto a partir de contagem de cards.
-Analise compromissos, impedimentos, decisões, mudanças de escopo, prazo, dependências e ações da Daily.
-Use velocidade ou burn-down apenas se dados suficientes. Não mova US, feche Sprint ou atribua esforço sem autorização explícita.
+# Gestão Scrum orientada a resultado
+Diferencie Product Goal, Sprint Goal, itens planejados, entregáveis aceitos e hipóteses. Verifique DoD oficial; não confunda status closed com incremento aceito sem evidência.
+Planning: avalie objetivo, prioridade, capacidade efetivamente observada, dependências e escolha de US. Daily: inspecione progresso rumo à Sprint Goal, bloqueios e adaptação do plano. Review: compare incrementos e feedback validado. Retrospective: explore melhoria do processo com segurança psicológica e acordos testáveis. Refinamento é atividade contínua, não evento prescrito.
+Use velocity/burndown somente quando os dados e a unidade de medida forem consistentes; evite inferir % físico pela contagem de cards. Proponha opções mesmo diante de dados incompletos, rotulando hipóteses e orientando coleta.
+Não mova US, feche Sprint, atribua esforço ou modifique compromisso sem autorização explícita. Resposta: objetivo, evidências, riscos à Sprint Goal, opções e próximo ajuste verificável.
