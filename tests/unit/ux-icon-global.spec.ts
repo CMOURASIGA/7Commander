@@ -51,6 +51,24 @@ test("UX-ICON-02 presente nas telas com ações individuais",()=>{
   }
 });
 
+test("controles dos registros ficam agrupados junto ao status",()=>{
+  const projects=source("app/projects/page.tsx");
+  const css=source("app/globals.css");
+  expect(projects).toContain('aria-label={"Ações do risco "+risk.title}');
+  expect(projects).toContain('aria-label={"Ações da decisão "+decision.title}');
+  expect(projects).toContain('className="workspace-select cs-record-status"');
+  expect(projects).not.toContain('Vínculos: {risk.decisionId?"decisão":""}{risk.decisionId&&risk.taskId?" e ":""}{risk.taskId?"atividade":""}{!risk.decisionId&&!risk.taskId?"nenhum":""}');
+  for(const path of [
+    "app/clients/page.tsx",
+    "components/projects/project-stakeholders-editor.tsx",
+    "app/scrum/backlog/page.tsx",
+    "app/scrum/kanban/page.tsx",
+    "app/activities/page.tsx",
+  ]) expect(source(path),path).toContain("cs-record-actions");
+  expect(css).toContain(".cs-record-actions");
+  expect(css).toContain(".cs-record-status");
+});
+
 test("exclusões mantêm suas confirmações e suas regras",()=>{
   expect(source("app/clients/page.tsx")).toContain('confirm({title:`Excluir cliente');
   expect(source("app/activities/page.tsx")).toContain("Excluir comentario?");
