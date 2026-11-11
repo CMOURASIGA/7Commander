@@ -189,7 +189,8 @@ export default function HomePage() {
 
   return <section className="space-y-4">
     <header className="rounded-xl border border-(--border) bg-(--bg-surface) p-5">
-      <h2 className="text-[20px] font-medium text-(--text-primary)">{greeting()}, {displayName(auth.user?.email)}</h2>
+      <p className="text-xs font-semibold uppercase tracking-widest text-(--accent)">Visão geral da empresa</p>
+      <h2 className="mt-2 text-2xl font-semibold text-(--text-primary)">{greeting()}, {displayName(auth.user?.email)}</h2>
       <p className="mt-2 text-[13px] text-(--text-secondary)">{loading ? "Carregando indicadores dos projetos..." : error ? "Indicadores indisponíveis." : active.length + " " + plural(active.length, "projeto ativo", "projetos ativos") + " em acompanhamento."}</p>
       <div className="mt-4 flex flex-wrap gap-2">
         {canCreate && <Link className="workspace-button-primary rounded-lg px-3 py-2 text-[13px]" href="/projects">Criar projeto</Link>}
@@ -198,6 +199,18 @@ export default function HomePage() {
       </div>
     </header>
 
+    <nav aria-label="Acessos operacionais" className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      {[
+        {href:"/projects",title:"Projetos",description:"Visão geral, riscos e decisões"},
+        {href:"/clients",title:"Clientes",description:"Cadastros e vínculos"},
+        {href:"/scrum",title:"Scrum",description:"Sprints e planejamento"},
+        {href:"/activities",title:"Atividades",description:"Kanban e prioridades"},
+      ].map(action=><Link key={action.href} href={action.href}
+        className="workspace-card p-4 transition-colors hover:border-(--accent)">
+        <h3 className="text-sm font-semibold text-(--text-primary)">{action.title}</h3>
+        <p className="mt-1 text-xs text-(--text-secondary)">{action.description}</p>
+      </Link>)}
+    </nav>
     <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-(--border-strong) bg-(--bg-elevated) px-4 py-3">
       <div><p className="text-[13px] font-medium text-(--accent-strong)">Voice Room disponível</p><p className="text-[13px] text-(--brand-ink)">Converse com o Kairos sobre o projeto selecionado em tempo real.</p></div>
       <Link href="/voice" className="workspace-button-primary rounded-lg px-3 py-2 text-[13px]">Abrir</Link>
