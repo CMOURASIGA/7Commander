@@ -89,10 +89,10 @@ export async function requireApiAuth(request: NextRequest): Promise<{
           if (!db) return {ok:false,response:NextResponse.json({error:"Acesso local não configurado."},{status:503})};
           // This path is intentionally internal-only. Centrally provisioned
           // customer accounts must continue to use the 7Service broker.
-          const access = await db.from("internal_user_access").select("active")
+          const access = await db.from("platform_admins").select("active")
             .eq("user_id",userId).eq("active",true).maybeSingle();
           if (access.error || !access.data) return {
-            ok:false,response:NextResponse.json({error:"Leitura local restrita a operador interno autorizado."},{status:403})
+            ok:false,response:NextResponse.json({error:"Leitura local restrita a administrador interno autorizado."},{status:403})
           };
           const member = await db.from("organization_members").select("organization_id")
             .eq("user_id",userId).eq("status","active").limit(1);
