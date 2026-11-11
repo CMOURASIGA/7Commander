@@ -1,13 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { verifiedCommanderUser, sameOriginMutation } from '@/lib/central-local-session';
 import { LOCAL_ACCESS_COOKIE, localCookieOptions } from '@/lib/local-ssr-cookie';
-import { localWriteGuardEnabled } from '@/lib/local-write-guard';
+import { localAuthEnabled, localWriteGuardEnabled } from '@/lib/local-write-guard';
 
 export const dynamic = 'force-dynamic';
 const headers = { 'Cache-Control': 'private, no-store, max-age=0' };
 /** Establish a server-verifiable local session from an independently verified local JWT. */
 export async function POST(request: NextRequest) {
-  if (!localWriteGuardEnabled() && (process.env.COMMANDER_CENTRAL_AUTH_ENABLED !== 'true' ||
+  if (!(localAuthEnabled() || localWriteGuardEnabled()) && (process.env.COMMANDER_CENTRAL_AUTH_ENABLED !== 'true' ||
       process.env.SERVICE_7SERVICE_ENFORCE_USER_ACCESS !== 'true'))
     return NextResponse.json({ ok:false }, { status:404, headers });
   if (!sameOriginMutation(request))
