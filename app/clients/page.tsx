@@ -23,6 +23,7 @@ export default function ClientsPage() {
   const [search,setSearch]=useState("");
   const [statusFilter,setStatusFilter]=useState<"todos"|"ativo"|"inativo">("todos");
   const [drawerOpen,setDrawerOpen]=useState(false);
+  const [viewClient,setViewClient]=useState<ClientItem|null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
@@ -236,6 +237,25 @@ export default function ClientsPage() {
       {readOnly && statusMessage ? <p role="alert" className="text-sm">{statusMessage}</p> : null}
 
       {statusMessage&&!drawerOpen?<p role="status" className="workspace-card p-3 text-sm">{statusMessage}</p>:null}
+      {viewClient ? <div className="fixed inset-0 z-50">
+        <button type="button" aria-label="Fechar detalhes do cliente" className="absolute inset-0 bg-black/35"
+          onClick={()=>setViewClient(null)}/>
+        <aside role="dialog" aria-modal="true" aria-labelledby="client-readonly-heading"
+          className="relative ml-auto h-dvh w-full max-w-xl overflow-y-auto border-l border-(--border) bg-(--bg-surface) p-5 shadow-2xl">
+          <div className="flex items-start justify-between gap-3">
+            <div><p className="text-xs font-semibold text-(--text-secondary)">Detalhes do cliente</p>
+              <h2 id="client-readonly-heading" className="mt-1 text-lg font-semibold">{viewClient.name}</h2></div>
+            <button type="button" className="workspace-button-secondary" onClick={()=>setViewClient(null)}>Fechar</button>
+          </div>
+          <dl className="mt-5 space-y-4 text-sm">
+            <div><dt className="font-semibold">Contato</dt><dd>{viewClient.contact||"Não informado"}</dd></div>
+            <div><dt className="font-semibold">Situação</dt><dd>{viewClient.status==="ativo"?"Ativo":"Inativo"}</dd></div>
+            <div><dt className="font-semibold">Descrição</dt><dd className="mt-1 whitespace-pre-wrap leading-relaxed">{viewClient.description||"Sem descrição cadastrada."}</dd></div>
+          </dl>
+          {!readOnly && !checking ? <button type="button" className="workspace-button-primary mt-5"
+             onClick={()=>{setViewClient(null);handleEdit(viewClient);}}>Editar cliente</button>:null}
+        </aside>
+      </div>:null}
       <SurfaceCard>
         <SectionLabel>Carteira de clientes</SectionLabel>
         <h3 className="mt-2 text-base font-semibold text-(--text-primary)">Clientes registrados</h3>
@@ -258,12 +278,16 @@ export default function ClientsPage() {
                     {client.description || "Sem descrição."}
                   </p>
                 </div>
-                {!readOnly && !checking ? <div className="flex shrink-0 items-center gap-2">
+                <div className="flex shrink-0 items-center gap-2">
+                  <IconActionButton icon="eye" tone="neutral" label={"Visualizar "+client.name}
+                    onClick={()=>setViewClient(client)}/>
+                  {!readOnly && !checking ? <>
                   <IconActionButton icon="pencil" tone="edit" label={"Editar "+client.name}
                     onClick={()=>handleEdit(client)}/>
                   <IconActionButton icon="trash" tone="danger" label={"Excluir "+client.name}
                     onClick={()=>void handleDelete(client.id)}/>
-                </div> : null}
+                  </> : null}
+                </div>
               </div>
             ))}
           </div>
