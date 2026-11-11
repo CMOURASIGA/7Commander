@@ -278,7 +278,7 @@ export default function ClientsPage() {
                     {client.description || "Sem descrição."}
                   </p>
                 </div>
-                <div className="flex shrink-0 items-center gap-2">
+                <div className="cs-record-actions" role="group" aria-label={"Ações do cliente "+client.name}>
                   <IconActionButton icon="eye" tone="neutral" label={"Visualizar "+client.name}
                     onClick={()=>setViewClient(client)}/>
                   {!readOnly && !checking ? <>
