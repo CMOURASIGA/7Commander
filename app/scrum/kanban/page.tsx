@@ -173,7 +173,7 @@ export default function ScrumKanbanPage(){
         <p className="mt-1 truncate text-[10px] text-(--text-secondary)" title={s.responsible||""}>{s.responsible||"Sem responsável"}</p>
         <p className="mt-1 text-[10px] text-(--text-secondary)">{dateBR(s.due_date)} · {s.story_points??"–"} pt</p>
         {s.blocked&&<span className="text-[10px] font-semibold text-(--danger)">Bloqueada</span>}
-        <div className="mt-2 flex items-center gap-1">
+        <div className="cs-record-actions mt-2" role="group" aria-label={"Ações da US "+s.title}>
          <IconActionButton icon="eye" label={"Visualizar "+s.title} tone="neutral" onClick={()=>view(s)}/>
          <IconActionButton icon="pencil" label={"Editar "+s.title} tone="edit" disabled={closed} onClick={()=>view(s,true)}/>
          <IconActionButton icon="message-square" label={"Comentar "+s.title} tone="neutral" onClick={()=>view(s)}/>
