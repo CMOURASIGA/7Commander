@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { LOCAL_ACCESS_COOKIE } from './lib/local-ssr-cookie';
+import { localWriteGuardEnabled, shouldBlockLocalApiMutation } from './lib/local-write-guard';
 
 const PUBLIC_PAGES = new Set(['/login','/central-access']);
 const UUID=/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -19,6 +20,18 @@ function secureNext() {
   return response;
 }
 export async function middleware(request:NextRequest) {
+  // Keep API mutations disabled on localhost until a separate QA database
+  // or a truly read-only database credential is available.
+  if (shouldBlockLocalApiMutation({
+    pathname:request.nextUrl.pathname,
+    method:request.method,
+    enabled:localWriteGuardEnabled(),
+  })) {
+    return NextResponse.json({
+      error:'Ambiente local somente leitura. Operação de gravação bloqueada.',
+      code:'COMMANDER_LOCAL_READ_ONLY',
+    },{status:403,headers:{'Cache-Control':'no-store'}});
+  }
   if(process.env.COMMANDER_CENTRAL_AUTH_ENABLED!=='true'||
      process.env.SERVICE_7SERVICE_ENFORCE_USER_ACCESS!=='true'||
      publicPage(request.nextUrl.pathname)) return NextResponse.next();
@@ -139,4 +152,4 @@ export async function middleware(request:NextRequest) {
     return redirect(request,'/central-access?reason=unavailable');
   }
 }
-export const config={matcher:['/((?!api/|_next/|.*\\.(?:png|jpg|jpeg|gif|svg|ico|webp|css|js|woff|woff2)$).*)']};
+export const config={matcher:['/((?!_next/|.*\\.(?:png|jpg|jpeg|gif|svg|ico|webp|css|js|woff|woff2)$).*)']};
