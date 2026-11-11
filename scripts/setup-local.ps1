@@ -17,6 +17,26 @@ if (-not (Test-Path ".env.local")) {
 $envPath = (Resolve-Path ".env.local").Path
 $text = Get-Content -Raw -LiteralPath $envPath
 $text = [regex]::Replace($text, '(?m)^NEXT_PUBLIC_APP_URL=.*$', 'NEXT_PUBLIC_APP_URL=http://localhost:3000')
+if ($text -match '(?m)^COMMANDER_LOCAL_READ_ONLY=') {
+  $text = [regex]::Replace($text, '(?m)^COMMANDER_LOCAL_READ_ONLY=.*
+
+Write-Host ""
+Write-Host "IMPORTANTE: configure as credenciais apenas no seu .env.local, nunca no GitHub." -ForegroundColor Yellow
+Write-Host "Nao copie service_role de producao para desenvolvimento; use Supabase QA isolado."
+Write-Host "Revise NEXT_PUBLIC_SUPABASE_URL, NEXT_PUBLIC_SUPABASE_ANON_KEY, SUPABASE_SERVICE_ROLE_KEY, OPENAI_API_KEY."
+Write-Host "O guard bloqueia POST/PUT/PATCH/DELETE nas APIs Next.js, mas NAO protege gravacoes diretas no Supabase ou GETs com efeitos colaterais.\nWrite-Host "Nao configure credenciais service_role da producao para testes locais de escrita.""
+Write-Host ""
+
+if ($InstallDependencies) { npm ci --no-audit --no-fund; if($LASTEXITCODE -ne 0){throw "npm ci falhou"} }
+if ($StartDev) {
+  npm run env:check
+  if ($LASTEXITCODE -ne 0) { throw "Preencha primeiro as variaveis exigidas." }
+  npm run dev
+}
+, 'COMMANDER_LOCAL_READ_ONLY=true')
+} else {
+  $text = $text.TrimEnd() + "`r`nCOMMANDER_LOCAL_READ_ONLY=true`r`n"
+}
 Set-Content -LiteralPath $envPath -Value $text -Encoding utf8
 
 Write-Host ""
