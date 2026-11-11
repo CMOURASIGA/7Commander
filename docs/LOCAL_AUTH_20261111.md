@@ -66,3 +66,11 @@ O acesso visual local autenticou, mas mostrou 0 projetos e "Empresa ativa não c
 Consulta SQL **somente leitura** confirmou que o usuário interno tem `7CONSULTING` como organização ativa e possui projetos registrados nela. Nenhuma alteração no banco foi feita.
 
 O `setup-local.ps1` agora força `SEVEN_COMMANDER_TENANT_SCHEMA_READY=true` e `SEVEN_COMMANDER_MULTI_TENANT_READY=true` somente no arquivo `.env.local`. O código existente de `getEffectiveTenantForUser` resolve a empresa por perfil e membership, sob RLS. A troca de empresa via POST continua bloqueada no modo de leitura: a validação inicial deve usar a empresa já ativa, sem alterar perfil.
+
+## Correção local de contexto assíncrono | 11/11/2026
+
+O navegador registrou `GET /api/projects 200` com lista vazia, `branding 403`, `profile 500` e `mine 503`. A implementação anterior chamava `AsyncLocalStorage.enterWith` **depois** de `await auth.getUser`, dentro de `requireApiAuth`, fazendo com que o contexto não fosse transportado para a continuação do handler chamador. Por isso `getSupabaseServerClient()` podia retornar `null` mesmo depois da autenticação aprovada. 
+
+A correção cria contexto não verificado de maneira síncrona, antes do primeiro `await`, e só o libera depois de validar o token via `auth.getUser`. Sem token verificado, o acesso ao banco continua negado. Foram adicionados testes para propagação por `await`, isolamento entre requisições e rejeição de tokens não verificados. Nenhuma alteração no Supabase foi necessária.
+
+O `sw.js` não existe no diretório public da branch. A falha `ERR_CACHE_MISS` está associada a um service worker anteriormente registrado no navegador, não é diagnóstico da API. Não confundir essa ocorrência com falhas de autenticação/tenant.
