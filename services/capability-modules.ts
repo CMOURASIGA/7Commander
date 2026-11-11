@@ -44,7 +44,7 @@ export function pickModulesByIntent(message:string):CapabilityModuleId[]{
  add(/scrum|sprint|daily|velocity|burn.down|impedimento/, "scrum_management");
  add(/decis|trade.off|governanca|alternativa|aprovacao/, "decision_governance");
  add(/status report|relatorio|dashboard|indicador|apresentacao executiva/, "executive_report");
- add(/integr|api|endpoint|sistema|http|persist|banco de dados|arquitetura|get\/post|payload|autentic/, "integrations_and_data");
+ add(/integr|api|endpoint|sistema|http|persist|banco de dados|arquitetura|get\/post|post|patch|payload|autentic/, "integrations_and_data");
  add(/bpmn|fluxo|processo|gateway|handoff|regras de negocio/, "process_bpmn");
  add(/stakeholder|parte interessada|raci|responsabilid/, "stakeholder_governance");
  add(/reuniao|ata|encaminhamento|follow.up|compromisso/, "meeting_followup");
