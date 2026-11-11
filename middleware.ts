@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { LOCAL_ACCESS_COOKIE } from './lib/local-ssr-cookie';
 import { localWriteGuardEnabled, shouldBlockLocalApiMutation } from './lib/local-write-guard';
+import { readOnlySupabaseFetch } from './lib/local-supabase-fetch';
 
 const PUBLIC_PAGES = new Set(['/login','/central-access']);
 const UUID=/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -49,7 +50,10 @@ export async function middleware(request:NextRequest) {
     const localId=localResult.data.user?.id;
     if(localResult.error||!localId) return redirect(request,'/login');
 
-    const db=createClient(dbUrl,serviceKey,{auth:{persistSession:false,autoRefreshToken:false,detectSessionInUrl:false}});
+    const db=createClient(dbUrl,serviceKey,{
+      auth:{persistSession:false,autoRefreshToken:false,detectSessionInUrl:false},
+      global:localWriteGuardEnabled()?{fetch:readOnlySupabaseFetch(fetch)}:undefined,
+    });
     const admin=await db.from('platform_admins').select('user_id')
       .eq('user_id',localId).eq('active',true).maybeSingle();
     if(admin.error)return redirect(request,'/central-access?reason=unavailable');
