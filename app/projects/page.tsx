@@ -1058,7 +1058,7 @@ export default function ProjectsPage() {
          <section className="rounded-xl border border-(--border) bg-(--bg-surface) p-4" aria-label="Conteúdo processado dos documentos">
            <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
              <h2 className="text-sm font-semibold">Conteúdo processado</h2>
-             <span className="text-xs text-(--text-secondary)">${knowledgeItems.length} registros</span>
+             <span className="text-xs text-(--text-secondary)">{knowledgeItems.length} registros</span>
            </div>
           <p className="text-xs font-semibold uppercase tracking-wide text-(--text-secondary)">
             Conhecimento ingerido no projeto
