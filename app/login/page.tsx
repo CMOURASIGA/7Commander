@@ -15,8 +15,8 @@ export default function LoginPage() {
     setError("");
     setBusy(true);
     try {
-      if (process.env.NEXT_PUBLIC_COMMANDER_LOCAL_READ_ONLY==="true"
-          && window.location.hostname==="localhost") {
+      if ((process.env.NEXT_PUBLIC_COMMANDER_LOCAL_AUTH_ENABLED==="true" || process.env.NEXT_PUBLIC_COMMANDER_LOCAL_READ_ONLY==="true")
+          && ["localhost","127.0.0.1"].includes(window.location.hostname)) {
         // Internal operator only; API and middleware validate identity and
         // active membership independently through Supabase RLS.
         await auth.signInWithPassword(email,password);
