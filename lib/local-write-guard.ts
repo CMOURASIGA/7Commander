@@ -3,6 +3,10 @@
  * This prevents browser -> Next.js API writes; it is NOT a database-level
  * read-only credential and does not restrict direct browser Supabase calls.
  */
+/** Local auth uses the signed-in user's JWT and RLS, never a service key. */
+export function localAuthEnabled(env:NodeJS.ProcessEnv=process.env):boolean {
+  return env.NODE_ENV==="development" && env.COMMANDER_LOCAL_AUTH_ENABLED==="true";
+}
 export function localWriteGuardEnabled(env:NodeJS.ProcessEnv=process.env):boolean{
   return env.COMMANDER_LOCAL_READ_ONLY==="true";
 }
