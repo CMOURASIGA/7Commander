@@ -48,3 +48,49 @@ A UX-ICON-02 já aplica esse componente em Clientes, Projetos, Riscos, Decisões
 - Testes técnicos PASS e homologação funcional/visual assinada pelo responsável.
 
 **Atenção:** esta entrega altera a UX, não corrige a autorização de consultas Scrum/Status Report nem a persistência do whitelabel no servidor. Essas frentes são independentes.
+
+
+## Orientações complementares | Comparação com vitrine de componentes da CNC (11/11/2026)
+
+**Fonte de referência:** https://poc-layout-ti-cnc.vercel.app/ . A comparação foi reportada a partir de inspeção visual das vitrines CNC e 7Components; não representa auditoria de código-fonte da CNC.
+
+### UX-ICON-03: critérios que devem permanecer
+
+- Preservar o modelo Equilibrado, o componente central `IconActionButton` e os SVGs atuais. A CNC é referência de consistência, não um tema a copiar.
+- Ações individuais Visualizar/Editar usam base neutra e destaque no hover pela cor da empresa. Excluir/Revogar utilizam semântica danger e confirmação aplicável. Ativar/Aprovar usam success.
+- Alvos 40 × 40 px no desktop e 44 × 44 px em touch, SVG 20 × 20 px, `aria-label`, foco visível e sinalização de desabilitado.
+- Não substituir ações primárias com texto (Criar, Salvar, Gerar relatório) por ícones isolados; não introduzir cores fixas de uma empresa nem botões ativos que pareçam desabilitados.
+- Conferir iconografia e semântica nas telas Clientes, Projetos, Riscos, Decisões, Backlog, Kanban, Atividades, Documentos, usuários, permissões e demais CRUDs. Ações destrutivas exigem confirmação contextual que identifique registro e consequência quando pertinente.
+
+### Oportunidades identificadas na comparação CNC x 7Components (escopo separado de UX-ICON-03)
+
+| Área | Direcionamento para análise futura | Condição de adoção |
+| --- | --- | --- |
+| Botões e estados | Demonstrar variantes, loading, disabled, icon-only e foco sem duplicar o Button existente | Validar comportamento e legibilidade nos produtos |
+| Tabelas e filtros | Demonstração com busca, vazio, somente leitura, paginação, ordenação e filtros avançados recolhíveis | Aplicação real em listagens |
+| Campos e seletores | Inputs, combobox com busca/criação contextual e multiseleção; mensagens de erro em português | Permissões e titularidade de cadastro respeitadas |
+| Modais | Unificar confirmação nativa/customizada; explicitar nome do registro, consequência e ação irreversível | Confirmar sem regressão do CRUD |
+| Abas e drawer | Usar abas com mudanças pendentes; exibir drawers em tamanho adequado no catálogo | Usabilidade comprovada em projeto/ambientes |
+| Anexos | FileUpload + FileList com metadados e ações | Regras de segurança e acesso do produto validadas |
+| Telas de status e vazio | Casos específicos: convite indisponível, acesso negado, sessão expirada, sem registros, sem resultados | Recuperação e mensagem operacional adequadas |
+| LabelValue, cards, badges e metadados | Reutilizar equivalentes atuais antes de criar novos | Evitar duplicação |
+| Navegação, notificações e seletor de produto | Avaliar comportamentos com whitelabel e permissões | Produto ativo distinto de empresa ativa |
+| Avatar, calendário, períodos | Manter como candidatos, sem adoção antecipada | Demanda comprovada |
+
+**Correções propostas para o catálogo 7Components, sem implementá-las neste ticket:**
+1. Uma única demonstração oficial de confirmação, evitando o `window.confirm` nativo quando já existe modal padrão.
+2. Uniformização do peso e estilo dos ícones de navegação.
+3. Pré-visualizações em tamanho real de drawer, modal, formulário e tabela.
+4. Estados funcionais de erro em português, loading, vazio, ausência de permissão e recuperação.
+
+**Ordem sugerida para lote posterior no 7Components:** (1) botões e ações CRUD, (2) ícones e tooltips, (3) campos e seletores, (4) filtros e tabela, (5) anexos, (6) telas de acesso e convite. Esta lista é backlog de avaliação e não autorização de implantação.
+
+### Gates e evidência de aceite
+
+1. Executar `npm run typecheck`, `npm run lint`, `npm run test:unit`, `npm run build` na branch de trabalho. Registrar resultado de cada comando.
+2. Homologar visualmente no desktop e touch, com pelo menos duas identidades de empresa, incluindo hover, teclado, contraste, responsividade, textos acessíveis e disabled.
+3. Regressão funcional: handlers e endpoints intactos; permissões efetivas no servidor; confirmações de exclusão/revogação preservadas.
+4. Registrar capturas antes/depois, telas verificadas, problemas corrigidos e ganho mensurável (por exemplo: percentual das ações CRUD com padrão comum, número de inconsistências e retrabalho eliminado).
+5. Não promover a `develop`/`main`, não alterar Supabase e não classificar como **componente adotado no 7Components** sem aceite visual/funcional explícito.
+
+**Escopo:** Esta adição documenta diretrizes e critérios. Não atesta execução de testes nem homologação e não representa autorização para deploy.
