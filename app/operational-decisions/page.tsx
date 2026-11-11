@@ -1,4 +1,5 @@
 "use client";
+import {IconActionButton} from "@/components/ui/icon-action-button";
 import {useCallback,useEffect,useState} from "react";
 import {getClientAuthHeaders} from "@/lib/client-auth";
 type Evaluation={id:string;module:string;entity_type:string;verdict:{category:string;severity:string;score:number;criteria:string[];evidence:string[];limitations:string[]};status:string;provider:string;created_at:string};
@@ -64,7 +65,7 @@ export default function OperationalDecisions(){
     <p className="text-sm">Pontuação indicativa: {x.verdict?.score}/100 · {new Date(x.created_at).toLocaleString("pt-BR")}</p>
     <p className="text-xs">Evidências factuais recebidas: {(x.verdict?.evidence||[]).join("; ")}</p>
     <p className="text-xs text-(--text-secondary)">Limitações: {(x.verdict?.limitations||[]).join("; ")}</p>
-    {x.status==="pending_review"?<div className="space-y-2"><label className="block text-sm">Motivo da decisão<input className="workspace-input mt-1 w-full" value={reason} onChange={e=>setReason(e.target.value)}/></label><div className="flex gap-2">{[["accepted","Aceitar"],["rejected","Rejeitar"],["review_requested","Solicitar revisão"]].map(([value,label])=><button key={value} disabled={busy} onClick={()=>void review(x.id,value)} className="workspace-button-secondary px-3 py-2 text-sm">{label}</button>)}</div></div>:null}
+    {x.status==="pending_review"?<div className="space-y-2"><label className="block text-sm">Motivo da decisão<input className="workspace-input mt-1 w-full" value={reason} onChange={e=>setReason(e.target.value)}/></label><div className="flex gap-2">{[["accepted","Aceitar"],["rejected","Rejeitar"],["review_requested","Solicitar revisão"]].map(([value,label])=><IconActionButton key={value} icon={value==="accepted"?"check-circle":value==="rejected"?"circle-minus":"refresh"} tone={value==="accepted"?"success":value==="rejected"?"danger":"edit"} label={label+" avaliação "+x.id} disabled={busy} onClick={()=>void review(x.id,value)}/>)}</div></div>:null}
    </article>)}{visible.length===0?<p className="text-sm text-(--text-secondary)">Nenhuma avaliação registrada nesta empresa ou filtro.</p>:null}</section>
   {error?<p role="alert" className="rounded-lg border p-3 text-sm">{error}</p>:null}
  </main>;
