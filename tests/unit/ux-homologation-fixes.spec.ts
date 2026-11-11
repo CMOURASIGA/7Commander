@@ -40,10 +40,9 @@ test("whitelabel tem fonte visual única e empresa é confirmada no servidor",()
  expect(select).toContain('confirmation.data?.id!==selected');
 });
 
-test("scripts de permissão no Supabase são propostas, nunca automações no runtime",()=>{
- const review=file("docs/sql/RLS_AUTHENTICATED_SCRUM_REPORT_REVIEW_20261111.sql");
- expect(review).toContain("DO NOT apply");
- expect(review).toContain("public.is_organization_member(organization_id)");
- expect(review).toContain("int01_is_central_readonly_member");
- expect(review).not.toContain("DISABLE ROW LEVEL SECURITY");
+test("pacote de release não inclui scripts SQL de laboratório",()=>{
+ const release=file("docs/RELEASE_UX_OPERACIONAL_20261111.md");
+ expect(release).toContain("Não duplicar ou executar SQL novamente");
+ expect(release).toContain("Excluído de propósito");
+ expect(release).toContain("service_role");
 });
