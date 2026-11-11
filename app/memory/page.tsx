@@ -8,6 +8,8 @@ const PRIORITIES: MemoryPriority[] = ["P0", "P1", "P2", "P3", "P4"];
 
 export default function MemoryPage() {
   const [memories, setMemories] = useState<MemoryRecord[]>([]);
+  const [search,setSearch]=useState("");
+  const [priorityFilter,setPriorityFilter]=useState<"all"|MemoryPriority>("all");
   const [loading, setLoading] = useState(true);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
   const [compressing, setCompressing] = useState(false);
@@ -140,6 +142,9 @@ export default function MemoryPage() {
     await patchMemory(memory.id, { content: nextContent });
   }
 
+  const filteredMemories=memories.filter(memory=>
+    (priorityFilter==="all"||memory.priority===priorityFilter)&&
+    [memory.content,memory.type].join(" ").toLocaleLowerCase("pt-BR").includes(search.trim().toLocaleLowerCase("pt-BR")));
   return (
     <section className="space-y-3">
       <PageIntro
@@ -193,17 +198,28 @@ export default function MemoryPage() {
         <p className="workspace-card-muted px-3 py-2 text-xs text-(--text-secondary)">{priorityInfo}</p>
       ) : null}
 
+      <div className="workspace-card grid gap-3 p-4 sm:grid-cols-[minmax(0,1fr)_180px]">
+        <label className="text-sm">Pesquisar na memória
+          <input className="workspace-input mt-1 w-full" value={search} onChange={event=>setSearch(event.target.value)} placeholder="Buscar conteúdo ou tipo"/>
+        </label>
+        <label className="text-sm">Prioridade
+          <select className="workspace-select mt-1 w-full" value={priorityFilter} onChange={event=>setPriorityFilter(event.target.value as "all"|MemoryPriority)}>
+            <option value="all">Todas</option>{PRIORITIES.map(item=><option key={item} value={item}>{item}</option>)}
+          </select>
+        </label>
+        <p className="text-xs text-(--text-secondary) sm:col-span-2">{filteredMemories.length} de {memories.length} registros</p>
+      </div>
       {loading ? (
         <div className="workspace-card p-4 text-sm text-(--text-secondary)">
           Carregando memorias...
         </div>
-      ) : memories.length === 0 ? (
+      ) : filteredMemories.length === 0 ? (
         <div className="workspace-empty-state text-sm">
-          Nenhuma memoria registrada ainda.
+          Nenhuma memória encontrada para os filtros selecionados.
         </div>
       ) : (
         <div className="space-y-3">
-          {memories.map((memory) => (
+          {filteredMemories.map((memory) => (
             <SurfaceCard key={memory.id}>
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <div>
