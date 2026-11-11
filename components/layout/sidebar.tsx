@@ -4,8 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { BRAND_NAME, BRAND_SUBTITLE } from "@/lib/brand";
-import { applyClientBrandSettings, ClientBrandSettings } from "@/lib/brand-settings";
-import { getClientAuthHeaders } from "@/lib/client-auth";
+import { CLIENT_BRAND_STORAGE_KEY, getClientBrandSettings, type ClientBrandSettings } from "@/lib/brand-settings";
 import { useKairosAuth } from "@/components/auth/kairos-auth-provider";
 
 const NAV_ITEMS = [
@@ -44,35 +43,14 @@ export function Sidebar({ isMobileOpen, onCloseMobile }: SidebarProps) {
   const {user}=useKairosAuth();
   const [clientBrand, setClientBrand] = useState<ClientBrandSettings|null>(null);
   const sections = Array.from(new Set(NAV_ITEMS.map((item) => item.section)));
-  useEffect(() => {
-    if(!user){setClientBrand(null);return}
-    let alive=true;
-    const refreshBrand=async()=>{
-      try{
-        const response=await fetch("/api/organizations/branding",{headers:getClientAuthHeaders(),cache:"no-store"});
-        if(!response.ok)throw Error("Branding unavailable");
-        const payload=await response.json();
-        const branding=payload.data?.branding??{};
-        const safeColor=(value:unknown,fallback:string)=>typeof value==="string"&&/^#[0-9a-fA-F]{6}$/.test(value)?value:fallback;
-        const logo=typeof branding.logoUrl==="string"&&(/^(data:image\/(png|jpeg|webp);base64,)/.test(branding.logoUrl)||/^https:\/\//.test(branding.logoUrl))?branding.logoUrl:"";
-        const settings:ClientBrandSettings={
-          clientName:typeof branding.displayName==="string"&&branding.displayName.trim()?branding.displayName:payload.data.name,
-          logoUrl:logo,
-          primaryColor:safeColor(branding.primaryColor,"#003B73"),
-          highlightColor:safeColor(branding.secondaryColor,"#00AEEF")
-        };
-        if(!alive)return;
-        setClientBrand(settings);
-        applyClientBrandSettings(settings);
-      }catch{if(alive)setClientBrand(null)}
-    };
-    void refreshBrand();
-    const onStorage=(event:StorageEvent)=>{if(event.key==="7commander:company-changed")void refreshBrand()};
-    const onFocus=()=>void refreshBrand();
+  useEffect(()=>{
+    if(!user){setClientBrand(null);return;}
+    const update=()=>setClientBrand(getClientBrandSettings());
+    update();
+    const onStorage=(event:StorageEvent)=>{if(event.key===CLIENT_BRAND_STORAGE_KEY)update();};
+    window.addEventListener("client-brand-updated",update);
     window.addEventListener("storage",onStorage);
-    window.addEventListener("focus",onFocus);
-    window.addEventListener("7commander:organization-selected",onFocus);
-    return()=>{alive=false;window.removeEventListener("storage",onStorage);window.removeEventListener("focus",onFocus);window.removeEventListener("7commander:organization-selected",onFocus)}
+    return()=>{window.removeEventListener("client-brand-updated",update);window.removeEventListener("storage",onStorage);};
   },[user?.id]);
   return <>
     {isMobileOpen ? <button type="button" aria-label="Fechar menu" className="sidebar-backdrop" onClick={onCloseMobile} /> : null}
