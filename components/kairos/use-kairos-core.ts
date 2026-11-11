@@ -501,7 +501,7 @@ export function useKairosCore(options?: UseKairosCoreOptions) {
       setError("Selecione um projeto antes de continuar.");
       return;
     }
-    if (projectId !== activeProjectId && hasMessages) {
+    if (projectId !== activeProjectId && !isNewConversation && hasMessages) {
       const confirmed = await confirm({
         title: "Trocar de projeto?",
         description: "Trocar o projeto inicia uma nova conversa com o Kairos. O histórico atual continua salvo, mas deixa de aparecer aqui.",
@@ -511,6 +511,15 @@ export function useKairosCore(options?: UseKairosCoreOptions) {
       if (!confirmed) return;
       startNewConversation();
       addSessionEvent(setSessionMemory, "Nova conversa iniciada para evitar mistura de contextos entre projetos.");
+    }
+    // A conversation ID belongs to a single project even when the UI has no
+    // messages loaded yet. Never reuse a saved ID after changing project.
+    if(projectId!==activeProjectId){
+      setConversationId(createConversationId());
+      setMessages([]);
+      setIsNewConversation(true);
+      setError(null);
+      restoredProjectRef.current=null;
     }
     setActiveProjectId(projectId);
     try {
@@ -568,6 +577,10 @@ export function useKairosCore(options?: UseKairosCoreOptions) {
     if (!value || loading) return;
     if (!activeProjectId) {
       setError("Selecione um projeto antes de iniciar a conversa.");
+      return;
+    }
+    if (!isNewConversation && selectedConversation?.projectId && selectedConversation.projectId!==activeProjectId) {
+      setError("A conversa selecionada pertence a outro projeto. Inicie uma nova conversa no projeto atual.");
       return;
     }
     if (!isNewConversation && !selectedConversation?.projectId) {
