@@ -7,6 +7,7 @@ const risk=(impact:string,probability:string)=>({
 
 test("matriz normaliza impacto e probabilidade sem supor avaliações ausentes",()=>{
  expect(riskLevel("Alto")).toBe(3);
+ expect(riskLevel("Alto (3)")).toBe(3);
  expect(riskLevel("Média")).toBe(2);
  expect(riskLevel("Baixa")).toBe(1);
  expect(riskLevel("")).toBeNull();
