@@ -17,7 +17,7 @@ if (-not (Test-Path ".env.local")) {
 $envPath = (Resolve-Path ".env.local").Path
 $text = Get-Content -Raw -LiteralPath $envPath
 $text = [regex]::Replace($text, '(?m)^NEXT_PUBLIC_APP_URL=.*$', 'NEXT_PUBLIC_APP_URL=http://localhost:3000')
-foreach ($name in @("COMMANDER_LOCAL_READ_ONLY", "NEXT_PUBLIC_COMMANDER_LOCAL_READ_ONLY")) {
+foreach ($name in @("COMMANDER_LOCAL_READ_ONLY", "NEXT_PUBLIC_COMMANDER_LOCAL_READ_ONLY", "SEVEN_COMMANDER_TENANT_SCHEMA_READY", "SEVEN_COMMANDER_MULTI_TENANT_READY")) {
   if ($text -match "(?m)^$name=") {
     $text = [regex]::Replace($text, "(?m)^$name=.*$", "$name=true")
   } else {
@@ -27,7 +27,7 @@ foreach ($name in @("COMMANDER_LOCAL_READ_ONLY", "NEXT_PUBLIC_COMMANDER_LOCAL_RE
 Set-Content -LiteralPath $envPath -Value $text -Encoding utf8
 
 Write-Host ""
-Write-Host "Configuracao local somente leitura ativada." -ForegroundColor Green
+Write-Host "Configuracao local somente leitura e multiempresa ativadas." -ForegroundColor Green
 Write-Host "A protecao HTTP e do cliente Supabase nao substitui permissao SQL read-only." -ForegroundColor Yellow
 Write-Host "Nao copie chaves service_role de producao para desenvolver." -ForegroundColor Yellow
 Write-Host "Revise NEXT_PUBLIC_SUPABASE_URL, NEXT_PUBLIC_SUPABASE_ANON_KEY, SUPABASE_SERVICE_ROLE_KEY, OPENAI_API_KEY."
