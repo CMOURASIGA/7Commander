@@ -10,9 +10,23 @@ test("ícones de CRUD usam componente comum e não elementos duplicados",()=>{
   expect(icon).toContain("aria-label={label}");
   expect(icon).toContain('type={type}');
   expect(icon).toContain('width={20} height={20}');
+  expect(css).toContain("width: 40px;");
+  expect(css).toContain("height: 40px;");
+  expect(css).toContain("@media (pointer: coarse)");
   expect(css).toContain("width: 44px;");
-  expect(css).toContain("height: 44px;");
   expect(css).toContain(".cs-icon-action:focus-visible");
+});
+
+test("modelo equilibrado usa whitelabel no hover e diferencia exclusão",()=>{
+  const css=source("app/globals.css");
+  const component=source("components/ui/icon-action-button.tsx");
+  expect(css).toContain("var(--accent-strong)");
+  expect(css).toContain("var(--accent-soft)");
+  expect(css).toContain(".cs-icon-action--danger:hover:not(:disabled)");
+  expect(css).toContain("var(--danger-soft)");
+  expect(css).toContain(".cs-icon-action--success:hover:not(:disabled)");
+  expect(css).not.toContain(".cs-icon-action--edit { border-color: #93c5fd");
+  expect(component).toContain("cs-icon-action--edit");
 });
 
 test("UX-ICON-02 presente nas telas com ações individuais",()=>{
