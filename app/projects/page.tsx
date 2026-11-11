@@ -1,5 +1,5 @@
-import {IconActionButton} from "@/components/ui/icon-action-button";
 "use client";
+import {IconActionButton} from "@/components/ui/icon-action-button";
 
 import {measuredFetch} from "@/lib/client-performance";
 
