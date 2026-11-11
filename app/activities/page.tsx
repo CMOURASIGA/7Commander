@@ -1,4 +1,5 @@
 "use client";
+import {IconActionButton} from "@/components/ui/icon-action-button";
 
 import { AgileWorkspaceNav } from "@/components/scrum/agile-workspace-nav";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -572,7 +573,7 @@ export default function ActivitiesPage() {
                         >
                           Analisar com Kairos
                         </button>
-                        {canEdit&&<button type="button" aria-label={"Excluir atividade "+card.title} title="Excluir atividade" className="workspace-button-danger inline-flex items-center justify-center p-2" disabled={deletingTaskId===card.id} onClick={()=>void deleteTask(card.id,card.title)}><ActionIcon name="trash"/></button>}
+                        {canEdit&&<IconActionButton icon="trash" tone="danger" label={"Excluir atividade "+card.title} disabled={deletingTaskId===card.id} onClick={()=>void deleteTask(card.id,card.title)}/>}
                       </div>
                     </div>
                   ))
@@ -606,7 +607,7 @@ export default function ActivitiesPage() {
                     <span className="workspace-pill">
                       {taskDetail.accessRole}
                     </span>
-                    {canEditDetail&&<button type="button" className="workspace-button-danger inline-flex items-center gap-2 px-3 py-2 text-xs" disabled={deletingTaskId===selectedTaskId} onClick={()=>void deleteTask(taskDetail.card.id,taskDetail.card.title)}><ActionIcon name="trash"/> Excluir</button>}
+                    {canEditDetail&&<IconActionButton icon="trash" tone="danger" label={"Excluir "+taskDetail.card.title} disabled={deletingTaskId===selectedTaskId} onClick={()=>void deleteTask(taskDetail.card.id,taskDetail.card.title)}/>}
                     <button
                       type="button"
                       onClick={closeTaskDrawer}
@@ -902,10 +903,8 @@ export default function ActivitiesPage() {
                             <p className="mt-1 text-(--text-primary)">{comment.content}</p>
                             {canEditDetail && currentUserEmail === comment.authorEmail.toLowerCase() ? (
                               <div className="mt-2 flex gap-2">
-                                <button type="button" onClick={() => { setEditingCommentId(comment.id); setEditingCommentText(comment.content); }} className="text-xs font-medium text-(--accent)">Editar</button>
-                                <button
-                                  type="button"
-                                  onClick={() =>
+                                <IconActionButton icon="pencil" tone="edit" label={"Editar comentário de "+comment.authorEmail} onClick={()=>{setEditingCommentId(comment.id);setEditingCommentText(comment.content);}}/>
+                                <IconActionButton icon="trash" tone="danger" label={"Excluir comentário de "+comment.authorEmail} onClick={() =>
                                     void (async () => {
                                       const confirmed = await confirm({
                                         title: "Excluir comentario?",
@@ -915,11 +914,7 @@ export default function ActivitiesPage() {
                                       });
                                       if (confirmed) await applyDetailAction({ action: "delete_comment", commentId: comment.id });
                                     })()
-                                  }
-                                  className="text-xs font-medium text-(--danger)"
-                                >
-                                  Excluir
-                                </button>
+                                  }/>
                               </div>
                             ) : null}
                           </>
