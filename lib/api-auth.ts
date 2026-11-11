@@ -8,6 +8,8 @@ import { shouldEnforceCustomerPilot } from "@/lib/customer-pilot";
 import { authorizeCentralPilot } from "@/lib/central-runtime";
 import { recordCentralDecision } from "@/lib/central-decision-audit";
 import { TENANT_SCHEMA_READY, getEffectiveTenantForUser } from "@/lib/tenant-runtime";
+import { localWriteGuardEnabled } from "@/lib/local-write-guard";
+import { bindLocalIdentity } from "@/lib/local-request-identity";
 
 const USER_ID_HEADER = "x-kairos-user-id";
 const API_KEY_HEADER = "x-kairos-api-key";
@@ -80,6 +82,27 @@ export async function requireApiAuth(request: NextRequest): Promise<{
       const userResult = await authClient.auth.getUser(bearerToken);
 
       if (userResult.data.user && !userResult.error) {
+        if (localWriteGuardEnabled()) {
+          const userId = userResult.data.user.id;
+          bindLocalIdentity(bearerToken,userId);
+          const db = getSupabaseServerClient();
+          if (!db) return {ok:false,response:NextResponse.json({error:"Acesso local não configurado."},{status:503})};
+          // This path is intentionally internal-only. Centrally provisioned
+          // customer accounts must continue to use the 7Service broker.
+          const access = await db.from("internal_user_access").select("active")
+            .eq("user_id",userId).eq("active",true).maybeSingle();
+          if (access.error || !access.data) return {
+            ok:false,response:NextResponse.json({error:"Leitura local restrita a operador interno autorizado."},{status:403})
+          };
+          const member = await db.from("organization_members").select("organization_id")
+            .eq("user_id",userId).eq("status","active").limit(1);
+          if (member.error || !member.data?.length) return {
+            ok:false,response:NextResponse.json({error:"Sem empresa ativa autorizada."},{status:403})
+          };
+          return {ok:true,context:{
+            userId,userEmail:userResult.data.user.email??null,authMode:"supabase",
+          }};
+        }
         const db = getSupabaseServerClient();
         if (!db) return { ok: false, response: NextResponse.json({ error: "Banco indisponivel" }, { status: 503 }) };
         const userId = userResult.data.user.id;
