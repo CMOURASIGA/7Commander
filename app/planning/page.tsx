@@ -1,4 +1,5 @@
 "use client";
+import {IconActionButton} from "@/components/ui/icon-action-button";
 import {useCallback,useEffect,useState} from "react";
 import Link from "next/link";
 import {getClientAuthHeaders} from "@/lib/client-auth";
@@ -219,8 +220,7 @@ export default function PlanningPage(){
     <div className="mb-4 flex items-center justify-between gap-2"><h2 className="text-lg font-semibold">Registros</h2>
      <button onClick={()=>void load()} className="workspace-button-secondary px-3 py-2 text-xs" disabled={loading}>{loading?"Carregando...":"Atualizar"}</button></div>
     <p className="mb-3 text-xs text-(--text-secondary)">{total} registro(s), página {page}. A consulta é sob demanda e limitada a 25 itens.</p>
-    <div className="space-y-2">{items.map(item=><button key={item.id} type="button" onClick={()=>edit(item)}
-      className="block w-full rounded-lg border border-(--border) p-3 text-left hover:bg-(--bg-muted)">
+    <div className="space-y-2">{items.map(item=><div key={item.id} className="flex items-center justify-between gap-3 rounded-lg border border-(--border) p-3"><div className="min-w-0 flex-1">
       <span className="flex flex-wrap items-center justify-between gap-2">
         <span className="font-medium">{item.title}</span>
         <span className="rounded-full bg-(--bg-muted) px-2 py-1 text-xs font-semibold">{item.status}</span>
@@ -229,7 +229,7 @@ export default function PlanningPage(){
       <p className="mt-2 line-clamp-2 text-sm text-(--text-secondary)">{item.description||"Sem descrição"}</p>
       {item.payload.nextAction?<p className="mt-2 text-xs text-(--text-secondary)">Próxima ação: {String(item.payload.nextAction)}</p>:null}
       {item.payload.owner?<p className="mt-1 text-xs text-(--text-secondary)">Responsável: {String(item.payload.owner)}</p>:null}
-     </button>)}{!loading&&!items.length?<p className="text-sm text-(--text-secondary)">Nenhum registro encontrado nesta categoria.</p>:null}</div>
+     </div><IconActionButton icon="pencil" tone="edit" label={"Editar "+item.title} onClick={()=>edit(item)}/></div>)}{!loading&&!items.length?<p className="text-sm text-(--text-secondary)">Nenhum registro encontrado nesta categoria.</p>:null}</div>
     <div className="mt-4 flex gap-2">
      <button type="button" disabled={page===1} onClick={()=>setPage(p=>p-1)} className="workspace-button-secondary px-3 py-2 text-xs disabled:opacity-40">Anterior</button>
      <button type="button" disabled={page*25>=total} onClick={()=>setPage(p=>p+1)} className="workspace-button-secondary px-3 py-2 text-xs disabled:opacity-40">Próxima</button>
