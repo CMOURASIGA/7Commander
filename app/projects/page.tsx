@@ -1268,7 +1268,7 @@ export default function ProjectsPage() {
                   onChange={(event) =>
                     void handleStatusChange(decision.id, event.target.value as DecisionStatus)
                   }
-                  disabled={updatingId === decision.id}
+                  disabled={documentWriteBlocked || updatingId === decision.id}
                   className="rounded-md border border-(--border) bg-white px-2 py-1 text-xs text-(--text-primary)"
                 >
                   {STATUS_OPTIONS.map((status) => (
