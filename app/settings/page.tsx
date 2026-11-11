@@ -29,10 +29,21 @@ export default function SettingsPage() {
         }
       />
 
-      <ClientBrandConfig />
-      <KairosProfileConfig />
+      <nav aria-label="Áreas de configuração" className="workspace-card flex flex-wrap gap-2 p-3">
+        {[
+          {href:"#identity",label:"Identidade visual"},
+          {href:"#kairos-profile",label:"Perfil Kairos"},
+          {href:"#frontend-env",label:"Frontend"},
+          {href:"#backend-env",label:"Backend"},
+          {href:"#integrations",label:"Integrações"},
+          {href:"#voice-config",label:"Voz"},
+          {href:"#auth-settings",label:"Acesso"},
+        ].map(item=><a key={item.href} className="workspace-button-secondary text-xs" href={item.href}>{item.label}</a>)}
+      </nav>
+      <div id="identity" className="scroll-mt-24"><ClientBrandConfig /></div>
+      <div id="kairos-profile" className="scroll-mt-24"><KairosProfileConfig /></div>
 
-      <SurfaceCard>
+      <div id="frontend-env" className="scroll-mt-24"><SurfaceCard>
         <SectionLabel>Variáveis públicas</SectionLabel>
         <h3 className="mt-2 text-base font-semibold text-(--text-primary)">Validação do frontend</h3>
         {missingPublic.length === 0 ? (
@@ -44,9 +55,9 @@ export default function SettingsPage() {
             ))}
           </ul>
         )}
-      </SurfaceCard>
+      </SurfaceCard></div>
 
-      <SurfaceCard>
+      <div id="backend-env" className="scroll-mt-24"><SurfaceCard>
         <SectionLabel>Variáveis server-side</SectionLabel>
         <h3 className="mt-2 text-base font-semibold text-(--text-primary)">Validação do backend</h3>
         {missingServer.length === 0 ? (
@@ -58,17 +69,17 @@ export default function SettingsPage() {
             ))}
           </ul>
         )}
-      </SurfaceCard>
+      </SurfaceCard></div>
 
-      <SurfaceCard>
+      <div id="integrations" className="scroll-mt-24"><SurfaceCard>
         <SectionLabel>Administração técnica</SectionLabel>
         <h3 className="mt-2 text-base font-semibold text-(--text-primary)">Serviços protegidos</h3>
         <p className="mt-2 text-sm leading-6 text-(--text-secondary)">
           Chaves de integração e parâmetros internos ficam protegidos no ambiente de hospedagem. Esta área apresenta apenas a situação de cada serviço, sem expor configurações sensíveis ao operador.
         </p>
-      </SurfaceCard>
+      </SurfaceCard></div>
 
-      <SurfaceCard>
+      <div id="voice-config" className="scroll-mt-24"><SurfaceCard>
         <SectionLabel>Voz</SectionLabel>
         <h3 className="mt-2 text-base font-semibold text-(--text-primary)">Configuração de TTS e embeddings</h3>
         <ul className="mt-2 space-y-1 text-sm">
@@ -83,9 +94,9 @@ export default function SettingsPage() {
             {hasEmbeddingModel ? "configurada" : "nao configurada (usara padrao)"}
           </li>
         </ul>
-      </SurfaceCard>
+      </SurfaceCard></div>
 
-      <AuthClientConfig />
+      <div id="auth-settings" className="scroll-mt-24"><AuthClientConfig /></div>
     </section>
   );
 }
