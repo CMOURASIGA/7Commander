@@ -15,7 +15,7 @@ export function isSupabaseDataMutation(
   );
   // PostgREST RPC uses POST even when conceptually reading. Deny it by default:
   // we cannot prove a SQL function is side-effect free.
-  return dataEndpoint && !["GET", "HEAD", "OPTIONS"].includes(method);
+  return !["GET", "HEAD", "OPTIONS"].includes(method);
 }
 
 export function readOnlySupabaseFetch(baseFetch: typeof fetch): typeof fetch {
