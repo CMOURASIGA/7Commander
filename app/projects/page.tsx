@@ -1300,14 +1300,8 @@ export default function ProjectsPage() {
                 </div>
               </details>
               <div className="mt-2">
-                <button
-                  type="button"
-                  onClick={() => void loadDecisionHistory(decision.id)}
-                  disabled={historyLoadingId === decision.id}
-                  className="rounded-md border border-(--border) bg-(--bg-muted) px-2 py-1 text-[13px] text-(--text-primary)"
-                >
-                  {historyLoadingId === decision.id ? "Carregando historico..." : "Ver historico de status"}
-                </button>
+                <IconActionButton icon="history" tone="neutral" label={"Consultar histórico de "+decision.title}
+                   disabled={historyLoadingId===decision.id} onClick={()=>void loadDecisionHistory(decision.id)}/>
                 {decisionHistoryById[decision.id]?.length ? (
                   <div className="mt-2 space-y-1 rounded-lg border border-(--border) bg-(--bg-muted) p-2 text-[13px] text-(--text-secondary)">
                     {decisionHistoryById[decision.id].map((item) => (
