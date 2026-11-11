@@ -312,10 +312,14 @@ export default function StatusReportPage() {
      </button>
    </div>
  </section>
- <section className="grid gap-3 rounded-xl border border-(--border) bg-(--bg-surface) p-4 md:grid-cols-[1fr_auto]">
- <label className="text-sm">Tipo de relatório<select className="mt-1 block w-full rounded-lg border border-(--border) bg-(--bg-surface) px-3 py-2" value={audience} onChange={e=>setAudience(e.target.value==="internal"?"internal":"client")}><option value="client">Executivo · Cliente</option><option value="internal">Gerencial · Equipe interna</option></select></label>
- <button type="button" className="self-end rounded-lg bg-(--accent) px-4 py-2 text-sm text-white disabled:opacity-50" disabled={!documentHtml||issuing} onClick={()=>void issue()}>{issuing?"Registrando...":"Registrar emissão no histórico"}</button>
+ <section className="workspace-card flex flex-wrap items-center justify-between gap-3 p-4">
+  <div><p className="text-sm font-semibold">Relatório selecionado: {audience==="client"?"Executivo · Cliente":"Gerencial · Equipe"}</p>
+    <p className="mt-1 text-xs text-(--text-secondary)">Para alterar o público, utilize os dois cartões acima.</p>
+  </div>
+  <button type="button" className="workspace-button-primary px-4 py-2 text-sm disabled:opacity-50" disabled={!documentHtml||issuing} onClick={()=>void issue()}>{issuing?"Registrando...":"Registrar emissão no histórico"}</button>
  </section>
+ <p role="status" aria-live="polite" className="workspace-card border-l-4 border-(--accent) p-3 text-sm">{status}</p>
+ {!documentHtml&&projectId?<p role="alert" className="text-sm text-(--warning)">Prévia não disponível. {busy?"Carregando registros do projeto.":!scrumReport?scrumStatus:!board?"Dados do Kanban indisponíveis.": "Confira a origem dos dados antes de emitir."}</p>:null}
  {audience==="internal"&&<label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={includeMitigationAnnex} onChange={e=>setIncludeMitigationAnnex(e.target.checked)}/> Incluir anexo de mitigação completa no PDF da Equipe (opcional)</label>}
  <p role="status" className="text-xs text-(--text-secondary)">{scrumStatus}</p>
  {projectId&&<PublicFactsEditor projectId={projectId} proposedNextSteps={analysis?.nextSteps} onChange={()=>setFactsRevision(n=>n+1)}/>}
