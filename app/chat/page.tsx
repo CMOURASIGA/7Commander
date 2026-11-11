@@ -72,6 +72,20 @@ export default function ChatPage() {
           }
         />
 
+        <div className="workspace-card flex flex-wrap items-center justify-between gap-3 border-l-4 border-(--accent) p-3" role="status">
+          <div>
+            <p className="text-xs font-semibold text-(--text-primary)">Contexto do Kairos</p>
+            <p className="mt-1 text-xs text-(--text-secondary)">
+              {core.selectedProject
+                ? `Projeto: ${core.selectedProject.name} · ${core.isNewConversation?"Nova conversa":"Conversa vinculada"}`
+                : "Selecione um projeto antes de iniciar uma análise operacional."}
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <a href="/projects" className="workspace-button-secondary px-3 py-2 text-xs">Ver projeto</a>
+            <a href="/memory" className="workspace-button-secondary px-3 py-2 text-xs">Consultar memória</a>
+          </div>
+        </div>
         <SurfaceCard className="flex flex-wrap items-end gap-3 p-3">
           <div className="min-w-[240px] flex-1">
             <SectionLabel>{core.isNewConversation ? "Projeto desta conversa" : "Projeto vinculado à conversa"}</SectionLabel>
