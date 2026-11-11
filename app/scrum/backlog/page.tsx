@@ -1,3 +1,4 @@
+import {IconActionButton} from "@/components/ui/icon-action-button";
 "use client";
 import { AgileWorkspaceNav } from "@/components/scrum/agile-workspace-nav";
 import {ScrumKairosActions} from "@/components/scrum/scrum-kairos-actions";
@@ -157,9 +158,9 @@ export default function BacklogPage(){
      <td className="p-2 text-xs"><div className="flex items-center gap-2">{(r.story?.responsible||r.item?.responsible)?<span className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-sky-100 text-[11px] font-semibold text-sky-800">{memberName(r.story?.responsible||r.item?.responsible).slice(0,1).toUpperCase()}</span>:null}<span className="truncate" title={memberName(r.story?.responsible||r.item?.responsible)}>{memberName(r.story?.responsible||r.item?.responsible)}</span></div></td>
      <td className="p-2 text-xs">{r.state.toUpperCase()}</td>
      <td className="p-2"><div className="flex gap-1">
-      <button title="Visualizar" aria-label={"Visualizar "+r.title} className="rounded-md border border-(--border) p-1.5" onClick={()=>open(r,r.type,true)}><Icon kind="view"/></button>
-      <button title="Editar" aria-label={"Editar "+r.title} className="rounded-md border border-(--border) p-1.5" onClick={()=>open(r,r.type)}><Icon kind="edit"/></button>
-      <button title="Excluir" aria-label={"Excluir "+r.title} className="rounded-md border border-(--border) p-1.5 text-(--danger)" disabled={saving||Boolean(r.story&&(r.story.has_history||r.story.sprint_id||r.story.workflow_stage!=="new"))} onClick={()=>void remove(r)}><Icon kind="delete"/></button>
+      <IconActionButton icon="eye" label={"Visualizar "+r.title} tone="neutral" onClick={()=>open(r,r.type,true)}/>
+      <IconActionButton icon="pencil" label={"Editar "+r.title} tone="edit" onClick={()=>open(r,r.type)}/>
+      <IconActionButton icon="trash" label={"Excluir "+r.title} tone="danger" disabled={saving||Boolean(r.story&&(r.story.has_history||r.story.sprint_id||r.story.workflow_stage!=="new"))} onClick={()=>void remove(r)}/>
      </div></td>
     </tr>)}</tbody>
    </table>{!visible.length&&<p className="p-4 text-sm text-(--text-secondary)">Nenhum item encontrado. Ajuste os filtros ou cadastre um Epic.</p>}</div>
