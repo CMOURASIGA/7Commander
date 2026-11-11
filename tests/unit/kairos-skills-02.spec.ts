@@ -32,3 +32,14 @@ test("all new skills use distinct frontmatter names, references and LF",()=>{
   expect(content.length).toBeGreaterThan(300);
  }
 });
+
+test("synthetic adversarial fixture has explicit no-write test contracts",()=>{
+ const fixture=JSON.parse(readFileSync(join(root,"tests","fixtures","kairos-skills-02-scenarios.json"),"utf8")) as Array<{id:string;prompt:string;expectedSkill:string;prohibition:string;mode:string}>;
+ expect(fixture.length).toBeGreaterThanOrEqual(15);
+ expect(new Set(fixture.map(v=>v.id)).size).toBe(fixture.length);
+ for(const item of fixture){
+  expect(item.mode).toBe("read-only-review");
+  expect(item.prohibition.length).toBeGreaterThan(10);
+  if(item.expectedSkill)expect(pickModulesByIntent(item.prompt),item.prompt).toContain(item.expectedSkill.replace(/-/g,"_"));
+ }
+});
