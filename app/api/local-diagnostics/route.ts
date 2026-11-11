@@ -4,6 +4,7 @@ import { getSupabaseServerClient } from "@/lib/supabase/server";
 import { getEffectiveTenantForUser } from "@/lib/tenant-runtime";
 import { listProjects } from "@/services/project-service";
 import { localWriteGuardEnabled } from "@/lib/local-write-guard";
+import { LOCAL_ACCESS_COOKIE } from "@/lib/local-ssr-cookie";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -13,7 +14,15 @@ export async function GET(request:NextRequest) {
   if (!localWriteGuardEnabled() || !["localhost","127.0.0.1"].includes(request.nextUrl.hostname)) {
     return NextResponse.json({error:"Not found"},{status:404});
   }
-  const auth = await requireApiAuth(request);
+  const cookieToken=request.cookies.get(LOCAL_ACCESS_COOKIE)?.value??"";
+  // Direct navigation works without JavaScript and bypasses the broken
+  // service worker installed on localhost:3000 when a new port is used.
+  const headers=new Headers(request.headers);
+  if (!headers.has("authorization") && cookieToken && cookieToken.length<=10000) {
+    headers.set("authorization","Bearer "+cookieToken);
+  }
+  const authenticatedRequest=new NextRequest(request.url,{method:"GET",headers});
+  const auth = await requireApiAuth(authenticatedRequest);
   if (!auth.ok) return auth.response;
   const db = getSupabaseServerClient();
   if (!db) return NextResponse.json({error:"Cliente Supabase indisponível."},{status:503});
