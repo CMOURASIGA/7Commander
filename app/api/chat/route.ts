@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { localWriteGuardEnabled } from "@/lib/local-write-guard";
 import { appendMessage } from "@/services/chat-store";
 import { generateKairosResponse } from "@/services/kairos-core";
 import { requireApiAuth } from "@/lib/api-auth";
@@ -57,7 +58,7 @@ export async function POST(request: NextRequest) {
     const ownership = await db.from("projects").select("organization_id").eq("id", project.id).eq("organization_id", effectiveTenant).maybeSingle();
     if (ownership.error || !ownership.data) return NextResponse.json({ error: "Projeto fora da organização autorizada." }, { status: 403 });
 
-    await appendMessage({
+    if (!localWriteGuardEnabled()) await appendMessage({
       userId,
       conversationId: body.conversationId,
       role: "user",
@@ -78,7 +79,14 @@ export async function POST(request: NextRequest) {
     });
 
     const generationDurationMs = Date.now() - generationStartedAt;
-    const assistantMessage = await appendMessage({
+    const assistantMessage = localWriteGuardEnabled() ? {
+      id: crypto.randomUUID(),
+      conversationId: body.conversationId,
+      role: "assistant" as const,
+      content: result.answer,
+      specialist: result.specialist,
+      createdAt: new Date().toISOString(),
+    } : await appendMessage({
       userId,
       conversationId: body.conversationId,
       role: "assistant",
