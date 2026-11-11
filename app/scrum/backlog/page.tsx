@@ -1,5 +1,5 @@
-import {IconActionButton} from "@/components/ui/icon-action-button";
 "use client";
+import {IconActionButton} from "@/components/ui/icon-action-button";
 import { AgileWorkspaceNav } from "@/components/scrum/agile-workspace-nav";
 import {ScrumKairosActions} from "@/components/scrum/scrum-kairos-actions";
 import {MarkdownContent} from "@/components/ui/markdown-content";
