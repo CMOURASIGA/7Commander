@@ -221,9 +221,14 @@ export default function PlanningPage(){
     <p className="mb-3 text-xs text-(--text-secondary)">{total} registro(s), página {page}. A consulta é sob demanda e limitada a 25 itens.</p>
     <div className="space-y-2">{items.map(item=><button key={item.id} type="button" onClick={()=>edit(item)}
       className="block w-full rounded-lg border border-(--border) p-3 text-left hover:bg-(--bg-muted)">
-      <span className="block font-medium">{item.title}</span>
-      <span className="text-xs text-(--text-secondary)">{item.status} · v{item.version} · {new Date(item.updated_at).toLocaleDateString("pt-BR")}</span>
-      <p className="mt-1 line-clamp-2 text-sm text-(--text-secondary)">{item.description||"Sem descrição"}</p>
+      <span className="flex flex-wrap items-center justify-between gap-2">
+        <span className="font-medium">{item.title}</span>
+        <span className="rounded-full bg-(--bg-muted) px-2 py-1 text-xs font-semibold">{item.status}</span>
+      </span>
+      <span className="mt-1 block text-xs text-(--text-secondary)">Versão {item.version} · Atualizado em {new Date(item.updated_at).toLocaleDateString("pt-BR")}</span>
+      <p className="mt-2 line-clamp-2 text-sm text-(--text-secondary)">{item.description||"Sem descrição"}</p>
+      {item.payload.nextAction?<p className="mt-2 text-xs text-(--text-secondary)">Próxima ação: {String(item.payload.nextAction)}</p>:null}
+      {item.payload.owner?<p className="mt-1 text-xs text-(--text-secondary)">Responsável: {String(item.payload.owner)}</p>:null}
      </button>)}{!loading&&!items.length?<p className="text-sm text-(--text-secondary)">Nenhum registro encontrado nesta categoria.</p>:null}</div>
     <div className="mt-4 flex gap-2">
      <button type="button" disabled={page===1} onClick={()=>setPage(p=>p-1)} className="workspace-button-secondary px-3 py-2 text-xs disabled:opacity-40">Anterior</button>
