@@ -16,7 +16,7 @@ test("documents upload is visible in Documents tab but locked during local read-
 test("processed knowledge is not mistaken for downloadable originals", () => {
   expect(source).toContain("O arquivo original ainda não fica disponível para download.");
   expect(source).toContain('aria-label="Conteúdo processado dos documentos"');
-  expect(source).toContain("Excluir registro");
+  expect(source).toContain("Processado");
   expect(source).toContain('disabled={documentWriteBlocked || deletingKnowledgeId === item.id}');
 });
 
