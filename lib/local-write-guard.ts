@@ -6,6 +6,9 @@
 export function localWriteGuardEnabled(env:NodeJS.ProcessEnv=process.env):boolean{
   return env.NODE_ENV==="development" && env.COMMANDER_LOCAL_READ_ONLY==="true";
 }
+export function localReadOnlyChatAllowed(pathname:string,method:string):boolean {
+  return pathname==="/api/chat" && method.toUpperCase()==="POST";
+}
 export function shouldBlockLocalApiMutation(input:{
   pathname:string;
   method:string;
@@ -13,5 +16,6 @@ export function shouldBlockLocalApiMutation(input:{
 }):boolean{
   return input.enabled
     && (input.pathname==="/api" || input.pathname.startsWith("/api/"))
-    && !["GET","HEAD","OPTIONS"].includes(input.method.toUpperCase());
+    && !["GET","HEAD","OPTIONS"].includes(input.method.toUpperCase())
+    && !localReadOnlyChatAllowed(input.pathname,input.method);
 }
