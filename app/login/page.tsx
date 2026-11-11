@@ -15,6 +15,15 @@ export default function LoginPage() {
     setError("");
     setBusy(true);
     try {
+      if (process.env.NEXT_PUBLIC_COMMANDER_LOCAL_READ_ONLY==="true"
+          && window.location.hostname==="localhost") {
+        // Internal operator only; API and middleware validate identity and
+        // active membership independently through Supabase RLS.
+        await auth.signInWithPassword(email,password);
+        setPassword("");
+        window.location.assign(nextPath);
+        return;
+      }
       // Central identity first: establish BOTH central cookies and the linked local
       // Supabase session in one login. Internal users without a central link
       // retain the existing local login as a fallback.
