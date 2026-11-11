@@ -965,8 +965,9 @@ export async function deleteTaskCard(params:{userId:string;userEmail?:string|nul
  const access=await getProjectAccessRole({userId:params.userId,userEmail:params.userEmail,projectId:row.project_id});
  if(access!=="owner"&&access!=="editor")return {deleted:false,reason:"Sem permissão para excluir esta atividade."};
  const [riskLink,sprintLink]=await Promise.all([
-  supabase.from("risks").select("id").eq("task_id",params.taskId).limit(1),
-  supabase.from("scrum_sprint_tasks").select("id").eq("task_id",params.taskId).limit(1)
+  supabase.from("risks").select("id").eq("task_id",params.taskId).eq("project_id",row.project_id).eq("organization_id",organizationId).limit(1),
+  // scrum_sprint_tasks uses (sprint_id, task_id), not a standalone id column.
+  supabase.from("scrum_sprint_tasks").select("task_id").eq("task_id",params.taskId).eq("project_id",row.project_id).eq("organization_id",organizationId).limit(1)
  ]);
  if(riskLink.error||sprintLink.error)return {deleted:false,reason:"Não foi possível verificar os vínculos. Exclusão bloqueada."};
  if(riskLink.data?.length||sprintLink.data?.length)
