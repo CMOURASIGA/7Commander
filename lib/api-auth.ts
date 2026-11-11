@@ -8,7 +8,7 @@ import { shouldEnforceCustomerPilot } from "@/lib/customer-pilot";
 import { authorizeCentralPilot } from "@/lib/central-runtime";
 import { recordCentralDecision } from "@/lib/central-decision-audit";
 import { TENANT_SCHEMA_READY, getEffectiveTenantForUser } from "@/lib/tenant-runtime";
-import { localWriteGuardEnabled } from "@/lib/local-write-guard";
+import { localAuthEnabled, localWriteGuardEnabled } from "@/lib/local-write-guard";
 import { beginLocalIdentity, verifyLocalIdentity } from "@/lib/local-request-identity";
 
 const USER_ID_HEADER = "x-kairos-user-id";
@@ -70,7 +70,7 @@ export async function requireApiAuth(request: NextRequest): Promise<{
   const authRequired = isAuthRequired();
   // Establish request-local async context synchronously, BEFORE the first
   // await. It remains unusable until Supabase Auth verifies this JWT.
-  if (localWriteGuardEnabled()) beginLocalIdentity(bearerToken);
+  if (localAuthEnabled() || localWriteGuardEnabled()) beginLocalIdentity(bearerToken);
 
   if (bearerToken && seemsJwtToken(bearerToken) && bearerToken !== configuredApiKey) {
     const { NEXT_PUBLIC_SUPABASE_URL, NEXT_PUBLIC_SUPABASE_ANON_KEY } = getPublicEnv();
@@ -85,7 +85,7 @@ export async function requireApiAuth(request: NextRequest): Promise<{
       const userResult = await authClient.auth.getUser(bearerToken);
 
       if (userResult.data.user && !userResult.error) {
-        if (localWriteGuardEnabled()) {
+        if (localAuthEnabled() || localWriteGuardEnabled()) {
           const userId = userResult.data.user.id;
           if (!verifyLocalIdentity(bearerToken,userId)) return {
             ok:false,response:NextResponse.json({error:"Contexto de autenticação inválido."},{status:401})
@@ -241,7 +241,7 @@ export async function requireApiAuth(request: NextRequest): Promise<{
 
   // Local read-only never falls back to legacy keys or caller-supplied IDs.
   // A missing, malformed or unverified Supabase JWT must fail closed.
-  if (localWriteGuardEnabled()) return {
+  if (localAuthEnabled() || localWriteGuardEnabled()) return {
     ok:false,
     response:NextResponse.json({error:"Login Supabase obrigatório no modo leitura."},
       {status:401,headers:{"Cache-Control":"no-store"}}),
