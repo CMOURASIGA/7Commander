@@ -9,7 +9,7 @@ import { TaskAlerts } from "@/components/notifications/task-alerts";
 import { getClientAuthHeaders } from "@/lib/client-auth";
 
 const PAGE_TITLES: Record<string, string> = {
-  "/": "Inicio", "/scrum": "Scrum e Sprints", "/scrum/backlog": "Backlog de US", "/scrum/kanban": "Kanban de US", "/voice": "Voice Room", "/chat": "Dashboard Kairos", "/daily": "Daily", "/clients": "Clientes", "/projects": "Projetos", "/activities": "Atividades", "/memory": "Memoria", "/help": "Ajuda", "/settings": "Configuracoes", "/login": "Acesso",
+  "/": "Inicio", "/planning": "Prospect", "/decisions": "Decisões dos projetos", "/operational-decisions": "Avaliações operacionais", "/status-report": "Status Report", "/organizations": "Empresas", "/scrum": "Scrum e Sprints", "/scrum/backlog": "Backlog de US", "/scrum/kanban": "Kanban de US", "/voice": "Voice Room", "/chat": "Dashboard Kairos", "/daily": "Daily", "/clients": "Clientes", "/projects": "Projetos", "/activities": "Atividades", "/memory": "Memoria", "/help": "Ajuda", "/settings": "Configuracoes", "/login": "Acesso",
 };
 type HeaderProps = { onToggleMobileNav: () => void; mobileNavOpen: boolean };
 
@@ -37,11 +37,9 @@ export function Header({ onToggleMobileNav, mobileNavOpen }: HeaderProps) {
     }
     void refreshActiveCompany();
     const onStorage=(event:StorageEvent)=>{if(event.key==="7commander:company-changed")void refreshActiveCompany()};
-    const onFocus=()=>void refreshActiveCompany();
     window.addEventListener("7commander:organization-selected", refreshActiveCompany);
     window.addEventListener("storage",onStorage);
-    window.addEventListener("focus",onFocus);
-    return () => {alive=false;window.removeEventListener("7commander:organization-selected", refreshActiveCompany);window.removeEventListener("storage",onStorage);window.removeEventListener("focus",onFocus);};
+    return () => {alive=false;window.removeEventListener("7commander:organization-selected", refreshActiveCompany);window.removeEventListener("storage",onStorage);};
   }, [authenticated]);
   const menuRef = useRef<HTMLDivElement>(null);
   const avatarLabel = (email ?? "7c").split("@")[0].split(/[.\s_-]+/).filter(Boolean).slice(0, 2).map((part) => part[0]?.toUpperCase() ?? "").join("") || "7C";
