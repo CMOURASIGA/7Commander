@@ -403,9 +403,24 @@ export default function ActivitiesPage() {
         }
       />
 
-      <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-(--border) bg-(--bg-surface) px-4 py-3">
-        <p className="text-sm text-(--text-secondary)">Novo fluxo multicontexto em preparação com dados sintéticos.</p>
-        <Link href="/activities/overview" className="rounded-lg border border-(--border) px-3 py-2 text-sm font-medium">Visualizar protótipo operacional</Link>
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4" aria-label="Indicadores das atividades do projeto">
+        {(()=>{
+          const cards=board?.columns.flatMap(column=>column.cards)??[];
+          const open=cards.filter(card=>card.columnKey!=="done"&&card.status!=="concluida");
+          const late=open.filter(card=>card.dueDate&&daysToDelivery(card.dueDate)<0);
+          const unassigned=open.filter(card=>!card.responsible?.trim());
+          const doing=open.filter(card=>card.columnKey==="doing"||card.status==="em_andamento");
+          return [
+            {label:"Atividades",value:cards.length,detail:"Cards do projeto selecionado"},
+            {label:"Em andamento",value:doing.length,detail:"Execução em curso"},
+            {label:"Atrasadas",value:late.length,detail:"Com vencimento anterior a hoje"},
+            {label:"Sem responsável",value:unassigned.length,detail:"Cards abertos sem atribuição"},
+          ].map(metric=><article key={metric.label} className="workspace-card p-4">
+            <p className="text-xs text-(--text-secondary)">{metric.label}</p>
+            <p className="mt-2 text-2xl font-semibold">{loading?"...":metric.value}</p>
+            <p className="mt-1 text-xs text-(--text-secondary)">{metric.detail}</p>
+          </article>);
+        })()}
       </div>
 
       <SurfaceCard>
