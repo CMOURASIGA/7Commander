@@ -5,10 +5,10 @@ const file=(path:string)=>readFileSync(resolve(process.cwd(),path),"utf8");
 
 test("cliente tem ações em ícones, alinhadas e exclusão confirmada",()=>{
  const src=file("app/clients/page.tsx");
- expect(src).toContain('aria-label={"Editar "+client.name}');
- expect(src).toContain('aria-label={"Excluir "+client.name}');
- expect(src).toContain('<ActionIcon name="pencil"/>');
- expect(src).toContain('<ActionIcon name="trash"/>');
+ expect(src).toContain('icon="eye" tone="neutral" label={"Visualizar "+client.name}');
+ expect(src).toContain('icon="pencil" tone="edit" label={"Editar "+client.name}');
+ expect(src).toContain('icon="trash" tone="danger" label={"Excluir "+client.name}');
+ expect(file("components/ui/icon-action-button.tsx")).toContain('className={`cs-icon-action');
  expect(src).toContain('tone:"danger"');
 });
 
