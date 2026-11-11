@@ -188,21 +188,23 @@ a {
   color: var(--danger);
 }
 
-/* 7Components | Botões compactos de ações CRUD, conforme vitrine aprovada. */
+/* UX-ICON-03 | Modelo equilibrado e compatível com whitelabel.
+   Usado por todas as instâncias de IconActionButton, sem alterar handlers de CRUD. */
 .cs-icon-action {
   display: inline-flex;
-  flex: 0 0 44px;
+  flex: 0 0 40px;
   align-items: center;
   justify-content: center;
-  width: 44px;
-  height: 44px;
+  width: 40px;
+  height: 40px;
   padding: 0;
   border: 1px solid var(--border);
-  border-radius: 14px;
+  border-radius: 12px;
   background: var(--bg-surface);
-  color: var(--text-primary);
+  color: var(--text-secondary);
   cursor: pointer;
-  transition: background-color .16s ease, border-color .16s ease, box-shadow .16s ease;
+  vertical-align: middle;
+  transition: background-color .16s ease, border-color .16s ease, color .16s ease, box-shadow .16s ease;
 }
 .cs-icon-action svg {
   display: block;
@@ -211,13 +213,34 @@ a {
   height: 20px;
   stroke: currentColor;
 }
-.cs-icon-action--neutral { border-color: #cbd5e1; background: #fff; color: #334155; }
-.cs-icon-action--edit { border-color: #93c5fd; background: #eff6ff; color: #1d4ed8; }
-.cs-icon-action--danger { border-color: #fda4af; background: #fff1f2; color: #be123c; }
-.cs-icon-action--success { border-color: #86efac; background: #ecfdf5; color: #047857; }
-.cs-icon-action:hover:not(:disabled) { box-shadow: 0 0 0 2px color-mix(in srgb,var(--accent) 15%,transparent); }
-.cs-icon-action:focus-visible { outline: 3px solid var(--accent); outline-offset: 3px; }
+.cs-icon-action--neutral { color: var(--text-secondary); }
+.cs-icon-action--edit { color: var(--text-primary); }
+.cs-icon-action--danger { color: var(--danger); }
+.cs-icon-action--success { color: var(--success); }
+.cs-icon-action--neutral:hover:not(:disabled),
+.cs-icon-action--edit:hover:not(:disabled) {
+  color: var(--accent-strong);
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+.cs-icon-action--danger:hover:not(:disabled) {
+  color: var(--danger);
+  border-color: var(--danger);
+  background: var(--danger-soft);
+}
+.cs-icon-action--success:hover:not(:disabled) {
+  color: var(--success);
+  border-color: var(--success);
+  background: var(--success-soft);
+}
+.cs-icon-action:focus-visible {
+  outline: 3px solid var(--accent);
+  outline-offset: 2px;
+}
 .cs-icon-action:disabled { opacity: .45; cursor: not-allowed; }
+@media (pointer: coarse) {
+  .cs-icon-action { flex-basis: 44px; width: 44px; height: 44px; }
+}
 @media (prefers-reduced-motion: reduce) {
   .cs-icon-action { transition: none; }
 }
