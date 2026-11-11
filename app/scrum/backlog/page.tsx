@@ -157,7 +157,7 @@ export default function BacklogPage(){
      </div></td>
      <td className="p-2 text-xs"><div className="flex items-center gap-2">{(r.story?.responsible||r.item?.responsible)?<span className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-sky-100 text-[11px] font-semibold text-sky-800">{memberName(r.story?.responsible||r.item?.responsible).slice(0,1).toUpperCase()}</span>:null}<span className="truncate" title={memberName(r.story?.responsible||r.item?.responsible)}>{memberName(r.story?.responsible||r.item?.responsible)}</span></div></td>
      <td className="p-2 text-xs">{r.state.toUpperCase()}</td>
-     <td className="p-2"><div className="flex gap-1">
+     <td className="p-2"><div className="cs-record-actions" role="group" aria-label={"Ações do item "+r.title}>
       <IconActionButton icon="eye" label={"Visualizar "+r.title} tone="neutral" onClick={()=>open(r,r.type,true)}/>
       <IconActionButton icon="pencil" label={"Editar "+r.title} tone="edit" onClick={()=>open(r,r.type)}/>
       <IconActionButton icon="trash" label={"Excluir "+r.title} tone="danger" disabled={saving||Boolean(r.story&&(r.story.has_history||r.story.sprint_id||r.story.workflow_stage!=="new"))} onClick={()=>void remove(r)}/>
