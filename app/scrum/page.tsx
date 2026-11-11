@@ -33,7 +33,19 @@ export default function ScrumPage(){
  return <section className="space-y-4">
       <AgileWorkspaceNav context={data.projects.find(p=>p.id===data.projectId)?.name}/>
    <PageIntro eyebrow="Gestão de projetos" title="Scrum e Sprints" description="Painel gerencial de Sprints, histórias e impedimentos. As User Stories são independentes do Kanban de atividades." aside={<button className="workspace-button-primary rounded-lg px-4 py-2 text-sm" onClick={()=>setDrawer(true)}>+ Criar Sprint</button>}/>
-   <SurfaceCard><ScrumSelectors projects={data.projects} projectId={data.projectId} onProject={data.setProjectId} sprints={data.sprints} sprintId={data.sprintId} onSprint={data.setSprintId}/>{data.error&&<p role="alert" className="mt-3 text-sm text-(--danger)">{data.error}</p>}</SurfaceCard>
+   <SurfaceCard>
+     <ScrumSelectors projects={data.projects} projectId={data.projectId} onProject={data.setProjectId}
+       sprints={data.sprints} sprintId={data.sprintId} onSprint={data.setSprintId}/>
+     {data.error ? <div role="alert" className="mt-3 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-(--border) bg-(--bg-muted) p-3">
+       <div className="min-w-0 flex-1">
+         <p className="text-sm font-semibold text-(--danger)">Falha ao consultar dados da Sprint</p>
+         <p className="mt-1 text-xs text-(--text-secondary)">{data.error}</p>
+         <p className="mt-1 text-xs text-(--text-secondary)">A falha de consulta não exclui nem altera Sprints cadastradas.</p>
+       </div>
+       <button type="button" disabled={data.loading} className="workspace-button-secondary text-xs"
+         onClick={()=>void data.refresh()}>Reconsultar</button>
+     </div> : null}
+   </SurfaceCard>
    {selected?<SurfaceCard>
      <div className="flex flex-wrap items-start justify-between gap-3"><div><h2 className="font-semibold">{selected.name}</h2><p className="mt-1 text-sm text-(--text-secondary)">Meta: {selected.goal||"Não definida"} · {dateBR(selected.start_date)} a {dateBR(selected.end_date)}</p></div>
       <label className="text-xs">Situação da Sprint<select className="workspace-select mt-1 w-full" disabled={saving||selected.status==="closed"} value={selected.status} onChange={e=>void changeStatus(e.target.value)}><option value="planned">Planejada</option><option value="active">Ativa</option><option value="closed">Encerrada</option></select></label>
@@ -63,7 +75,7 @@ export default function ScrumPage(){
        <Link href={"/scrum/kanban?projectId="+encodeURIComponent(data.projectId)+"&sprintId="+encodeURIComponent(selected.id)} className="workspace-button-primary rounded-lg px-4 py-2 text-sm">Abrir Kanban da Sprint</Link>
        <Link href={"/scrum/backlog?projectId="+encodeURIComponent(data.projectId)} className="workspace-button-secondary rounded-lg px-4 py-2 text-sm">Gerenciar backlog</Link>
      </div>
-    </SurfaceCard>:<SurfaceCard><p className="text-sm text-(--text-secondary)">{data.loading?"Carregando...":"Selecione ou crie uma Sprint para acompanhar seus indicadores."}</p></SurfaceCard>}
+    </SurfaceCard>:<SurfaceCard><p className="text-sm text-(--text-secondary)">{data.loading?"Carregando...":"{data.error ? "Consulta indisponível. Verifique a mensagem de erro acima antes de criar uma nova Sprint." : "Selecione ou crie uma Sprint para acompanhar seus indicadores."}"}</p></SurfaceCard>}
    <ScrumKairosActions projectId={data.projectId} sprintId={data.sprintId}/>
    {drawer&&<div className="fixed inset-0 z-50"><button aria-label="Fechar" className="absolute inset-0 bg-black/40" onClick={()=>setDrawer(false)}/><aside role="dialog" aria-modal="true" aria-label="Criar Sprint" className="relative ml-auto h-dvh w-full max-w-xl overflow-y-auto border-l border-(--border) bg-(--bg-surface) p-5 shadow-2xl"><div className="flex justify-between gap-2 border-b border-(--border) pb-4"><h2 className="font-semibold text-lg">Criar Sprint</h2><button className="workspace-button-secondary px-3 py-2 text-sm" onClick={()=>setDrawer(false)}>Fechar</button></div><div className="mt-4 space-y-4">
      <label className="block text-sm">Nome<input className="workspace-input mt-1 w-full" value={form.name} onChange={e=>setForm(f=>({...f,name:e.target.value}))}/></label>
