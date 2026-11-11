@@ -37,7 +37,9 @@ if (!fs.existsSync(envPath)) {
 
 const fileContent = fs.readFileSync(envPath, "utf8");
 const values = parseEnvFile(fileContent);
-const missing = required.filter((key) => !values[key]);
+const localReadOnly = values.COMMANDER_LOCAL_READ_ONLY === "true" && values.NEXT_PUBLIC_COMMANDER_LOCAL_READ_ONLY === "true";
+const needed = localReadOnly ? required.filter(key => key !== "SUPABASE_SERVICE_ROLE_KEY" && key !== "OPENAI_API_KEY") : required;
+const missing = needed.filter((key) => !values[key]);
 
 if (missing.length > 0) {
   console.error("Variaveis obrigatorias ausentes no .env.local:");
@@ -45,4 +47,6 @@ if (missing.length > 0) {
   process.exit(1);
 }
 
-console.log("Env OK. Todas as variaveis obrigatorias foram preenchidas.");
+console.log(localReadOnly
+  ? "Env OK: modo local leitura, Supabase URL e anon key configurados. service_role nao e exigida."
+  : "Env OK. Todas as variaveis obrigatorias foram preenchidas.");
