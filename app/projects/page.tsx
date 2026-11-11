@@ -741,8 +741,8 @@ export default function ProjectsPage() {
   }, [activeProjectId, openRoutine]);
 
   useEffect(() => {
-    if (activeProjectId && openRoutine === "knowledge") void loadKnowledge(activeProjectId);
-  }, [activeProjectId, openRoutine]);
+    if (activeProjectId && activeTab === "documents") void loadKnowledge(activeProjectId);
+  }, [activeProjectId, activeTab]);
 
   useEffect(() => {
     if (activeProjectId && openRoutine === "decisions") void loadDecisions(activeProjectId);
@@ -849,7 +849,7 @@ export default function ProjectsPage() {
 
         </div>
          <div className={activeTab==="risks"?"contents":"hidden"}>
-         {!readOnly&&activeProjectId&&<div className="mb-3 flex justify-end"><button type="button" className="workspace-button-primary inline-flex items-center gap-2 px-4 py-2 text-sm" onClick={()=>{setEditingRiskId(null);setRiskForm({title:"",impact:"",probability:"",mitigation:"",owner:"",status:"aberto",decisionId:"",taskId:""});setRiskDrawerOpen(true);}}><ActionIcon name="plus"/> Criar risco</button></div>}
+         {(!readOnly || localReadOnly)&&activeProjectId&&<div className="mb-3 flex justify-end"><button type="button" disabled={documentWriteBlocked} title={documentWriteBlocked?"Somente leitura":undefined} className="workspace-button-primary inline-flex items-center gap-2 px-4 py-2 text-sm disabled:cursor-not-allowed disabled:opacity-50" onClick={()=>{setEditingRiskId(null);setRiskForm({title:"",impact:"",probability:"",mitigation:"",owner:"",status:"aberto",decisionId:"",taskId:""});setRiskDrawerOpen(true);}}><ActionIcon name="plus"/> Criar risco</button></div>}
          <ProjectRoutine title="Riscos do projeto"
           description={readOnly ? "Consulte os riscos do projeto sem alterar registros." : "Registre, acompanhe status e defina a mitigacao dos riscos operacionais."}
           badge={risks.length ? `${risks.length} registros` : undefined}
@@ -871,7 +871,7 @@ export default function ProjectsPage() {
                 <article key={risk.id} className="rounded-lg border border-(--border) bg-white p-3">
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <p className="text-xs font-semibold text-(--text-primary)">{risk.title}</p>
-                     {!readOnly&&<button type="button" title={"Editar risco "+risk.title} aria-label={"Editar risco "+risk.title}
+                     {(!readOnly || localReadOnly)&&<button type="button" disabled={documentWriteBlocked} title={documentWriteBlocked?"Somente leitura":"Editar risco "+risk.title} aria-label={"Editar risco "+risk.title}
                       className="workspace-button-secondary inline-flex items-center gap-1 p-2 text-xs" onClick={()=>{
                         setEditingRiskId(risk.id);setRiskForm({title:risk.title,impact:risk.impact,probability:risk.probability,
                         mitigation:risk.mitigation,owner:risk.owner,status:risk.status,decisionId:risk.decisionId||"",taskId:risk.taskId||""});setRiskDrawerOpen(true);
@@ -1022,12 +1022,11 @@ export default function ProjectsPage() {
              {ingestStatus ? <p role="status" className="text-xs">{ingestStatus}</p> : null}
            </div> : null}
          </section>
-         <ProjectRoutine title="Conhecimento do projeto"
-          description={readOnly ? "Consulte o conhecimento do projeto sem remover documentos." : "Consulte documentos processados e remova conhecimentos que nao forem mais relevantes."}
-          badge={knowledgeItems.length ? `${knowledgeItems.length} documentos` : undefined}
-          isOpen={openRoutine === "knowledge"}
-          onToggle={() => setOpenRoutine((current) => current === "knowledge" ? null : "knowledge")}
-        >
+         <section className="rounded-xl border border-(--border) bg-(--bg-surface) p-4" aria-label="Conteúdo processado dos documentos">
+           <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+             <h2 className="text-sm font-semibold">Conteúdo processado</h2>
+             <span className="text-xs text-(--text-secondary)">${knowledgeItems.length} registros</span>
+           </div>
           <p className="text-xs font-semibold uppercase tracking-wide text-(--text-secondary)">
             Conhecimento ingerido no projeto
           </p>
@@ -1060,7 +1059,7 @@ export default function ProjectsPage() {
               ))}
             </div>
           )}
-        </ProjectRoutine>
+        </section>
 
         </div>
          <div className={activeTab==="project"?"contents":"hidden"}>
@@ -1232,7 +1231,7 @@ export default function ProjectsPage() {
          </div>
        </article>
        <div className={activeTab==="decisions"?"":"hidden"}>
-       {!readOnly&&activeProjectId&&<div className="mb-3 flex justify-end"><button type="button" className="workspace-button-primary inline-flex items-center gap-2 px-4 py-2 text-sm" onClick={()=>{setEditingDecisionId(null);setDecisionForm({title:"",context:"",reason:"",impact:"",status:"aberta"});setDecisionDrawerOpen(true);}}><ActionIcon name="plus"/> Criar decisão</button></div>}
+       {(!readOnly || localReadOnly)&&activeProjectId&&<div className="mb-3 flex justify-end"><button type="button" disabled={documentWriteBlocked} title={documentWriteBlocked?"Somente leitura":undefined} className="workspace-button-primary inline-flex items-center gap-2 px-4 py-2 text-sm disabled:cursor-not-allowed disabled:opacity-50" onClick={()=>{setEditingDecisionId(null);setDecisionForm({title:"",context:"",reason:"",impact:"",status:"aberta"});setDecisionDrawerOpen(true);}}><ActionIcon name="plus"/> Criar decisão</button></div>}
        <ProjectRoutine title="Decisoes do projeto"
         description={readOnly ? "Consulte o histórico das decisões operacionais." : "Crie, acompanhe o status e consulte o historico das decisoes operacionais."}
         badge={decisions.length ? `${decisions.length} registros` : undefined}
@@ -1253,7 +1252,7 @@ export default function ProjectsPage() {
             <article key={decision.id} className="rounded-xl border border-(--border) bg-(--bg-surface) p-4">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <p className="text-base font-semibold text-(--text-primary)">{decision.title}</p>
-                 {!readOnly&&<button type="button" title={"Editar decisão "+decision.title} aria-label={"Editar decisão "+decision.title}
+                 {(!readOnly || localReadOnly)&&<button type="button" disabled={documentWriteBlocked} title={documentWriteBlocked?"Somente leitura":"Editar decisão "+decision.title} aria-label={"Editar decisão "+decision.title}
                   className="workspace-button-secondary inline-flex items-center gap-1 p-2 text-xs" onClick={()=>{
                     setEditingDecisionId(decision.id);setDecisionForm({title:decision.title,context:decision.context,reason:decision.reason,
                      impact:decision.impact,status:decision.status});setDecisionDrawerOpen(true);
