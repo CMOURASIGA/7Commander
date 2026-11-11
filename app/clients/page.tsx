@@ -215,6 +215,7 @@ export default function ClientsPage() {
               type="button"
               onClick={() => {
                 setEditingId(null);
+                setDrawerOpen(false);
                 setForm({ name: "", description: "", contact: "", status: "ativo" });
               }}
               className="workspace-button-secondary"
