@@ -13,11 +13,9 @@ import { listKnowledge } from "@/services/knowledge-layer";
 import { listDecisions } from "@/services/decision-service";
 import { getKairosProfile } from "@/services/kairos-profile-service";
 import { resolveProjectContext } from "@/services/project-resolver";
-import { createTaskFromKairosCommand, moveTaskFromKairosCommand } from "@/services/task-card-detail-service";
-import {createKanbanActivityBatch,hasExplicitBatchCreationRequest} from "@/services/kairos-activity-batch";
+import {parseKanbanActivityBatch,hasExplicitBatchCreationRequest} from "@/services/kairos-activity-batch";
 import { getProjectTaskOperationalSnapshot } from "@/services/task-board-service";
 import { listRisksByProject } from "@/services/risk-service";
-import { createRisk } from "@/services/risk-service";
 import { SpecialistId } from "@/types/chat";
 import { ProjectRecord } from "@/types/project";
 import {decodeStakeholders,STAKEHOLDER_GROUP_LABELS} from "@/lib/projects/stakeholders";
@@ -211,6 +209,11 @@ export function detectConfirmRiskIntent(message:string):{title:string}|null{
  return match?.[1]?.trim()?{title:match[1].trim()}:null;
 }
 
+/**
+ * KAIROS-GOV-01: conversational commands are read-only proposals.
+ * Writes are exclusively submitted through reviewed destination forms,
+ * never from free-form chat or voice text, even with an imperative verb.
+ */
 async function maybeHandleTaskCommand(params: {
   userId: string;
   userEmail?: string | null;
@@ -218,68 +221,33 @@ async function maybeHandleTaskCommand(params: {
   projectId?: string | null;
   projectName?: string | null;
 }): Promise<TaskCommandResult> {
-  if (!params.projectId) {
-    return {
-      handled: false,
-      answer: "",
-    };
+  if(!params.projectId)return {handled:false,answer:""};
+  const batchRequested=hasExplicitBatchCreationRequest(params.message)
+    && /^(?:kairos[,\\s:]+)?(?:crie|criar|cadastre|cadastrar|registre|registrar|adicione|adicionar)\\b/i.test(params.message.trim());
+  if(batchRequested){
+    const rows=parseKanbanActivityBatch(params.message);
+    return {handled:true,answer:[
+      "## Proposta de atividades para revisão",
+      "Identifiquei "+rows.length+" atividade(s) solicitada(s) para o projeto "+(params.projectName??"ativo")+".",
+      ...rows.map(row=>"- "+row.reference+" | "+row.title+" | "+row.priority+" | TO DO"),
+      "",
+      "**Nenhuma atividade foi criada.** Confira títulos, duplicidades, responsável, datas e projeto. Para cadastrar, utilize o botão **Direcionar resposta**, escolha **Atividades** e confirme cada item no formulário."
+    ].join("\\n")};
   }
-
-  if(/^(?:kairos[,\s:]+)?(?:crie|criar|cadastre|cadastrar|registre|registrar|adicione|adicionar)\b/i.test(params.message.trim()) && hasExplicitBatchCreationRequest(params.message)){
-    const answer=await createKanbanActivityBatch({userId:params.userId,userEmail:params.userEmail,
-      projectId:params.projectId,projectName:params.projectName||"projeto ativo",message:params.message});
-    return {handled:true,answer};
-  }
-  const createIntent = detectCreateTaskIntent(params.message);
-  if (createIntent) {
-    const created = await createTaskFromKairosCommand({
-      userId: params.userId,
-      userEmail: params.userEmail,
-      projectId: params.projectId,
-      title: createIntent.title,
-      columnKey: createIntent.columnKey,
-    });
-
-    if (!created) {
-      return {
-        handled: true,
-        answer: "Nao consegui criar a tarefa nesse projeto. Verifique suas permissoes ou se o projeto esta acessivel.",
-      };
-    }
-
-    return {
-      handled: true,
-      answer: `Tarefa criada: "${created.title}" em ${created.columnKey.toUpperCase()} no projeto ${params.projectName ?? "ativo"}.`,
-    };
-  }
-
-  const moveIntent = detectMoveTaskIntent(params.message);
-  if (moveIntent) {
-    const moved = await moveTaskFromKairosCommand({
-      userId: params.userId,
-      userEmail: params.userEmail,
-      projectId: params.projectId,
-      taskTitle: moveIntent.title,
-      columnKey: moveIntent.columnKey,
-    });
-
-    if (!moved) {
-      return {
-        handled: true,
-        answer: `Nao localizei a tarefa "${moveIntent.title}" para mover para ${moveIntent.columnKey.toUpperCase()}.`,
-      };
-    }
-
-    return {
-      handled: true,
-      answer: `Tarefa "${moved.title}" movida para ${moved.columnKey.toUpperCase()}.`,
-    };
-  }
-
-  return {
-    handled: false,
-    answer: "",
-  };
+  const create=detectCreateTaskIntent(params.message);
+  if(create)return {handled:true,answer:[
+    "## Atividade proposta",
+    "- Projeto: "+(params.projectName??"ativo"),
+    "- Título: "+create.title,
+    "- Coluna solicitada: "+create.columnKey.toUpperCase(),
+    "",
+    "**Nenhuma atividade foi criada.** Use **Direcionar resposta > Atividades**, revise os campos e confirme o cadastro."
+  ].join("\\n")};
+  const move=detectMoveTaskIntent(params.message);
+  if(move)return {handled:true,answer:
+    "Movimentação solicitada: "+move.title+" para "+move.columnKey.toUpperCase()+
+    ". **Nenhuma alteração foi realizada.** Abra o Kanban do projeto para revisar a atividade e confirmar a mudança."};
+  return {handled:false,answer:""};
 }
 
 async function maybeHandleRiskCommand(params: {
@@ -288,35 +256,16 @@ async function maybeHandleRiskCommand(params: {
   projectId?: string | null;
   projectName?: string | null;
 }): Promise<RiskCommandResult> {
-  if (!params.projectId) {
-    return {
-      handled: false,
-      answer: "",
-    };
-  }
-
-  // Risk questions must reach the evidence-backed LLM pipeline.
-  // Do not return a canned risk or claim an official record was created.
-  const confirm = detectConfirmRiskIntent(params.message);
-  if (confirm) {
-    const created = await createRisk({
-      userId: params.userId,
-      projectId: params.projectId,
-      title: confirm.title,
-      status: "aberto",
-      mitigation: "Definir responsavel e plano de mitigacao inicial.",
-      owner: "",
-    });
-    return {
-      handled: true,
-      answer: `Risco registrado no projeto ${params.projectName ?? "ativo"}: "${created.title}".`,
-    };
-  }
-
-  return {
-    handled: false,
-    answer: "",
-  };
+  if(!params.projectId)return {handled:false,answer:""};
+  const risk=detectConfirmRiskIntent(params.message);
+  if(!risk)return {handled:false,answer:""};
+  return {handled:true,answer:[
+    "## Risco proposto para revisão",
+    "- Projeto: "+(params.projectName??"ativo"),
+    "- Título: "+risk.title,
+    "",
+    "**Nenhum risco foi criado.** Utilize **Direcionar resposta > Riscos**, valide probabilidade, impacto, mitigação, responsabilidade e registros existentes antes de confirmar."
+  ].join("\\n")};
 }
 
 export async function generateKairosResponse(params: GenerateParams): Promise<{
@@ -343,7 +292,7 @@ export async function generateKairosResponse(params: GenerateParams): Promise<{
       userEmail: params.userEmail,
       message: params.message,
       preferredProjectId: params.projectId ?? null,
-      autoCreateOnExplicitRequest: !localWriteGuardEnabled(),
+      autoCreateOnExplicitRequest: false,
     }),
     getKairosProfile(params.userId),
   ]);
