@@ -4,6 +4,7 @@ import {getProjectById,getProjectAccessRole} from "@/services/project-service";
 import {getSupabaseServerClient} from "@/lib/supabase/server";
 import {TENANT_SCHEMA_READY,requireEffectiveTenant} from "@/lib/tenant-runtime";
 import {CONSULT_ORG_ID} from "@/lib/consult-workspace";
+import {localWriteGuardEnabled} from "@/lib/local-write-guard";
 
 export const dynamic="force-dynamic";
 const uuid=/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -40,6 +41,7 @@ export async function GET(request:NextRequest,{params}:RouteContext){
  return reply({data:(list.data??[]).map(meeting=>({...meeting,links:(links.data??[]).filter(link=>link.meeting_id===meeting.id)}))});
 }
 export async function POST(request:NextRequest,{params}:RouteContext){
+ if(localWriteGuardEnabled())return error("Ambiente local somente leitura: reunião não pode ser gravada.",403);
  const {projectId}=await params;
  const ctx=await scope(request,projectId,true);if("error" in ctx)return ctx.error;
  const body=await request.json().catch(()=>null) as MeetingInput|null;
