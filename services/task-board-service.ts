@@ -118,6 +118,10 @@ export type TaskBoard = {
 };
 
 export type ProjectTaskOperationalSnapshot = {
+  totalAvailable: number | null;
+  loadedCount: number;
+  truncated: boolean;
+  openCardsTotal: number;
   todo: number;
   doing: number;
   done: number;
@@ -877,7 +881,7 @@ export async function getProjectTaskOperationalSnapshot(params: {
 
   let query = supabase
     .from("tasks")
-    .select("id, titulo, prioridade, status")
+    .select("id, titulo, prioridade, status", {count:"exact"})
     .eq("project_id", params.projectId);
   if (TENANT_SCHEMA_READY) query = query.eq("organization_id", await requireEffectiveTenant(params.userId));
   const result = await query.order("updated_at", { ascending: false })
@@ -901,7 +905,7 @@ export async function getProjectTaskOperationalSnapshot(params: {
       todo += 1;
     }
 
-    if (status !== "concluida" && openCards.length < 5) {
+    if (status !== "concluida" && openCards.length < 25) {
       openCards.push({
         id: row.id,
         title: row.titulo,
@@ -911,7 +915,9 @@ export async function getProjectTaskOperationalSnapshot(params: {
     }
   }
 
-  return { todo, doing, done, openCards };
+  const loadedCount=result.data.length;
+  const totalAvailable=result.count ?? null;
+  return { totalAvailable, loadedCount, truncated: totalAvailable === null || totalAvailable > loadedCount, openCardsTotal:todo+doing, todo, doing, done, openCards };
 }
 
 export async function getUserTaskOperationalSnapshot(userId: string): Promise<{
