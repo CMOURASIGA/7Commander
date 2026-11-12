@@ -928,3 +928,17 @@ a {
   white-space: nowrap;
 }
 .workspace-markdown-table tbody tr:last-child td { border-bottom: 0; }
+/* IDs técnicos devem rolar horizontalmente, nunca ficar verticais letra a letra. */
+.workspace-markdown-table th:first-child,
+.workspace-markdown-table td:first-child {
+  white-space: nowrap;
+  overflow-wrap: normal;
+}
+.workspace-markdown-table td:nth-child(2) {
+  overflow-wrap: normal;
+  word-break: normal;
+}
+.workspace-markdown-table-wrap {
+  scrollbar-width: thin;
+}
+
