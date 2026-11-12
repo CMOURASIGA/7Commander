@@ -39,7 +39,7 @@ const managementTone: Record<ManagementStatus, string> = {
   "Indisponível": "bg-(--bg-muted) text-(--text-secondary)",
   "Sem planejamento": "bg-(--warning-soft) text-(--warning)",
   "Crítico": "bg-(--danger-soft) text-(--danger)",
-  "Atenção": "bg-(--warning-soft) text-(--warning)",
+  "Atenção": "bg-(--danger-soft) text-(--danger) font-semibold border border-(--danger)",
   "Em dia": "bg-(--success-soft) text-(--success)",
 };
 
