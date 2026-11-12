@@ -3,7 +3,7 @@
  * generative rephrasing. The caller must supply already authorized tenant-scoped data.
  */
 export type InventoryRisk = {
-  id:string; title:string; status:string; probability:string; impact:string;
+  id:string; title:string; status:string; probability:string; impact:string; owner?:string;
 };
 export type InventoryTask = {id:string;title:string;status:string;priority:string};
 export type InventorySnapshot = {
@@ -33,16 +33,16 @@ export function renderOfficialProjectInventory(params:{
   const lines=[
     "## Riscos oficiais do projeto",
     "",
-    "| Código oficial | ID | Título literal | Probabilidade | Impacto | Situação |",
-    "| --- | --- | --- | --- | --- | --- |",
+    "| Código oficial | ID | Título literal | Probabilidade | Impacto | Situação | Responsável |",
+    "| --- | --- | --- | --- | --- | --- | --- |",
   ];
   for(const risk of risks){
     lines.push("| "+[
       riskCodes?.get(risk.id)??"Não disponível",risk.id,risk.title,
-      risk.probability||"Não avaliada",risk.impact||"Não avaliado",risk.status,
+      risk.probability||"Não avaliada",risk.impact||"Não avaliado",risk.status,risk.owner||"Não informado",
     ].map(literal).join(" | ")+" |");
   }
-  if(!risks.length)lines.push("| Não disponível | - | Nenhum risco retornado; confirmar sucesso da consulta antes de concluir que está vazio | - | - | - |");
+  if(!risks.length)lines.push("| Não disponível | - | Nenhum risco retornado; confirmar sucesso da consulta antes de concluir que está vazio | - | - | - | - |");
   lines.push("","**Riscos retornados pela consulta:** "+risks.length+".",
     "","## Atividades oficiais do Kanban","");
   if(!tasks){
