@@ -6,6 +6,7 @@ import { KAIROS_PM_REPORT_POLICY } from "@/lib/kairos-pm-report-policy";
 import { validateOfficialRiskReferences, correctUnsupportedAggregateRiskSeverity } from "@/lib/kairos-evidence-validation";
 import { requestsOfficialProjectInventory, requestsProjectManagementSummary, renderProjectManagementSummary, renderOfficialProjectInventory } from "@/lib/kairos-official-inventory";
 import { auditAdditionalProjectSources } from "@/services/kairos-consistency-sources";
+import {loadProjectMeetingContext} from "@/services/kairos-meeting-context";
 import { listMessages } from "@/services/chat-store";
 import { searchRelevantMemories, saveMemory } from "@/services/memory-service";
 import { loadCapabilityModulesForMessage, loadCorePrompt } from "@/services/capability-modules";
@@ -320,6 +321,11 @@ export async function generateKairosResponse(params: GenerateParams): Promise<{
   const riskEvidence=projectResolution.project?.id&&operationalEvidenceRequested
     ?await buildRiskEvidence(projectResolution.project.id,initialTenant)
     :"Dados detalhados de backlog, US e Sprints não consultados neste pedido.";
+  const meetingEvidenceRequested=modules.some(module=>module.id==="meeting_followup")
+    || /reuni[aã]o|reuni[oõ]es|ata\b|compromisso|encaminhamento|follow.up/i.test(params.message);
+  const meetingContext=projectResolution.project?.id&&meetingEvidenceRequested
+    ?await loadProjectMeetingContext(projectResolution.project.id,initialTenant)
+    :"Reuniões não consultadas neste pedido.";
   const knowledgeContext = await buildKnowledgeContext({
     userId: params.userId,
     projectId: projectResolution.project?.id ?? null,
@@ -504,6 +510,7 @@ export async function generateKairosResponse(params: GenerateParams): Promise<{
     `Conhecimento explicito:\n${knowledgeContext}`,
     `Contexto de projeto:\n${projectContext}`,
     `Contexto de decisoes:\n${buildDecisionContext(decisionContext)}`,
+    `Reuniões registradas no projeto (somente quando consultadas):\n${meetingContext}`,
     `Contexto de atividades:\n${buildTaskBoardContext(taskBoardContext)}`,
     `Contexto de riscos:\n${buildRisksContext(risksContext,officialRiskCodes)}`,
     `Evidências oficiais de execução (backlog, US, Sprints; consultadas para análise gerencial ou riscos):\n${riskEvidence}`,
