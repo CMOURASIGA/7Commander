@@ -479,7 +479,7 @@ export default function ActivitiesPage() {
       ) : null}
 
       {status ? (
-        <p className="workspace-card px-3 py-2 text-sm text-(--text-primary)">
+        <p role="status" className={/falha|erro|exclus[aã]o bloqueada|indispon[ií]vel|n[aã]o foi poss[ií]vel|sem permiss[aã]o|n[aã]o est[aá] dispon[ií]vel/i.test(status)?"rounded-xl border border-(--danger) bg-(--danger-soft) px-3 py-2 text-sm font-semibold text-(--danger)":"workspace-card px-3 py-2 text-sm text-(--text-primary)"}>
           {status}
         </p>
       ) : null}
