@@ -131,7 +131,16 @@ test("Kanban author attribution is based on verified organization users and crea
 
 test("Kanban deletion checks task-linked Sprint without assuming join table project_id",()=>{
  const svc=source("services/task-board-service.ts");
- expect(svc).toContain('from("scrum_sprint_tasks").select("task_id").eq("task_id",params.taskId).limit(1)');
+ expect(svc).toContain('from("scrum_sprint_tasks").select("task_id").eq("task_id",params.taskId).eq("project_id",row.project_id).eq("organization_id",organizationId).limit(1)');
  expect(svc).toContain("Consulta de vínculos com Sprints indisponível");
  expect(svc).toContain("Auditoria da exclusão indisponível");
+});
+
+test("local safe mode clearly prevents Kanban deletion and preserves authorized tenant checks",()=>{
+ const tasks=source("app/activities/page.tsx");
+ const route=source("app/api/tasks/[taskId]/route.ts");
+ expect(tasks).toContain("useCentralPilotReadOnly");
+ expect(tasks).toContain("!environmentReadOnly");
+ expect(route).toContain("localWriteGuardEnabled()");
+ expect(route).toContain("somente leitura");
 });
