@@ -36,7 +36,9 @@ export async function auditAdditionalProjectSources(projectId: string, organizat
     }
     const rows = output.data ?? [];
     if (!rows.length) lines.push("Nenhum registro retornado" + (state.state === "vazia" ? " pela consulta completa." : "; total não verificável.") );
-    for (const row of rows as Array<Record<string, unknown>>) {
+    // Dynamic column projection cannot be inferred by Supabase TypeScript generics.
+    // Runtime rows are selected read-only records; errors are handled above.
+    for (const row of rows as unknown as Array<Record<string, unknown>>) {
       lines.push("- ID " + cell(row.id) + " | " + cell(row.title ?? row.titulo ?? row.name) +
         " | " + cell(row.state ?? row.workflow_stage ?? row.status) +
         (row.item_type ? " | Tipo " + cell(row.item_type) : ""));
