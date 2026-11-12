@@ -41,7 +41,7 @@ export async function auditAdditionalProjectSources(projectId: string, organizat
     }
     if(states.some(state=>state.state==="erro"||state.state==="parcial"))
       summary.push("**Limitação:** não é possível concluir a completude das informações de planejamento e decisões.");
-    return summary.join("\\n");
+    return summary.join("\n");
   }
   for (const state of states) {
     lines.push("| " + [state.name, state.count, state.total ?? "Indisponível", state.state].map(cell).join(" | ") + " |");
