@@ -14,6 +14,14 @@ Ganhar área útil nas rotinas operacionais preservando a navegação. Sidebar c
 4. Exibir somente abas autorizadas. Mudança de empresa deve limpar contexto e respeitar proteção de sessão/abas paralelas. Nunca usar localStorage para autorização.
 5. Em telas pequenas usar tabs com scroll horizontal acessível ou seletor para evitar recorte; manter indicador de aba ativa e foco do teclado.
 
+## Definição consolidada para a implementação futura
+**Sidebar adaptativa e navegação por abas são uma única entrega UX-NAV-01.** Não homologar ou implantar um recurso isoladamente, pois ambos compartilham contexto, rotas e reflow do layout.
+
+**Componentização prevista para avaliação no 7Components:** `AppShell` responsivo, `AdaptiveSidebar` (logo + atalhos, compacto/expandido), `NavigationItem` (estado ativo, ícone, badge e tooltip), `ContextTabs` (aba, overflow, teclado e URL) e `ResponsiveContentArea` (reflow). Nomes são provisórios, não indicam componentes já existentes/adotados.
+
+### Regra de adoção no 7Components
+Registrar por enquanto como **candidato de componente** na documentação de planejamento do Commander. Somente após implementação, testes de regressão, acessibilidade e comparação de área útil/tempo de navegação documentados, criar ou atualizar o padrão oficial da biblioteca. Não declarar adotado antes de comprovar benefício. Reutilização futura deverá contemplar 7Service e outros sistemas sem copiar diretamente a lógica de autorização de cada produto.
+
 ## Critérios de aceite
 - Expansão/recolhimento sem ocultar conteúdo; reflow de tabelas, Kanban, backlog e relatórios.
 - Logo, whitelabel, ícones e botões aderentes ao 7Components.
