@@ -163,7 +163,29 @@ export default function ProjectsPage() {
   const [activeTab,setActiveTab]=useState<ProjectTab>("overview");
   const [documentPreviewId,setDocumentPreviewId]=useState<string|null>(null);
   const [projectPickerOpen,setProjectPickerOpen]=useState(false);
-  const selectTab=(tab:ProjectTab)=>{setActiveTab(tab);const routine:Partial<Record<ProjectTab,RoutineKey>>={risks:"risks",decisions:"decisions",documents:"knowledge",members:"members"};setOpenRoutine(routine[tab]??null);};
+  const selectTab=(tab:ProjectTab)=>{
+    setActiveTab(tab);
+    const routine:Partial<Record<ProjectTab,RoutineKey>>={risks:"risks",decisions:"decisions",documents:"knowledge",members:"members"};
+    setOpenRoutine(routine[tab]??null);
+    const url=new URL(window.location.href);
+    url.searchParams.set("tab",tab);
+    window.history.pushState({commanderProjectTab:tab},"",url.toString());
+  };
+  // Deep links and browser back/forward preserve the selected project tab.
+  useEffect(()=>{
+    const allowed:ProjectTab[]=["overview","project","risks","decisions","documents","members","meetings","activities"];
+    const sync=()=>{
+      const requested=new URL(window.location.href).searchParams.get("tab");
+      const tab=allowed.find(item=>item===requested)??"overview";
+      setActiveTab(tab);
+      const routine:Partial<Record<ProjectTab,RoutineKey>>={risks:"risks",decisions:"decisions",documents:"knowledge",members:"members"};
+      setOpenRoutine(routine[tab]??null);
+    };
+    sync();
+    window.addEventListener("popstate",sync);
+    return()=>window.removeEventListener("popstate",sync);
+  },[]);
+
   const [newProjectName, setNewProjectName] = useState("");
   const [decisions, setDecisions] = useState<Decision[]>([]);
   const [loading, setLoading] = useState(true);
@@ -800,10 +822,10 @@ export default function ProjectsPage() {
         </div> : null}
       </section> : null}
 
-      <nav aria-label="Quadros do projeto" className="workspace-card flex flex-wrap gap-2 p-3" role="tablist">
+      <nav aria-label="Quadros do projeto" className="workspace-card flex gap-2 overflow-x-auto p-3" role="tablist">
         {([["overview","Visão geral"],["project","Projeto"],["risks",`Riscos ${risks.length}`],["decisions",`Decisões ${decisions.length}`],["documents",`Documentos ${knowledgeItems.length}`],["members",`Equipe ${members.length}`],["meetings","Reuniões"],["activities","Atividades"]] as const).map(([key,label]) => (
           <button key={key} type="button" role="tab" aria-selected={activeTab===key}
-            onClick={()=>selectTab(key)} className={activeTab===key?"border-b-2 border-(--accent) px-3 py-2 text-xs font-semibold text-(--accent)":"border-b-2 border-transparent px-3 py-2 text-xs text-(--text-secondary) hover:text-(--accent)"}>{label}</button>
+            onClick={()=>selectTab(key)} className={activeTab===key?"shrink-0 whitespace-nowrap border-b-2 border-(--accent) px-3 py-2 text-xs font-semibold text-(--accent)":"shrink-0 whitespace-nowrap border-b-2 border-transparent px-3 py-2 text-xs text-(--text-secondary) hover:text-(--accent)"}>{label}</button>
         ))}
       </nav>
       {activeTab==="overview" && selectedProject ? <ProjectOverview key={selectedProject.id}
