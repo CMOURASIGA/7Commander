@@ -22,7 +22,10 @@ test("official inventory preserves the complete malformed title without LLM para
   const result=renderOfficialProjectInventory({
     risks:[{id:"risk-6",title:"Aprovação do protótipo sem validação operacional",status:"aberto",probability:"Alto",impact:"Alto"}],
     riskCodes:new Map([["risk-6","R006"]]),
-    tasks:{totalAvailable:2,loadedCount:2,truncated:false,openCardsTotal:2,openCards:[
+    tasks:{totalAvailable:2,loadedCount:2,truncated:false,openCardsTotal:2,cards:[
+      {id:"task-1",title:"Definir matriz GET/POST das integrações",status:"aberta",priority:"media"},
+      {id:"task-2",title:malformed,status:"em_andamento",priority:"baixa"},
+    ],openCards:[
       {id:"task-1",title:"Definir matriz GET/POST das integrações",status:"aberta",priority:"media"},
       {id:"task-2",title:malformed,status:"em_andamento",priority:"baixa"},
     ]},
@@ -36,7 +39,7 @@ test("official inventory preserves the complete malformed title without LLM para
 test("missing coverage is never described as complete",()=>{
   const rendered=renderOfficialProjectInventory({
     risks:[],riskCodes:null,
-    tasks:{totalAvailable:35,loadedCount:30,truncated:true,openCardsTotal:20,openCards:[]},
+    tasks:{totalAvailable:35,loadedCount:30,truncated:true,openCardsTotal:20,cards:[],openCards:[]},
   });
   expect(rendered).toContain("inventário de atividades está parcial");
   expect(rendered).toContain("30 de 35");
