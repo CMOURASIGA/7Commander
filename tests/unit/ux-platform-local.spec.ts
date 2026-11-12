@@ -92,3 +92,46 @@ test("planning distinguishes database failure from empty results and uses red da
  expect(page).toContain('className="workspace-button-danger px-3 py-2"');
  expect(page).toContain("text-(--danger)");
 });
+
+test("UX-NAV-02 keeps collapse toggle icon-only and automatically yields workspace space",()=>{
+ const sidebar=source("components/layout/sidebar.tsx");
+ const shell=source("components/layout/app-shell.tsx");
+ expect(sidebar).toContain('aria-label={expanded ? "Recolher menu lateral" : "Expandir menu lateral"}');
+ expect(sidebar).not.toContain('<span className="commander-sidebar-expanded-content">{expanded ? "Recolher menu"');
+ expect(shell).toContain('setSidebarExpanded(false)');
+ expect(shell).toContain('onPointerDown={()=>{if(sidebarExpanded)setSidebarExpanded(false)}}');
+});
+
+test("UX-ALERT-02 highlights attention and failed Kanban deletion in red",()=>{
+ const home=source("app/page.tsx");
+ const activities=source("app/activities/page.tsx");
+ expect(home).toContain('"Atenção": "bg-(--danger-soft) text-(--danger)');
+ expect(activities).toContain("exclus[aã]o bloqueada");
+ expect(activities).toContain("text-(--danger)");
+});
+
+test("UX-NOTIFY-02 links notifications to their original Scrum stories and operational cards",()=>{
+ const notifications=source("components/notifications/task-alerts.tsx");
+ expect(notifications).toContain('storyId=');
+ expect(notifications).toContain('taskId=');
+ expect(notifications).toContain('Origem:');
+ expect(notifications).toContain('Abrir US para revisar');
+ expect(notifications).toContain('Abrir card');
+});
+
+test("Kanban author attribution is based on verified organization users and creation audit",()=>{
+ const svc=source("services/task-board-service.ts");
+ const page=source("app/activities/page.tsx");
+ expect(svc).toContain('creatorName?: string | null;');
+ expect(svc).toContain('.from("organization_members")');
+ expect(svc).toContain('.from("internal_user_access")');
+ expect(svc).toContain('actor_email');
+ expect(page).toContain('card.creatorName||"Usuário não identificado"');
+});
+
+test("Kanban deletion checks task-linked Sprint without assuming join table project_id",()=>{
+ const svc=source("services/task-board-service.ts");
+ expect(svc).toContain('from("scrum_sprint_tasks").select("task_id").eq("task_id",params.taskId).limit(1)');
+ expect(svc).toContain("Consulta de vínculos com Sprints indisponível");
+ expect(svc).toContain("Auditoria da exclusão indisponível");
+});
