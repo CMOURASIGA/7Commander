@@ -363,7 +363,12 @@ export async function generateKairosResponse(params: GenerateParams): Promise<{
 
   const riskAnalysisRequested=asksForRiskAnalysis(params.message);
   const projectDiagnosisRequested=asksForProjectDiagnosis(params.message);
-  const riskEvidence=projectResolution.project?.id&&(riskAnalysisRequested||projectDiagnosisRequested)?await buildRiskEvidence(projectResolution.project.id,initialTenant):"Dados detalhados de backlog, US e Sprints não consultados neste pedido.";
+  const operationalEvidenceRequested=riskAnalysisRequested||projectDiagnosisRequested
+    || modules.some(item=>["scrum_management","kanban_execution","backlog_planning","flow_metrics_forecasting","schedule_management"].includes(item.id))
+    || /\b(sprint|user stor|backlog|kanban|scrum|impedimento|sprint goal)\b/i.test(params.message);
+  const riskEvidence=projectResolution.project?.id&&operationalEvidenceRequested
+    ?await buildRiskEvidence(projectResolution.project.id,initialTenant)
+    :"Dados detalhados de backlog, US e Sprints não consultados neste pedido.";
   const knowledgeContext = await buildKnowledgeContext({
     userId: params.userId,
     projectId: projectResolution.project?.id ?? null,
