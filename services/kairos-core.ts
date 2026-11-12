@@ -223,7 +223,7 @@ async function maybeHandleTaskCommand(params: {
 }): Promise<TaskCommandResult> {
   if(!params.projectId)return {handled:false,answer:""};
   const batchRequested=hasExplicitBatchCreationRequest(params.message)
-    && /^(?:kairos[,\\s:]+)?(?:crie|criar|cadastre|cadastrar|registre|registrar|adicione|adicionar)\\b/i.test(params.message.trim());
+    && /^(?:kairos[,\s:]+)?(?:crie|criar|cadastre|cadastrar|registre|registrar|adicione|adicionar)\b/i.test(params.message.trim());
   if(batchRequested){
     const rows=parseKanbanActivityBatch(params.message);
     return {handled:true,answer:[
@@ -232,7 +232,7 @@ async function maybeHandleTaskCommand(params: {
       ...rows.map(row=>"- "+row.reference+" | "+row.title+" | "+row.priority+" | TO DO"),
       "",
       "**Nenhuma atividade foi criada.** Confira títulos, duplicidades, responsável, datas e projeto. Para cadastrar, utilize o botão **Direcionar resposta**, escolha **Atividades** e confirme cada item no formulário."
-    ].join("\\n")};
+    ].join("\n")};
   }
   const create=detectCreateTaskIntent(params.message);
   if(create)return {handled:true,answer:[
@@ -242,7 +242,7 @@ async function maybeHandleTaskCommand(params: {
     "- Coluna solicitada: "+create.columnKey.toUpperCase(),
     "",
     "**Nenhuma atividade foi criada.** Use **Direcionar resposta > Atividades**, revise os campos e confirme o cadastro."
-  ].join("\\n")};
+  ].join("\n")};
   const move=detectMoveTaskIntent(params.message);
   if(move)return {handled:true,answer:
     "Movimentação solicitada: "+move.title+" para "+move.columnKey.toUpperCase()+
@@ -265,7 +265,7 @@ async function maybeHandleRiskCommand(params: {
     "- Título: "+risk.title,
     "",
     "**Nenhum risco foi criado.** Utilize **Direcionar resposta > Riscos**, valide probabilidade, impacto, mitigação, responsabilidade e registros existentes antes de confirmar."
-  ].join("\\n")};
+  ].join("\n")};
 }
 
 export async function generateKairosResponse(params: GenerateParams): Promise<{
@@ -396,7 +396,7 @@ export async function generateKairosResponse(params: GenerateParams): Promise<{
     };
   }
 
-  const taskCommand = localWriteGuardEnabled() ? {handled:false,answer:""} : await maybeHandleTaskCommand({
+  const taskCommand = await maybeHandleTaskCommand({
     userId: params.userId,
     userEmail: params.userEmail,
     message: params.message,
@@ -404,7 +404,7 @@ export async function generateKairosResponse(params: GenerateParams): Promise<{
     projectName: projectResolution.project?.name ?? null,
   });
 
-  const riskCommand = localWriteGuardEnabled() ? {handled:false,answer:""} : await maybeHandleRiskCommand({
+  const riskCommand = await maybeHandleRiskCommand({
     userId: params.userId,
     message: params.message,
     projectId: projectResolution.project?.id ?? null,
