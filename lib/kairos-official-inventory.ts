@@ -38,7 +38,7 @@ export function renderOfficialProjectInventory(params:{
   ];
   for(const risk of risks){
     lines.push("| "+[
-      riskCodes?.get(risk.id)??"Não disponível",risk.id,literal(risk.title),
+      riskCodes?.get(risk.id)??"Não disponível",risk.id,risk.title,
       risk.probability||"Não avaliada",risk.impact||"Não avaliado",risk.status,
     ].map(literal).join(" | ")+" |");
   }
@@ -51,7 +51,7 @@ export function renderOfficialProjectInventory(params:{
     lines.push("| Identificador | Título literal | Estado | Prioridade |",
       "| --- | --- | --- | --- |");
     for(const task of tasks.openCards){
-      lines.push("| "+[task.id,literal(task.title),task.status,task.priority].map(literal).join(" | ")+" |");
+      lines.push("| "+[task.id,task.title,task.status,task.priority].map(literal).join(" | ")+" |");
     }
     if(!tasks.openCards.length)lines.push("| - | Nenhuma atividade aberta retornada | - | - |");
     lines.push("", "**Registros consultados no Kanban:** "+tasks.loadedCount+
