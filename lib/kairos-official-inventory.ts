@@ -17,7 +17,7 @@ export function requestsOfficialProjectInventory(message:string):boolean {
   const value=normalize(message);
   return /\b(riscos|risco)\b/.test(value)
     && /\b(kanban|atividades|cards|tarefas)\b/.test(value)
-    && /\b(codigos?|identificadores?|titulos? literais?|registros oficiais|todos os riscos)\b/.test(value)
+    && /\b(codigos?|identificadores?|titulos? literais?|registros oficiais|todos os riscos|auditoria|consistencia|confiabilidade|dados oficiais)\b/.test(value)
     && !/\b(crie|criar|cadastre|cadastrar|registre|registrar|altere|exclua|apague|mova)\b/.test(value);
 }
 function literal(text:string):string {
@@ -42,7 +42,7 @@ export function renderOfficialProjectInventory(params:{
       risk.probability||"Não avaliada",risk.impact||"Não avaliado",risk.status,
     ].map(literal).join(" | ")+" |");
   }
-  if(!risks.length)lines.push("| Não disponível | - | Nenhum risco recuperado | - | - | - |");
+  if(!risks.length)lines.push("| Não disponível | - | Nenhum risco retornado; confirmar sucesso da consulta antes de concluir que está vazio | - | - | - |");
   lines.push("","**Riscos retornados pela consulta:** "+risks.length+".",
     "","## Atividades oficiais do Kanban","");
   if(!tasks){
@@ -63,6 +63,6 @@ export function renderOfficialProjectInventory(params:{
       lines.push("**Truncamento:** não identificado na consulta de atividades.");
     }
   }
-  lines.push("","Os títulos exibidos foram preservados literalmente, inclusive registros possivelmente malformados. Nenhuma atividade ou risco foi alterado.");
+  lines.push("","**Limites de confiabilidade:** este inventário não comprova a completude dos riscos nem verifica Backlog, Sprints ou Decisões. Não classifique fontes não consultadas como vazias. Associações temáticas não comprovam vínculos formais. Sem IDs ou códigos disponíveis, a confiabilidade é indeterminada.","","Os títulos exibidos foram preservados literalmente, inclusive registros possivelmente malformados. Nenhuma atividade ou risco foi alterado.");
   return lines.join("\n");
 }
