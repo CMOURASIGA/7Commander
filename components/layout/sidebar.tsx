@@ -74,7 +74,6 @@ export function Sidebar({ isMobileOpen, onCloseMobile, expanded, onToggleExpande
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" width="18" height="18" aria-hidden="true">
           {expanded ? <path d="m15 6-6 6 6 6"/> : <path d="m9 6 6 6-6 6"/>}
         </svg>
-        <span className="commander-sidebar-expanded-content">{expanded ? "Recolher menu" : "Expandir menu"}</span>
       </button>
       <nav className="commander-sidebar-nav" aria-label="Rotinas">
         {sections.map(section=><div className="commander-sidebar-section" key={section}>
