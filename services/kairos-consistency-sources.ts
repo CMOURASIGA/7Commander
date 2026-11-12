@@ -9,7 +9,7 @@ export function classifyAuditSource(name: string, result: { data: unknown[] | nu
 function cell(value: unknown): string {
   return String(value ?? "Não informado").replace(/\|/g, "\\|").replace(/\r?\n/g, " ⏎ ");
 }
-export async function auditAdditionalProjectSources(projectId: string, organizationId: string): Promise<string> {
+export async function auditAdditionalProjectSources(projectId: string, organizationId: string, mode: "technical" | "summary" = "technical"): Promise<string> {
   const db = getSupabaseServerClient();
   if (!db) return "## Backlog, Scrum e Decisões\nFontes indisponíveis; nenhuma ausência foi comprovada.";
   const sources = [
@@ -24,6 +24,25 @@ export async function auditAdditionalProjectSources(projectId: string, organizat
   ));
   const lines = ["## Backlog, Scrum e Decisões", "", "| Fonte | Recuperados | Total | Consulta |", "| --- | ---: | ---: | --- |"];
   const states = outputs.map((output, index) => classifyAuditSource(sources[index].label, output));
+  if(mode==="summary"){
+    const summary=["### Evidências de planejamento e decisões"];
+    for(const state of states){
+      const status=state.state==="vazia"?"nenhum registro encontrado":
+        state.state==="erro"?"consulta indisponível":
+        state.state==="parcial"?"consulta parcial":state.count+" registro(s) encontrado(s)";
+      summary.push("- "+state.name+": "+status+".");
+    }
+    const decisionsIndex=sources.findIndex(source=>source.label==="Decisões");
+    const decisionRows=outputs[decisionsIndex]?.data;
+    if(decisionRows?.length){
+      summary.push("Decisões registradas:");
+      for(const item of decisionRows.slice(0,3) as unknown as Array<{titulo?:string;status?:string}>)
+        summary.push("- "+cell(item.titulo)+" ("+cell(item.status)+").");
+    }
+    if(states.some(state=>state.state==="erro"||state.state==="parcial"))
+      summary.push("**Limitação:** não é possível concluir a completude das informações de planejamento e decisões.");
+    return summary.join("\\n");
+  }
   for (const state of states) {
     lines.push("| " + [state.name, state.count, state.total ?? "Indisponível", state.state].map(cell).join(" | ") + " |");
   }
