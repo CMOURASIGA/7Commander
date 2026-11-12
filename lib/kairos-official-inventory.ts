@@ -37,9 +37,10 @@ export function renderProjectManagementSummary(params:{
     "## Análise do projeto "+projectName,
     "",
     risks.length
-      ? "Recuperei "+risks.length+" risco(s) da consulta de contexto, dos quais "+openRisks.length+" ainda não estão encerrados ou mitigados. A completude dessa fonte não foi verificada nesta síntese."
-      : "Nenhum risco retornado pela consulta de contexto. Isso não comprova que o cadastro esteja vazio.",
+      ? "O projeto tem "+risks.length+" riscos recuperados na análise e "+openRisks.length+" permanecem abertos ou em acompanhamento. Não confirmei se a consulta trouxe todos os riscos cadastrados."
+      : "Não consegui recuperar riscos para esta análise. Isso não significa que o projeto não tenha riscos cadastrados.",
   ];
+  lines.push("", "**Riscos que merecem acompanhamento**");
   for(const risk of openRisks.slice(0,6)){
     const code=riskCodes?.get(risk.id);
     lines.push("- "+(code?code+" · ":"")+risk.title+".");
@@ -51,20 +52,20 @@ export function renderProjectManagementSummary(params:{
     lines.push("**Kanban:** consulta indisponível. Não é possível afirmar quantas atividades existem.");
   }else{
     const total=tasks.totalAvailable;
-    lines.push("**Kanban:** "+tasks.loadedCount+" atividade(s) recuperada(s)"+(total===null?" (total não verificável).":" de "+total+"."));
+    lines.push("**Atividades:** encontrei "+tasks.loadedCount+" atividade(s)"+(total===null?" (total não confirmado).":" entre "+total+" registro(s) consultados."));
     if(tasks.truncated)lines.push("A consulta do Kanban é parcial.");
     const suspicious=tasks.cards.filter(card=>/respeitando as seguintes diretrizes|regras de cria[cç][aã]o|s abaixo no kanban/i.test(card.title));
-    if(suspicious.length)lines.push("**Qualidade do cadastro:** "+suspicious.length+" atividade(s) têm título possivelmente derivado de instruções. Recomendo revisão manual, sem exclusão automática.");
+    if(suspicious.length)lines.push("**Atenção:** "+suspicious.length+" atividade(s) apresenta(m) título possivelmente derivado de instruções. É necessário revisar esse cadastro, sem excluí-lo automaticamente.");
     const meaningful=tasks.cards.filter(card=>!suspicious.includes(card)).slice(0,4);
     if(meaningful.length)lines.push("Atividades identificadas: "+meaningful.map(card=>card.title+" ("+card.status+")").join("; ")+".");
   }
-  lines.push("","### Avaliação gerencial",
-    "Os riscos merecem acompanhamento, mas os registros, por si só, não comprovam execução, atraso ou conclusão de entregas.",
+  lines.push("","### Próximos passos",
+    "Priorize a confirmação dos responsáveis pelos riscos e a definição de ações de mitigação. Os registros consultados não comprovam, por si só, atraso ou conclusão de entregas.",
     ...(tasks?.cards.some(card=>/respeitando as seguintes diretrizes|regras de cria[cç][aã]o|s abaixo no kanban/i.test(card.title))
       ? ["Sugiro revisar a atividade com título incorreto e confirmar as responsabilidades e próximos passos dos riscos abertos."]
       : ["Sugiro confirmar as responsabilidades e próximos passos dos riscos abertos."]),
     "",
-    "Posso detalhar os riscos prioritários ou abrir um inventário técnico com IDs completos. Nenhum registro foi alterado.");
+    "Se quiser, posso analisar um risco específico ou apresentar os registros técnicos completos. Nenhum dado foi alterado.");
   return lines.join("\n");
 }
 
