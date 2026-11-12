@@ -18,7 +18,7 @@ const dateOrBlank=(raw:unknown)=>{
    && Number.isFinite(Date.parse(date)) ? date : "";
 };
 export function normalizeMeetingDraft(raw:unknown):MeetingDraft{
- const data=raw&&typeof raw==="object"&&!Array.isArray(raw)?raw as Record<string,unknown>:{};
+ const data:Record<string,unknown>=raw&&typeof raw==="object"&&!Array.isArray(raw)?raw as Record<string,unknown>:{};
  const array=(value:unknown)=>Array.isArray(value)?value.filter(x=>typeof x==="string").map(x=>clean(x,320)).filter(Boolean).slice(0,20):[];
  return {
   title:clean(data.title,180),heldAt:dateOrBlank(data.heldAt),
