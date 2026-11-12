@@ -48,3 +48,7 @@ test("missing coverage is never described as complete",()=>{
 test("explicit creation request does not enter inventory route",()=>{
   expect(requestsOfficialProjectInventory("Crie riscos e atividades e mostre seus códigos")).toBe(false);
 });
+
+test("consistency audit request resolves to deterministic read-only inventory",()=>{
+  expect(requestsOfficialProjectInventory("Kairos, execute auditoria de consistência dos dados oficiais do projeto: riscos e atividades Kanban")).toBe(true);
+});
