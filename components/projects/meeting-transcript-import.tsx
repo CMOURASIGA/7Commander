@@ -32,7 +32,7 @@ export function MeetingTranscriptImport({projectId,onSaved}:{projectId:string;on
    });
    const body=await response.json();
    if(!response.ok)throw Error(body.error||"Falha ao interpretar transcrição.");
-   setDraft(body.data as MeetingDraft);
+   setDraft({...body.data,sourceArtifactId:file?.name||"Texto colado no chat"} as MeetingDraft);
    setSourceName(file?.name||"Texto colado no chat");
   }catch(e){setError(e instanceof Error?e.message:"Não foi possível analisar a fonte.");}
   finally{setLoading(false);}
@@ -48,7 +48,7 @@ export function MeetingTranscriptImport({projectId,onSaved}:{projectId:string;on
     body:JSON.stringify({...draft,
      heldAt:new Date(draft.heldAt).toISOString(),
      nextFollowUp:draft.nextFollowUp?new Date(draft.nextFollowUp).toISOString():null,
-     sourceArtifactId:sourceName,
+     sourceArtifactId:draft.sourceArtifactId||sourceName,
     })
    });
    const body=await response.json();
