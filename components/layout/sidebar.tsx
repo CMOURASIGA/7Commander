@@ -37,8 +37,8 @@ const ICON_PATHS: Record<IconName, React.ReactNode> = {
 };
 function NavIcon({ name }: { name: IconName }) { return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="h-[18px] w-[18px] shrink-0" aria-hidden="true">{ICON_PATHS[name]}</svg>; }
 
-type SidebarProps = { isMobileOpen: boolean; onCloseMobile: () => void };
-export function Sidebar({ isMobileOpen, onCloseMobile }: SidebarProps) {
+type SidebarProps = { isMobileOpen: boolean; onCloseMobile: () => void; expanded: boolean; onToggleExpanded: () => void };
+export function Sidebar({ isMobileOpen, onCloseMobile, expanded, onToggleExpanded }: SidebarProps) {
   const pathname = usePathname();
   const {user}=useKairosAuth();
   const [clientBrand, setClientBrand] = useState<ClientBrandSettings|null>(null);
@@ -54,10 +54,45 @@ export function Sidebar({ isMobileOpen, onCloseMobile }: SidebarProps) {
   },[user?.id]);
   return <>
     {isMobileOpen ? <button type="button" aria-label="Fechar menu" className="sidebar-backdrop" onClick={onCloseMobile} /> : null}
-    <aside className={["sidebar-shell overflow-y-auto md:min-h-screen md:self-stretch", isMobileOpen ? "is-open" : ""].join(" ")} style={{ width: 256, maxWidth: "82vw" }}>
-      <div className="relative px-4 pt-4 pb-0"><div className="flex h-[144px] w-full items-center justify-center overflow-hidden rounded-xl bg-white px-1 py-1 shadow-sm">{clientBrand?.logoUrl?<img src={clientBrand.logoUrl} alt={clientBrand.clientName} className="max-h-[132px] w-[99%] object-contain object-center" />:<span className="text-sm font-semibold text-slate-700">{clientBrand?.clientName||"Commander"}</span>}</div><button type="button" onClick={onCloseMobile} className="sidebar-close absolute right-6 top-6 md:hidden" aria-label="Fechar menu">×</button></div>
-      <div className="relative border-b border-white/15 px-4 pb-6 pt-6"><p className="sidebar-product-name">{BRAND_NAME}</p><p className="sidebar-product-subtitle">{BRAND_SUBTITLE}</p></div>
-      <nav className="relative flex flex-col gap-5 px-3 py-4">{sections.map((section) => <div key={section}><p className="sidebar-section-label mb-2 px-2">{section}</p><div className="flex flex-col gap-1">{NAV_ITEMS.filter((item) => item.section === section).map((item) => { const isActive = item.href === "/" || item.href === "/scrum" ? pathname === item.href : pathname.startsWith(item.href); return <Link key={item.href} href={item.href} title={item.label} aria-current={isActive ? "page" : undefined} onClick={onCloseMobile} className={["sidebar-nav-link flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors", isActive ? "sidebar-nav-link-active shadow-sm" : "", item.level === 1 ? "ml-5 border-l border-white/20 pl-4 text-[13px]" : ""].join(" ")}><NavIcon name={item.icon} /><span>{item.label}</span></Link>; })}</div></div>)}</nav>
+    <aside id="commander-sidebar" aria-label="Navegação principal" className={["sidebar-shell commander-adaptive-sidebar overflow-y-auto md:min-h-screen md:self-stretch", expanded ? "commander-sidebar-expanded" : "commander-sidebar-compact", isMobileOpen ? "is-open" : ""].join(" ")}>
+      <div className="commander-sidebar-brand">
+        <div className="commander-sidebar-logo-frame" title={clientBrand?.clientName || BRAND_NAME}>
+          {clientBrand?.logoUrl
+            ? <img src={clientBrand.logoUrl} alt={clientBrand.clientName} className="commander-sidebar-logo" />
+            : <span className="commander-sidebar-logo-fallback">{(clientBrand?.clientName || "7C").slice(0,2).toUpperCase()}</span>}
+        </div>
+        <div className="commander-sidebar-brand-copy">
+          <p className="sidebar-product-name">{BRAND_NAME}</p>
+          <p className="sidebar-product-subtitle">{BRAND_SUBTITLE}</p>
+        </div>
+        <button type="button" onClick={onCloseMobile} className="sidebar-close absolute right-3 top-3 md:hidden" aria-label="Fechar menu">×</button>
+      </div>
+      <button type="button" className="commander-sidebar-resize" onClick={onToggleExpanded}
+        aria-label={expanded ? "Recolher menu lateral" : "Expandir menu lateral"}
+        title={expanded ? "Recolher menu" : "Expandir menu"}
+        aria-expanded={expanded} aria-controls="commander-sidebar">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" width="18" height="18" aria-hidden="true">
+          {expanded ? <path d="m15 6-6 6 6 6"/> : <path d="m9 6 6 6-6 6"/>}
+        </svg>
+        <span className="commander-sidebar-expanded-content">{expanded ? "Recolher menu" : "Expandir menu"}</span>
+      </button>
+      <nav className="commander-sidebar-nav" aria-label="Rotinas">
+        {sections.map(section=><div className="commander-sidebar-section" key={section}>
+          <p className="commander-sidebar-section-label">{section}</p>
+          <div className="commander-sidebar-links">
+          {NAV_ITEMS.filter(item=>item.section===section).map(item=>{
+            const isActive=item.href==="/"||item.href==="/scrum" ? pathname===item.href : pathname===item.href || pathname.startsWith(item.href+"/");
+            return <Link key={item.href} href={item.href} title={item.label}
+              aria-label={item.label} aria-current={isActive?"page":undefined}
+              onClick={onCloseMobile}
+              className={["sidebar-nav-link commander-sidebar-link",isActive?"sidebar-nav-link-active":"",item.level===1?"commander-sidebar-child":""].join(" ")}>
+              <NavIcon name={item.icon}/>
+              <span className="commander-sidebar-expanded-content">{item.label}</span>
+            </Link>;
+          })}
+          </div>
+        </div>)}
+      </nav>
     </aside>
   </>;
 }
