@@ -56,7 +56,6 @@ export function correctUnsupportedAggregateRiskSeverity(
   risks:Array<{status:string}>,
 ):string{
   if(!risks.length)return answer;
-  const active=risks.filter(risk=>!["mitigado","encerrado"].includes(normalize(risk.status)));
   const total=risks.length;
   const words:Record<number,string>={1:"um",2:"dois",3:"três",4:"quatro",5:"cinco",6:"seis",7:"sete",8:"oito",9:"nove",10:"dez"};
   const countPattern=[String(total),words[total]].filter(Boolean).join("|");
@@ -65,7 +64,7 @@ export function correctUnsupportedAggregateRiskSeverity(
   // evidence-backed ratings should be evaluated by the risk matrix.
   const quantity=new RegExp("(\\b(?:"+countPattern+")\\s+riscos)\\s+cr[ií]ticos\\b","gi");
   const all=/\b(todos\s+os\s+riscos)\s+(?:s[aã]o|est[aã]o|foram\s+classificados\s+como)\s+cr[ií]ticos\b/gi;
-  const label=active.length===total?"abertos":"cadastrados";
+  const label="cadastrados";
   return answer
     .replace(quantity,(_match,phrase:string)=>phrase+" "+label)
     .replace(all,"todos os riscos estão cadastrados, mas a criticidade individual não foi comprovada");
