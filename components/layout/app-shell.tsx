@@ -125,7 +125,7 @@ export function AppShell({ children }: AppShellProps) {
       <Sidebar isMobileOpen={mobileNavOpen} onCloseMobile={() => setMobileNavOpen(false)} expanded={sidebarExpanded} onToggleExpanded={toggleSidebar} />
       <div className="flex min-h-screen min-w-0 flex-1 flex-col">
         <Header onToggleMobileNav={() => setMobileNavOpen((prev) => !prev)} mobileNavOpen={mobileNavOpen} />
-        <main className="min-w-0 flex-1 overflow-x-hidden p-4 md:p-5">{pathname === "/" && <TaskAlerts center />}{children}</main>
+        <main onPointerDown={()=>{if(sidebarExpanded)setSidebarExpanded(false)}} className="min-w-0 flex-1 overflow-x-hidden p-4 md:p-5">{pathname === "/" && <TaskAlerts center />}{children}</main>
       </div>
       <KairosLauncher />
       <KairosPanel />
