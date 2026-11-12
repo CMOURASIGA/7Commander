@@ -1082,3 +1082,7 @@ a {
 @media (prefers-reduced-motion: reduce) {
   .commander-adaptive-sidebar { transition: none; }
 }
+
+/* Compact arrow-only navigation control, readable in both modes. */
+.commander-sidebar-resize{padding:0;justify-content:center}
+.commander-sidebar-expanded .commander-sidebar-resize{width:44px;margin-left:auto;margin-right:auto}
