@@ -7,6 +7,7 @@ import { useSharedKairosCore } from "@/components/kairos/kairos-core-context";
 import { KairosMessageActions } from "@/components/kairos/kairos-message-actions";
 import { KairosSaveDialog } from "@/components/kairos/kairos-save-dialog";
 import { VoiceGlyph } from "@/components/icons/voice-icons";
+import { MeetingTranscriptImport } from "@/components/projects/meeting-transcript-import";
 
 export default function ChatPage() {
   const core = useSharedKairosCore();
@@ -107,6 +108,7 @@ export default function ChatPage() {
           </p>
         </SurfaceCard>
 
+        {core.activeProjectId ? <MeetingTranscriptImport key={core.activeProjectId} projectId={core.activeProjectId} /> : null}
         <SurfaceCard className="min-h-0 flex-1 overflow-y-auto p-4">
           {core.error ? (
             <p className="mb-3 rounded-lg bg-(--danger-soft) px-3 py-2 text-xs text-(--danger)">{core.error}</p>
