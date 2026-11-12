@@ -4,7 +4,7 @@ import { getEffectiveTenantForUser } from "@/lib/tenant-runtime";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
 import { KAIROS_PM_REPORT_POLICY } from "@/lib/kairos-pm-report-policy";
 import { validateOfficialRiskReferences } from "@/lib/kairos-evidence-validation";
-import { requestsOfficialProjectInventory, renderOfficialProjectInventory } from "@/lib/kairos-official-inventory";
+import { requestsOfficialProjectInventory, requestsProjectManagementSummary, renderProjectManagementSummary, renderOfficialProjectInventory } from "@/lib/kairos-official-inventory";
 import { auditAdditionalProjectSources } from "@/services/kairos-consistency-sources";
 import { listMessages } from "@/services/chat-store";
 import { searchRelevantMemories, saveMemory } from "@/services/memory-service";
@@ -412,6 +412,34 @@ export async function generateKairosResponse(params: GenerateParams): Promise<{
         : "\n\nProjeto não resolvido: consultas adicionais indisponíveis."),
       project:{
         id:projectResolution.project?.id??null,
+        name:projectResolution.project?.name??null,
+        confidence:projectResolution.confidence,
+        action:projectResolution.action,
+        suggestedName:projectResolution.suggestedName,
+      },
+    };
+  }
+
+  // Management summaries remain short and conversational. Full technical inventory is opt-in.
+  if(requestsProjectManagementSummary(params.message)){
+    const projectId=projectResolution.project?.id;
+    const summary=projectId
+      ? renderProjectManagementSummary({
+          projectName:projectResolution.project?.name??"projeto selecionado",
+          risks:risksContext.map(risk=>({
+            id:risk.id,title:risk.title,status:risk.status,
+            probability:risk.probability,impact:risk.impact,owner:risk.owner,
+          })),
+          riskCodes:officialRiskCodes,
+          tasks:taskBoardContext,
+          decisions:decisionContext.map(decision=>({id:decision.id,title:decision.title,status:decision.status})),
+        }) + "\n\n" + await auditAdditionalProjectSources(projectId,initialTenant,"summary")
+      : "Não consegui identificar um projeto autorizado. Selecione o projeto antes da análise.";
+    return {
+      specialist,
+      answer:summary,
+      project:{
+        id:projectId??null,
         name:projectResolution.project?.name??null,
         confidence:projectResolution.confidence,
         action:projectResolution.action,
