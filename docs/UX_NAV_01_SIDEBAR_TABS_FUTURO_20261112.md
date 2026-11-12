@@ -1,8 +1,8 @@
 # UX-NAV-01 | Sidebar adaptativa e navegação por abas
 Data: 12/11/2026
-Status: **BACKLOG, NÃO IMPLEMENTAR ATÉ CONCLUSÃO DA HOMOLOGAÇÃO KAIROS-SKILLS-02**.
+Status: **IMPLEMENTADO NA BRANCH LOCAL, HOMOLOGAÇÃO VISUAL E TÉCNICA PENDENTE**.
 Projeto: 7Commander. Branch de registro: work/local-kairos-operacional-20261111.
-Prioridade: após homologação do Kairos. Sem autorização para deploy ou alteração de produção.
+Prioridade: UX-NAV-01 entregue para validação local após homologação funcional do Kairos. Sem autorização para deploy em develop/main.
 
 ## Objetivo
 Ganhar área útil nas rotinas operacionais preservando a navegação. Sidebar com logo e ícones principais compactos (aprox. 64–72 px); expansão para aprox. 240–260 px desloca/recalcula o conteúdo, sem sobreposição em desktop. Persistência de estado. No mobile, drawer sobreposto adequado ao tamanho.
@@ -14,8 +14,8 @@ Ganhar área útil nas rotinas operacionais preservando a navegação. Sidebar c
 4. Exibir somente abas autorizadas. Mudança de empresa deve limpar contexto e respeitar proteção de sessão/abas paralelas. Nunca usar localStorage para autorização.
 5. Em telas pequenas usar tabs com scroll horizontal acessível ou seletor para evitar recorte; manter indicador de aba ativa e foco do teclado.
 
-## Definição consolidada para a implementação futura
-**Sidebar adaptativa e navegação por abas são uma única entrega UX-NAV-01.** Não homologar ou implantar um recurso isoladamente, pois ambos compartilham contexto, rotas e reflow do layout.
+## Definição consolidada e implementação local
+**Sidebar adaptativa e navegação por abas são uma única entrega UX-NAV-01.** Implementações na branch: `components/layout/sidebar.tsx`, `components/layout/app-shell.tsx`, `app/globals.css`, `app/projects/page.tsx`, `tests/unit/ux-platform-local.spec.ts`. O menu guarda apenas preferência visual em localStorage, sem relação com autorização. Abas existentes de Projetos passam a usar `?tab=` com suporte a histórico e scroll horizontal.
 
 **Componentização prevista para avaliação no 7Components:** `AppShell` responsivo, `AdaptiveSidebar` (logo + atalhos, compacto/expandido), `NavigationItem` (estado ativo, ícone, badge e tooltip), `ContextTabs` (aba, overflow, teclado e URL) e `ResponsiveContentArea` (reflow). Nomes são provisórios, não indicam componentes já existentes/adotados.
 
@@ -32,5 +32,18 @@ Registrar por enquanto como **candidato de componente** na documentação de pla
 - Validar ganho de área, tempo de navegação e regressão antes de adotar no 7Components.
 - Realizar somente após encerrar homologação Kairos-SKILLS-02. Não iniciar agora.
 
-## Fora do escopo atual
-Nenhuma mudança de código, layout publicado, rota, banco, RLS, API ou 7Components nesta etapa. Documento de backlog apenas.
+## Limites deste lote
+Não houve deploy, migração, alteração em RLS, API, autorização de empresa ou atualização da biblioteca 7Components. As abas de Projetos foram melhoradas; rotinas Scrum/Backlog/Kanban/Daily continuam usando navegação existente, não receberam um segundo conjunto de abas. Não considerar homologado até revisar layout, áreas úteis e regressões em telas menores.
+
+## Validação local
+```powershell
+cd C:\\Projetos\\7Commander-local
+git pull --ff-only origin work/local-kairos-operacional-20261111
+npm run typecheck
+npm run lint
+npm run test:unit
+npm run skills:eval
+npm run build
+npm run dev -- --hostname localhost --port 3100
+```
+Validar menu compacto, expansão, logo arredondada, whitelabel, retorno de navegação, URL `?tab=risks`, aba ativa depois de F5, responsividade, Kairos e permissão viewer. Não mudar registros reais durante validação.
