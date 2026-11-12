@@ -72,3 +72,15 @@ test("management response contains useful evidence without wide UUID tables",()=
   expect(answer).not.toContain("risk-id");
   expect(answer).not.toContain("| ---");
 });
+
+test("management summary avoids technical wording and emphasizes next actions",()=>{
+  const answer=renderProjectManagementSummary({
+    projectName:"Projeto Exemplo",risks:[{id:"risk-1",title:"Ambiente de teste indisponível",status:"aberto",probability:"alta",impact:"alto"}],
+    riskCodes:new Map([["risk-1","R001"]]),
+    tasks:{totalAvailable:0,loadedCount:0,truncated:false,openCardsTotal:0,cards:[],openCards:[]},
+  });
+  expect(answer).toContain("Próximos passos");
+  expect(answer).toContain("R001");
+  expect(answer).not.toContain("consulta de contexto");
+  expect(answer).not.toContain("completude dessa fonte");
+});
