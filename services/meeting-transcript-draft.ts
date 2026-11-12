@@ -30,7 +30,7 @@ export function normalizeMeetingDraft(raw:unknown):MeetingDraft{
   sourceArtifactId:"",uncertainties:array(data.uncertainties),suggestedActions:array(data.suggestedActions),
  };
 }
-export async function prepareMeetingDraft(input:{filename?:string;content?:string;file?:File;projectName:string}):Promise<MeetingDraft>{
+export async function prepareMeetingDraft(input:{filename?:string;content?:string;file?:File;projectName:string;existingRecords?:string[]}):Promise<MeetingDraft>{
  const openai=getOpenAIClient();
  if(!openai)throw Error("Configuração de IA indisponível. Nenhuma reunião foi gravada.");
  if(input.file&&!allowedMeetingFile(input.file.name))throw Error("Formato não suportado. Use PDF, DOCX, TXT, MD, CSV, JSON, VTT ou SRT.");
@@ -58,6 +58,7 @@ export async function prepareMeetingDraft(input:{filename?:string;content?:strin
    "Distinga decisão tomada de proposta, discussão e ação pendente. Se não estiver explícito, deixe vazio e explique em uncertainties.",
    "Datas somente se a transcrição comprovar claramente data E horário; em caso contrário, use strings vazias.",
    "Resumo objetivo e campos em português brasileiro. suggestedActions contém propostas, NUNCA execução nem registros oficiais.",
+   "Registros oficiais existentes consultados (somente candidatos a vínculo, não atualize nem copie): "+(input.existingRecords?.join("; ")||"não disponíveis")+".",
    "Devolva APENAS JSON objeto com chaves: title,heldAt,participants,objective,summary,advances,decisions,commitments,pendingItems,risks,nextFollowUp,uncertainties,suggestedActions.",
    "Campos textuais são strings; uncertainties e suggestedActions são arrays de strings."
   ].join("\n");
