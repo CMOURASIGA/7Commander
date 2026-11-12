@@ -8,7 +8,7 @@ export type InventoryRisk = {
 export type InventoryTask = {id:string;title:string;status:string;priority:string};
 export type InventorySnapshot = {
   totalAvailable:number|null;loadedCount:number;truncated:boolean;
-  openCardsTotal:number;openCards:InventoryTask[];
+  openCardsTotal:number;cards:InventoryTask[];openCards:InventoryTask[];
 };
 function normalize(text:string):string {
   return text.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"");
@@ -50,14 +50,14 @@ export function renderOfficialProjectInventory(params:{
   }else{
     lines.push("| Identificador | Título literal | Estado | Prioridade |",
       "| --- | --- | --- | --- |");
-    for(const task of tasks.openCards){
+    for(const task of tasks.cards){
       lines.push("| "+[task.id,task.title,task.status,task.priority].map(literal).join(" | ")+" |");
     }
-    if(!tasks.openCards.length)lines.push("| - | Nenhuma atividade aberta retornada | - | - |");
+    if(!tasks.cards.length)lines.push("| - | Nenhuma atividade retornada | - | - |");
     lines.push("", "**Registros consultados no Kanban:** "+tasks.loadedCount+
       (tasks.totalAvailable===null?" (total existente não disponível).":" de "+tasks.totalAvailable+"."));
-    lines.push("**Atividades abertas exibidas:** "+tasks.openCards.length+" de "+tasks.openCardsTotal+".");
-    if(tasks.truncated||tasks.openCards.length<tasks.openCardsTotal){
+    lines.push("**Atividades exibidas (incluindo concluídas):** "+tasks.cards.length+".");
+    if(tasks.truncated||tasks.cards.length<tasks.loadedCount){
       lines.push("**Limitação:** o inventário de atividades está parcial. Não considere esta lista completa.");
     }else{
       lines.push("**Truncamento:** não identificado na consulta de atividades.");
