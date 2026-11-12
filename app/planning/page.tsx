@@ -1,6 +1,7 @@
 "use client";
 import {IconActionButton} from "@/components/ui/icon-action-button";
 import {useCallback,useEffect,useState} from "react";
+import {PageIntro} from "@/components/ui/workspace-primitives";
 import Link from "next/link";
 import {getClientAuthHeaders} from "@/lib/client-auth";
 type Kind="prospect"|"opportunity"|"requirement"|"research"|"assessment"|"decision_gate";
@@ -21,6 +22,7 @@ export default function PlanningPage(){
  const[owner,setOwner]=useState(""),[nextAction,setNextAction]=useState("");
  const[stage,setStage]=useState("novo"),[prospectId,setProspectId]=useState(""),[prospects,setProspects]=useState<Array<{id:string;title:string}>>([]);
  const[active,setActive]=useState<RecordItem|null>(null),[status,setStatus]=useState<string|null>(null);
+ const[loadError,setLoadError]=useState<string|null>(null);
  const[editorOpen,setEditorOpen]=useState(false);
  const[history,setHistory]=useState<Array<{version:number;action:string;created_at:string;actor_id:string}>>([]);
  const[publicQuery,setPublicQuery]=useState(""),[publicConfirmed,setPublicConfirmed]=useState(false);
@@ -29,12 +31,12 @@ export default function PlanningPage(){
  const[searchResults,setSearchResults]=useState<Array<{title:string;url:string;snippet:string;consultedAt:string}>>([]);
  const[searchBusy,setSearchBusy]=useState(false);
  const[busy,setBusy]=useState(false),[loading,setLoading]=useState(false),[page,setPage]=useState(1),[total,setTotal]=useState(0);
- const load=useCallback(async()=>{setLoading(true);try{
+ const load=useCallback(async()=>{setLoading(true);setLoadError(null);try{
   const query=new URLSearchParams({kind,page:String(page)});if(projectId&&kind!=="prospect"&&kind!=="opportunity")query.set("projectId",projectId);
   const r=await fetch("/api/planning?"+query,{headers:getClientAuthHeaders(),cache:"no-store"});const json=await r.json();
   if(!r.ok)throw Error(json.error||"Falha na consulta");
   setItems(json.data||[]);setTotal(json.meta?.total||0);
- }catch(e){setStatus(e instanceof Error?e.message:"Falha ao carregar");}finally{setLoading(false)}},[kind,page,projectId]);
+ }catch(e){setLoadError(e instanceof Error?e.message:"Falha ao carregar");setItems([]);setTotal(0);}finally{setLoading(false)}},[kind,page,projectId]);
  useEffect(()=>{void load()},[load]);
  useEffect(()=>{let live=true;async function loadProspects(){try{const r=await fetch("/api/planning?kind=prospect",{headers:getClientAuthHeaders(),cache:"no-store"});if(!r.ok)return;const j=await r.json();if(live)setProspects((j.data||[]).map((p:{id:string;title:string})=>({id:p.id,title:p.title})));}catch{}}if(kind==="opportunity")void loadProspects();return()=>{live=false}},[kind]);
  useEffect(()=>{let mounted=true;async function fetchProjects(){try{
@@ -117,22 +119,50 @@ export default function PlanningPage(){
   finally{setBusy(false);}
  }
  const info=kinds.find(x=>x.value===kind)!;
- return <div className="mx-auto max-w-6xl space-y-5 p-4 md:p-6">
-  <header><p className="text-sm text-(--text-secondary)">Planejamento da empresa selecionada</p>
-   <h1 className="text-2xl font-semibold">Planejamento e oportunidades</h1>
-   <p className="mt-1 text-sm text-(--text-secondary)">Prospects, requisitos e análise de soluções com revisão humana e histórico versionado.</p>
-   <div className="mt-3 flex flex-wrap gap-4"><Link className="text-sm underline" href="/planning/workflows">Fluxo de análise e checkpoints →</Link><Link className="text-sm underline" href="/planning/coverage">Matriz requisito × alternativa →</Link><Link className="text-sm underline" href="/planning/backlog">Backlog aprovado →</Link></div>
-  </header>
-  <div className="flex flex-wrap gap-2" role="group" aria-label="Módulos de planejamento">{kinds.map(k=><button key={k.value} type="button"
-   onClick={()=>{setKind(k.value);setPage(1);reset();setStatus(null)}}
-   aria-pressed={kind===k.value}
-   className={kind===k.value?"rounded-lg bg-(--accent) px-3 py-2 text-sm font-semibold text-white":"rounded-lg border border-(--border) px-3 py-2 text-sm"}>{k.label}</button>)}</div>
-  {status&&!editorOpen?<p role="status" aria-live="polite" className="workspace-card border-l-4 border-(--accent) p-3 text-sm">{status}</p>:null}
+ const changeKind=(next:Kind)=>{
+  setKind(next);setPage(1);reset();setStatus(null);setLoadError(null);
+  const url=new URL(window.location.href);url.searchParams.set("tab",next);
+  window.history.pushState({planningTab:next},"",url.toString());
+ };
+ useEffect(()=>{
+  const syncTab=()=>{
+   const requested=new URL(window.location.href).searchParams.get("tab");
+   const next=kinds.find(item=>item.value===requested)?.value??"prospect";
+   setKind(next);setPage(1);setEditorOpen(false);
+  };
+  syncTab();window.addEventListener("popstate",syncTab);
+  return()=>window.removeEventListener("popstate",syncTab);
+ },[]);
+ return <div className="w-full min-w-0 max-w-[1600px] space-y-4 px-3 py-4 md:px-6 md:py-6 2xl:mx-auto">
+  <PageIntro eyebrow="Planejamento / Empresa ativa" title="Planejamento e oportunidades"
+   description="Gerencie prospects, oportunidades, requisitos e evidências. Revisões e aprovações permanecem sob controle humano." />
+  <nav className="workspace-card flex min-w-0 gap-2 overflow-x-auto p-3" role="tablist" aria-label="Módulos de planejamento">
+   {kinds.map(k=><button key={k.value} type="button" role="tab"
+    aria-selected={kind===k.value} aria-controls="planning-active-panel"
+    onClick={()=>changeKind(k.value)}
+    className={kind===k.value
+      ?"shrink-0 whitespace-nowrap border-b-2 border-(--accent) px-3 py-2 text-xs font-semibold text-(--accent)"
+      :"shrink-0 whitespace-nowrap border-b-2 border-transparent px-3 py-2 text-xs font-medium text-(--text-secondary) hover:text-(--accent)"}>{k.label}</button>)}
+  </nav>
+  <nav className="flex flex-wrap gap-2 text-xs" aria-label="Etapas do planejamento">
+   <Link className="workspace-button-secondary px-3 py-2 text-xs" href="/planning/workflows">Fluxo de análise e checkpoints</Link>
+   <Link className="workspace-button-secondary px-3 py-2 text-xs" href="/planning/coverage">Matriz requisito × alternativa</Link>
+   <Link className="workspace-button-secondary px-3 py-2 text-xs" href="/planning/backlog">Backlog aprovado</Link>
+  </nav>
+  {loadError?<div role="alert" aria-live="assertive" className="rounded-xl border border-(--danger) bg-(--danger-soft) px-4 py-3 text-sm text-(--danger)">
+   <strong className="block">Atenção: consulta indisponível</strong>
+   <p className="mt-1">{loadError}</p>
+   <p className="mt-1 text-xs">Os registros não puderam ser consultados. Isso não significa que a base esteja vazia. Verifique a migração indicada e tente novamente.</p>
+  </div>:null}
+  {status&&!editorOpen?<p role="status" aria-live="polite"
+   className={/falha|erro|indispon[ií]vel|n[aã]o foi poss[ií]vel|aten[cç][aã]o|selecione|informe/i.test(status)
+     ?"rounded-xl border border-(--danger) bg-(--danger-soft) p-3 text-sm font-medium text-(--danger)"
+     :"workspace-card border-l-4 border-(--accent) p-3 text-sm"}>{status}</p>:null}
   <section className="workspace-card flex flex-wrap items-center justify-between gap-3 p-4">
     <div><h2 className="text-sm font-semibold">{info.label}</h2><p className="mt-1 text-xs text-(--text-secondary)">{info.help}</p></div>
     <button className="workspace-button-primary text-xs" type="button" onClick={()=>{reset();setEditorOpen(true)}}>Adicionar {kind==="prospect"?"prospect":"registro"}</button>
   </section>
-  <div className="space-y-4">
+  <div id="planning-active-panel" role="tabpanel" className="min-w-0 space-y-4">
    {editorOpen?<div className="fixed inset-0 z-50">
      <button type="button" aria-label="Fechar editor" className="absolute inset-0 bg-black/35" onClick={()=>setEditorOpen(false)}/>
      <aside role="dialog" aria-modal="true" aria-label={active?"Editar registro":"Adicionar registro"} className="relative ml-auto h-dvh w-full max-w-2xl overflow-y-auto bg-(--bg-surface) p-4 shadow-2xl">
@@ -154,7 +184,7 @@ export default function PlanningPage(){
        <label className="block text-sm">Critério de aceite<textarea className="workspace-input mt-1 w-full" rows={2} value={reqAcceptance} onChange={e=>setReqAcceptance(e.target.value)}/></label>
        <label className="block text-sm">Fonte / proveniência<input className="workspace-input mt-1 w-full" value={reqSource} onChange={e=>setReqSource(e.target.value)}/></label>
        <button type="button" disabled={!projectId||busy} onClick={()=>void reviewRequirements()} className="workspace-button-secondary px-3 py-2 text-xs">Revisar lacunas e redundâncias</button>
-       {findings.length?<ul className="space-y-1">{findings.map((x,i)=><li key={i} className="text-xs">{x.severity==="warning"?"Atenção":"Pergunta"} · {x.detail}</li>)}</ul>:null}
+       {findings.length?<ul className="space-y-1">{findings.map((x,i)=><li key={i} className={x.severity==="warning"?"text-xs font-semibold text-(--danger)":"text-xs text-(--text-secondary)"}>{x.severity==="warning"?"Atenção":"Pergunta"} · {x.detail}</li>)}</ul>:null}
      </section>:null}
      {kind==="research"?<section className="rounded-lg border border-(--border) bg-(--bg-muted) p-3 space-y-3">
       <h3 className="font-semibold text-sm">Pesquisa externa opcional</h3>
@@ -202,7 +232,7 @@ export default function PlanningPage(){
       <button disabled={busy} className="workspace-button-primary px-4 py-2" onClick={()=>void save("draft")}>{busy?"Salvando...":active?"Salvar edição":"Criar rascunho"}</button>
       {active?<><button disabled={busy} className="workspace-button-secondary px-3 py-2" onClick={()=>void save("review")}>Enviar à revisão</button>
       <button disabled={busy} className="workspace-button-secondary px-3 py-2" onClick={()=>void save("approved")}>Aprovar</button>
-      <button disabled={busy} className="workspace-button-secondary px-3 py-2" onClick={()=>void save("rejected")}>Rejeitar</button>
+      <button disabled={busy} className="workspace-button-danger px-3 py-2" onClick={()=>void save("rejected")}>Rejeitar</button>
       {(kind==="opportunity"||kind==="prospect")?<button disabled={busy} className="workspace-button-secondary px-3 py-2" onClick={()=>void save("won")}>Marcar ganho</button>:null}</>:null}
       {active&&kind==="opportunity"&&["approved","won"].includes(active.status)&&!active.project_id?<button disabled={busy} className="workspace-button-primary px-3 py-2" onClick={()=>void createProjectFromPlanning()}>Concluir planejamento e gerar projeto</button>:null}
       {active&&kind==="opportunity"&&active.project_id?<><Link href="/projects" className="workspace-button-secondary px-3 py-2">Ver projeto vinculado</Link><Link href={`/planning/backlog?projectId=${encodeURIComponent(active.project_id)}`} className="workspace-button-secondary px-3 py-2">Preparar Kanban deste projeto</Link></>:null}
@@ -211,15 +241,15 @@ export default function PlanningPage(){
       {active?<button className="workspace-button-secondary px-3 py-2" disabled={busy} onClick={()=>{reset();setEditorOpen(false)}}>Cancelar edição</button>:null}
      </div>
      {history.length>0?<div className="rounded-lg border border-(--border) p-3"><h3 className="font-semibold">Histórico de alterações e aprovações</h3><ul className="mt-2 space-y-1 text-sm">{history.map((h,i)=><li key={h.version+"-"+i}>Versão {h.version} · {h.action} · {new Date(h.created_at).toLocaleString("pt-BR")}</li>)}</ul></div>:null}
-     {status?<p role="status" aria-live="polite" className="rounded-lg border border-(--border) p-3 text-sm">{status}</p>:null}
+     {status?<p role="status" aria-live="polite" className={/falha|erro|indispon[ií]vel|n[aã]o foi poss[ií]vel|aten[cç][aã]o|selecione|informe/i.test(status)?"rounded-lg border border-(--danger) bg-(--danger-soft) p-3 text-sm font-medium text-(--danger)":"rounded-lg border border-(--border) p-3 text-sm"}>{status}</p>:null}
     </div>
    </section>
      </aside>
    </div>:null}
-   <section className="rounded-xl border border-(--border) bg-white p-4">
-    <div className="mb-4 flex items-center justify-between gap-2"><h2 className="text-lg font-semibold">Registros</h2>
+   <section className="workspace-card min-w-0 p-4 md:p-5">
+    <div className="mb-4 flex flex-wrap items-center justify-between gap-2"><div><h2 className="text-base font-semibold">Registros de {info.label}</h2><p className="mt-1 text-xs text-(--text-secondary)">Consulte e mantenha o histórico de cada item.</p></div>
      <button onClick={()=>void load()} className="workspace-button-secondary px-3 py-2 text-xs" disabled={loading}>{loading?"Carregando...":"Atualizar"}</button></div>
-    <p className="mb-3 text-xs text-(--text-secondary)">{total} registro(s), página {page}. A consulta é sob demanda e limitada a 25 itens.</p>
+    <p className="mb-3 text-xs text-(--text-secondary)">{loadError?"Consulta indisponível":`${total} registro(s), página ${page} · 25 itens por página`}</p>
     <div className="space-y-2">{items.map(item=><div key={item.id} className="flex items-center justify-between gap-3 rounded-lg border border-(--border) p-3"><div className="min-w-0 flex-1">
       <span className="flex flex-wrap items-center justify-between gap-2">
         <span className="font-medium">{item.title}</span>
@@ -229,7 +259,7 @@ export default function PlanningPage(){
       <p className="mt-2 line-clamp-2 text-sm text-(--text-secondary)">{item.description||"Sem descrição"}</p>
       {item.payload.nextAction?<p className="mt-2 text-xs text-(--text-secondary)">Próxima ação: {String(item.payload.nextAction)}</p>:null}
       {item.payload.owner?<p className="mt-1 text-xs text-(--text-secondary)">Responsável: {String(item.payload.owner)}</p>:null}
-     </div><IconActionButton icon="pencil" tone="edit" label={"Editar "+item.title} onClick={()=>edit(item)}/></div>)}{!loading&&!items.length?<p className="text-sm text-(--text-secondary)">Nenhum registro encontrado nesta categoria.</p>:null}</div>
+     </div><IconActionButton icon="pencil" tone="edit" label={"Editar "+item.title} onClick={()=>edit(item)}/></div>)}{!loading&&!loadError&&!items.length?<p className="rounded-lg border border-dashed border-(--border) bg-(--bg-muted) px-4 py-5 text-sm text-(--text-secondary)">Nenhum registro encontrado nesta categoria. Utilize Adicionar para começar.</p>:null}</div>
     <div className="mt-4 flex gap-2">
      <button type="button" disabled={page===1} onClick={()=>setPage(p=>p-1)} className="workspace-button-secondary px-3 py-2 text-xs disabled:opacity-40">Anterior</button>
      <button type="button" disabled={page*25>=total} onClick={()=>setPage(p=>p+1)} className="workspace-button-secondary px-3 py-2 text-xs disabled:opacity-40">Próxima</button>
