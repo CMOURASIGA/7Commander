@@ -3,6 +3,7 @@ import { localWriteGuardEnabled } from "@/lib/local-write-guard";
 import { getEffectiveTenantForUser } from "@/lib/tenant-runtime";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
 import { KAIROS_PM_REPORT_POLICY } from "@/lib/kairos-pm-report-policy";
+import { validateOfficialRiskReferences } from "@/lib/kairos-evidence-validation";
 import { listMessages } from "@/services/chat-store";
 import { searchRelevantMemories, saveMemory } from "@/services/memory-service";
 import { loadCapabilityModulesForMessage, loadCorePrompt } from "@/services/capability-modules";
@@ -536,7 +537,16 @@ export async function generateKairosResponse(params: GenerateParams): Promise<{
       ],
     });
 
-    const answer = response.output_text?.trim() || "Nao foi possivel gerar resposta.";
+    const generatedAnswer = response.output_text?.trim() || "Nao foi possivel gerar resposta.";
+    const officialReferences=risksContext.flatMap(risk=>{
+      const code=officialRiskCodes?.get(risk.id);
+      return code?[{id:risk.id,code,title:risk.title}]:[];
+    });
+    const evidenceCheck=validateOfficialRiskReferences(generatedAnswer,officialReferences,officialRiskCodes!==null);
+    const answer=evidenceCheck.valid ? generatedAnswer
+      : "A análise foi interrompida porque foram detectadas referências de risco sem correspondência verificável no cadastro oficial. Consulte o quadro Riscos e tente novamente. Nenhum código de risco não validado será apresentado como oficial.";
+    if(!evidenceCheck.valid)console.error("[kairos/evidence] Risk reference validation blocked output",evidenceCheck.errors);
+
 
     if (!localWriteGuardEnabled()) await saveMemory({
       userId: params.userId,
