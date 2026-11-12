@@ -403,7 +403,7 @@ export async function generateKairosResponse(params: GenerateParams): Promise<{
       answer:renderOfficialProjectInventory({
         risks:risksContext.map(risk=>({
           id:risk.id,title:risk.title,status:risk.status,
-          probability:risk.probability,impact:risk.impact,
+          probability:risk.probability,impact:risk.impact,owner:risk.owner,
         })),
         riskCodes:officialRiskCodes,
         tasks:taskBoardContext,
