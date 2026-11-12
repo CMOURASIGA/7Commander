@@ -122,6 +122,7 @@ export type ProjectTaskOperationalSnapshot = {
   doing: number;
   done: number;
   openCards: Array<{
+    id: string;
     title: string;
     priority: TaskPriority;
     status: TaskStatus;
@@ -876,7 +877,7 @@ export async function getProjectTaskOperationalSnapshot(params: {
 
   let query = supabase
     .from("tasks")
-    .select("titulo, prioridade, status")
+    .select("id, titulo, prioridade, status")
     .eq("project_id", params.projectId);
   if (TENANT_SCHEMA_READY) query = query.eq("organization_id", await requireEffectiveTenant(params.userId));
   const result = await query.order("updated_at", { ascending: false })
@@ -889,7 +890,7 @@ export async function getProjectTaskOperationalSnapshot(params: {
   let done = 0;
   const openCards: ProjectTaskOperationalSnapshot["openCards"] = [];
 
-  for (const row of result.data as Array<{ titulo: string; prioridade: string; status: string }>) {
+  for (const row of result.data as Array<{ id: string; titulo: string; prioridade: string; status: string }>) {
     const status = row.status === "concluida" ? "concluida" : row.status === "em_andamento" ? "em_andamento" : "aberta";
     const priority = normalizePriority(row.prioridade);
     if (status === "concluida") {
@@ -902,6 +903,7 @@ export async function getProjectTaskOperationalSnapshot(params: {
 
     if (status !== "concluida" && openCards.length < 5) {
       openCards.push({
+        id: row.id,
         title: row.titulo,
         priority,
         status,
