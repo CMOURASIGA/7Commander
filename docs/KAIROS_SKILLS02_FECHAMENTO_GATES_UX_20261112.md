@@ -50,3 +50,12 @@ A. Corrigir/validar em branch de trabalho; não acessar base PROD para mutaçõe
 B. Criar revisão técnica e evidências dos gates, executar novamente KAI-01 a KAI-13, KAI-04B em Sprint real.
 C. Promover para `develop` apenas após PASS documentado e autorização conforme governança do projeto; `main` exige autorização explícita.
 D. As novas UX do Commander (navegação contextual, sidebar adaptativa, guias e ações padronizadas) podem continuar **em branch independente de interface** se não alterarem dados/autorizações. Integração no develop e publicação devem respeitar os gates do Commander.
+
+## KAI-REG-01 | Correção de fidelidade e renderização (12/11/2026)
+- Homologação observada: 6 riscos oficiais com códigos corretos e 2 cards com IDs corretos. Identificados título truncado pelo LLM e tabelas Markdown apresentadas como texto bruto.
+- `components/ui/markdown-content.tsx` passou a renderizar tabelas Markdown com `thead`, `tbody`, rolagem horizontal localizada e marcação de cabeçalho.
+- `lib/kairos-official-inventory.ts` define saída **determinística** para solicitações explícitas de inventário de riscos + atividades, sem reescrita generativa de títulos. A mesma rota apresenta códigos oficiais e informa limites de cobertura.
+- `services/task-board-service.ts` passou a disponibilizar todas as atividades retornadas na consulta, inclusive concluídas, distinguindo inventário completo de subconjunto de abertas.
+- `tests/unit/kairos-official-inventory.spec.tsx` adiciona regressões de fidelidade de título, renderização de tabela e truncamento.
+- **Pendente**: executar testes e build na máquina local no novo SHA; Vercel reportou limite de builds do plano, não um gate de compilação verificável. Validar visualmente em `localhost:3100/chat`.
+- Esta correção não substitui os gates P0 de ambiente QA isolado, confidencialidade Cliente/Equipe, autorização e investigação do título malformado já persistido.
