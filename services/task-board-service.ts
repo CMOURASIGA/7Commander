@@ -998,10 +998,14 @@ export async function deleteTaskCard(params:{userId:string;userEmail?:string|nul
  if(access!=="owner"&&access!=="editor")return {deleted:false,reason:"Sem permissão para excluir esta atividade."};
  const [riskLink,sprintLink]=await Promise.all([
   supabase.from("risks").select("id").eq("task_id",params.taskId).eq("project_id",row.project_id).eq("organization_id",organizationId).limit(1),
-  // scrum_sprint_tasks uses (sprint_id, task_id), not a standalone id column.
-  supabase.from("scrum_sprint_tasks").select("task_id").eq("task_id",params.taskId).eq("project_id",row.project_id).eq("organization_id",organizationId).limit(1)
+  // The association is identified by task_id; this join table may not expose project_id.
+  // The task is already scoped and authorized by its UUID and organization.
+  supabase.from("scrum_sprint_tasks").select("task_id").eq("task_id",params.taskId).limit(1)
  ]);
- if(riskLink.error||sprintLink.error)return {deleted:false,reason:"Não foi possível verificar os vínculos. Exclusão bloqueada."};
+ if(riskLink.error||sprintLink.error){
+  console.error("[deleteTaskCard] dependency check unavailable",{riskCode:riskLink.error?.code,sprintCode:sprintLink.error?.code});
+  return {deleted:false,reason:riskLink.error?"Consulta de vínculos com riscos indisponível. Exclusão bloqueada.":"Consulta de vínculos com Sprints indisponível. Exclusão bloqueada."};
+ }
  if(riskLink.data?.length||sprintLink.data?.length)
   return {deleted:false,reason:"Atividade vinculada a risco oficial ou Sprint. Desvincule-a antes de excluir para preservar a rastreabilidade."};
  const audit=await supabase.from("project_task_deletion_audit").insert({
