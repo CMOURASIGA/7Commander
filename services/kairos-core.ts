@@ -432,7 +432,6 @@ export async function generateKairosResponse(params: GenerateParams): Promise<{
           })),
           riskCodes:officialRiskCodes,
           tasks:taskBoardContext,
-          decisions:decisionContext.map(decision=>({id:decision.id,title:decision.title,status:decision.status})),
         }) + "\n\n" + await auditAdditionalProjectSources(projectId,initialTenant,"summary")
       : "Não consegui identificar um projeto autorizado. Selecione o projeto antes da análise.";
     return {
