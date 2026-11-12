@@ -71,3 +71,24 @@ test("UX-NAV-01 project tabs support deep links, browser history and narrow scre
   expect(page).toContain('overflow-x-auto p-3');
   expect(page).toContain('shrink-0 whitespace-nowrap');
 });
+
+test("UX-PROSPECT-01 uses full-width shell and same URL-backed horizontal tabs as Projects",()=>{
+ const page=source("app/planning/page.tsx");
+ expect(page).toContain('max-w-[1600px]');
+ expect(page).toContain('role="tablist"');
+ expect(page).toContain('role="tabpanel"');
+ expect(page).toContain('overflow-x-auto p-3');
+ expect(page).toContain('searchParams.set("tab",next)');
+ expect(page).toContain('window.addEventListener("popstate",syncTab)');
+ expect(page).toContain("<PageIntro");
+});
+
+test("planning distinguishes database failure from empty results and uses red danger action",()=>{
+ const page=source("app/planning/page.tsx");
+ expect(page).toContain("setLoadError(e instanceof Error");
+ expect(page).toContain("Atenção: consulta indisponível");
+ expect(page).toContain("Isso não significa que a base esteja vazia");
+ expect(page).toContain('!loading&&!loadError&&!items.length');
+ expect(page).toContain('className="workspace-button-danger px-3 py-2"');
+ expect(page).toContain("text-(--danger)");
+});
