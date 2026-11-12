@@ -1,20 +1,20 @@
 import {test,expect} from "@playwright/test";
-import {renderToStaticMarkup} from "react-dom/server";
-import {MarkdownContent} from "../../components/ui/markdown-content";
+import {parseMarkdown} from "../../components/ui/markdown-content";
 import {requestsOfficialProjectInventory,renderOfficialProjectInventory} from "../../lib/kairos-official-inventory";
 
-test("Kairos renders multiline Markdown tables as accessible HTML tables",()=>{
+test("Kairos parses multiline Markdown tables into structured headers and rows",()=>{
   const content=[
     "## Atividades do Kanban",
     "| Identificador | Título literal | Estado |",
     "| --- | --- | --- |",
     "| abc-123 | Definir matriz GET/POST | aberta |",
   ].join("\n");
-  const output=renderToStaticMarkup(<MarkdownContent content={content}/>);
-  expect(output).toContain("<table");
-  expect(output).toContain("<thead>");
-  expect(output).toContain("<tbody>");
-  expect(output).toContain("Definir matriz GET/POST");
+  const blocks=parseMarkdown(content);
+  const table=blocks.find(block=>block.type==="table");
+  expect(table?.type).toBe("table");
+  if(table?.type!=="table")throw new Error("Expected parsed Markdown table");
+  expect(table.headers).toEqual(["Identificador","Título literal","Estado"]);
+  expect(table.rows).toEqual([["abc-123","Definir matriz GET/POST","aberta"]]);
 });
 
 test("official inventory preserves the complete malformed title without LLM paraphrase",()=>{
