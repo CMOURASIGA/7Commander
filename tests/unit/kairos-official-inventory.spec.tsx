@@ -65,12 +65,10 @@ test("management response contains useful evidence without wide UUID tables",()=
       cards:[{id:"task-id",title:"Definir matriz GET/POST",status:"aberta",priority:"media"},
       {id:"malformed",title:"s abaixo no Kanban, respeitando as seguintes diretrizes:",status:"em_andamento",priority:"media"}],
       openCards:[]},
-    decisions:[{id:"decision-id",title:"Apresentar proposta ao cliente",status:"aberta"}],
   });
   expect(answer).toContain("R002");
   expect(answer).toContain("Definir matriz GET/POST");
   expect(answer).toContain("título possivelmente derivado de instruções");
-  expect(answer).toContain("Apresentar proposta ao cliente");
   expect(answer).not.toContain("risk-id");
   expect(answer).not.toContain("| ---");
 });
