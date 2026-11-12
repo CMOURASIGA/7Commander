@@ -4,6 +4,7 @@ import { getEffectiveTenantForUser } from "@/lib/tenant-runtime";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
 import { KAIROS_PM_REPORT_POLICY } from "@/lib/kairos-pm-report-policy";
 import { validateOfficialRiskReferences } from "@/lib/kairos-evidence-validation";
+import { requestsOfficialProjectInventory, renderOfficialProjectInventory } from "@/lib/kairos-official-inventory";
 import { listMessages } from "@/services/chat-store";
 import { searchRelevantMemories, saveMemory } from "@/services/memory-service";
 import { loadCapabilityModulesForMessage, loadCorePrompt } from "@/services/capability-modules";
@@ -392,6 +393,29 @@ export async function generateKairosResponse(params: GenerateParams): Promise<{
   const officialRiskCodes=projectResolution.project?.id
     ? await loadOfficialRiskCodes(projectResolution.project.id,initialTenant)
     : null;
+
+  // Exact official inventories must not depend on the model's ability to copy
+  // opaque identifiers or long, possibly malformed task titles.
+  if(requestsOfficialProjectInventory(params.message)){
+    return {
+      specialist,
+      answer:renderOfficialProjectInventory({
+        risks:risksContext.map(risk=>({
+          id:risk.id,title:risk.title,status:risk.status,
+          probability:risk.probability,impact:risk.impact,
+        })),
+        riskCodes:officialRiskCodes,
+        tasks:taskBoardContext,
+      }),
+      project:{
+        id:projectResolution.project?.id??null,
+        name:projectResolution.project?.name??null,
+        confidence:projectResolution.confidence,
+        action:projectResolution.action,
+        suggestedName:projectResolution.suggestedName,
+      },
+    };
+  }
 
   const taskCommand = localWriteGuardEnabled() ? {handled:false,answer:""} : await maybeHandleTaskCommand({
     userId: params.userId,
