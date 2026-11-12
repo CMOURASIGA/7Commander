@@ -998,9 +998,8 @@ export async function deleteTaskCard(params:{userId:string;userEmail?:string|nul
  if(access!=="owner"&&access!=="editor")return {deleted:false,reason:"Sem permissão para excluir esta atividade."};
  const [riskLink,sprintLink]=await Promise.all([
   supabase.from("risks").select("id").eq("task_id",params.taskId).eq("project_id",row.project_id).eq("organization_id",organizationId).limit(1),
-  // The association is identified by task_id; this join table may not expose project_id.
-  // The task is already scoped and authorized by its UUID and organization.
-  supabase.from("scrum_sprint_tasks").select("task_id").eq("task_id",params.taskId).limit(1)
+  // Verified schema: sprint association has tenant and project fields.
+  supabase.from("scrum_sprint_tasks").select("task_id").eq("task_id",params.taskId).eq("project_id",row.project_id).eq("organization_id",organizationId).limit(1)
  ]);
  if(riskLink.error||sprintLink.error){
   console.error("[deleteTaskCard] dependency check unavailable",{riskCode:riskLink.error?.code,sprintCode:sprintLink.error?.code});
