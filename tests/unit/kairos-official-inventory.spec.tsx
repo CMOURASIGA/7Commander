@@ -1,6 +1,6 @@
 import {test,expect} from "@playwright/test";
 import {parseMarkdown} from "../../components/ui/markdown-content";
-import {requestsOfficialProjectInventory,renderOfficialProjectInventory} from "../../lib/kairos-official-inventory";
+import {requestsOfficialProjectInventory,requestsProjectManagementSummary,renderOfficialProjectInventory,renderProjectManagementSummary} from "../../lib/kairos-official-inventory";
 
 test("Kairos parses multiline Markdown tables into structured headers and rows",()=>{
   const content=[
@@ -33,7 +33,7 @@ test("official inventory preserves the complete malformed title without LLM para
   expect(result).toContain(malformed);
   expect(result).toContain("R006");
   expect(result).toContain("de 2.");
-  expect(requestsOfficialProjectInventory("Consulte os riscos e atividades do Kanban com códigos oficiais e títulos literais")).toBe(true);
+  expect(requestsOfficialProjectInventory("Consulte os riscos e atividades do Kanban com códigos oficiais e títulos literais")).toBe(false);
 });
 
 test("missing coverage is never described as complete",()=>{
@@ -49,6 +49,28 @@ test("explicit creation request does not enter inventory route",()=>{
   expect(requestsOfficialProjectInventory("Crie riscos e atividades e mostre seus códigos")).toBe(false);
 });
 
-test("consistency audit request resolves to deterministic read-only inventory",()=>{
-  expect(requestsOfficialProjectInventory("Kairos, execute auditoria de consistência dos dados oficiais do projeto: riscos e atividades Kanban")).toBe(true);
+test("ordinary management audit stays conversational, technical inventory remains opt-in",()=>{
+  const request="Kairos, execute auditoria de consistência dos dados oficiais do projeto: riscos e atividades Kanban";
+  expect(requestsOfficialProjectInventory(request)).toBe(false);
+  expect(requestsProjectManagementSummary(request)).toBe(true);
+  expect(requestsOfficialProjectInventory("Faça uma auditoria técnica completa dos riscos e Kanban")).toBe(true);
+  expect(requestsProjectManagementSummary("Crie atividades no Kanban após a auditoria do projeto")).toBe(false);
+});
+
+test("management response contains useful evidence without wide UUID tables",()=>{
+  const answer=renderProjectManagementSummary({
+    projectName:"Prosperitá",risks:[{id:"risk-id",title:"Limitação da API",status:"aberto",probability:"alto",impact:"alto"}],
+    riskCodes:new Map([["risk-id","R002"]]),
+    tasks:{totalAvailable:2,loadedCount:2,truncated:false,openCardsTotal:2,
+      cards:[{id:"task-id",title:"Definir matriz GET/POST",status:"aberta",priority:"media"},
+      {id:"malformed",title:"s abaixo no Kanban, respeitando as seguintes diretrizes:",status:"em_andamento",priority:"media"}],
+      openCards:[]},
+    decisions:[{id:"decision-id",title:"Apresentar proposta ao cliente",status:"aberta"}],
+  });
+  expect(answer).toContain("R002");
+  expect(answer).toContain("Definir matriz GET/POST");
+  expect(answer).toContain("título possivelmente derivado de instruções");
+  expect(answer).toContain("Apresentar proposta ao cliente");
+  expect(answer).not.toContain("risk-id");
+  expect(answer).not.toContain("| ---");
 });
