@@ -70,7 +70,7 @@ function tableRow(line:string,width:number):string[]|null{
   return cells.length===width&&line.includes("|")?cells:null;
 }
 
-function parseMarkdown(content: string): Block[] {
+export function parseMarkdown(content: string): Block[] {
   const normalized = content.replace(/\r\n/g, "\n").trim();
   if (!normalized) return [];
 
