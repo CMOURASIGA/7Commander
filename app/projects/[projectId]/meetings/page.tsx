@@ -5,6 +5,7 @@ import {useParams} from "next/navigation";
 import {getClientAuthHeaders} from "@/lib/client-auth";
 import {MarkdownContent} from "@/components/ui/markdown-content";
 import {useCentralPilotReadOnly} from "@/lib/use-central-pilot-read-only";
+import {MeetingTranscriptImport} from "@/components/projects/meeting-transcript-import";
 
 type LinkItem={record_type:string;record_id:string};
 type Meeting={
@@ -114,6 +115,7 @@ export default function ProjectMeetings(){
     <p className="mt-1 text-sm text-(--text-secondary)">Registros estruturados, compromissos e rastreabilidade com origem preservada. Não presume entregas concluídas.</p></div>
    {!readOnly&&!checking&&<button className="workspace-button-primary px-4 py-2 text-sm" onClick={()=>setShowForm(x=>!x)}>{showForm?"Fechar formulário":"+ Registrar reunião"}</button>}
   </header>
+  {projectId && <MeetingTranscriptImport projectId={projectId} onSaved={()=>void fetchMeetings()} />}
   {error&&<p role="alert" className="rounded-lg border p-3 text-sm text-red-700">{error}</p>}
   {message&&<p role="status" className="text-sm text-(--text-secondary)">{message}</p>}
   {showForm&&<section className="workspace-card space-y-3 p-5">
