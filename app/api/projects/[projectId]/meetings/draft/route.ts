@@ -29,7 +29,15 @@ export async function POST(request:NextRequest,context:{params:Promise<{projectI
   if(file instanceof File&&(!allowedMeetingFile(file.name)||file.size>8*1024*1024))return fail("Formato ou tamanho não suportado (máximo 8 MB).",400);
   if(!file&&text.length<80)return fail("Informe uma transcrição de ao menos 80 caracteres.",400);
   if(text.length>100000)return fail("Texto maior que 100 mil caracteres.",400);
-  const draft=await prepareMeetingDraft({file:file instanceof File?file:undefined,content:text,projectName:project.name});
+  const [riskRows,decisionRows]=await Promise.all([
+   db.from("risks").select("titulo").eq("project_id",projectId).eq("organization_id",tenant).limit(80),
+   db.from("decisions").select("titulo").eq("project_id",projectId).eq("organization_id",tenant).limit(80)
+  ]);
+  const existingRecords=[
+   ...(!riskRows.error?(riskRows.data??[]).map(row=>"Risco: "+row.titulo):[]),
+   ...(!decisionRows.error?(decisionRows.data??[]).map(row=>"Decisão: "+row.titulo):[])
+  ].slice(0,120);
+  const draft=await prepareMeetingDraft({file:file instanceof File?file:undefined,content:text,projectName:project.name,existingRecords});
   // Read-only preview. No meeting, risk, task or decision is created here.
   return NextResponse.json({data:draft,source:{filename:file instanceof File?file.name:null,kind:"unverified"},status:"review_required"},
    {headers:{"Cache-Control":"private,no-store"}});
