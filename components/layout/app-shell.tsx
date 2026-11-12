@@ -58,6 +58,8 @@ export function AppShell({ children }: AppShellProps) {
   // Fecha a gaveta mobile automaticamente ao trocar de rota.
   useEffect(() => {
     setMobileNavOpen(false);
+    // Reading and editing content take priority; re-open navigation explicitly.
+    setSidebarExpanded(false);
   }, [pathname]);
 
   if (canBypassAuth) {
