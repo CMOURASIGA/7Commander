@@ -64,7 +64,7 @@ function buildTaskBoardContext(snapshot: Awaited<ReturnType<typeof getProjectTas
     : "Sem cards abertos.";
 
   return [
-    `Kanban: TO DO=${snapshot.todo}, DOING=${snapshot.doing}, DONE=${snapshot.done}`,
+    `Kanban: TO DO=${snapshot.todo}, DOING=${snapshot.doing}, DONE=${snapshot.done} | registros recebidos=${snapshot.loadedCount} | total disponível=${snapshot.totalAvailable??"indisponível"} | títulos abertos entregues=${snapshot.openCards.length}/${snapshot.openCardsTotal} | consulta possivelmente truncada=${snapshot.truncated?"sim":"não"}`,
     `Cards abertos:\n${openItems}`,
   ].join("\n");
 }
