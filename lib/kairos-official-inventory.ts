@@ -36,7 +36,9 @@ export function renderProjectManagementSummary(params:{
   const lines=[
     "## Análise do projeto "+projectName,
     "",
-    "Consultei "+risks.length+" risco(s) cadastrado(s), dos quais "+openRisks.length+" ainda não estão encerrados ou mitigados.",
+    risks.length
+      ? "Recuperei "+risks.length+" risco(s) da consulta de contexto, dos quais "+openRisks.length+" ainda não estão encerrados ou mitigados. A completude dessa fonte não foi verificada nesta síntese."
+      : "Nenhum risco retornado pela consulta de contexto. Isso não comprova que o cadastro esteja vazio.",
   ];
   for(const risk of openRisks.slice(0,6)){
     const code=riskCodes?.get(risk.id);
@@ -58,7 +60,9 @@ export function renderProjectManagementSummary(params:{
   }
   lines.push("","### Avaliação gerencial",
     "Os riscos merecem acompanhamento, mas os registros, por si só, não comprovam execução, atraso ou conclusão de entregas.",
-    "Sugiro revisar a atividade com título incorreto e confirmar as responsabilidades e próximos passos dos riscos abertos.",
+    ...(tasks?.cards.some(card=>/respeitando as seguintes diretrizes|regras de cria[cç][aã]o|s abaixo no kanban/i.test(card.title))
+      ? ["Sugiro revisar a atividade com título incorreto e confirmar as responsabilidades e próximos passos dos riscos abertos."]
+      : ["Sugiro confirmar as responsabilidades e próximos passos dos riscos abertos."]),
     "",
     "Posso detalhar os riscos prioritários ou abrir um inventário técnico com IDs completos. Nenhum registro foi alterado.");
   return lines.join("\n");
