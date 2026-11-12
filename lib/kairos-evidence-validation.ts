@@ -45,3 +45,28 @@ export function validateOfficialRiskReferences(
   }
   return {valid:errors.length===0,errors:Array.from(new Set(errors))};
 }
+
+/**
+ * Output guard for unsupported aggregate severity assertions.
+ * The risk registry exposes probability and impact but does not carry a verified
+ * per-risk "critical" severity. Preserve facts and avoid inventing a rating.
+ */
+export function correctUnsupportedAggregateRiskSeverity(
+  answer:string,
+  risks:Array<{status:string}>,
+):string{
+  if(!risks.length)return answer;
+  const active=risks.filter(risk=>!["mitigado","encerrado"].includes(normalize(risk.status)));
+  const total=risks.length;
+  const words:Record<number,string>={1:"um",2:"dois",3:"três",4:"quatro",5:"cinco",6:"seis",7:"sete",8:"oito",9:"nove",10:"dez"};
+  const countPattern=[String(total),words[total]].filter(Boolean).join("|");
+  if(!countPattern)return answer;
+  // Only correct blanket claims covering *all* fetched risks; individual
+  // evidence-backed ratings should be evaluated by the risk matrix.
+  const quantity=new RegExp("(\\b(?:"+countPattern+")\\s+riscos)\\s+cr[ií]ticos\\b","gi");
+  const all=/\b(todos\s+os\s+riscos)\s+(?:s[aã]o|est[aã]o|foram\s+classificados\s+como)\s+cr[ií]ticos\b/gi;
+  const label=active.length===total?"abertos":"cadastrados";
+  return answer
+    .replace(quantity,(_match,phrase:string)=>phrase+" "+label)
+    .replace(all,"todos os riscos estão cadastrados, mas a criticidade individual não foi comprovada");
+}
