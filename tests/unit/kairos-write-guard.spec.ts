@@ -1,3 +1,5 @@
+import {readFileSync} from "node:fs";
+import {resolve} from "node:path";
 import {test,expect} from "@playwright/test";
 import {detectCreateTaskIntent,detectMoveTaskIntent,detectConfirmRiskIntent} from "../../services/kairos-core";
 
@@ -19,4 +21,35 @@ test("explicit quoted single task command remains supported",()=>{
 test("never turn a free-form pasted risk analysis into a title",()=>{
  expect(detectCreateTaskIntent('Crie uma tarefa no futuro, mas primeiro analise o contexto: atividades, decisões, backlog e riscos.')).toBeNull();
  expect(detectCreateTaskIntent("Kairos, crie atividade: analise riscos, decisões e dependências")).toBeNull();
+});
+
+test("Kairos conversational path never performs direct project writes",()=>{
+ const core=readFileSync(resolve(process.cwd(),"services/kairos-core.ts"),"utf8");
+ expect(core).toContain("autoCreateOnExplicitRequest: false");
+ expect(core).toContain("Nenhuma atividade foi criada.");
+ expect(core).toContain("Nenhum risco foi criado.");
+ expect(core).toContain("Nenhuma alteração foi realizada.");
+ expect(core).not.toContain("createTaskFromKairosCommand({");
+ expect(core).not.toContain("createKanbanActivityBatch({");
+ expect(core).not.toContain("moveTaskFromKairosCommand({");
+ expect(core).not.toContain("createRisk({");
+});
+
+test("Kairos clean chat and manual selection preserve past conversation accessibility",()=>{
+ const ui=readFileSync(resolve(process.cwd(),"components/kairos/use-kairos-core.ts"),"utf8");
+ const chat=readFileSync(resolve(process.cwd(),"app/chat/page.tsx"),"utf8");
+ expect(ui).not.toContain("readLastConversationId(");
+ expect(ui).toContain("setMessages([])");
+ expect(ui).toContain("const selectConversation =");
+ expect(chat).toContain("core.startNewConversation");
+ expect(chat).toContain("core.selectConversation(item)");
+});
+
+test("Kairos reviewed destination forms remain the only UI path for official records",()=>{
+ const ui=readFileSync(resolve(process.cwd(),"components/kairos/use-kairos-core.ts"),"utf8");
+ expect(ui).toContain("function openDirectionPicker(message: KairosMessage)");
+ expect(ui).toContain("async function handleSaveRisk()");
+ expect(ui).toContain("async function handleSaveDecision()");
+ expect(ui).toContain("async function handleSaveTask()");
+ expect(ui).toContain("if (!saveDialog || saveDialog.kind !==");
 });
