@@ -28,6 +28,7 @@ type TaskCard = {
   columnId: string;
   columnKey: "todo" | "doing" | "done";
   createdSource?: "user"|"kairos"|"unknown";
+  creatorName?: string | null;
   labels: Array<{
     id: string;
     name: string;
@@ -558,7 +559,7 @@ export default function ActivitiesPage() {
                         <p className="mt-2 text-[13px] uppercase tracking-wide text-(--text-secondary)">
                           {card.priority} | {card.status}
                         </p>
-                        <p className="mt-1 text-[11px] text-(--text-secondary)" title="Origem verificada no histórico de criação">Criado por: {card.createdSource==="kairos"?"Kairos":card.createdSource==="user"?"usuário":"origem anterior não informada"}</p>
+                        <p className="mt-1 text-[11px] text-(--text-secondary)" title="Origem verificada no histórico de criação">Criado por: {card.createdSource==="kairos"?"Kairos":card.createdSource==="user"?(card.creatorName||"Usuário não identificado"):card.creatorName||"Origem anterior não informada"}</p>
                       </button>
                       <div className="flex flex-wrap items-center justify-end gap-2 px-3 pb-3">
                         <div className="cs-record-actions" role="group" aria-label={"Ações da atividade "+card.title}>
