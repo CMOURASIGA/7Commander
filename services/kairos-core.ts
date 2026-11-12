@@ -5,6 +5,7 @@ import { getSupabaseServerClient } from "@/lib/supabase/server";
 import { KAIROS_PM_REPORT_POLICY } from "@/lib/kairos-pm-report-policy";
 import { validateOfficialRiskReferences } from "@/lib/kairos-evidence-validation";
 import { requestsOfficialProjectInventory, renderOfficialProjectInventory } from "@/lib/kairos-official-inventory";
+import { auditAdditionalProjectSources } from "@/services/kairos-consistency-sources";
 import { listMessages } from "@/services/chat-store";
 import { searchRelevantMemories, saveMemory } from "@/services/memory-service";
 import { loadCapabilityModulesForMessage, loadCorePrompt } from "@/services/capability-modules";
@@ -406,7 +407,9 @@ export async function generateKairosResponse(params: GenerateParams): Promise<{
         })),
         riskCodes:officialRiskCodes,
         tasks:taskBoardContext,
-      }),
+      }) + (projectResolution.project?.id
+        ? "\n\n" + await auditAdditionalProjectSources(projectResolution.project.id, initialTenant)
+        : "\n\nProjeto não resolvido: consultas adicionais indisponíveis."),
       project:{
         id:projectResolution.project?.id??null,
         name:projectResolution.project?.name??null,
