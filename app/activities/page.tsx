@@ -7,6 +7,7 @@ import Link from "next/link";
 import { getClientAuthEmail, getClientAuthHeaders } from "@/lib/client-auth";
 import { PageIntro, SectionLabel, StatusPill, SurfaceCard } from "@/components/ui/workspace-primitives";
 import { useConfirm } from "@/components/ui/confirm-dialog";
+import { useCentralPilotReadOnly } from "@/lib/use-central-pilot-read-only";
 import { useKairosPanel } from "@/components/kairos/kairos-context";
 import {ActionIcon} from "@/components/ui/action-icon";
 
@@ -86,6 +87,7 @@ function daysToDelivery(value: string): number | null {
 
 export default function ActivitiesPage() {
   const confirm = useConfirm();
+  const {readOnly:environmentReadOnly,checking:capabilitiesChecking}=useCentralPilotReadOnly();
   const { openPanel: openKairosPanel } = useKairosPanel();
   const [projects, setProjects] = useState<ProjectSummary[]>([]);
   const [activeProjectId, setActiveProjectId] = useState<string | null>(null);
@@ -126,8 +128,8 @@ export default function ActivitiesPage() {
   const [attachmentUrl, setAttachmentUrl] = useState("");
   const [checklistItemInput, setChecklistItemInput] = useState<Record<string, string>>({});
 
-  const canEdit = accessRole === "owner" || accessRole === "editor";
-  const canEditDetail = taskDetail?.accessRole === "owner" || taskDetail?.accessRole === "editor";
+  const canEdit = !environmentReadOnly&&!capabilitiesChecking&&(accessRole === "owner" || accessRole === "editor");
+  const canEditDetail = !environmentReadOnly&&!capabilitiesChecking&&(taskDetail?.accessRole === "owner" || taskDetail?.accessRole === "editor");
   const currentUserEmail = getClientAuthEmail()?.toLowerCase() ?? "";
   const reusableLabels = useMemo(() => {
     const catalog = new Map<string, TaskLabel>();
