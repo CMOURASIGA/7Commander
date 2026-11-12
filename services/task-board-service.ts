@@ -125,6 +125,7 @@ export type ProjectTaskOperationalSnapshot = {
   todo: number;
   doing: number;
   done: number;
+  cards: Array<{ id: string; title: string; priority: TaskPriority; status: TaskStatus }>;
   openCards: Array<{
     id: string;
     title: string;
@@ -893,6 +894,7 @@ export async function getProjectTaskOperationalSnapshot(params: {
   let doing = 0;
   let done = 0;
   const openCards: ProjectTaskOperationalSnapshot["openCards"] = [];
+  const cards: ProjectTaskOperationalSnapshot["cards"] = [];
 
   for (const row of result.data as Array<{ id: string; titulo: string; prioridade: string; status: string }>) {
     const status = row.status === "concluida" ? "concluida" : row.status === "em_andamento" ? "em_andamento" : "aberta";
@@ -905,6 +907,7 @@ export async function getProjectTaskOperationalSnapshot(params: {
       todo += 1;
     }
 
+    cards.push({id:row.id,title:row.titulo,priority,status});
     if (status !== "concluida" && openCards.length < 25) {
       openCards.push({
         id: row.id,
@@ -917,7 +920,7 @@ export async function getProjectTaskOperationalSnapshot(params: {
 
   const loadedCount=result.data.length;
   const totalAvailable=result.count ?? null;
-  return { totalAvailable, loadedCount, truncated: totalAvailable === null || totalAvailable > loadedCount, openCardsTotal:todo+doing, todo, doing, done, openCards };
+  return { totalAvailable, loadedCount, truncated: totalAvailable === null || totalAvailable > loadedCount, openCardsTotal:todo+doing, todo, doing, done, cards, openCards };
 }
 
 export async function getUserTaskOperationalSnapshot(userId: string): Promise<{
