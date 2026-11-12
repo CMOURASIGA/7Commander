@@ -100,6 +100,7 @@ export type TaskCard = {
   createdAt: string;
   updatedAt: string;
   createdSource?: "user"|"kairos"|"unknown";
+  creatorName?: string | null;
 };
 
 export type TaskBoardColumn = {
@@ -374,11 +375,30 @@ export async function listTaskBoard(params: {
     }
   }
 
+  // Resolve author names only for members of the currently authorized company.
+  const creatorIds=Array.from(new Set((tasksResult.data as TaskRow[]).map(row=>row.user_id).filter(Boolean)));
+  if(creatorIds.length&&tenantId){
+    const orgMembers=await supabase.from("organization_members").select("user_id")
+      .eq("organization_id",tenantId).eq("status","active").in("user_id",creatorIds);
+    if(!orgMembers.error&&orgMembers.data?.length){
+      const memberIds=orgMembers.data.map(row=>row.user_id);
+      const people=await supabase.from("internal_user_access").select("user_id,nome")
+        .in("user_id",memberIds).eq("active",true);
+      if(!people.error&&people.data){
+        const names=new Map(people.data.map(person=>[person.user_id,person.nome?.trim()]));
+        for(const row of tasksResult.data as TaskRow[]){
+          const name=names.get(row.user_id);
+          if(name&&cardByTaskId.has(row.id))cardByTaskId.get(row.id)!.creatorName=name;
+        }
+      }
+    }
+  }
+
   // The creator is the real audit metadata, never inferred from current user.
   // Missing or legacy rows remain "unknown" rather than falsely claiming Kairos.
   if(taskIds.length){
     let auditQuery=supabase.from("task_activity_log")
-      .select("task_id,metadata,created_at")
+      .select("task_id,metadata,actor_email,created_at")
       .in("task_id",taskIds).eq("action_type","task_created")
       .order("created_at",{ascending:true}).limit(Math.max(taskIds.length*3,100));
     if(tenantId)auditQuery=auditQuery.eq("organization_id",tenantId);
@@ -389,6 +409,7 @@ export async function listTaskBoard(params: {
         if(!card||card.createdSource!=="unknown")continue;
         const source=(event.metadata as {source?:string}|null)?.source;
         if(source==="kairos"||source==="user")card.createdSource=source;
+        if(source==="user"&&!card.creatorName&&event.actor_email)card.creatorName=event.actor_email;
       }
     }
   }
