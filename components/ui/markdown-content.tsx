@@ -10,7 +10,8 @@ type Block =
   | { type: "paragraph"; text: string }
   | { type: "unordered-list"; items: string[] }
   | { type: "ordered-list"; items: string[] }
-  | { type: "blockquote"; text: string };
+  | { type: "blockquote"; text: string }
+  | { type: "table"; headers: string[]; rows: string[][] };
 
 function renderInline(text: string) {
   const tokens = text.split(/(\*\*[^*]+\*\*|\*[^*\n]+\*|`[^`]+`|\[[^\]]+\]\([^)]+\))/g);
@@ -56,6 +57,19 @@ function renderInline(text: string) {
   });
 }
 
+function tableCells(line:string):string[]{
+  return line.trim().replace(/^\\?\|/,"").replace(/\\?\|$/,"")
+    .split(/(?<!\\)\|/).map(cell=>cell.replace(/\\\|/g,"|").trim());
+}
+function tableDivider(line:string):boolean{
+  const cells=tableCells(line);
+  return cells.length>1&&cells.every(cell=>/^:?-{3,}:?$/.test(cell));
+}
+function tableRow(line:string,width:number):string[]|null{
+  const cells=tableCells(line);
+  return cells.length===width&&line.includes("|")?cells:null;
+}
+
 function parseMarkdown(content: string): Block[] {
   const normalized = content.replace(/\r\n/g, "\n").trim();
   if (!normalized) return [];
@@ -90,13 +104,31 @@ function parseMarkdown(content: string): Block[] {
     flushOrderedList();
   }
 
-  for (const rawLine of lines) {
+  for (let lineIndex=0;lineIndex<lines.length;lineIndex++) {
+    const rawLine=lines[lineIndex];
     const line = rawLine.trimEnd();
     const trimmed = line.trim();
 
     if (!trimmed) {
       flushAll();
       continue;
+    }
+
+    if(lineIndex+1<lines.length&&trimmed.includes("|")&&tableDivider(lines[lineIndex+1])){
+      const headers=tableCells(trimmed);
+      if(headers.length>1&&tableCells(lines[lineIndex+1]).length===headers.length){
+        flushAll();
+        const rows:string[][]=[];
+        lineIndex+=1;
+        while(lineIndex+1<lines.length){
+          const row=tableRow(lines[lineIndex+1],headers.length);
+          if(!row)break;
+          rows.push(row);
+          lineIndex+=1;
+        }
+        blocks.push({type:"table",headers,rows});
+        continue;
+      }
     }
 
     const headingMatch = trimmed.match(/^(#{1,6})\s+(.*)$/);
@@ -149,6 +181,15 @@ export function MarkdownContent({ content, className }: MarkdownContentProps) {
   return (
     <div className={["workspace-markdown", className].filter(Boolean).join(" ")}>
       {blocks.map((block, index) => {
+        if(block.type==="table"){
+          return <div key={index} className="workspace-markdown-table-wrap">
+            <table className="workspace-markdown-table">
+              <thead><tr>{block.headers.map((header,column)=><th key={column} scope="col">{renderInline(header)}</th>)}</tr></thead>
+              <tbody>{block.rows.map((row,rowIndex)=><tr key={rowIndex}>{row.map((cell,column)=><td key={column}>{renderInline(cell)}</td>)}</tr>)}</tbody>
+            </table>
+          </div>;
+        }
+
         if (block.type === "heading") {
           const headingLevel = Math.min(block.level + 2, 5);
           const HeadingTag = (
