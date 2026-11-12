@@ -19,7 +19,11 @@ export function parseKanbanActivityBatch(message:string):ParsedActivity[]{
   const priorityRaw=normalize(field(block,"Prioridade")),dueRaw=field(block,"Data-alvo");
   if(!description||!acceptance||(dueRaw&&!dateBR(dueRaw)))return [];
   const priority=priorityRaw==="critica"?"critica":priorityRaw==="alta"?"alta":priorityRaw==="baixa"?"baixa":"media";
-  result.push({reference:match[1].toUpperCase(),title:match[2].replace(/\*+$/,"").trim(),
+  const title=match[2].replace(/\*+$/,"").trim();
+  // Reject instructional fragments rather than persisting them as Kanban titles.
+  if(title.length<5||title.length>140||/[\n\r]/.test(title)
+    ||/\b(regras de cria[cç][aã]o|respeitando as seguintes diretrizes|salv[ae] todas?|copie o texto|solicita[cç][aã]o ao kairos)\b/i.test(title))return [];
+  result.push({reference:match[1].toUpperCase(),title,
    description:"Referência funcional: "+match[1].toUpperCase()+"\n\n"+description+"\n\nCritério de aceite: "+acceptance,
    priority,dueDate:dateBR(dueRaw)});
  }
