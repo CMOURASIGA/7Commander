@@ -47,3 +47,27 @@ test("Prospect e Memória oferecem navegação de consulta sem remover CRUD",()=
   expect(memory).toContain("filteredMemories.map");
   expect(memory).toContain('priorityFilter==="all"');
 });
+
+test("UX-NAV-01 keeps desktop sidebar reflow, compact icons, rounded logo and persisted preference",()=>{
+  const sidebar=source("components/layout/sidebar.tsx");
+  const shell=source("components/layout/app-shell.tsx");
+  const styles=source("app/globals.css");
+  expect(sidebar).toContain('commander-sidebar-compact');
+  expect(sidebar).toContain('commander-sidebar-expanded');
+  expect(sidebar).toContain('aria-label={item.label}');
+  expect(sidebar).toContain('commander-sidebar-logo-frame');
+  expect(sidebar).toContain('aria-expanded={expanded}');
+  expect(shell).toContain('7commander:sidebar-expanded');
+  expect(shell).toContain('expanded={sidebarExpanded}');
+  expect(styles).toContain('.commander-sidebar-expanded');
+  expect(styles).toContain('border-radius: 16px');
+  expect(styles).toContain('prefers-reduced-motion: reduce');
+});
+
+test("UX-NAV-01 project tabs support deep links, browser history and narrow screens",()=>{
+  const page=source("app/projects/page.tsx");
+  expect(page).toContain('searchParams.set("tab",tab)');
+  expect(page).toContain('window.addEventListener("popstate",sync)');
+  expect(page).toContain('overflow-x-auto p-3');
+  expect(page).toContain('shrink-0 whitespace-nowrap');
+});
