@@ -26,7 +26,10 @@ test("existing skills keep loading with new domains",async()=>{
 test("all new skills use distinct frontmatter names, references and LF",()=>{
  const names=["tailoring-methodology","product-vision-roadmap","flow-metrics-forecasting","team-health-retro","change-control","charter-business-case","scope-wbs","schedule-management"];
  for(const name of names){
-  const content=readFileSync(join(root,"prompts","skills",name,"SKILL.md"),"utf8");
+  // Git for Windows may materialize LF-tracked Markdown with CRLF via core.autocrlf.
+  // Validate semantic content independent of checkout newline style; Git blob still uses LF.
+  const raw=readFileSync(join(root,"prompts","skills",name,"SKILL.md"),"utf8");
+  const content=raw.replace(/\r\n/g,"\n");
   expect(content.startsWith("---\nname: "+name+"\ndescription:")).toBeTruthy();
   expect(content.includes("\r")).toBeFalsy();
   expect(content.length).toBeGreaterThan(300);
