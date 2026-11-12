@@ -30,9 +30,8 @@ export function renderProjectManagementSummary(params:{
   risks:InventoryRisk[];
   riskCodes:ReadonlyMap<string,string>|null;
   tasks:InventorySnapshot|null;
-  decisions:Array<{id:string;title:string;status:string}>;
 }):string{
-  const {projectName,risks,riskCodes,tasks,decisions}=params;
+  const {projectName,risks,riskCodes,tasks}=params;
   const openRisks=risks.filter(risk=>!["mitigado","encerrado"].includes(normalize(risk.status)));
   const lines=[
     "## Análise do projeto "+projectName,
@@ -57,8 +56,6 @@ export function renderProjectManagementSummary(params:{
     const meaningful=tasks.cards.filter(card=>!suspicious.includes(card)).slice(0,4);
     if(meaningful.length)lines.push("Atividades identificadas: "+meaningful.map(card=>card.title+" ("+card.status+")").join("; ")+".");
   }
-  lines.push("**Decisões:** "+decisions.length+" registro(s) recuperado(s) pela consulta de contexto.");
-  for(const decision of decisions.slice(0,3))lines.push("- "+decision.title+" ("+decision.status+").");
   lines.push("","### Avaliação gerencial",
     "Os riscos merecem acompanhamento, mas os registros, por si só, não comprovam execução, atraso ou conclusão de entregas.",
     "Sugiro revisar a atividade com título incorreto e confirmar as responsabilidades e próximos passos dos riscos abertos.",
