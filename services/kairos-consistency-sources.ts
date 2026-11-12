@@ -25,22 +25,28 @@ export async function auditAdditionalProjectSources(projectId: string, organizat
   const lines = ["## Backlog, Scrum e Decisões", "", "| Fonte | Recuperados | Total | Consulta |", "| --- | ---: | ---: | --- |"];
   const states = outputs.map((output, index) => classifyAuditSource(sources[index].label, output));
   if(mode==="summary"){
-    const summary=["### Evidências de planejamento e decisões"];
-    for(const state of states){
-      const status=state.state==="vazia"?"nenhum registro encontrado":
-        state.state==="erro"?"consulta indisponível":
-        state.state==="parcial"?"consulta parcial":state.count+" registro(s) encontrado(s)";
-      summary.push("- "+state.name+": "+status+".");
+    const summary=["### Planejamento e decisões"];
+    const planning=states.filter(state=>state.name!=="Decisões");
+    const empty=planning.filter(state=>state.state==="vazia").map(state=>state.name);
+    if(empty.length)summary.push("Não há registros cadastrados de "+empty.join(", ")+" nas consultas realizadas.");
+    for(const state of planning.filter(state=>state.state!=="vazia")){
+      summary.push(state.name+": "+(state.state==="erro"?"consulta indisponível":
+        state.state==="parcial"?"consulta parcial, "+state.count+" registro(s) recuperado(s)":
+        state.count+" registro(s) recuperado(s)")+".");
     }
     const decisionsIndex=sources.findIndex(source=>source.label==="Decisões");
-    const decisionRows=outputs[decisionsIndex]?.data;
-    if(decisionRows?.length){
-      summary.push("Decisões registradas:");
-      for(const item of decisionRows.slice(0,3) as unknown as Array<{titulo?:string;status?:string}>)
+    const decisionsState=states[decisionsIndex];
+    const decisions=outputs[decisionsIndex]?.data;
+    if(decisionsState.state==="erro")summary.push("Decisões: consulta indisponível, não é possível afirmar que não há registros.");
+    else if(decisionsState.state==="parcial")summary.push("Decisões: consulta parcial com "+decisionsState.count+" registro(s).");
+    else if(decisionsState.state==="vazia")summary.push("Nenhuma decisão cadastrada encontrada.");
+    else {
+      summary.push("Foi encontrada "+decisionsState.count+" decisão(ões) cadastrada(s):");
+      for(const item of (decisions??[]).slice(0,3) as unknown as Array<{titulo?:string;status?:string}>)
         summary.push("- "+cell(item.titulo)+" ("+cell(item.status)+").");
     }
     if(states.some(state=>state.state==="erro"||state.state==="parcial"))
-      summary.push("**Limitação:** não é possível concluir a completude das informações de planejamento e decisões.");
+      summary.push("Algumas fontes não puderam ser verificadas integralmente; os resultados acima são parciais.");
     return summary.join("\n");
   }
   for (const state of states) {
