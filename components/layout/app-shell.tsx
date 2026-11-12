@@ -18,6 +18,7 @@ export function AppShell({ children }: AppShellProps) {
   const pathname = usePathname();
   const router = useRouter();
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  const [sidebarExpanded, setSidebarExpanded] = useState(false);
   const [companyContextChanged,setCompanyContextChanged]=useState(false);
   const canBypassAuth =
     pathname === "/login" || pathname.startsWith("/auth/callback");
@@ -40,6 +41,19 @@ export function AppShell({ children }: AppShellProps) {
     window.addEventListener("storage",onStorage);
     return()=>window.removeEventListener("storage",onStorage);
   },[]);
+
+  // Persistent visual preference only. Never used for authorization or tenant context.
+  useEffect(()=>{
+    try { setSidebarExpanded(window.localStorage.getItem("7commander:sidebar-expanded")==="true"); }
+    catch { setSidebarExpanded(false); }
+  },[]);
+  const toggleSidebar=()=>{
+    setSidebarExpanded(previous=>{
+      const next=!previous;
+      try { window.localStorage.setItem("7commander:sidebar-expanded",String(next)); } catch {}
+      return next;
+    });
+  };
 
   // Fecha a gaveta mobile automaticamente ao trocar de rota.
   useEffect(() => {
@@ -106,7 +120,7 @@ export function AppShell({ children }: AppShellProps) {
 
   return (
     <div className="min-h-screen bg-(--bg-page) md:flex md:items-stretch">
-      <Sidebar isMobileOpen={mobileNavOpen} onCloseMobile={() => setMobileNavOpen(false)} />
+      <Sidebar isMobileOpen={mobileNavOpen} onCloseMobile={() => setMobileNavOpen(false)} expanded={sidebarExpanded} onToggleExpanded={toggleSidebar} />
       <div className="flex min-h-screen min-w-0 flex-1 flex-col">
         <Header onToggleMobileNav={() => setMobileNavOpen((prev) => !prev)} mobileNavOpen={mobileNavOpen} />
         <main className="min-w-0 flex-1 overflow-x-hidden p-4 md:p-5">{pathname === "/" && <TaskAlerts center />}{children}</main>
