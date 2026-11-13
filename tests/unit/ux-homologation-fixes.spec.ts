@@ -66,3 +66,34 @@ test("UX-REP-04 shows approved facts and report preview side-by-side while prese
  expect(page).toContain('Baixar HTML');
  expect(page).toContain('Histórico de emissões');
 });
+
+test("REP-MEET-01 team report includes meeting follow-ups only in internal projection",()=>{
+ const data=file("lib/scrum/report-data.ts");
+ const report=file("app/status-report/page.tsx");
+ const service=file("services/meeting-report-context.ts");
+ expect(data).toContain('const meetings=audience==="internal"?await loadProjectMeetingReport');
+ expect(data).toContain('...(audience==="internal"?{internal:{stories:allStories,tasks:allTasks,meetingLines:');
+ expect(report).toContain('Compromissos e pendências');
+ expect(report).toContain('meetingSource==="local"');
+ expect(report).toContain('meetingHistory+internal');
+ expect(service).toContain('listSandboxMeetings(org,projectId)');
+ expect(service).toContain('.eq("organization_id",org).eq("project_id",projectId)');
+ expect(service).toContain('sourceReference:"meeting:"+meeting.id+":"+category+":"+index');
+});
+
+test("REP-MEET-02 client meeting candidates require editorial authorization and real tenant source",()=>{
+ const api=file("app/api/status-report/public-facts/route.ts");
+ const data=file("lib/scrum/report-data.ts");
+ const report=file("app/status-report/page.tsx");
+ expect(api).toContain("loadProjectMeetingReport(scope.db,scope.organizationId,projectId,15)");
+ expect(api).toContain('add("next_step",item.title');
+ expect(api).toContain('if(localMeetingReportEnabled())return out(');
+ expect(api).toContain('if(kind!=="next_step")');
+ expect(api).toContain('if(!lines.some(item=>item.sourceReference===sourceReference))');
+ expect(api).toContain('.eq("organization_id",scope.organizationId).maybeSingle()');
+ expect(api).toContain('approved_for_client:true');
+ expect(data).toContain('approved_for_client",true');
+ const clientSection=report.slice(report.indexOf('if(audience==="client"){'),report.indexOf("const scrumSection="));
+ expect(clientSection).toContain("scrum?.publicFacts");
+ expect(clientSection).not.toContain("meetingLines");
+});
