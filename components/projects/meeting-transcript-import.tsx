@@ -204,12 +204,12 @@ export function MeetingTranscriptImport({projectId,onSaved}:{projectId:string;on
        onClick={()=>setReviewTab(key)}>{label}{key==="actions"?" ("+(draft.evidence?.actions.length??0)+")":""}</button>)}
     </nav>
     {reviewTab==="meeting"&&<>
-    {(draft.evidence?.actions.length??0)>0?<p className="rounded-lg bg-(--bg-muted) px-3 py-2 text-xs text-(--text-secondary)">Os campos Compromissos e Pendências serão consolidados a partir dos encaminhamentos selecionados na aba Encaminhamentos. Revise a seleção antes de aprovar.</p>:null}
+    {(draft.evidence?.actions.length??0)>0?<p className="rounded-lg bg-(--bg-muted) px-3 py-2 text-xs text-(--text-secondary)">Os campos Compromissos e Pendências serão gerados somente com ações operacionais selecionadas em Encaminhamentos. Outras informações permanecem na análise da reunião.</p>:null}
     <label className="block text-xs font-semibold">Data e hora confirmadas (obrigatório)
      <input type="datetime-local" value={draft.heldAt?draft.heldAt.slice(0,16):""} onChange={e=>edit("heldAt",e.target.value)}
       className="workspace-input mt-1 w-full"/>
     </label>
-    <div className="grid gap-3 sm:grid-cols-2">{fields.map(([key,label])=>
+    <div className="grid gap-3 sm:grid-cols-2">{fields.filter(([key])=>!((key==="commitments"||key==="pendingItems")&&(draft.evidence?.actions.length??0)>0)).map(([key,label])=>
      <label key={key} className="text-xs font-semibold sm:col-span-2">{label}
       {key==="title"||key==="sourceArtifactId"
        ?<input maxLength={key==="title"?180:500} className="workspace-input mt-1 w-full" value={draft[key]} onChange={e=>edit(key,e.target.value)}/>
