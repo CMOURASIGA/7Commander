@@ -5,7 +5,7 @@ import {allowedMeetingFile,normalizeMeetingDraft} from "../../services/meeting-t
 import {chunkTranscript,mergeEvidence,normalizeBlockEvidence,formatApprovedMeetingActions,markMeetingDuplicateCandidates} from "../../services/meeting-evidence";
 import {guardMeetingNarrative,reviewMeetingEvidence} from "../../services/meeting-review-guard";
 import {groundEvidenceItem,verifyMeetingEvidence} from "../../services/meeting-grounding";
-import {semanticContext,parseSemanticAudit,applySemanticAudit} from "../../services/meeting-semantic-review";
+import {semanticContext,parseSemanticAudit,applySemanticAudit,proposedFiscalRequirement} from "../../services/meeting-semantic-review";
 const source=(file:string)=>readFileSync(resolve(process.cwd(),file),"utf8");
 
 test("Teams, Gemini and text exports allow documented meeting formats only",()=>{
@@ -329,4 +329,23 @@ test("MEET-03 rejects incomplete second opinion and does not accept unsupported 
  expect(pipeline).toContain("parseSemanticAudit(data,group.map(item=>item.id))");
  expect(pipeline).toContain("applySemanticAudit(evidence,decisions)");
  expect(pipeline).toContain("KAIROS_SEMANTIC_MODEL");
+});
+
+test("MEET-03 business rules with ST cannot masquerade as accepted operational deliveries",()=>{
+ const evidence=mergeEvidence([normalizeBlockEvidence({actions:[
+  {title:"Validar na aplicação apenas notas de entrada com ST ao processar uploads fiscais",kind:"operational",status:"proposta",evidence:"A gente vai ter que tratar isso na aplicação para pegar só as notas com ST, com a tributação."},
+  {title:"Criar regra para exigir nota de entrada com ST na formulação de pedido de ressarcimento",kind:"operational",status:"proposta",evidence:"A gente vai ter que criar uma regra né na hora de formular o pedido né"},
+  {title:"Enviar relatório de inconsistências ao gestor",kind:"operational",status:"assumido",evidence:"Eu vou enviar o relatório de inconsistências ao gestor amanhã"}
+ ]},2)]);
+ const decisions=evidence.actions.map((a,i)=>({id:a.id,kind:"operational" as const,status:i===2?"assumido" as const:"proposta" as const,evidenceSupports:true,commitmentConfirmed:i===2,reason:i===2?"Entrega expressamente assumida pelo falante.":"Necessidade ou proposta técnica, sem aceite de responsável."}));
+ expect(proposedFiscalRequirement(evidence.actions[0],decisions[0])).toBe(true);
+ expect(proposedFiscalRequirement(evidence.actions[1],decisions[1])).toBe(true);
+ expect(proposedFiscalRequirement(evidence.actions[2],decisions[2])).toBe(false);
+ const result=applySemanticAudit(evidence,decisions);
+ expect(result.demoted).toBe(2);
+ expect(evidence.actions[0].kind).toBe("business_rule");
+ expect(evidence.actions[1].kind).toBe("business_rule");
+ expect(evidence.actions[2].kind).toBe("operational");
+ expect(evidence.actions[2].status).toBe("assumido");
+ expect(evidence.actions.every(a=>!a.included)).toBe(true);
 });
