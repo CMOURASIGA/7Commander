@@ -5,6 +5,7 @@ import {getSupabaseServerClient} from "@/lib/supabase/server";
 import {TENANT_SCHEMA_READY,requireEffectiveTenant} from "@/lib/tenant-runtime";
 import {CONSULT_ORG_ID} from "@/lib/consult-workspace";
 import {localWriteGuardEnabled} from "@/lib/local-write-guard";
+import {localMeetingSandbox,listSandboxMeetings,saveSandboxMeeting} from "@/services/local-meeting-sandbox";
 
 export const dynamic="force-dynamic";
 const uuid=/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -29,6 +30,14 @@ type RouteContext={params:Promise<{projectId:string}>};
 export async function GET(request:NextRequest,{params}:RouteContext){
  const {projectId}=await params;
  const ctx=await scope(request,projectId);if("error" in ctx)return ctx.error;
+ if(localMeetingSandbox(request)){
+  try{
+   const data=await listSandboxMeetings(ctx.org,projectId);
+   return reply({data,localSandbox:true,notice:"Reuniões de teste gravadas somente neste computador. Nenhuma informação é enviada ao Supabase."});
+  }catch{
+   return error("Não foi possível consultar as reuniões de teste locais. Verifique as permissões da pasta .local-meetings.",503);
+  }
+ }
  const list=await ctx.db.from("project_meetings")
   .select("id,title,held_at,participants,objective,summary,advances,decisions,commitments,pending_items,risks,next_follow_up,source_conversation_id,source_artifact_id,created_at")
   .eq("organization_id",ctx.org).eq("project_id",projectId).order("held_at",{ascending:false}).limit(100);
@@ -51,7 +60,8 @@ export async function GET(request:NextRequest,{params}:RouteContext){
  return reply({data:(list.data??[]).map(meeting=>({...meeting,links:(links.data??[]).filter(link=>link.meeting_id===meeting.id)}))});
 }
 export async function POST(request:NextRequest,{params}:RouteContext){
- if(localWriteGuardEnabled())return error("Ambiente local somente leitura: reunião não pode ser gravada.",403);
+ const sandbox=localMeetingSandbox(request);
+ if(localWriteGuardEnabled()&&!sandbox)return error("Ambiente local somente leitura: reunião não pode ser gravada.",403);
  const {projectId}=await params;
  const ctx=await scope(request,projectId,true);if("error" in ctx)return ctx.error;
  const body=await request.json().catch(()=>null) as MeetingInput|null;
@@ -61,6 +71,27 @@ export async function POST(request:NextRequest,{params}:RouteContext){
  if(!validTimestamp(body.heldAt))return error("Data e horário da reunião inválidos.");
  if(body.nextFollowUp&&!validTimestamp(body.nextFollowUp))return error("Data do próximo acompanhamento inválida.");
  if(body.sourceConversationId&&(!uuid.test(String(body.sourceConversationId))))return error("Conversa de origem inválida.");
+ if(sandbox){
+  const record={
+   organization_id:ctx.org,project_id:projectId,created_by:ctx.userId,
+   title,held_at:new Date(String(body.heldAt)).toISOString(),
+   participants:bounded(body.participants,4000),objective:bounded(body.objective,8000),
+   summary:bounded(body.summary,12000),advances:bounded(body.advances,8000),
+   decisions:bounded(body.decisions,8000),commitments:bounded(body.commitments,8000),
+   pending_items:bounded(body.pendingItems,8000),risks:bounded(body.risks,8000),
+   next_follow_up:body.nextFollowUp?new Date(String(body.nextFollowUp)).toISOString():null,
+   source_conversation_id:body.sourceConversationId?String(body.sourceConversationId):null,
+   source_artifact_id:bounded(body.sourceArtifactId,500)||null,
+  };
+  try{
+   const result=await saveSandboxMeeting(record);
+   if(result.duplicate)return reply({error:"Esta reunião já existe no histórico local de teste.",meetingId:result.meeting.id,localSandbox:true},409);
+   return reply({data:{id:result.meeting.id,title,held_at:record.held_at,created_at:result.meeting.created_at},
+    localSandbox:true,notice:"Registro de teste salvo apenas neste computador, sem gravar no Supabase."},201);
+  }catch{
+   return error("Não foi possível gravar o registro de teste local. Verifique as permissões da pasta .local-meetings.",503);
+  }
+ }
  // An exact duplicate cannot be silently recreated by repeated submissions.
  const existing=await ctx.db.from("project_meetings").select("id")
   .eq("organization_id",ctx.org).eq("project_id",projectId).eq("title",title)
