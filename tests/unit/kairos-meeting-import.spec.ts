@@ -349,3 +349,37 @@ test("MEET-03 business rules with ST cannot masquerade as accepted operational d
  expect(evidence.actions[2].status).toBe("assumido");
  expect(evidence.actions.every(a=>!a.included)).toBe(true);
 });
+
+test("MEET-03 neutralizes unsupported named leadership across summary and advances",()=>{
+ const raw=[
+  "Foi relatada uma mudança de responsabilidade na condução do projeto em relação a Varela.",
+  "Assunção formal de Marcelo à frente do projeto.",
+  "Marcelo assumiu formalmente a frente do projeto.",
+  "O novo responsável é Marcelo."
+ ];
+ for(const phrase of raw){
+  const checked=guardMeetingNarrative(phrase);
+  expect(checked.flagged,phrase).toBe(true);
+  expect(checked.text).toContain("identidade do novo responsável exige confirmação");
+  expect(checked.text).not.toContain("Marcelo");
+ }
+ const ordinary=guardMeetingNarrative("Marcelo apresentou a tela de inconsistências fiscais.");
+ expect(ordinary.flagged).toBe(false);
+ expect(ordinary.text).toContain("Marcelo apresentou");
+ const pipeline=source("services/meeting-transcript-draft.ts");
+ for(const field of ['"summary"','"advances"','"objective"','"decisions"'])expect(pipeline).toContain(field);
+});
+
+test("MEET-03 selected actions remain present after save formatting without truncation",()=>{
+ const sample=normalizeBlockEvidence({actions:[{title:"Conferir divergência de XML no arquivo",kind:"operational",status:"pendente",evidence:"A equipe deverá conferir as divergências na revisão."}]},1).actions[0];
+ const many=Array.from({length:110},(_,i)=>({...sample,id:"B01-A"+String(i+1).padStart(3,"0"),title:sample.title+" registro "+i,included:true}));
+ const formatted=formatApprovedMeetingActions(many);
+ expect(formatted.pendingItems).toContain("registro 109");
+ expect(formatted.pendingItems.length).toBeGreaterThan(8000);
+ const ui=source("components/projects/meeting-transcript-import.tsx");
+ expect(ui).toContain("formatted.pendingItems.length>8000");
+ expect(ui).toContain("setError");
+ const official=source("app/projects/[projectId]/meetings/page.tsx");
+ expect(official).toContain('["Compromissos",m.commitments]');
+ expect(official).toContain('["Pendências",m.pending_items]');
+});
