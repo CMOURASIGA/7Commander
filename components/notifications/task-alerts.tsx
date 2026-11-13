@@ -83,10 +83,8 @@ export function TaskAlerts({center=false}:{center?:boolean}){
             <div className="flex flex-wrap items-center gap-2">
              <Link href={"/scrum/kanban?projectId="+encodeURIComponent(n.project_id)+"&storyId="+encodeURIComponent(n.story_id)}
               onClick={()=>setOpen(false)} className="workspace-button-primary px-3 py-2 text-xs">Abrir User Story</Link>
-             <button type="button" className="workspace-button-secondary px-3 py-2 text-xs"
-              onClick={()=>{void measuredFetch("/api/scrum/notifications",{method:"POST",headers:getClientAuthHeaders({"Content-Type":"application/json"}),body:JSON.stringify({id:n.id})}).then(async res=>{if(res.ok){const value=await res.json();if(value.data?.updated)setScrum(prev=>prev.filter(x=>x.id!==n.id));}else setError(true)}).catch(()=>setError(true));}}>
-              Marcar como lida
-             </button>
+             <IconActionButton icon="check-circle" tone="success" label={"Marcar notificação "+n.id+" como lida"}
+              onClick={()=>{void measuredFetch("/api/scrum/notifications",{method:"POST",headers:getClientAuthHeaders({"Content-Type":"application/json"}),body:JSON.stringify({id:n.id})}).then(async res=>{if(res.ok){const value=await res.json();if(value.data?.updated)setScrum(prev=>prev.filter(x=>x.id!==n.id));}else setError(true)}).catch(()=>setError(true));}}/>
             </div>
           </article>)}
         </section>}
