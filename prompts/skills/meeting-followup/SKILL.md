@@ -52,3 +52,11 @@ Retorne prévia editável com origem e alertas. Usuário deve aprovar explicitam
 - Identificadores de falante sem correspondência nominal não se tornam responsáveis. Nenhum registro operacional é criado automaticamente.
 - Critério de integração de terceiros: utilizar ideias de arquitetura e código apenas quando licença permitir. JEV é experimento em modo observação, não requisito desta etapa; medir ganho antes de adotá-lo.
 - A capacidade é incorporada ao pipeline do Kairos, sem substituir o agente por produto externo.
+
+## MEET-03 | Segunda análise semântica, independente da extração
+- Para transcrições textuais, após extração por blocos e verificação de trechos, avaliar cada ocorrência em nova etapa com contexto do texto original (não aceitar uma frase citada como comprovação automática de sua interpretação).
+- Exigir resposta estruturada por ID com tipo, situação, aderência da evidência, compromisso explícito e justificativa. Se faltar algum ID ou o JSON for inválido, falhar sem registrar a reunião.
+- Os resultados da segunda avaliação podem desclassificar um falso compromisso; não podem promover automaticamente uma regra de negócio, fato ou contexto a atividade operacional. O gestor continua responsável por selecionar itens.
+- Só usar "assumido" quando houver aceite explícito de entrega futura. Propostas, requisitos fiscais, perguntas, compartilhamento de tela durante reunião e fatos já realizados são categorias distintas.
+- Mostrar justificativa semântica e progresso dos lotes na prévia. Não confundir concordância de dois modelos com verdade: a conferência humana e as regras de permissão seguem obrigatórias.
+- Não exigir JEV nesta fase. O avaliador semântico utiliza a mesma infraestrutura OpenAI já configurada para o Kairos, com opção de modelo via KAIROS_SEMANTIC_MODEL.
