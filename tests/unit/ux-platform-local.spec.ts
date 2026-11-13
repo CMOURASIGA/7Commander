@@ -212,3 +212,18 @@ test("Kanban card detail exposes audited status selector consistent with notific
  expect(route).toContain("localWriteGuardEnabled()");
  expect(route).toContain("updateTaskCard({");
 });
+
+test("UX-PROSPECT-02 operational cards and full-width planning summary preserve clarity",()=>{
+ const page=source("app/planning/page.tsx");
+ expect(page).toContain('max-w-[1600px]');
+ expect(page).toContain('aria-label="Resumo operacional de planejamento"');
+ expect(page).toContain("Registros na categoria");
+ expect(page).toContain("Registros em exibição");
+ expect(page).toContain("Não inclui páginas não carregadas");
+ expect(page).toContain("xl:grid-cols-2");
+ expect(page).toContain("Abrir e editar");
+ expect(page).toContain("Novo prospect");
+ expect(page).toContain('role="tablist"');
+ expect(page).toContain("workspace-button-danger");
+ expect(page).toContain("Consulta indisponível");
+});
