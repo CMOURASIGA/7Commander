@@ -18,24 +18,20 @@ export type GroundingReport={
 const normalize=(value:string)=>value.normalize("NFD").replace(/[\u0300-\u036f]/g,"")
  .toLocaleLowerCase("pt-BR").replace(/[^a-z0-9]+/g," ").trim().replace(/\s+/g," ");
 function normalizedOffset(source:string,excerpt:string):number{
- // Preserve original offsets while normalizing punctuation, case and accents.
- const chars:string[]=[];const positions:number[]=[];
+ // Maintain source character offsets during accent/punctuation normalization.
+ const mapped:string[]=[];const positions:number[]=[];
  for(let i=0;i<source.length;i++){
-  const normalized=source[i].normalize("NFD").replace(/[\u0300-\u036f]/g,"")
+  const chars=source[i].normalize("NFD").replace(/[\u0300-\u036f]/g,"")
    .toLocaleLowerCase("pt-BR").replace(/[^a-z0-9]/g," ");
-  for(const ch of normalized){chars.push(ch);positions.push(i);}
+  for(const ch of chars){
+   if(ch===" "&&mapped[mapped.length-1]===" ")continue;
+   mapped.push(ch);positions.push(i);
+  }
  }
- const target=normalize(excerpt);
- if(!target)return -1;
- const match=chars.join("").replace(/\s+/g," "); // approximate only
- if(!match.includes(target))return -1;
- // Simpler canonical token boundary search below finds position in original
- // without granting evidence status to fuzzy token overlap.
- for(const candidate of source.matchAll(/\S(?:[^\n]*\S)?/g)){
-  const start=candidate.index??0;
-  if(normalize(source.slice(start,start+excerpt.length+40)).startsWith(target))return start;
- }
- return 0;
+ const needle=normalize(excerpt);
+ if(needle.length<12)return -1;
+ const index=mapped.join("").indexOf(needle);
+ return index>=0?(positions[index]??-1):-1;
 }
 export function groundEvidenceItem(action:MeetingAction,source:string):GroundedMeetingAction{
  const notes:string[]=[];
