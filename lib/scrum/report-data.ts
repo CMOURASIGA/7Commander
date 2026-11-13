@@ -3,6 +3,7 @@ import { getProjectAccessRole, getProjectById } from "@/services/project-service
 import { requireEffectiveTenant, TENANT_SCHEMA_READY } from "@/lib/tenant-runtime";
 import { CONSULT_ORG_ID } from "@/lib/consult-workspace";
 import {getApprovedRiskFields} from "@/lib/reports/risk-report-html";
+import {loadProjectMeetingReport,meetingReportLines,type MeetingReportLine} from "@/services/meeting-report-context";
 
 export type ReportAudience="client"|"internal";
 export type ScrumReportStory={id:string;sprint_id:string|null;title:string;workflow_stage:string;story_points:number|null;due_date:string|null;actual_end_date:string|null;blocked:boolean;blocker_reason:string;responsible:string|null};
@@ -10,7 +11,7 @@ export type ScrumReportTask={id:string;story_id:string|null;title:string;state:s
 export type ScrumReportSprint={id:string;name:string;goal:string;status:string;start_date:string;end_date:string;stories:number;closed:number;resolved:number;active:number;blocked:number;overdue:number;points_planned:number;points_done:number;delivery_planned:number;delivery_actual:number;delivery_on_time:number;delivery_late:number};
 export type ClientReportFact={kind:"objective"|"benefit"|"deliverable"|"milestone"|"risk"|"next_step";title:string;description:string;classification:"confirmed"|"in_progress"|"hypothesis"|"ai_recommendation";due_date:string|null;source_reference?:string|null};
 export type ReportRiskAssessment={id:string;code:string;title:string;description:string;status:string;probability:number|null;impact:number|null;score:number|null;severity:"Baixo"|"Moderado"|"Alto"|"Crítico"|"Não avaliado";mitigation:string|null;owner:string|null;decisionId:string|null;taskId:string|null;lastUpdated:string|null};
-export type ReportData={project:{id:string;name:string};generated_at:string;scope:"current_snapshot";publicFacts?:ClientReportFact[];publicFactsAvailable?:boolean;riskAssessments?:ReportRiskAssessment[];kanban:{total:number;todo:number;doing:number;done:number;overdue:number;completed_titles:string[]};governance:{risks_open:number;decisions_pending:number;client_risks:{title:string;status:string}[];client_decisions:{title:string;status:string}[]};scrum:{enabled:boolean;sprints:ScrumReportSprint[];backlog_stories:number;stories_total:number;tasks_total:number;tasks_done:number};internal?:{stories:ScrumReportStory[];tasks:ScrumReportTask[]}};
+export type ReportData={project:{id:string;name:string};generated_at:string;scope:"current_snapshot";publicFacts?:ClientReportFact[];publicFactsAvailable?:boolean;riskAssessments?:ReportRiskAssessment[];kanban:{total:number;todo:number;doing:number;done:number;overdue:number;completed_titles:string[]};governance:{risks_open:number;decisions_pending:number;client_risks:{title:string;status:string}[];client_decisions:{title:string;status:string}[]};scrum:{enabled:boolean;sprints:ScrumReportSprint[];backlog_stories:number;stories_total:number;tasks_total:number;tasks_done:number};internal?:{stories:ScrumReportStory[];tasks:ScrumReportTask[];meetingLines?:MeetingReportLine[];meetingSource?:"official"|"local"}};
 const uuid=/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 type DB=NonNullable<ReturnType<typeof getSupabaseServerClient>>;
 export async function getReportScope(auth:{userId:string;userEmail:string|null},projectId:string,write=false){
@@ -101,6 +102,7 @@ export async function loadReportData(db:DB,org:string,projectId:string,audience:
    delivery_late:delivered.filter(st=>st.due_date&&st.actual_end_date!>st.due_date).length
   };
  });
+ const meetings=audience==="internal"?await loadProjectMeetingReport(db,org,projectId):null;
  return {
   project:{id:projectId,name:project.data?.nome||"Projeto"},
   generated_at:new Date().toISOString(),scope:"current_snapshot",
@@ -122,6 +124,6 @@ export async function loadReportData(db:DB,org:string,projectId:string,audience:
    client_decisions:audience==="internal"?(decisions.data||[]).filter(d=>["aberta","em_andamento"].includes(d.status)).slice(0,15).map(d=>({title:d.titulo,status:d.status})):[]
   },
   scrum:{enabled:metrics.length>0,sprints:audience==="internal"?metrics:[],backlog_stories:allStories.filter(st=>!st.sprint_id).length,stories_total:allStories.length,tasks_total:allTasks.length,tasks_done:allTasks.filter(t=>t.state==="done").length},
-  ...(audience==="internal"?{internal:{stories:allStories,tasks:allTasks}}:{})
+  ...(audience==="internal"?{internal:{stories:allStories,tasks:allTasks,meetingLines:meetings?.records.flatMap(meetingReportLines).slice(0,140)||[],meetingSource:meetings?.source}}:{})
  };
 }
