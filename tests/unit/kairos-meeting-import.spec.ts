@@ -3,6 +3,7 @@ import {readFileSync} from "node:fs";
 import {resolve} from "node:path";
 import {allowedMeetingFile,normalizeMeetingDraft} from "../../services/meeting-transcript-draft";
 import {chunkTranscript,mergeEvidence,normalizeBlockEvidence,formatApprovedMeetingActions} from "../../services/meeting-evidence";
+import {guardMeetingNarrative,reviewMeetingEvidence} from "../../services/meeting-review-guard";
 const source=(file:string)=>readFileSync(resolve(process.cwd(),file),"utf8");
 
 test("Teams, Gemini and text exports allow documented meeting formats only",()=>{
@@ -182,4 +183,44 @@ test("MEET-R4 preserves literal evidence for review but not colloquial quotation
  expect(prompt).toContain("REDAÇÃO PROFISSIONAL DA ATA");
  expect(prompt).toContain("evidence deve preservar o trecho original");
  expect(prompt).toContain("title deve ser uma frase de trabalho formal");
+});
+
+test("MEET-R5 neutralizes unsupported identity of new project leader",()=>{
+ const summary=guardMeetingNarrative("Durante a reunião, Marcelo assumiu a liderança do projeto em substituição a Varela. Foram debatidos documentos fiscais.");
+ expect(summary.flagged).toBe(true);
+ expect(summary.text).not.toContain("Marcelo assumiu");
+ expect(summary.text).toContain("identidade do novo responsável exige confirmação");
+ expect(summary.text).toContain("Foram debatidos documentos fiscais");
+ const advances=guardMeetingNarrative("Definida substituição da liderança do projeto por Marcelo em lugar de Varela.");
+ expect(advances.flagged).toBe(true);
+ expect(advances.text).not.toContain("por Marcelo");
+ const ordinary=guardMeetingNarrative("Foram avaliados os registros C100, C170 e 0200.");
+ expect(ordinary.flagged).toBe(false);
+});
+
+test("MEET-R5 clears uncertain leader attribution and in-meeting demonstrations",()=>{
+ const b=normalizeBlockEvidence({actions:[
+  {title:"Assumir liderança do projeto em substituição a Varela",owner:"Marcelo",kind:"operational",status:"assumido",evidence:"eu vou estar assumindo o projeto na substituição do Varela"},
+  {title:"Compartilhar a tela durante a reunião",owner:"Edson",kind:"operational",status:"proposta",evidence:"Eu posso compartilhar aqui, só um segundo aqui"},
+  {title:"Enviar relatório de inconsistências",owner:"Edson",kind:"operational",status:"assumido",evidence:"Vou enviar o relatório"}
+ ]},1);
+ const merged=mergeEvidence([b]);
+ const flags=reviewMeetingEvidence(merged);
+ expect(flags.some(flag=>flag.code==="LEADERSHIP_IDENTITY")).toBe(true);
+ expect(merged.actions[0].owner).toBe("");
+ expect(merged.actions[0].kind).toBe("context");
+ expect(merged.actions[1].kind).toBe("context");
+ expect(merged.actions[2].kind).toBe("operational");
+ const importer=source("components/projects/meeting-transcript-import.tsx");
+ expect(importer).toContain("criticalReviewConfirmed");
+ expect(importer).toContain("Revise e confirme a atribuição de responsabilidades");
+ expect(importer).toContain("Conferi a fonte original");
+});
+
+test("MEET-R5 permission denial for meeting list is not misreported as missing migration",()=>{
+ const api=source("app/api/projects/[projectId]/meetings/route.ts");
+ expect(api).toContain('code==="42501"');
+ expect(api).toContain("Sem permissão para consultar reuniões neste ambiente");
+ expect(api).toContain('code==="42P01"');
+ expect(api).toContain("Tabela de reuniões não disponível");
 });
