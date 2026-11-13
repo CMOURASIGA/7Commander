@@ -172,3 +172,27 @@ test("Kanban comments reject local writes explicitly and surface error without l
  expect(ui).toContain("setCommentError(");
  expect(ui).toContain("Registrando...");
 });
+
+test("notification drawer status selector invokes scoped API and respects readonly permissions",()=>{
+ const drawer=source("components/notifications/task-alerts.tsx");
+ const route=source("app/api/tasks/[taskId]/status/route.ts");
+ expect(drawer).toContain("async function changeTaskStatus(");
+ expect(drawer).toContain("Status da atividade");
+ expect(drawer).toContain("disabled={readOnly||checking||savingTaskId===item.id}");
+ expect(drawer).toContain('"/status"');
+ expect(drawer).toContain("setStatusError");
+ expect(route).toContain("localWriteGuardEnabled()");
+ expect(route).toContain('eq("organization_id",organizationId)');
+ expect(route).toContain('eq("project_id",body.projectId)');
+ expect(route).toContain('updateTaskCard({');
+ expect(route).toContain('actionSource:"user"');
+});
+test("meeting preview distinguishes confirmed attendees from people merely referenced",()=>{
+ const prompt=source("services/meeting-transcript-draft.ts");
+ const component=source("components/projects/meeting-transcript-import.tsx");
+ expect(prompt).toContain("PARTICIPANTES:");
+ expect(prompt).toContain("pessoas mencionadas");
+ expect(prompt).toContain("uncertainties");
+ expect(component).toContain('["participants","Participantes"]');
+ expect(component).toContain("Aprovar e registrar reunião");
+});
