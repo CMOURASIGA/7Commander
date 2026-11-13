@@ -37,5 +37,9 @@ export function localMeetingSandboxAllowed(input:{
   &&localWriteGuardEnabled(env)
   &&["localhost","127.0.0.1"].includes(input.hostname)
   &&input.method.toUpperCase()==="POST"
-  &&/^\\/api\\/projects\\/[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}\\/meetings$/i.test(input.pathname);
+  &&input.pathname.split("/").length===5
+  &&input.pathname.split("/")[1]==="api"
+  &&input.pathname.split("/")[2]==="projects"
+  &&/^[0-9a-f-]{36}$/i.test(input.pathname.split("/")[3]||"")
+  &&input.pathname.split("/")[4]==="meetings";
 }
