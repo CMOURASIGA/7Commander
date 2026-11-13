@@ -1,4 +1,6 @@
 import {test,expect} from "@playwright/test";
+import {readFileSync} from "node:fs";
+import {resolve} from "node:path";
 import {localAuthEnabled,localWriteGuardEnabled,shouldBlockLocalApiMutation,localMeetingSandboxAllowed} from "../../lib/local-write-guard";
 
 test("local read only remains enabled when next start uses production mode",()=>{
@@ -54,7 +56,7 @@ test("meeting rehearsal only bypasses middleware for loopback development with r
 });
 
 test("central broker and local cookie sync are reachable before session cookie exists",()=>{
- const middleware=require("node:fs").readFileSync(require("node:path").resolve(process.cwd(),"middleware.ts"),"utf8") as string;
+ const middleware=readFileSync(resolve(process.cwd(),"middleware.ts"),"utf8");
  expect(middleware).toContain('request.nextUrl.pathname==="/api/auth/central-exchange"');
  expect(middleware).toContain('request.nextUrl.pathname==="/api/auth/local-session"');
  expect(middleware).toContain('publicPage(request.nextUrl.pathname)||authBootstrapRoute');
