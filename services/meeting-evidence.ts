@@ -24,7 +24,7 @@ export function normalizeAction(raw:unknown,block:number,index:number):MeetingAc
  const chosen=allowedKinds.has(kind)?kind as MeetingAction["kind"]:"review";
  return {
   id:"B"+String(block).padStart(2,"0")+"-A"+String(index+1).padStart(2,"0"),
-  title,owner:bounded(data.owner,180),kind:chosen,
+  title,owner:isSpeakerPlaceholder(bounded(data.owner,180))?"":bounded(data.owner,180),kind:chosen,
   status:allowedStatus.has(status)?status as MeetingAction["status"]:"a_confirmar",
   evidence:bounded(data.evidence,500),
   time:/^(?:\d{2}:)?\d{2}:\d{2}$/.test(bounded(data.time,16))?bounded(data.time,16):"",
