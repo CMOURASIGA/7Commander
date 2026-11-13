@@ -24,7 +24,7 @@ async function scope(request:NextRequest,projectId:string,write=false){
  const db=getSupabaseServerClient();if(!db)return {error:error("Banco indisponível.",503)} as const;
  const org=TENANT_SCHEMA_READY?await requireEffectiveTenant(auth.context.userId):CONSULT_ORG_ID;
  if(!org)return {error:error("Empresa indisponível.",403)} as const;
- return {db,org,userId:auth.context.userId} as const;
+ return {db,org,userId:auth.context.userId,canWrite:["owner","editor"].includes(role)} as const;
 }
 type RouteContext={params:Promise<{projectId:string}>};
 export async function GET(request:NextRequest,{params}:RouteContext){
@@ -33,7 +33,7 @@ export async function GET(request:NextRequest,{params}:RouteContext){
  if(localMeetingSandbox(request)){
   try{
    const data=await listSandboxMeetings(ctx.org,projectId);
-   return reply({data,localSandbox:true,notice:"Reuniões de teste gravadas somente neste computador. Nenhuma informação é enviada ao Supabase."});
+   return reply({data,localSandbox:ctx.canWrite,localRehearsal:true,notice:"Reuniões de teste gravadas somente neste computador. Nenhuma informação é enviada ao Supabase."});
   }catch{
    return error("Não foi possível consultar as reuniões de teste locais. Verifique as permissões da pasta .local-meetings.",503);
   }
