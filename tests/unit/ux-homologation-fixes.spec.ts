@@ -47,3 +47,22 @@ test("scripts de permissão no Supabase são propostas, nunca automações no ru
  expect(review).toContain("int01_is_central_readonly_member");
  expect(review).not.toContain("DISABLE ROW LEVEL SECURITY");
 });
+
+test("UX-REP-04 shows approved facts and report preview side-by-side while preserving mobile tabs",()=>{
+ const page=file("app/status-report/page.tsx");
+ expect(page).toContain('xl:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]');
+ expect(page).toContain('aria-label="Seleção e aprovação do conteúdo"');
+ expect(page).toContain('aria-label="Prévia do Status Report"');
+ expect(page).toContain('aria-pressed={mobileReportPane==="content"}');
+ expect(page).toContain('aria-pressed={mobileReportPane==="preview"}');
+ expect(page).toContain('xl:max-h-[calc(100vh-2rem)]');
+ expect(page).toContain('xl:h-[calc(100vh-15rem)]');
+ expect(page).toContain('sandbox="allow-scripts"');
+ expect(page).toContain('<PublicFactsEditor projectId={projectId}');
+ expect(page).toContain('onChange={()=>setFactsRevision(n=>n+1)}');
+ expect(page).toContain('Registrar emissão no histórico');
+ expect(page).toContain('documentHtml');
+ expect(page).toContain('Baixar PDF');
+ expect(page).toContain('Baixar HTML');
+ expect(page).toContain('Histórico de emissões');
+});
