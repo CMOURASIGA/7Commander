@@ -13,7 +13,7 @@ const bounded=(value:unknown,max=1200)=>typeof value==="string"?value.trim().sli
 const strings=(v:unknown,limit=30)=>Array.isArray(v)?v.filter((x):x is string=>typeof x==="string").map(x=>bounded(x,300)).filter(Boolean).slice(0,limit):[];
 const allowedStatus=new Set(["proposta","assumido","realizado","pendente","a_confirmar"]);
 const allowedKinds=new Set(["operational","business_rule","context","offer","completed","review"]);
-export const isSpeakerPlaceholder=(name:string)=>/^(?:palestrante|speaker|orador|participante)\\s*#?\\d+$/i.test(name.trim());
+export const isSpeakerPlaceholder=(name:string)=>/^(?:palestrante|speaker|orador|participante)\s*#?\d+$/i.test(name.trim());
 export function normalizeAction(raw:unknown,block:number,index:number):MeetingAction|null{
  if(!raw||typeof raw!=="object"||Array.isArray(raw))return null;
  const data=raw as Record<string,unknown>;
