@@ -2,7 +2,7 @@ import {test,expect} from "@playwright/test";
 import {readFileSync} from "node:fs";
 import {resolve} from "node:path";
 import {allowedMeetingFile,normalizeMeetingDraft} from "../../services/meeting-transcript-draft";
-import {chunkTranscript,mergeEvidence,normalizeBlockEvidence,formatApprovedMeetingActions} from "../../services/meeting-evidence";
+import {chunkTranscript,mergeEvidence,normalizeBlockEvidence,formatApprovedMeetingActions,markMeetingDuplicateCandidates} from "../../services/meeting-evidence";
 import {guardMeetingNarrative,reviewMeetingEvidence} from "../../services/meeting-review-guard";
 import {groundEvidenceItem,verifyMeetingEvidence} from "../../services/meeting-grounding";
 const source=(file:string)=>readFileSync(resolve(process.cwd(),file),"utf8");
@@ -275,4 +275,18 @@ test("MEET-02 evidence statistics count only located excerpts, preserving human 
  expect(result.actions[1].kind).toBe("review");
  const importer=source("components/projects/meeting-transcript-import.tsx");
  expect(importer).toContain("Verificação independente das evidências");
+});
+
+test("MEET-02 duplicate detection flags similar work but retains both source passages",()=>{
+ const block=normalizeBlockEvidence({actions:[
+  {title:"Revisar e corrigir relatório detalhado de inconsistências fiscais",kind:"operational",status:"proposta",evidence:"Vamos revisar o relatório de inconsistências."},
+  {title:"Corrigir e revisar relatório detalhado de inconsistências fiscais",kind:"operational",status:"proposta",evidence:"Podemos corrigir o relatório."}
+ ]},1);
+ const reviewed=markMeetingDuplicateCandidates(block.actions);
+ expect(reviewed).toHaveLength(2);
+ expect(reviewed[1].duplicateCandidateOf).toBe(reviewed[0].id);
+ expect(reviewed[0].evidence).not.toEqual(reviewed[1].evidence);
+ expect(reviewed.every(item=>item.included===false)).toBe(true);
+ const ui=source("components/projects/meeting-transcript-import.tsx");
+ expect(ui).toContain("Possível duplicidade com");
 });
