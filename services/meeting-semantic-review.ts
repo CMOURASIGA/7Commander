@@ -46,8 +46,8 @@ export function proposedFiscalRequirement(action:MeetingAction,decision:Semantic
  if(action.kind!=="operational"||decision.kind!=="operational"||decision.commitmentConfirmed)return false;
  const title=action.title.toLocaleLowerCase("pt-BR");
  const quote=action.evidence.toLocaleLowerCase("pt-BR");
- const fiscal=/\\b(?:notas? (?:fiscais?|de entrada)|icms|st|substitui[cç][aã]o tribut[aá]ria|ressarcimento|xml|efd|sped)\\b/i.test(title+" "+quote);
- const requirement=/\\b(?:tem(?:os)? que|vai ter que|precisa(?:mos)?|dever[ií]a|deve(?:mos)?|necess[aá]rio|criar (?:uma? )?regra|exigir|filtrar|validar na aplica[cç][aã]o|tratar (?:isso )?na aplica[cç][aã]o)\\b/i.test(quote+" "+title);
+ const fiscal=/\b(?:notas? (?:fiscais?|de entrada)|icms|st|substitui[cç][aã]o tribut[aá]ria|ressarcimento|xml|efd|sped)\b/i.test(title+" "+quote);
+ const requirement=/\b(?:tem(?:os)? que|vai ter que|precisa(?:mos)?|dever[ií]a|deve(?:mos)?|necess[aá]rio|criar (?:uma? )?regra|exigir|filtrar|validar na aplica[cç][aã]o|tratar (?:isso )?na aplica[cç][aã]o)\b/i.test(quote+" "+title);
  return fiscal&&requirement;
 }
 export function applySemanticAudit(evidence:MeetingEvidence,decisions:SemanticDecision[]):SemanticAudit{
