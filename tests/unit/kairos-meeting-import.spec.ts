@@ -404,3 +404,25 @@ test("MEET-SAVE-04 duplicate read errors remain fail-closed and give actionable 
  expect(route).toContain('if(existing.data)return reply({error:"Esta reunião já está cadastrada."');
  expect(route).toContain("localWriteGuardEnabled()");
 });
+
+test("MEET-LOCAL-01 preview can be saved and reopened in isolated local rehearsal only",()=>{
+ const route=source("app/api/projects/[projectId]/meetings/route.ts");
+ const ui=source("components/projects/meeting-transcript-import.tsx");
+ const page=source("app/projects/[projectId]/meetings/page.tsx");
+ const sandbox=source("services/local-meeting-sandbox.ts");
+ const middleware=source("middleware.ts");
+ expect(route).toContain("if(localMeetingSandbox(request))");
+ expect(route).toContain("if(sandbox){");
+ expect(route).toContain("saveSandboxMeeting(record)");
+ expect(route).toContain("listSandboxMeetings(ctx.org,projectId)");
+ expect(route).toContain('if(localWriteGuardEnabled()&&!sandbox)');
+ expect(ui).toContain("Salvar reunião de TESTE local");
+ expect(ui).toContain("MODO DE TESTE LOCAL");
+ expect(page).toContain("MODO DE HOMOLOGAÇÃO LOCAL");
+ expect(page).toContain('["Compromissos",m.commitments]');
+ expect(page).toContain('["Pendências",m.pending_items]');
+ expect(sandbox).toContain(".local-meetings");
+ expect(sandbox).toContain('flag:"wx"');
+ expect(middleware).toContain("localMeetingSandboxAllowed");
+ expect(source(".gitignore")).toContain("/.local-meetings/");
+});
