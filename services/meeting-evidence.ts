@@ -70,13 +70,14 @@ export function mergeEvidence(parts:ReturnType<typeof normalizeBlockEvidence>[])
 }
 export function formatApprovedMeetingActions(actions:MeetingAction[]):{commitments:string;pendingItems:string}{
  const selected=actions.filter(a=>a.included&&a.kind==="operational");
+ // Official minutes keep the professionally written action; raw colloquial quotes
+ // remain visible in the review UI and must not be copied into the meeting narrative.
  const text=(a:MeetingAction)=>[
   a.id+" | "+a.title,
   a.owner?"Responsável citado/sugerido: "+a.owner:"Responsável: a confirmar",
   "Categoria: "+a.kind,
   "Situação na fonte: "+a.status,
-  a.time?"Trecho: "+a.time:"",
-  a.evidence?"Evidência: "+a.evidence:""
+  a.time?"Referência temporal: "+a.time:""
  ].filter(Boolean).join(" | ");
  return {
   commitments:selected.filter(a=>a.status==="assumido").map(text).join("\n"),
