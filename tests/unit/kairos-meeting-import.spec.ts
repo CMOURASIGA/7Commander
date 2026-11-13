@@ -168,3 +168,18 @@ test("MEET-R3 defaults unclassified extraction to review, never to official work
  expect(ui).toContain('disabled={action.kind!=="operational"}');
  expect(ui).toContain('included:false');
 });
+
+test("MEET-R4 preserves literal evidence for review but not colloquial quotations in official minutes",()=>{
+ const block=normalizeBlockEvidence({actions:[
+  {title:"Disponibilizar relatório de inconsistências para análise técnica",kind:"operational",status:"assumido",owner:"Equipe responsável",time:"00:42:25",evidence:"Ah, eu vou mandar aí, tá bom?"}
+ ]},1);
+ const record=formatApprovedMeetingActions(block.actions.map(action=>({...action,included:true})));
+ expect(record.commitments).toContain("Disponibilizar relatório");
+ expect(record.commitments).toContain("00:42:25");
+ expect(record.commitments).not.toContain("Ah, eu vou mandar aí");
+ expect(block.actions[0].evidence).toBe("Ah, eu vou mandar aí, tá bom?");
+ const prompt=source("services/meeting-transcript-draft.ts");
+ expect(prompt).toContain("REDAÇÃO PROFISSIONAL DA ATA");
+ expect(prompt).toContain("evidence deve preservar o trecho original");
+ expect(prompt).toContain("title deve ser uma frase de trabalho formal");
+});
