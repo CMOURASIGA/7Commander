@@ -33,7 +33,12 @@ export function normalizeMeetingDraft(raw:unknown):MeetingDraft{
   evidence:{actions:[],participantsMentioned:[],participantsConfirmed:[],coverage:{blocks:0,processed:0,notes:[]}},
  };
 }
-export async function prepareMeetingDraft(input:{filename?:string;content?:string;file?:File;projectName:string;existingRecords?:string[]}):Promise<MeetingDraft>{
+export type MeetingExtractionProgress={stage:"preparing"|"blocks"|"consolidating"|"completed";completed:number;total:number;message:string};
+export async function prepareMeetingDraft(input:{filename?:string;content?:string;file?:File;projectName:string;existingRecords?:string[];onProgress?:(progress:MeetingExtractionProgress)=>void;signal?:AbortSignal}):Promise<MeetingDraft>{
+ const notify=(progress:MeetingExtractionProgress)=>input.onProgress?.(progress);
+ const ensureActive=()=>{if(input.signal?.aborted)throw Error("Análise cancelada pelo usuário.");};
+ notify({stage:"preparing",completed:0,total:0,message:"Preparando documento para análise"});
+ ensureActive();
  const openai=getOpenAIClient();
  if(!openai)throw Error("Configuração de IA indisponível. Nenhuma reunião foi gravada.");
  if(input.file&&!allowedMeetingFile(input.file.name))throw Error("Formato não suportado. Use PDF, DOCX, TXT, MD, CSV, JSON, VTT ou SRT.");
@@ -42,6 +47,7 @@ export async function prepareMeetingDraft(input:{filename?:string;content?:strin
  let uploadedId:string|null=null;
  try{
   let attachment: {type:"input_file";file_id:string}|null=null;
+  ensureActive();
   if(input.file){
    if(input.file.name.toLowerCase().endsWith(".pdf")){
     const upload=await toFile(Buffer.from(await input.file.arrayBuffer()),input.file.name,{type:"application/pdf"});
@@ -73,11 +79,13 @@ export async function prepareMeetingDraft(input:{filename?:string;content?:strin
   // Never silently truncate a source or claim exhaustive coverage when a block fails.
   const blocks=attachment?[]:chunkTranscript(content,12000);
   if(blocks.length>12)throw Error("Transcrição acima do limite de análise completa (12 blocos). Divida o arquivo antes de importar.");
+  notify({stage:"blocks",completed:0,total:attachment?1:blocks.length,message:attachment?"Processando PDF com a IA":"Iniciando leitura dos blocos"});
   let evidence:MeetingEvidence={actions:[],participantsMentioned:[],participantsConfirmed:[],
     coverage:{blocks:attachment?1:blocks.length,processed:0,notes:[]}};
   if(blocks.length){
    const extracted:ReturnType<typeof normalizeBlockEvidence>[]=[];
    for(let i=0;i<blocks.length;i++){
+    ensureActive();
     const response=await openai.responses.create({
       model:process.env.KAIROS_INGEST_MODEL?.trim()||"gpt-4.1",
       input:[{role:"user",content:[{type:"input_text",text:[
@@ -96,9 +104,12 @@ export async function prepareMeetingDraft(input:{filename?:string;content?:strin
     let decoded:unknown;
     try{decoded=JSON.parse(raw)}catch{throw Error("Falha de extração estruturada no bloco "+(i+1)+" de "+blocks.length+". Nenhuma reunião foi gravada.");}
     extracted.push(normalizeBlockEvidence(decoded,i+1));
+    notify({stage:"blocks",completed:i+1,total:blocks.length,message:"Bloco "+(i+1)+" de "+blocks.length+" analisado"});
    }
    evidence=mergeEvidence(extracted);
   }
+  ensureActive();
+  notify({stage:"consolidating",completed:attachment?1:blocks.length,total:attachment?1:blocks.length,message:"Consolidando ata, participantes e encaminhamentos"});
   const summaries=evidence.actions.map(a=>[a.id,a.status,a.owner,a.time,a.title,a.evidence].filter(Boolean).join(" | "));
   const coverageInstruction=[
     "Não omita o que foi encontrado na extração por blocos.",
@@ -133,6 +144,8 @@ export async function prepareMeetingDraft(input:{filename?:string;content?:strin
   }
   if(!attachment&&evidence.coverage.processed!==blocks.length)throw Error("Nem todos os blocos da fonte foram analisados.");
   if(attachment)draft.uncertainties.push("PDF processado diretamente: cobertura textual por blocos não verificada.");
+  ensureActive();
+  notify({stage:"completed",completed:attachment?1:blocks.length,total:attachment?1:blocks.length,message:"Prévia pronta para revisão"});
   return draft;
  }finally{
   if(uploadedId)try{await openai.files.del(uploadedId)}catch{/* cleanup best effort */}
