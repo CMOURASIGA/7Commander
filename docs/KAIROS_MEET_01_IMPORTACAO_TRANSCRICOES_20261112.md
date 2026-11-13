@@ -52,3 +52,32 @@ Atualização local:
 
 ### Limitações
 Os horários e trechos de evidência são extrações propostas pela IA e exigem revisão contra o original. Processar todos os blocos não assegura extração exaustiva. PDFs extensos ainda exigirão estratégia de extração por páginas. Múltiplas chamadas aumentam tempo e custo.
+
+## MEET-02 | 13/11/2026 | Ampliação da capacidade do Kairos a partir de projetos open source
+Referências arquiteturais revisadas, **sem incorporar código externo**:
+- Meet2Notes (MIT): separação de captura, transcrição, relatórios intermediários e consolidação.
+- take-minutes (MIT): extração por blocos, recuperação e deduplicação.
+- AI Meeting Intelligence System (licença não identificada): contrato estruturado, evidência localizada na transcrição e filtro conservador de atribuições. Referência conceitual apenas, não copiar código.
+- MeetingScribe (MIT): diarização e correção de identidade para uma fase posterior de entrada por áudio.
+- JEV: considerar teste em modo observação separado; não é dependência da execução do Kairos.
+
+**Entregue neste incremento**
+- Serviço independente de grounding `services/meeting-grounding.ts`: confere citações literais ou normalizadas no bloco original, preserva posição e sinaliza ausência de evidência. Quando uma citação não é localizada, o item é despromovido a revisão, sem responsável nem inclusão automática.
+- Identificação conservadora de possíveis duplicidades por similaridade de títulos, sem excluir ocorrências nem fundir evidências distintas.
+- Indicadores de evidências localizadas e avisos por ocorrência na prévia de revisão.
+- Testes unitários com citações reais, citação inventada, classificação conservadora e duplicidades. O documento original continua não sendo gravado na base do projeto.
+- Integração à skill existente `meeting-followup`. Sem segundo agente nem API externa obrigatória.
+
+**Ainda não concluído**
+- Conferência semântica completa de cada paráfrase contra o trecho (localizar citação não garante interpretação correta).
+- Extrator JSON Schema rígido, fonte textual PDF por página, retomada de processamento e versionamento persistente de execuções.
+- Comparação objetiva com JEV, integração de áudio/diarização, homologação de gravação no banco.
+- Gates CI e teste real Mardisa após o incremento ainda não executados.
+
+**Critérios de revalidação**
+1. Mardisa DOCX: validar cobertura e trechos reais. Não tratar `7/7 blocos` como prova de exatidão.
+2. Conferir número de trechos localizados, itens não encontrados e categorias; não aceitar automaticamente itens sem citação verificável.
+3. Confirmar que troca de liderança, participantes e compromissos não recebem nomes sem prova.
+4. Conferir possíveis duplicidades entre blocos, mantendo os itens distintos quando necessário.
+5. Conferir zero itens pré-selecionados e nenhuma escrita em projeto/produção durante a prévia.
+6. Executar typecheck, lint, test:unit, skills:eval e build no HEAD local; manter develop/main intactas.
