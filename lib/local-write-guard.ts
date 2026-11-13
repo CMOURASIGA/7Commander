@@ -24,3 +24,18 @@ export function shouldBlockLocalApiMutation(input:{
     && !["GET","HEAD","OPTIONS"].includes(input.method.toUpperCase())
     && !localReadOnlyChatAllowed(input.pathname,input.method);
 }
+
+/** Narrow rehearsal exception: ONLY the project meetings POST route on a
+ * loopback development server with the existing read-only guard enabled.
+ * The handler persists to the filesystem, never to Supabase.
+ */
+export function localMeetingSandboxAllowed(input:{
+ pathname:string;hostname:string;method:string;env?:NodeJS.ProcessEnv
+}):boolean{
+ const env=input.env??process.env;
+ return env.NODE_ENV==="development"
+  &&localWriteGuardEnabled(env)
+  &&["localhost","127.0.0.1"].includes(input.hostname)
+  &&input.method.toUpperCase()==="POST"
+  &&/^\\/api\\/projects\\/[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}\\/meetings$/i.test(input.pathname);
+}
