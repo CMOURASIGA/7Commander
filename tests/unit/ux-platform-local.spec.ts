@@ -198,3 +198,17 @@ test("meeting preview distinguishes confirmed attendees from people merely refer
  expect(component).toContain('["participants","Participantes"]');
  expect(component).toContain("Aprovar e registrar reunião");
 });
+
+test("Kanban card detail exposes audited status selector consistent with notification drawer",()=>{
+ const page=source("app/activities/page.tsx");
+ const route=source("app/api/tasks/[taskId]/status/route.ts");
+ expect(page).toContain('htmlFor="task-detail-status"');
+ expect(page).toContain('value={taskDetail.card.columnKey}');
+ expect(page).toContain('disabled={!canEditDetail||statusChanging}');
+ expect(page).toContain('async function changeDetailCardStatus(');
+ expect(page).toContain('"/status"');
+ expect(page).toContain('setStatusChangeError(');
+ expect(page).toContain('window.dispatchEvent(new Event("7commander:tasks-changed"))');
+ expect(route).toContain("localWriteGuardEnabled()");
+ expect(route).toContain("updateTaskCard({");
+});
