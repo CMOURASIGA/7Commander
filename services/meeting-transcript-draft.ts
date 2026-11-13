@@ -3,6 +3,7 @@ import mammoth from "mammoth";
 import {toFile} from "openai/uploads";
 import {chunkTranscript,mergeEvidence,normalizeBlockEvidence,formatApprovedMeetingActions,isSpeakerPlaceholder,type MeetingEvidence} from "@/services/meeting-evidence";
 import {guardMeetingNarrative,reviewMeetingEvidence,explicitAttendeeRoster,type MeetingReviewFlag} from "@/services/meeting-review-guard";
+import {verifyMeetingEvidence} from "@/services/meeting-grounding";
 
 export type MeetingDraft={
  title:string;heldAt:string;participants:string;objective:string;summary:string;
@@ -11,6 +12,7 @@ export type MeetingDraft={
  uncertainties:string[];suggestedActions:string[];
  evidence:MeetingEvidence;
  reviewFlags:MeetingReviewFlag[];
+ grounding:{total:number;verified:number;unverified:number};
 };
 export const allowedMeetingFile=(name:string)=>
  /\.(txt|md|csv|json|vtt|srt|docx|pdf)$/i.test(name);
@@ -32,7 +34,7 @@ export function normalizeMeetingDraft(raw:unknown):MeetingDraft{
   pendingItems:clean(data.pendingItems),risks:clean(data.risks),
   nextFollowUp:dateOrBlank(data.nextFollowUp),
   sourceArtifactId:"",uncertainties:array(data.uncertainties),suggestedActions:array(data.suggestedActions),
-  evidence:{actions:[],participantsMentioned:[],participantsConfirmed:[],coverage:{blocks:0,processed:0,notes:[]}},reviewFlags:[],
+  evidence:{actions:[],participantsMentioned:[],participantsConfirmed:[],coverage:{blocks:0,processed:0,notes:[]}},reviewFlags:[],grounding:{total:0,verified:0,unverified:0},
  };
 }
 export type MeetingExtractionProgress={stage:"preparing"|"blocks"|"consolidating"|"completed";completed:number;total:number;message:string};
@@ -118,6 +120,9 @@ export async function prepareMeetingDraft(input:{filename?:string;content?:strin
     notify({stage:"blocks",completed:i+1,total:blocks.length,message:"Bloco "+(i+1)+" de "+blocks.length+" analisado"});
    }
    evidence=mergeEvidence(extracted);
+   const checked=verifyMeetingEvidence(evidence,blocks);
+   evidence.actions=checked.actions;
+   evidence.coverage.notes.push("Citações verificadas diretamente na transcrição: "+checked.verified+" de "+checked.total+". Itens não localizados exigem revisão.");
   }
   ensureActive();
   notify({stage:"consolidating",completed:attachment?1:blocks.length,total:attachment?1:blocks.length,message:"Consolidando ata, participantes e encaminhamentos"});
@@ -147,6 +152,8 @@ export async function prepareMeetingDraft(input:{filename?:string;content?:strin
   let data:unknown;try{data=JSON.parse(output)}catch{throw Error("A IA não devolveu uma ata estruturada válida. Nenhuma reunião foi gravada.");}
   const draft=normalizeMeetingDraft(data);
   if(!draft.title||!draft.summary)throw Error("A extração não identificou título e resumo suficientes. Revise a fonte.");
+  const groundingReport=attachment?null:verifyMeetingEvidence(evidence,blocks);
+  draft.grounding={total:groundingReport?.total??0,verified:groundingReport?.verified??0,unverified:groundingReport?.unverified??0};
   draft.reviewFlags=reviewMeetingEvidence(evidence);
   // A transcript's conversational mentions cannot certify attendance.
   // Only a literal attendee roster may prefill names; the user can still edit.
