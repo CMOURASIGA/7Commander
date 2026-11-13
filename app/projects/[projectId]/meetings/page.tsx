@@ -29,6 +29,7 @@ export default function ProjectMeetings(){
  const {projectId}=useParams<{projectId:string}>();
  const {readOnly,checking}=useCentralPilotReadOnly();
  const [meetings,setMeetings]=useState<Meeting[]>([]);
+ const [localSandboxMode,setLocalSandboxMode]=useState(false);
  const [form,setForm]=useState(empty);
  const [showForm,setShowForm]=useState(false);
  const [loading,setLoading]=useState(true);
@@ -73,7 +74,7 @@ export default function ProjectMeetings(){
    const response=await fetch(`/api/projects/${projectId}/meetings`,{headers:getClientAuthHeaders(),cache:"no-store"});
    const result=await response.json();
    if(!response.ok)throw Error(result.error||"Falha na consulta.");
-   setMeetings(result.data??[]);setError("");
+   setMeetings(result.data??[]);setLocalSandboxMode(result.localSandbox===true);setError("");
   }catch(err){setError(err instanceof Error?err.message:"Não foi possível consultar as reuniões.");}
   finally{setLoading(false)}
  },[projectId]);
@@ -115,6 +116,9 @@ export default function ProjectMeetings(){
     <p className="mt-1 text-sm text-(--text-secondary)">Registros estruturados, compromissos e rastreabilidade com origem preservada. Não presume entregas concluídas.</p></div>
    {!readOnly&&!checking&&<button className="workspace-button-primary px-4 py-2 text-sm" onClick={()=>setShowForm(x=>!x)}>{showForm?"Fechar formulário":"+ Registrar reunião"}</button>}
   </header>
+  {localSandboxMode&&<p role="status" className="rounded-xl border border-(--accent) bg-(--bg-muted) p-3 text-sm font-semibold">
+   MODO DE HOMOLOGAÇÃO LOCAL: reuniões salvas neste computador, sem alterar o banco oficial. Os registros abaixo são de teste e não aparecem para outros usuários.
+  </p>}
   {projectId && <MeetingTranscriptImport projectId={projectId} onSaved={()=>void fetchMeetings()} />}
   {error&&<p role="alert" className="rounded-lg border p-3 text-sm text-red-700">{error}</p>}
   {message&&<p role="status" className="text-sm text-(--text-secondary)">{message}</p>}
