@@ -1,5 +1,5 @@
 "use client";
-import {useRef,useState} from "react";
+import {useEffect,useRef,useState} from "react";
 import {getClientAuthHeaders} from "@/lib/client-auth";
 import {useCentralPilotReadOnly} from "@/lib/use-central-pilot-read-only";
 import type {MeetingDraft} from "@/services/meeting-transcript-draft";
@@ -23,23 +23,75 @@ export function MeetingTranscriptImport({projectId,onSaved}:{projectId:string;on
  const [loading,setLoading]=useState(false),[saving,setSaving]=useState(false);
  const [error,setError]=useState(""),[success,setSuccess]=useState("");
  const [open,setOpen]=useState(false);
+ const controllerRef=useRef<AbortController|null>(null);
+ const lastProgressRef=useRef(0);
+ const [slow,setSlow]=useState(false);
+ const [progress,setProgress]=useState<{stage:string;completed:number;total:number;message:string}|null>(null);
+ useEffect(()=>{
+  return ()=>controllerRef.current?.abort();
+ },[]);
+ useEffect(()=>{
+  if(!loading)return;
+  const check=window.setInterval(()=>setSlow(Date.now()-lastProgressRef.current>45000),5000);
+  return ()=>window.clearInterval(check);
+ },[loading]);
+
  async function analyze(){
   if(!projectId||loading)return;
-  setError("");setSuccess("");setDraft(null);setLoading(true);
+  setError("");setSuccess("");setDraft(null);setLoading(true);setSlow(false);
+  setProgress({stage:"preparing",completed:0,total:0,message:"Enviando arquivo e verificando acesso ao projeto"});
+  lastProgressRef.current=Date.now();
+  const controller=new AbortController();
+  controllerRef.current=controller;
   try{
    const data=new FormData();
    if(file)data.append("file",file);
    if(notes.trim())data.append("text",notes.trim());
    const response=await fetch("/api/projects/"+encodeURIComponent(projectId)+"/meetings/draft",{
-    method:"POST",headers:getClientAuthHeaders(),body:data
+    method:"POST",headers:getClientAuthHeaders({"Accept":"application/x-ndjson"}),body:data,signal:controller.signal
    });
-   const body=await response.json();
-   if(!response.ok)throw Error(body.error||"Falha ao interpretar transcrição.");
-   setDraft({...body.data,sourceArtifactId:file?.name||"Texto colado no chat"} as MeetingDraft);
-   setReviewTab("meeting");
-   setSourceName(file?.name||"Texto colado no chat");
-  }catch(e){setError(e instanceof Error?e.message:"Não foi possível analisar a fonte.");}
-  finally{setLoading(false);}
+   if(!response.ok){
+    const body=await response.json().catch(()=>({}));
+    throw Error(body.error||"Falha ao interpretar transcrição.");
+   }
+   if(!response.body)throw Error("O servidor não disponibilizou acompanhamento do processamento.");
+   const reader=response.body.getReader();
+   const decoder=new TextDecoder();
+   let pending="",received=false;
+   const consume=(line:string)=>{
+    if(!line.trim())return;
+    const message=JSON.parse(line) as {type:string;error?:string;data?:MeetingDraft;stage?:string;completed?:number;total?:number;message?:string};
+    lastProgressRef.current=Date.now();setSlow(false);
+    if(message.type==="error")throw Error(message.error||"Falha na análise de um bloco.");
+    if(message.type==="progress")setProgress({stage:message.stage||"preparing",completed:message.completed??0,total:message.total??0,message:message.message||"Analisando"});
+    if(message.type==="result"&&message.data){
+     received=true;
+     setDraft({...message.data,sourceArtifactId:file?.name||"Texto colado no chat"});
+     setReviewTab("meeting");
+     setSourceName(file?.name||"Texto colado no chat");
+     setProgress({stage:"completed",completed:1,total:1,message:"Prévia pronta para revisão"});
+    }
+   };
+   try{
+    while(true){
+     const chunk=await reader.read();
+     if(chunk.done)break;
+     pending+=decoder.decode(chunk.value,{stream:true});
+     const lines=pending.split("\n");
+     pending=lines.pop()||"";
+     for(const line of lines)consume(line);
+    }
+    pending+=decoder.decode();
+    if(pending.trim())consume(pending);
+   }finally{reader.releaseLock();}
+   if(!received)throw Error("Processamento encerrado sem gerar a prévia. Nenhum registro foi criado.");
+  }catch(e){
+   setProgress(null);
+   setError(controller.signal.aborted?"Análise cancelada. Nenhuma reunião foi gravada.":e instanceof Error?e.message:"Não foi possível analisar a fonte.");
+  }finally{
+   if(controllerRef.current===controller)controllerRef.current=null;
+   setLoading(false);setSlow(false);
+  }
  }
  async function save(){
   if(!draft||!projectId||saving||readOnly||checking)return;
@@ -120,6 +172,27 @@ export function MeetingTranscriptImport({projectId,onSaved}:{projectId:string;on
    </label>
    <button type="button" className="workspace-button-primary px-4 py-2 text-sm" disabled={loading||(!file&&notes.trim().length<80)}
     onClick={()=>void analyze()}>{loading?"Interpretando a fonte...":"Preparar prévia com Kairos"}</button>
+   {loading&&progress?<section className="space-y-3 rounded-xl border border-(--border) bg-(--bg-muted) p-4" aria-label="Progresso da interpretação">
+     <div role="status" aria-live="polite" className="space-y-1">
+      <p className="text-sm font-semibold">{progress.message}</p>
+      <p className="text-xs text-(--text-secondary)">{progress.stage==="blocks"&&progress.total>0
+       ?progress.completed+" de "+progress.total+" blocos analisados"
+       :progress.stage==="consolidating"?"Todos os blocos concluídos. Preparando o resultado final."
+       :"Preparando processamento..."}</p>
+     </div>
+     <div role="progressbar" aria-label="Etapa de interpretação da reunião"
+      aria-valuemin={0} aria-valuemax={100}
+      aria-valuenow={progress.stage==="blocks"&&progress.total>0?Math.round(progress.completed/progress.total*100):undefined}
+      aria-valuetext={progress.message}
+      className="h-2 w-full overflow-hidden rounded-full bg-(--border)">
+      <div className={"h-full rounded-full bg-(--accent) transition-all "+(progress.stage!=="blocks"?"animate-pulse":"")}
+       style={{width:progress.stage==="blocks"&&progress.total>0?(progress.completed/progress.total*100)+"%":"100%"}}/>
+     </div>
+     {slow?<p role="alert" className="text-xs font-semibold text-(--danger)">Sem nova atualização há mais de 45 segundos. A IA pode estar processando um bloco demorado ou a conexão pode estar interrompida. Você pode cancelar e tentar novamente.</p>:null}
+     <button type="button" className="workspace-button-secondary px-3 py-2 text-xs"
+      onClick={()=>controllerRef.current?.abort()}>Cancelar análise</button>
+     <p className="text-xs text-(--text-secondary)">A barra mostra blocos concluídos, não uma estimativa de tempo restante. Durante a consolidação, o tempo não é previsível.</p>
+    </section>:null}
    {draft&&<section className="space-y-3 rounded-xl border border-(--border) p-4" aria-label="Prévia para aprovação">
     <div><h3 className="text-sm font-semibold">Revisar ata antes de salvar</h3>
      <p className="text-xs text-(--text-secondary)">Origem: {sourceName}. O documento original não foi guardado. Revise datas, participantes e afirmações antes de aprovar.</p></div>
