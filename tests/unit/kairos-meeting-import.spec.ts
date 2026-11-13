@@ -84,6 +84,7 @@ test("individual meeting actions retain time, proposed owner, status and origina
  expect(combined.actions[0].time).toBe("00:42:25");
  expect(combined.actions[1].status).toBe("proposta");
  expect(combined.participantsMentioned).toEqual(["Christian","Edson"]);
+ expect(combined.participantsConfirmed).toEqual([]);
  const text=formatApprovedMeetingActions(combined.actions);
  expect(text.commitments).toContain("Compartilhar relatório");
  expect(text.pendingItems).toContain("Validar regra");
