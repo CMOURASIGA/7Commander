@@ -32,12 +32,22 @@ export async function GET(request:NextRequest,{params}:RouteContext){
  const list=await ctx.db.from("project_meetings")
   .select("id,title,held_at,participants,objective,summary,advances,decisions,commitments,pending_items,risks,next_follow_up,source_conversation_id,source_artifact_id,created_at")
   .eq("organization_id",ctx.org).eq("project_id",projectId).order("held_at",{ascending:false}).limit(100);
- if(list.error)return error("Registro de reuniões indisponível ou migration não aplicada.",503);
+ if(list.error){
+  console.error("[project meetings] SELECT failed",{code:list.error.code,projectId});
+  const code=list.error.code;
+  if(code==="42501")return error("Sem permissão para consultar reuniões neste ambiente. Verifique as credenciais do backend e a política RLS; nenhuma migração deve ser aplicada automaticamente.",403);
+  if(code==="42P01"||code==="PGRST205")return error("Tabela de reuniões não disponível neste ambiente. Verifique se as migrações de reuniões foram aplicadas.",503);
+  return error("Não foi possível consultar as reuniões. Verifique o log do servidor e o acesso à base.",503);
+ }
  const ids=(list.data??[]).map(x=>x.id);
  if(!ids.length)return reply({data:[]});
  const links=await ctx.db.from("project_meeting_links").select("meeting_id,record_type,record_id")
    .eq("organization_id",ctx.org).eq("project_id",projectId).in("meeting_id",ids);
- if(links.error)return error("Vínculos das reuniões indisponíveis.",503);
+ if(links.error){
+  console.error("[project meetings] link SELECT failed",{code:links.error.code,projectId});
+  if(links.error.code==="42501")return error("Sem permissão para consultar vínculos das reuniões neste ambiente. Confira as credenciais do backend e a RLS.",403);
+  return error("Vínculos das reuniões indisponíveis. Verifique logs e esquema.",503);
+ }
  return reply({data:(list.data??[]).map(meeting=>({...meeting,links:(links.data??[]).filter(link=>link.meeting_id===meeting.id)}))});
 }
 export async function POST(request:NextRequest,{params}:RouteContext){
