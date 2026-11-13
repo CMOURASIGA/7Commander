@@ -30,7 +30,7 @@ function fingerprint(title:string,date:string){
 export async function listSandboxMeetings(org:string,project:string):Promise<SandboxMeeting[]>{
  const path=directory(org,project);
  let filenames:string[];
- try{filenames=(await readdir(path)).filter(n=>/^[a-f0-9]{64}\\.json$/.test(n));}
+ try{filenames=(await readdir(path)).filter(n=>/^[a-f0-9]{64}\.json$/.test(n));}
  catch(e){if((e as NodeJS.ErrnoException).code==="ENOENT")return [];throw e;}
  const data=await Promise.all(filenames.map(async filename=>{
   const raw=JSON.parse(await readFile(join(path,filename),"utf8")) as SandboxMeeting;
