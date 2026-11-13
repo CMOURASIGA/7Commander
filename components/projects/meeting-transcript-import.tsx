@@ -5,7 +5,7 @@ import {useCentralPilotReadOnly} from "@/lib/use-central-pilot-read-only";
 import type {MeetingDraft} from "@/services/meeting-transcript-draft";
 import {formatApprovedMeetingActions,type MeetingAction} from "@/services/meeting-evidence";
 
-type Editable=Omit<MeetingDraft,"uncertainties"|"suggestedActions">;
+type Editable=Pick<MeetingDraft,"title"|"participants"|"objective"|"summary"|"advances"|"decisions"|"commitments"|"pendingItems"|"risks"|"sourceArtifactId"|"heldAt"|"nextFollowUp">;
 const fields:[keyof Editable,string][]=[
  ["title","Título"],["participants","Participantes"],["objective","Objetivo"],
  ["summary","Resumo"],["advances","Avanços"],["decisions","Decisões confirmadas"],
@@ -49,6 +49,9 @@ export function MeetingTranscriptImport({projectId,onSaved}:{projectId:string;on
   try{
    const selectedActions=draft.evidence?.actions??[];
    const formatted=selectedActions.length?formatApprovedMeetingActions(selectedActions):null;
+   if(formatted&&((selectedActions.filter(action=>action.included&&["assumido","realizado"].includes(action.status)).length>0&&!formatted.commitments)||(selectedActions.filter(action=>action.included&&!["assumido","realizado"].includes(action.status)).length>0&&!formatted.pendingItems))){
+    setError("Encaminhamentos selecionados não foram consolidados. Revise a seleção.");return;
+   }
    const response=await fetch("/api/projects/"+encodeURIComponent(projectId)+"/meetings",{
     method:"POST",headers:getClientAuthHeaders({"Content-Type":"application/json"}),
     body:JSON.stringify({...draft,
@@ -124,6 +127,7 @@ export function MeetingTranscriptImport({projectId,onSaved}:{projectId:string;on
        onClick={()=>setReviewTab(key)}>{label}{key==="actions"?" ("+(draft.evidence?.actions.length??0)+")":""}</button>)}
     </nav>
     {reviewTab==="meeting"&&<>
+    {(draft.evidence?.actions.length??0)>0?<p className="rounded-lg bg-(--bg-muted) px-3 py-2 text-xs text-(--text-secondary)">Os campos Compromissos e Pendências serão consolidados a partir dos encaminhamentos selecionados na aba Encaminhamentos. Revise a seleção antes de aprovar.</p>:null}
     <label className="block text-xs font-semibold">Data e hora confirmadas (obrigatório)
      <input type="datetime-local" value={draft.heldAt?draft.heldAt.slice(0,16):""} onChange={e=>edit("heldAt",e.target.value)}
       className="workspace-input mt-1 w-full"/>
