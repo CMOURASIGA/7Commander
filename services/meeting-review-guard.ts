@@ -37,6 +37,15 @@ export function reviewMeetingEvidence(evidence:MeetingEvidence):MeetingReviewFla
   const inCall=/\b(agora|aqui|nesse momento|durante a reunião|só um segundo)\b/i.test(action.evidence);
   const singleQuestion=action.evidence.trim().endsWith("?")
    && !/\b(vou|vamos|ficou combinado|me comprometo|encaminharei|enviarei)\b/i.test(action.evidence);
+  // A requirement about the application's fiscal behavior is not evidence that
+  // an individual accepted a future delivery.
+  const requirementsLanguage=/\b(?:tem que|deve(?:mos)?|precisa(?:mos)?|necess[aá]rio|obrigat[oó]rio)\b/i.test(action.evidence);
+  const fiscalSpecification=/\b(?:nota(?:s)? (?:fiscais?|de entrada)|ressarcimento|substitui[cç][aã]o tribut[aá]ria|ICMS|SPED|EFD)\b/i.test(action.title);
+  const explicitCommitment=/\b(?:eu vou|n[oó]s vamos (?:enviar|entregar|implementar|corrigir)|ficou combinado|me comprometo|irei encaminhar)\b/i.test(action.evidence);
+  if(requirementsLanguage&&fiscalSpecification&&!explicitCommitment){
+   action.kind="business_rule";action.status="a_confirmar";action.included=false;
+   continue;
+  }
   if((screenShare&&inCall)||singleQuestion){
    action.kind="context";
    action.status="a_confirmar";
