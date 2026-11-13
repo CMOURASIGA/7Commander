@@ -1,6 +1,7 @@
 export type MeetingAction={
  id:string;title:string;owner:string;kind:"operational"|"business_rule"|"context"|"offer"|"completed"|"review";status:"proposta"|"assumido"|"realizado"|"pendente"|"a_confirmar";
  evidence:string;time:string;sourceBlock:number;included:boolean;
+ duplicateCandidateOf?:string;
 };
 export type MeetingEvidence={
  participantsMentioned:string[];
@@ -56,6 +57,27 @@ export function normalizeBlockEvidence(value:unknown,block:number):{actions:Meet
  return {actions:rawActions.slice(0,24).map((a,i)=>normalizeAction(a,block,i)).filter((a):a is MeetingAction=>Boolean(a)),
   participantsMentioned:strings(data.participantsMentioned),participantsConfirmed:strings(data.participantsConfirmed).filter(name=>!isSpeakerPlaceholder(name)),notes:strings(data.notes,12)};
 }
+/** Flag near-duplicate operational proposals without deleting independent evidence.
+ * A human must decide whether two similarly worded actions represent the same commitment.
+ */
+export function markMeetingDuplicateCandidates(actions:MeetingAction[]):MeetingAction[]{
+ const normalized=(value:string)=>value.normalize("NFD").replace(/[\u0300-\u036f]/g,"")
+  .toLocaleLowerCase("pt-BR").replace(/[^a-z0-9]+/g," ").trim();
+ const terms=(value:string)=>new Set(normalized(value).split(/\s+/).filter(x=>x.length>3));
+ return actions.map((action,index)=>{
+  if(action.kind!=="operational")return action;
+  const left=terms(action.title);
+  if(left.size<3)return action;
+  const earlier=actions.slice(0,index).find(other=>{
+   if(other.kind!=="operational"||other.id===action.id)return false;
+   const right=terms(other.title);
+   const common=[...left].filter(term=>right.has(term)).length;
+   const union=new Set([...left,...right]).size;
+   return union>0&&common/union>=0.8;
+  });
+  return earlier?{...action,duplicateCandidateOf:earlier.id}:action;
+ });
+}
 export function mergeEvidence(parts:ReturnType<typeof normalizeBlockEvidence>[]):MeetingEvidence{
  const seen=new Set<string>();
  const actions=parts.flatMap(p=>p.actions).filter(item=>{
@@ -64,8 +86,9 @@ export function mergeEvidence(parts:ReturnType<typeof normalizeBlockEvidence>[])
   if(seen.has(key))return false;
   seen.add(key);return true;
  }).slice(0,120);
+ const reviewedActions=markMeetingDuplicateCandidates(actions);
  const people=Array.from(new Set(parts.flatMap(p=>p.participantsMentioned)));
- return {actions,participantsMentioned:people,participantsConfirmed:Array.from(new Set(parts.flatMap(p=>p.participantsConfirmed))),
+ return {actions:reviewedActions,participantsMentioned:people,participantsConfirmed:Array.from(new Set(parts.flatMap(p=>p.participantsConfirmed))),
   coverage:{blocks:parts.length,processed:parts.length,notes:parts.flatMap(p=>p.notes).slice(0,40)}};
 }
 export function formatApprovedMeetingActions(actions:MeetingAction[]):{commitments:string;pendingItems:string}{
