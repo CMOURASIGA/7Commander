@@ -43,8 +43,9 @@ export async function POST(request:NextRequest,context:{params:Promise<{projectI
   if(request.headers.get("accept")?.includes("application/x-ndjson")){
    const encoder=new TextEncoder();
    const stream=new ReadableStream<Uint8Array>({
-    async start(controller){
-     const emit=(value:unknown)=>{try{controller.enqueue(encoder.encode(JSON.stringify(value)+"\\n"));}catch{/* client disconnected */}};
+    start(controller){
+     void (async()=>{
+     const emit=(value:unknown)=>{try{controller.enqueue(encoder.encode(JSON.stringify(value)+"\n"));}catch{/* client disconnected */}};
      try{
       const draft=await prepareMeetingDraft({...payload,signal:request.signal,
        onProgress:progress=>emit({type:"progress",...progress})});
@@ -54,6 +55,7 @@ export async function POST(request:NextRequest,context:{params:Promise<{projectI
       console.error("[meetings/draft] stream failed",message);
       emit({type:"error",error:message});
      }finally{try{controller.close();}catch{/* disconnected */}}
+     })();
     }
    });
    return new Response(stream,{headers:{"Content-Type":"application/x-ndjson; charset=utf-8",
