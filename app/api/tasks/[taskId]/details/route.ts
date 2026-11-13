@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireApiAuth } from "@/lib/api-auth";
+import {localWriteGuardEnabled} from "@/lib/local-write-guard";
 import {
   addTaskAttachment,
   addTaskChecklist,
@@ -73,7 +74,17 @@ export async function POST(
     if (!auth.ok) return auth.response;
 
     const { taskId } = await context.params;
+    if(localWriteGuardEnabled())return NextResponse.json(
+      {error:"Ambiente local em modo somente leitura. Comentários e alterações precisam ser validados em QA autorizado.",code:"LOCAL_READ_ONLY"},
+      {status:403}
+    );
     const payload = (await request.json()) as ActionPayload;
+    if(!payload||typeof payload!=="object"||typeof payload.action!=="string")
+      return NextResponse.json({error:"Ação inválida para este card.",code:"INVALID_ACTION"},{status:400});
+    if(payload.action==="add_comment"||payload.action==="update_comment"){
+      if(typeof payload.content!=="string"||!payload.content.trim()||payload.content.trim().length>4000)
+        return NextResponse.json({error:"O comentário deve conter de 1 a 4.000 caracteres.",code:"INVALID_COMMENT"},{status:400});
+    }
     const normalizedTaskId = taskId.trim();
 
     let ok = false;
@@ -182,7 +193,7 @@ export async function POST(
     }
 
     if (!ok) {
-      return NextResponse.json({ error: "Acao nao aplicada na atividade." }, { status: 400 });
+      return NextResponse.json({ error: payload.action==="add_comment"?"Comentário não gravado. Confira permissão de edição e integridade do registro.":"Ação não aplicada. Confira a permissão e os campos informados.",code:"ACTION_NOT_APPLIED" }, { status: 409 });
     }
 
     const detail = await getTaskCardDetail({
