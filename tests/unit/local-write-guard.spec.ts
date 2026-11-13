@@ -37,6 +37,8 @@ test("meeting rehearsal only bypasses middleware for loopback development with r
  const safe={NODE_ENV:"development",COMMANDER_LOCAL_READ_ONLY:"true"} as NodeJS.ProcessEnv;
  const path="/api/projects/123e4567-e89b-12d3-a456-426614174000/meetings";
  expect(localMeetingSandboxAllowed({pathname:path,hostname:"localhost",method:"POST",env:safe})).toBe(true);
+ expect(localMeetingSandboxAllowed({pathname:path+"/draft",hostname:"localhost",method:"POST",env:safe})).toBe(true);
+ expect(localMeetingSandboxAllowed({pathname:path+"/draft/evil",hostname:"localhost",method:"POST",env:safe})).toBe(false);
  expect(localMeetingSandboxAllowed({pathname:path,hostname:"127.0.0.1",method:"POST",env:safe})).toBe(true);
  for(const hostname of ["commander.example.com","192.168.1.5","localhost.evil.com"]){
   expect(localMeetingSandboxAllowed({pathname:path,hostname,method:"POST",env:safe})).toBe(false);
