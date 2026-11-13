@@ -115,7 +115,7 @@ test("UX-NOTIFY-02 links notifications to their original Scrum stories and opera
  expect(notifications).toContain('storyId=');
  expect(notifications).toContain('taskId=');
  expect(notifications).toContain('Origem:');
- expect(notifications).toContain('Abrir US para revisar');
+ expect(notifications).toContain('Abrir User Story');
  expect(notifications).toContain('Abrir card');
 });
 
@@ -191,7 +191,7 @@ test("meeting preview distinguishes confirmed attendees from people merely refer
  const prompt=source("services/meeting-transcript-draft.ts");
  const component=source("components/projects/meeting-transcript-import.tsx");
  expect(prompt).toContain("PARTICIPANTES:");
- expect(prompt).toContain("pessoas mencionadas");
+ expect(prompt).toContain("pessoas ou organizações mencionadas");
  expect(prompt).toContain("uncertainties");
  expect(component).toContain('["participants","Participantes"]');
  expect(component).toContain("Aprovar e registrar reunião");
