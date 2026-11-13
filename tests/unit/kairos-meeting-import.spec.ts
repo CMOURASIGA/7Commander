@@ -75,8 +75,8 @@ test("long Teams transcription is chunked without silently losing the final minu
 
 test("individual meeting actions retain time, proposed owner, status and original evidence",()=>{
  const part=normalizeBlockEvidence({actions:[
-  {title:"Compartilhar relatório detalhado de erros",owner:"Equipe fiscal",status:"assumido",time:"00:42:25",evidence:"envia essa planilha"},
-  {title:"Validar regra de seleção de entradas",owner:"Equipe técnica",status:"proposta",time:"00:24:00",evidence:"a gente pode rever"}
+  {title:"Compartilhar relatório detalhado de erros",owner:"Equipe fiscal",kind:"operational",status:"assumido",time:"00:42:25",evidence:"envia essa planilha"},
+  {title:"Validar regra de seleção de entradas",owner:"Equipe técnica",kind:"operational",status:"proposta",time:"00:24:00",evidence:"a gente pode rever"}
  ],participantsMentioned:["Christian","Edson"],notes:["Data da reunião não indicada"]},1);
  const combined=mergeEvidence([part]);
  expect(combined.coverage).toEqual({blocks:1,processed:1,notes:["Data da reunião não indicada"]});
@@ -85,7 +85,7 @@ test("individual meeting actions retain time, proposed owner, status and origina
  expect(combined.actions[1].status).toBe("proposta");
  expect(combined.participantsMentioned).toEqual(["Christian","Edson"]);
  expect(combined.participantsConfirmed).toEqual([]);
- const text=formatApprovedMeetingActions(combined.actions);
+ const text=formatApprovedMeetingActions(combined.actions.map(action=>({...action,included:true})));
  expect(text.commitments).toContain("Compartilhar relatório");
  expect(text.pendingItems).toContain("Validar regra");
  expect(text.pendingItems).toContain("00:24:00");
@@ -93,8 +93,8 @@ test("individual meeting actions retain time, proposed owner, status and origina
 
 test("human deselection prevents an extracted action from being recorded in the meeting",()=>{
  const block=normalizeBlockEvidence({actions:[
-  {title:"Enviar documentação do piloto",status:"assumido",evidence:"vou encaminhar"},
-  {title:"Investigar operações canceladas",status:"pendente",evidence:"vamos olhar"}
+  {title:"Enviar documentação do piloto",kind:"operational",status:"assumido",evidence:"vou encaminhar"},
+  {title:"Investigar operações canceladas",kind:"operational",status:"pendente",evidence:"vamos olhar"}
  ]},2);
  const actions=block.actions.map((action,i)=>({...action,included:i===1}));
  const approved=formatApprovedMeetingActions(actions);
@@ -134,4 +134,37 @@ test("meeting importer shows processing progress and warns on delayed replies wi
  expect(ui).toContain('controllerRef.current?.abort()');
  expect(ui).toContain('Processamento encerrado sem gerar a prévia');
  expect(ui).toContain('barra mostra blocos concluídos, não uma estimativa de tempo restante');
+});
+
+test("MEET-R3 separates work from business rules, offers and technical explanation",()=>{
+ const part=normalizeBlockEvidence({actions:[
+  {title:"Enviar relatório de inconsistências para o desenvolvimento",kind:"operational",status:"assumido",evidence:"eu vou enviar"},
+  {title:"Nota de entrada precisa destacar substituição tributária",kind:"business_rule",status:"assumido",evidence:"tem que ter ST"},
+  {title:"Conte comigo se precisarem",kind:"offer",status:"assumido",evidence:"podem contar"},
+  {title:"Sistema depende de obrigações acessórias",kind:"context",status:"assumido",evidence:"depende de dados"},
+  {title:"Planilha já foi enviada",kind:"completed",status:"realizado",evidence:"já mandei"}
+ ],participantsConfirmed:["Palestrante 1","Christian","Speaker 2","Edson"],
+ participantsMentioned:["Marcelo","Jefferson"]},1);
+ expect(part.actions).toHaveLength(5);
+ expect(part.actions.every(action=>!action.included)).toBe(true);
+ expect(part.participantsConfirmed).toEqual(["Christian","Edson"]);
+ const approved=formatApprovedMeetingActions(part.actions.map(action=>({...action,included:true})));
+ expect(approved.commitments).toContain("Enviar relatório");
+ expect(approved.commitments).not.toContain("Nota de entrada");
+ expect(approved.commitments).not.toContain("Conte comigo");
+ expect(approved.commitments).not.toContain("Planilha já foi enviada");
+ expect(approved.pendingItems).not.toContain("Sistema depende");
+});
+
+test("MEET-R3 defaults unclassified extraction to review, never to official work",()=>{
+ const part=normalizeBlockEvidence({actions:[{title:"A gente precisa andar com isso",status:"assumido"}]},1);
+ expect(part.actions[0].kind).toBe("review");
+ expect(part.actions[0].included).toBe(false);
+ const preview=normalizeMeetingDraft({participants:"Palestrante 1; Christian; Orador 4; Edson",title:"Mardisa",summary:"Piloto"});
+ expect(preview.participants).toBe("Christian; Edson");
+ const ui=source("components/projects/meeting-transcript-import.tsx");
+ expect(ui).toContain("Ações para acompanhamento");
+ expect(ui).toContain("Regras, fatos e outras ocorrências");
+ expect(ui).toContain('disabled={action.kind!=="operational"}');
+ expect(ui).toContain('included:false');
 });
