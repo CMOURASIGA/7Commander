@@ -54,14 +54,8 @@ export function applySemanticAudit(evidence:MeetingEvidence,decisions:SemanticDe
   if(item.kind==="operational"&&kind!=="operational")demoted++;
   const status:MeetingAction["status"]=kind==="operational"&&d.commitmentConfirmed&&d.status==="assumido"
    ?"assumido":kind==="operational"&&d.status!=="assumido"?d.status:"a_confirmar";
-  return {...item,kind,status,owner:kind==="operational"&&item.owner===dOwner(item,d)?item.owner:"",included:false,
+  return {...item,kind,status,owner:kind==="operational"&&d.commitmentConfirmed?item.owner:"",included:false,
    semanticReason:d.reason,semanticVerified:true};
  });
  return {reviewed:evidence.actions.length,uncertain,demoted};
-}
-function dOwner(item:MeetingAction,decision:SemanticDecision):string{
- // Second-pass evaluation does not validate named-identity speaker mapping.
- // Preserve named owner only if it survives earlier identity protection and
- // there is an explicit commitment; otherwise leave unattributed.
- return decision.commitmentConfirmed?item.owner:"";
 }
