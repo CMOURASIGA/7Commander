@@ -20,6 +20,7 @@ export function MeetingTranscriptImport({projectId,onSaved}:{projectId:string;on
  const [draft,setDraft]=useState<MeetingDraft|null>(null);
  const [reviewTab,setReviewTab]=useState<"meeting"|"actions"|"checks">("meeting");
  const [actionFilter,setActionFilter]=useState<"operational"|"all"|"non_operational">("operational");
+ const [criticalReviewConfirmed,setCriticalReviewConfirmed]=useState(false);
  const [sourceName,setSourceName]=useState("");
  const [loading,setLoading]=useState(false),[saving,setSaving]=useState(false);
  const [error,setError]=useState(""),[success,setSuccess]=useState("");
@@ -68,7 +69,7 @@ export function MeetingTranscriptImport({projectId,onSaved}:{projectId:string;on
     if(message.type==="result"&&message.data){
      received=true;
      setDraft({...message.data,sourceArtifactId:file?.name||"Texto colado no chat"});
-     setReviewTab("meeting");setActionFilter("operational");
+     setReviewTab("meeting");setActionFilter("operational");setCriticalReviewConfirmed(false);
      setSourceName(file?.name||"Texto colado no chat");
      setProgress({stage:"completed",completed:1,total:1,message:"Prévia pronta para revisão"});
     }
@@ -98,6 +99,9 @@ export function MeetingTranscriptImport({projectId,onSaved}:{projectId:string;on
   if(!draft||!projectId||saving||readOnly||checking)return;
   if(!draft.heldAt){setError("Informe a data e o horário confirmados da reunião antes de salvar.");return;}
   if(!draft.title.trim()||!draft.summary.trim()){setError("Confira título e resumo.");return;}
+  if(draft.reviewFlags?.some(flag=>flag.severity==="critical")&&!criticalReviewConfirmed){
+   setReviewTab("checks");setError("Revise e confirme a atribuição de responsabilidades antes de registrar a reunião.");return;
+  }
   setError("");setSaving(true);
   try{
    const selectedActions=draft.evidence?.actions??[];
@@ -264,9 +268,19 @@ export function MeetingTranscriptImport({projectId,onSaved}:{projectId:string;on
       </article>)}
     </div>}
     {reviewTab==="checks"&&<div className="space-y-3 text-sm">
+      {(draft.reviewFlags??[]).length>0&&<section className="space-y-2 rounded-xl border border-(--danger) bg-(--danger-soft) p-3" aria-label="Revisão obrigatória de atribuições">
+       <p className="text-sm font-semibold text-(--danger)">Atenção: divergências de atribuição</p>
+       {(draft.reviewFlags??[]).map(flag=><p key={flag.code} className="text-xs text-(--danger)">{flag.message}</p>)}
+       {(draft.reviewFlags??[]).some(flag=>flag.severity==="critical")&&<label className="flex items-start gap-2 text-xs font-semibold">
+        <input type="checkbox" checked={criticalReviewConfirmed} onChange={e=>setCriticalReviewConfirmed(e.target.checked)}/>
+        Conferi a fonte original e revisei as atribuições do resumo e dos encaminhamentos.
+       </label>}
+      </section>}
+
       <p><strong>Cobertura da fonte:</strong> {draft.evidence?.coverage.processed??0} de {draft.evidence?.coverage.blocks??0} bloco(s) analisado(s).</p>
       <p><strong>Ocorrências analisadas:</strong> {draft.evidence?.actions.length??0}. Ações operacionais propostas: {(draft.evidence?.actions??[]).filter(item=>item.kind==="operational").length}. Outras categorias: {(draft.evidence?.actions??[]).filter(item=>item.kind!=="operational").length}.</p>
       <p><strong>Participantes confirmados nos trechos:</strong> {draft.evidence?.participantsConfirmed?.join("; ")||"Nenhum identificado"}.</p>
+      <p className="text-xs text-(--text-secondary)">Nomes mencionados não significam presença. Quando a autoria da fala não estiver identificada, deixe a atribuição sem nome.</p>
       <p><strong>Pessoas mencionadas, não necessariamente presentes:</strong> {draft.evidence?.participantsMentioned.join("; ")||"Nenhuma identificada"}.</p>
       <p className="text-xs text-(--text-secondary)">Verifique especialmente responsáveis, identidade dos falantes, datas, regras ainda em discussão e compromissos realmente assumidos.</p>
       {(draft.evidence?.coverage.notes??[]).length>0&&<ul className="list-disc pl-5 text-xs text-(--text-secondary)">{draft.evidence.coverage.notes.map((note,i)=><li key={i}>{note}</li>)}</ul>}
