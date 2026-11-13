@@ -32,3 +32,6 @@ playwright-report/
 test-results/
 .n8nac/
 v2-foundation/
+
+# Local-only meeting rehearsal records. Never commit to Git.
+/.local-meetings/
