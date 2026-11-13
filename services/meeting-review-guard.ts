@@ -20,9 +20,22 @@ export function reviewMeetingEvidence(evidence:MeetingEvidence):MeetingReviewFla
  const flags:MeetingReviewFlag[]=[];
  const leadershipActions=evidence.actions.filter(a=>hasNameNearLeadership(a.title+" "+a.evidence));
  if(leadershipActions.length){
-  for(const action of leadershipActions)action.owner=""; // Speaker identity cannot be deduced from a nearby name.
+  for(const action of leadershipActions){
+   action.owner=""; // Speaker identity cannot be deduced from a nearby name.
+   action.kind="context"; // Handover is a meeting fact, not an automatically assigned task.
+   action.status="a_confirmar";
+   action.included=false;
+  }
   flags.push({code:"LEADERSHIP_IDENTITY",severity:"critical",
    message:"A transcrição menciona mudança na liderança, mas não confirma de forma verificável a identidade do falante. Confira a pessoa responsável antes de aprovar a ata."});
+ }
+ // Screen-sharing or looking at a specific record during the call is not a future deliverable.
+ // Leave it in the evidence review rather than categorizing it as an operational card.
+ for(const action of evidence.actions){
+  if(action.kind==="operational"&&/\b(compartilh(?:ar|amento) (?:a )?tela|abrir (?:a )?tela|dar uma olhada na tela)\b/i.test(action.title)
+    &&/\b(agora|aqui|nesse momento|durante a reunião|só um segundo)\b/i.test(action.evidence)){
+   action.kind="context";action.included=false;
+  }
  }
  const unverified=evidence.participantsConfirmed.some(isSpeakerPlaceholder);
  if(unverified)flags.push({code:"UNVERIFIED_ATTENDEE",severity:"warning",
