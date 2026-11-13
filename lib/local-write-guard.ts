@@ -25,9 +25,9 @@ export function shouldBlockLocalApiMutation(input:{
     && !localReadOnlyChatAllowed(input.pathname,input.method);
 }
 
-/** Narrow rehearsal exception: ONLY the project meetings POST route on a
+/** Narrow rehearsal exception: ONLY meeting save and read-only draft POST routes on a
  * loopback development server with the existing read-only guard enabled.
- * The handler persists to the filesystem, never to Supabase.
+ * Only save persists to isolated filesystem; draft reads source without creating records.
  */
 export function localMeetingSandboxAllowed(input:{
  pathname:string;hostname:string;method:string;env?:NodeJS.ProcessEnv
@@ -37,9 +37,10 @@ export function localMeetingSandboxAllowed(input:{
   &&localWriteGuardEnabled(env)
   &&["localhost","127.0.0.1"].includes(input.hostname)
   &&input.method.toUpperCase()==="POST"
-  &&input.pathname.split("/").length===5
+  &&[5,6].includes(input.pathname.split("/").length)
   &&input.pathname.split("/")[1]==="api"
   &&input.pathname.split("/")[2]==="projects"
-  &&/^[0-9a-f-]{36}$/i.test(input.pathname.split("/")[3]||"")
-  &&input.pathname.split("/")[4]==="meetings";
+  &&/^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i.test(input.pathname.split("/")[3]||"")
+  &&input.pathname.split("/")[4]==="meetings"
+  &&(input.pathname.split("/").length===5||input.pathname.split("/")[5]==="draft");
 }
