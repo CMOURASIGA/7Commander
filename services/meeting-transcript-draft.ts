@@ -71,6 +71,9 @@ export async function prepareMeetingDraft(input:{filename?:string;content?:strin
    "Distinga decisão tomada de proposta, discussão e ação pendente. Se não estiver explícito, deixe vazio e explique em uncertainties.",
    "Datas somente se a transcrição comprovar claramente data E horário; em caso contrário, use strings vazias.",
    "Resumo objetivo e campos em português brasileiro. suggestedActions contém propostas, NUNCA execução nem registros oficiais.",
+   "REDAÇÃO PROFISSIONAL DA ATA: escreva título, objetivo, resumo, avanços, decisões, compromissos, pendências e riscos em português brasileiro formal, objetivo e impessoal. Elimine vícios orais, repetições, hesitações e expressões coloquiais. Preserve integralmente o significado, status e ressalvas; não acrescente fatos ou decisões.",
+   "Identificadores como Palestrante 1, Palestrante 2 e Speaker 3 podem ser usados apenas em evidências literais quando necessários, nunca como nomes confirmados ou lideranças identificadas no texto narrativo. Se não houver associação segura a um nome, use 'representante não identificado' ou descreva o fato sem atribuição.",
+   "Não escreva 'troca formal', 'consenso', 'acordo' ou 'decisão aprovada' quando só houver apresentação, intenção ou discussão. Diferencie esclarecimento técnico de avanço efetivamente entregue.",
    "Registros oficiais existentes consultados (somente candidatos a vínculo, não atualize nem copie): "+(input.existingRecords?.join("; ")||"não disponíveis")+".",
    "Devolva APENAS JSON objeto com chaves: title,heldAt,participants,objective,summary,advances,decisions,commitments,pendingItems,risks,nextFollowUp,uncertainties,suggestedActions.",
    "Campos textuais são strings; uncertainties e suggestedActions são arrays de strings."
@@ -96,6 +99,9 @@ export async function prepareMeetingDraft(input:{filename?:string;content?:strin
         "Use operational somente para ação executável concreta. Regras sobre NF-e, ICMS-ST ou EFD são business_rule, não atividades automaticamente.",
         "Exemplos: 'sistema depende das obrigações' é context; 'contem comigo' é offer; 'já enviei planilha' é completed.",
         "Para cada ocorrência: title, kind, owner (somente se explícito, nunca identificação numérica de palestrante), status (proposta|assumido|realizado|pendente|a_confirmar), time (HH:MM:SS se presente), evidence (trecho curto literal da fala).",
+        "PADRÃO DE ESCRITA: title deve ser uma frase de trabalho formal, curta, clara e profissional, com verbo no infinitivo para ações futuras. Não reproduza gírias nem transcrição literal em title. Não invente entregas, responsáveis ou prazos.",
+        "evidence deve preservar o trecho original exatamente como pronunciado ou transcrito, inclusive informalidade, para auditoria. Jamais use evidence como título da ação.",
+        "Não converter regra fiscal em tarefa. Não transformar uma explicação sobre como funciona o processo em compromisso assumido.",
         "Uma solicitação não é um compromisso assumido; compartilhamento declarado concluído é realizado; hipótese não é regra aprovada.",
         "Extraia participantsConfirmed somente com evidência clara de presença/fala atribuída; participantsMentioned são nomes apenas citados ou sem presença comprovada.",
         "Retorne somente JSON: {\"actions\":[...],\"participantsMentioned\":[...],\"participantsConfirmed\":[...],\"notes\":[...]}.",
@@ -121,6 +127,8 @@ export async function prepareMeetingDraft(input:{filename?:string;content?:strin
     "Confira a autoria e os sujeitos dos verbos, especialmente mudanças de liderança. Não troque quem assumiu uma função por quem foi apenas mencionado.",
     "Compromissos devem conter somente ações operacionais selecionadas pelo gestor. Ações relatadas como concluídas são fatos históricos, não pendências futuras.",
     "Não afirme que uma API inexiste quando apenas não foi encontrada pela equipe.",
+    "Na ata final redija frases profissionais e concisas, não reproduza linguagem oral. Trechos literais devem ficar exclusivamente no campo evidence das ocorrências.",
+    "Não afirmar que a pessoa identificada como 'Palestrante 1' tem nome, cargo ou identidade confirmados. Escrever fatos sem atribuir identidade quando a transcrição não permite.",
     "Ações extraídas (evidência separada para revisão humana, não cadastros):\n"+summaries.join("\n").slice(0,22000),
     "Participantes confirmados no bloco: "+evidence.participantsConfirmed.join("; "),
     "Pessoas mencionadas sem confirmação de presença: "+evidence.participantsMentioned.join("; ")
