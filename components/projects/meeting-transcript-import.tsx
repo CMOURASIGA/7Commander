@@ -77,7 +77,7 @@ export function MeetingTranscriptImport({projectId,onSaved}:{projectId:string;on
       onChange={event=>{
        const next=event.target.files?.[0]??null;
        setError("");setSuccess("");setDraft(null);
-       if(next&& !/\\.(pdf|docx|txt|md|csv|json|vtt|srt)$/i.test(next.name)){
+       if(next&& !/\.(pdf|docx|txt|md|csv|json|vtt|srt)$/i.test(next.name)){
         setFile(null);setError("Formato não suportado. Selecione PDF, DOCX, TXT, MD, CSV, JSON, VTT ou SRT.");event.target.value="";return;
        }
        if(next&&next.size>8*1024*1024){
