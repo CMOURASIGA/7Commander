@@ -64,9 +64,14 @@ export async function middleware(request:NextRequest) {
       return redirect(request,"/central-access?reason=denied");
     return secureNext();
   }
+  // Sign-in bootstrap routes must be reachable before the SSR cookie exists.
+  // These handlers independently enforce same-origin, verified credentials/JWT,
+  // central entitlements, and session integrity. Never redirect their POST to /login.
+  const authBootstrapRoute = request.nextUrl.pathname==="/api/auth/central-exchange" ||
+    request.nextUrl.pathname==="/api/auth/local-session";
   if(process.env.COMMANDER_CENTRAL_AUTH_ENABLED!=='true'||
      process.env.SERVICE_7SERVICE_ENFORCE_USER_ACCESS!=='true'||
-     publicPage(request.nextUrl.pathname)) return NextResponse.next();
+     publicPage(request.nextUrl.pathname)||authBootstrapRoute) return NextResponse.next();
 
   const localToken=request.cookies.get(LOCAL_ACCESS_COOKIE)?.value??'';
   const dbUrl=process.env.NEXT_PUBLIC_SUPABASE_URL;
