@@ -2,7 +2,7 @@ import {getOpenAIClient} from "@/lib/openai";
 import mammoth from "mammoth";
 import {toFile} from "openai/uploads";
 import {chunkTranscript,mergeEvidence,normalizeBlockEvidence,formatApprovedMeetingActions,isSpeakerPlaceholder,type MeetingEvidence} from "@/services/meeting-evidence";
-import {guardMeetingNarrative,reviewMeetingEvidence,type MeetingReviewFlag} from "@/services/meeting-review-guard";
+import {guardMeetingNarrative,reviewMeetingEvidence,explicitAttendeeRoster,type MeetingReviewFlag} from "@/services/meeting-review-guard";
 
 export type MeetingDraft={
  title:string;heldAt:string;participants:string;objective:string;summary:string;
@@ -148,6 +148,16 @@ export async function prepareMeetingDraft(input:{filename?:string;content?:strin
   const draft=normalizeMeetingDraft(data);
   if(!draft.title||!draft.summary)throw Error("A extração não identificou título e resumo suficientes. Revise a fonte.");
   draft.reviewFlags=reviewMeetingEvidence(evidence);
+  // A transcript's conversational mentions cannot certify attendance.
+  // Only a literal attendee roster may prefill names; the user can still edit.
+  const roster=attachment?[]:explicitAttendeeRoster(content);
+  const candidates=new Set(evidence.participantsConfirmed.map(person=>person.toLocaleLowerCase("pt-BR")));
+  const supportedNames=roster.filter(person=>candidates.has(person.toLocaleLowerCase("pt-BR")));
+  if(draft.participants&&!supportedNames.length){
+   draft.reviewFlags.push({code:"UNVERIFIED_ATTENDEE",severity:"warning",
+    message:"Os nomes encontrados na conversa não comprovam presença. Campo Participantes deixado em branco para confirmação do gestor."});
+  }
+  draft.participants=supportedNames.join("; ");
   draft.evidence=evidence;
   for(const key of ["summary","advances","objective","decisions"] as const){
    const checked=guardMeetingNarrative(draft[key]);
