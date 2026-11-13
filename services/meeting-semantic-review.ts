@@ -37,6 +37,19 @@ export function parseSemanticAudit(raw:unknown,expectedIds:string[]):SemanticDec
    evidenceSupports:d.evidenceSupports,commitmentConfirmed:d.commitmentConfirmed,reason:d.reason.trim()};
  });
 }
+/**
+ * Distinguishes a described fiscal/product requirement from an accepted work
+ * commitment. An unsupported implementation proposal is still visible, but it
+ * cannot be treated as an accepted delivery.
+ */
+export function proposedFiscalRequirement(action:MeetingAction,decision:SemanticDecision):boolean{
+ if(action.kind!=="operational"||decision.kind!=="operational"||decision.commitmentConfirmed)return false;
+ const title=action.title.toLocaleLowerCase("pt-BR");
+ const quote=action.evidence.toLocaleLowerCase("pt-BR");
+ const fiscal=/\\b(?:notas? (?:fiscais?|de entrada)|icms|st|substitui[cç][aã]o tribut[aá]ria|ressarcimento|xml|efd|sped)\\b/i.test(title+" "+quote);
+ const requirement=/\\b(?:tem(?:os)? que|vai ter que|precisa(?:mos)?|dever[ií]a|deve(?:mos)?|necess[aá]rio|criar (?:uma? )?regra|exigir|filtrar|validar na aplica[cç][aã]o|tratar (?:isso )?na aplica[cç][aã]o)\\b/i.test(quote+" "+title);
+ return fiscal&&requirement;
+}
 export function applySemanticAudit(evidence:MeetingEvidence,decisions:SemanticDecision[]):SemanticAudit{
  const lookup=new Map(decisions.map(x=>[x.id,x]));
  let uncertain=0,demoted=0;
@@ -50,12 +63,12 @@ export function applySemanticAudit(evidence:MeetingEvidence,decisions:SemanticDe
   }
   // A second assessor can demote a false positive, never auto-promote a
   // rule/context to actionable work without the manager deciding.
-  const kind:MeetingAction["kind"]=item.kind==="operational"?d.kind:item.kind;
+  const kind:MeetingAction["kind"]=proposedFiscalRequirement(item,d)?"business_rule":item.kind==="operational"?d.kind:item.kind;
   if(item.kind==="operational"&&kind!=="operational")demoted++;
   const status:MeetingAction["status"]=kind==="operational"&&d.commitmentConfirmed&&d.status==="assumido"
    ?"assumido":kind==="operational"&&d.status!=="assumido"?d.status:"a_confirmar";
   return {...item,kind,status,owner:kind==="operational"&&d.commitmentConfirmed?item.owner:"",included:false,
-   semanticReason:d.reason,semanticVerified:true};
+   semanticReason:kind==="business_rule"&&item.kind==="operational"&&d.kind==="operational"?"Requisito fiscal ou proposta de regra sem compromisso explícito de entrega. "+d.reason:d.reason,semanticVerified:true};
  });
  return {reviewed:evidence.actions.length,uncertain,demoted};
 }
