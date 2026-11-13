@@ -180,23 +180,23 @@ export function MeetingTranscriptImport({projectId,onSaved}:{projectId:string;on
    {loading&&progress?<section className="space-y-3 rounded-xl border border-(--border) bg-(--bg-muted) p-4" aria-label="Progresso da interpretação">
      <div role="status" aria-live="polite" className="space-y-1">
       <p className="text-sm font-semibold">{progress.message}</p>
-      <p className="text-xs text-(--text-secondary)">{progress.stage==="blocks"&&progress.total>0
-       ?progress.completed+" de "+progress.total+" blocos analisados"
+      <p className="text-xs text-(--text-secondary)">{(progress.stage==="blocks"||progress.stage==="semantic")&&progress.total>0
+       ?progress.completed+" de "+progress.total+(progress.stage==="semantic"?" lotes semânticos analisados":" blocos analisados")
        :progress.stage==="consolidating"?"Todos os blocos concluídos. Preparando o resultado final."
        :"Preparando processamento..."}</p>
      </div>
      <div role="progressbar" aria-label="Etapa de interpretação da reunião"
       aria-valuemin={0} aria-valuemax={100}
-      aria-valuenow={progress.stage==="blocks"&&progress.total>0?Math.round(progress.completed/progress.total*100):undefined}
+      aria-valuenow={(progress.stage==="blocks"||progress.stage==="semantic")&&progress.total>0?Math.round(progress.completed/progress.total*100):undefined}
       aria-valuetext={progress.message}
       className="h-2 w-full overflow-hidden rounded-full bg-(--border)">
-      <div className={"h-full rounded-full bg-(--accent) transition-all "+(progress.stage!=="blocks"?"animate-pulse":"")}
-       style={{width:progress.stage==="blocks"&&progress.total>0?(progress.completed/progress.total*100)+"%":"100%"}}/>
+      <div className={"h-full rounded-full bg-(--accent) transition-all "+(progress.stage!=="blocks"&&progress.stage!=="semantic"?"animate-pulse":"")}
+       style={{width:(progress.stage==="blocks"||progress.stage==="semantic")&&progress.total>0?(progress.completed/progress.total*100)+"%":"100%"}}/>
      </div>
      {slow?<p role="alert" className="text-xs font-semibold text-(--danger)">Sem nova atualização há mais de 45 segundos. A IA pode estar processando um bloco demorado ou a conexão pode estar interrompida. Você pode cancelar e tentar novamente.</p>:null}
      <button type="button" className="workspace-button-secondary px-3 py-2 text-xs"
       onClick={()=>controllerRef.current?.abort()}>Cancelar análise</button>
-     <p className="text-xs text-(--text-secondary)">A barra mostra blocos concluídos, não uma estimativa de tempo restante. Durante a consolidação, o tempo não é previsível.</p>
+     <p className="text-xs text-(--text-secondary)">A barra mostra blocos ou lotes semânticos concluídos, não uma estimativa de tempo restante. Durante a consolidação, o tempo não é previsível.</p>
     </section>:null}
    {draft&&<section className="space-y-3 rounded-xl border border-(--border) p-4" aria-label="Prévia para aprovação">
     <div><h3 className="text-sm font-semibold">Revisar ata antes de salvar</h3>
