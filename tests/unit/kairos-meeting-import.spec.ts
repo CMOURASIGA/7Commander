@@ -383,3 +383,24 @@ test("MEET-03 selected actions remain present after save formatting without trun
  expect(official).toContain('["Compromissos",m.commitments]');
  expect(official).toContain('["Pendências",m.pending_items]');
 });
+
+test("MEET-UX-04 keeps many suggestions collapsed and individual source evidence available",()=>{
+ const ui=source("components/projects/meeting-transcript-import.tsx");
+ expect(ui).toContain('map(action=><details key={action.id}');
+ expect(ui).toContain('<summary className=');
+ expect(ui).toContain('group-open:rotate-90');
+ expect(ui).toContain('action.included&&action.kind==="operational"?"Selecionada":"Revisar"');
+ expect(ui).toContain('editAction(action.id,{included:e.target.checked})');
+ expect(ui).toContain("Trecho identificado pela IA");
+ expect(ui).toContain("Revisão semântica independente:");
+});
+
+test("MEET-SAVE-04 duplicate read errors remain fail-closed and give actionable diagnostics",()=>{
+ const route=source("app/api/projects/[projectId]/meetings/route.ts");
+ expect(route).toContain("duplicate verification failed");
+ expect(route).toContain('if(code==="42501"||code==="PGRST301")');
+ expect(route).toContain('if(code==="42P01"||code==="PGRST205"');
+ expect(route).toContain("Nada foi gravado.");
+ expect(route).toContain('if(existing.data)return reply({error:"Esta reunião já está cadastrada."');
+ expect(route).toContain("localWriteGuardEnabled()");
+});
