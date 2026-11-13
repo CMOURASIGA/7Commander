@@ -104,7 +104,7 @@ export async function prepareMeetingDraft(input:{filename?:string;content?:strin
     "Não omita o que foi encontrado na extração por blocos.",
     "Há "+evidence.actions.length+" ações/compromissos identificados em "+evidence.coverage.processed+" blocos.",
     "Preserve as informações sustentadas pela transcrição, principalmente nome do novo responsável e responsáveis citados.",
-    "NUNCA atribua a substituição de Varela a Marcelo quando a fala é de Christian.",
+    "Confira a autoria e os sujeitos dos verbos, especialmente mudanças de liderança. Não troque quem assumiu uma função por quem foi apenas mencionado.",
     "Se houver compromissos assumidos ou realizados nos trechos, compromissos NÃO deve ficar vazio.",
     "Não afirme que uma API inexiste quando apenas não foi encontrada pela equipe.",
     "Ações extraídas (evidência separada para revisão humana, não cadastros):\n"+summaries.join("\n").slice(0,22000),
