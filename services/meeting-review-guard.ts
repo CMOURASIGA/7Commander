@@ -5,9 +5,9 @@ const leadership=/\b(lideran[cç]a|assum(?:iu|ir|indo|ido)?|substitui[cç][aã]o
 const hasNameNearLeadership=(sentence:string)=>/\bVarela\b/i.test(sentence)&&leadership.test(sentence);
 
 const namedLeadershipAssertion=(sentence:string)=>
- /\\b(?:assun[cç][aã]o|nomea[cç][aã]o|designa[cç][aã]o)\\s+(?:formal\\s+)?de\\s+[A-ZÀ-Ý][\\p{L}]+(?:\\s+[A-ZÀ-Ý][\\p{L}]+){0,3}\\s+(?:[àa]\\s+frente|como\\s+(?:novo|nova)?\\s*(?:respons[aá]vel|l[ií]der|gestor|gestora|coordenador))/iu.test(sentence)
- || /\\b[A-ZÀ-Ý][\\p{L}]+(?:\\s+[A-ZÀ-Ý][\\p{L}]+){0,3}\\s+(?:assumiu|assume|assumir[aá]|passou\\s+a\\s+(?:liderar|conduzir|gerir)|foi\\s+(?:nomead[oa]|designad[oa]))\\b.{0,75}\\b(?:projeto|frente|lideran[cç]a|respons[aá]vel|gest[aã]o|coordena[cç][aã]o)\\b/iu.test(sentence)
- || /\\b(?:novo|nova)\\s+(?:respons[aá]vel|gestor|gestora|l[ií]der)\\s+(?:[ée]|ser[aá])\\s+[A-ZÀ-Ý][\\p{L}]+/iu.test(sentence);
+ /\b(?:assun[cç][aã]o|nomea[cç][aã]o|designa[cç][aã]o)\s+(?:formal\s+)?de\s+[A-ZÀ-Ý][\p{L}]+(?:\s+[A-ZÀ-Ý][\p{L}]+){0,3}\s+(?:[àa]\s+frente|como\s+(?:novo|nova)?\s*(?:respons[aá]vel|l[ií]der|gestor|gestora|coordenador))/iu.test(sentence)
+ || /\b[A-ZÀ-Ý][\p{L}]+(?:\s+[A-ZÀ-Ý][\p{L}]+){0,3}\s+(?:assumiu|assume|assumir[aá]|passou\s+a\s+(?:liderar|conduzir|gerir)|foi\s+(?:nomead[oa]|designad[oa]))\b.{0,75}\b(?:projeto|frente|lideran[cç]a|respons[aá]vel|gest[aã]o|coordena[cç][aã]o)\b/iu.test(sentence)
+ || /\b(?:novo|nova)\s+(?:respons[aá]vel|gestor|gestora|l[ií]der)\s+(?:[ée]|ser[aá])\s+[A-ZÀ-Ý][\p{L}]+/iu.test(sentence);
 
 /** Avoid assigning a named person to a speaker who was never verified.
  * Generated claims are not evidence. This function is intentionally conservative.
