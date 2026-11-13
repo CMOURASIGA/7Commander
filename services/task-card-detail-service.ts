@@ -89,6 +89,7 @@ async function registerTaskActivity(params: {
 
   await supabase.from("task_activity_log").insert({
     task_id: params.taskId,
+    ...(TENANT_SCHEMA_READY&&params.actorUserId ? {organization_id:await requireEffectiveTenant(params.actorUserId)} : {}),
     actor_user_id: params.actorUserId ?? null,
     actor_email: params.actorEmail?.trim().toLowerCase() ?? null,
     action_type: params.actionType,
@@ -499,7 +500,10 @@ export async function addTaskChecklist(params: {
     position,
     created_by: params.userId,
   });
-  if (inserted.error) return false;
+  if (inserted.error) {
+    console.error("[addTaskComment] failed to insert", {code:inserted.error.code,taskId:params.taskId});
+    return false;
+  }
 
   await registerTaskActivity({
     taskId: params.taskId,
@@ -612,6 +616,7 @@ export async function addTaskComment(params: {
 
   const inserted = await supabase.from("task_comments").insert({
     task_id: params.taskId,
+    ...(TENANT_SCHEMA_READY ? {organization_id:await requireEffectiveTenant(params.userId)} : {}),
     author_user_id: params.userId,
     author_email: params.userEmail?.trim().toLowerCase() ?? null,
     content: cleanContent.slice(0, 4000),
