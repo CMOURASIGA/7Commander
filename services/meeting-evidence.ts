@@ -79,7 +79,7 @@ export function formatApprovedMeetingActions(actions:MeetingAction[]):{commitmen
   a.evidence?"Evidência: "+a.evidence:""
  ].filter(Boolean).join(" | ");
  return {
-  commitments:selected.filter(a=>["assumido","realizado"].includes(a.status)).map(text).join("\n"),
-  pendingItems:selected.filter(a=>!["assumido","realizado"].includes(a.status)).map(text).join("\n").slice(0,7900),
+  commitments:selected.filter(a=>a.status==="assumido").map(text).join("\n"),
+  pendingItems:selected.filter(a=>a.status!=="assumido").map(text).join("\n").slice(0,7900),
  };
 }
