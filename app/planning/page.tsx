@@ -289,8 +289,10 @@ export default function PlanningPage(){
           <p>Responsável: {item.payload.owner?String(item.payload.owner):"Não informado"}</p>
           <p>Atualizado: {new Date(item.updated_at).toLocaleDateString("pt-BR")} · Versão {item.version}</p>
         </div>
-        <button type="button" className="workspace-button-secondary px-3 py-2 text-sm font-semibold"
-          onClick={()=>edit(item)} aria-label={"Abrir registro "+item.title}>Abrir e editar</button>
+        <div className="flex items-center gap-2">
+          <span className="text-sm text-(--text-secondary)">Abrir e editar</span>
+          <IconActionButton icon="pencil" tone="edit" label={"Abrir registro "+item.title} onClick={()=>edit(item)}/>
+        </div>
       </div>
     </article>)}{!loading&&!loadError&&!items.length?<div className="col-span-full rounded-xl border border-dashed border-(--border) bg-(--bg-muted) p-6">
       <p className="font-semibold">Nenhum registro nesta categoria</p>
