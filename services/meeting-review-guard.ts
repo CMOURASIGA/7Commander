@@ -29,12 +29,18 @@ export function reviewMeetingEvidence(evidence:MeetingEvidence):MeetingReviewFla
   flags.push({code:"LEADERSHIP_IDENTITY",severity:"critical",
    message:"A transcrição menciona mudança na liderança, mas não confirma de forma verificável a identidade do falante. Confira a pessoa responsável antes de aprovar a ata."});
  }
- // Screen-sharing or looking at a specific record during the call is not a future deliverable.
- // Leave it in the evidence review rather than categorizing it as an operational card.
+ // Classify as context events that happened inside the call, not future work.
+ // Conservatively target explicit screen-sharing and a question with no accepted action.
  for(const action of evidence.actions){
-  if(action.kind==="operational"&&/\b(compartilh(?:ar|amento) (?:a )?tela|abrir (?:a )?tela|dar uma olhada na tela)\b/i.test(action.title)
-    &&/\b(agora|aqui|nesse momento|durante a reunião|só um segundo)\b/i.test(action.evidence)){
-   action.kind="context";action.included=false;
+  if(action.kind!=="operational")continue;
+  const screenShare=/\b(compartilh(?:ar|amento) (?:a |da |de )?tela|abrir (?:a )?tela|mostrar (?:a )?tela)\b/i.test(action.title);
+  const inCall=/\b(agora|aqui|nesse momento|durante a reunião|só um segundo)\b/i.test(action.evidence);
+  const singleQuestion=action.evidence.trim().endsWith("?")
+   && !/\b(vou|vamos|ficou combinado|me comprometo|encaminharei|enviarei)\b/i.test(action.evidence);
+  if((screenShare&&inCall)||singleQuestion){
+   action.kind="context";
+   action.status="a_confirmar";
+   action.included=false;
   }
  }
  const unverified=evidence.participantsConfirmed.some(isSpeakerPlaceholder);
