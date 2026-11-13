@@ -105,6 +105,6 @@ export function formatApprovedMeetingActions(actions:MeetingAction[]):{commitmen
  ].filter(Boolean).join(" | ");
  return {
   commitments:selected.filter(a=>a.status==="assumido").map(text).join("\n"),
-  pendingItems:selected.filter(a=>a.status!=="assumido").map(text).join("\n").slice(0,7900),
+  pendingItems:selected.filter(a=>a.status!=="assumido").map(text).join("\n"),
  };
 }
