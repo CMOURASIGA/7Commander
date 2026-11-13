@@ -6,12 +6,36 @@ import Link from "next/link";
 import { useEffect,useState } from "react";
 import { useKairosAuth } from "@/components/auth/kairos-auth-provider";
 import { getClientAuthHeaders } from "@/lib/client-auth";
-type Item={id:string;projectId:string;projectName:string;title:string;priority:string;dueDate:string|null};
+import {useCentralPilotReadOnly} from "@/lib/use-central-pilot-read-only";
+type Item={id:string;projectId:string;projectName:string;title:string;priority:string;dueDate:string|null;status?:string};
 type ScrumNotification={id:string;story_id:string;project_id:string;message:string;event_type:string;actor_email:string|null;created_at:string;read_at:string|null};
 export function TaskAlerts({center=false}:{center?:boolean}){
+ const {readOnly,checking}=useCentralPilotReadOnly();
+ const [savingTaskId,setSavingTaskId]=useState<string|null>(null);
+ const [statusError,setStatusError]=useState<string|null>(null);
+ const [statusSuccess,setStatusSuccess]=useState<string|null>(null);
  const auth=useKairosAuth();const [items,setItems]=useState<Item[]>([]);const [open,setOpen]=useState(false);const [error,setError]=useState(false);const [scrum,setScrum]=useState<ScrumNotification[]>([]);const [projectNames,setProjectNames]=useState<Record<string,string>>({});
  useEffect(()=>{if(!auth.user){setItems([]);setScrum([]);setOpen(false);return;}let active=true;let controller:AbortController|null=null;const load=async()=>{controller?.abort();controller=new AbortController();try{const headers=getClientAuthHeaders();const [r,notifications]=await Promise.all([measuredFetch("/api/my-tasks",{headers,cache:"no-store",signal:controller.signal}),measuredFetch("/api/scrum/notifications",{headers,cache:"no-store",signal:controller.signal})]);if(!r.ok||!notifications.ok)throw Error();const [j,n]=await Promise.all([r.json(),notifications.json()]);if(active){setItems((j.data||[]).filter((item:Item,index:number,list:Item[])=>list.findIndex(other=>other.id===item.id)===index));setScrum((n.data||[]).filter((item:ScrumNotification,index:number,list:ScrumNotification[])=>list.findIndex(other=>other.id===item.id)===index));setError(false)}}catch(err){if(active && !(err instanceof Error && err.name==="AbortError"))setError(true)}};
  void load();void measuredFetch("/api/projects",{headers:getClientAuthHeaders(),cache:"no-store"}).then(async response=>{if(!response.ok)return;const data=await response.json();if(active)setProjectNames(Object.fromEntries((data.data||[]).map((p:{id:string;name:string})=>[p.id,p.name])));}).catch(()=>{});const timer=setInterval(()=>{if(document.visibilityState==="visible")void load()},60000);const refresh=()=>void load();const onTaskChanged=(event:Event)=>{const change=(event as CustomEvent<{taskId?:string;completed?:boolean}>).detail;if(change?.completed&&change.taskId)setItems(prev=>prev.filter(item=>item.id!==change.taskId));void load();};window.addEventListener("focus",refresh);window.addEventListener("7commander:organization-selected",refresh);window.addEventListener("7commander:tasks-changed",onTaskChanged);return()=>{active=false;clearInterval(timer);controller?.abort();window.removeEventListener("focus",refresh);window.removeEventListener("7commander:organization-selected",refresh);window.removeEventListener("7commander:tasks-changed",onTaskChanged)}},[auth.user?.id]);
+ async function changeTaskStatus(item:Item,columnKey:"todo"|"doing"|"done"){
+  if(readOnly||checking||savingTaskId)return;
+  setSavingTaskId(item.id);setStatusError(null);setStatusSuccess(null);
+  try{
+   const response=await measuredFetch("/api/tasks/"+encodeURIComponent(item.id)+"/status",{
+    method:"PATCH",headers:getClientAuthHeaders({"Content-Type":"application/json"}),
+    body:JSON.stringify({projectId:item.projectId,columnKey})
+   });
+   const json=await response.json().catch(()=>({}));
+   if(!response.ok)throw Error(json.error||"Não foi possível alterar o status.");
+   const next=json.data?.status as string|undefined;
+   if(!next)throw Error("Resposta de alteração sem status confirmado.");
+   if(columnKey==="done")setItems(previous=>previous.filter(entry=>entry.id!==item.id));
+   else setItems(previous=>previous.map(entry=>entry.id===item.id?{...entry,status:next}:entry));
+   setStatusSuccess("Status de "+item.title+" atualizado.");
+   window.dispatchEvent(new CustomEvent("7commander:tasks-changed",{detail:{taskId:item.id,completed:columnKey==="done"}}));
+  }catch(err){setStatusError(err instanceof Error?err.message:"Erro ao alterar status.");}
+  finally{setSavingTaskId(null);}
+ }
  useEffect(()=>{
   if(!open)return;
   const onEscape=(event:KeyboardEvent)=>{if(event.key==="Escape")setOpen(false)};
@@ -43,6 +67,8 @@ export function TaskAlerts({center=false}:{center?:boolean}){
         {error&&<div role="alert" className="rounded-xl border border-(--danger) bg-(--danger-soft) p-3 text-sm text-(--danger)">
          Não foi possível atualizar as notificações. Os registros abaixo podem estar desatualizados.
         </div>}
+        {statusError?<p role="alert" className="rounded-lg border border-(--danger) bg-(--danger-soft) p-3 text-sm font-semibold text-(--danger)">{statusError}</p>:null}
+        {statusSuccess?<p role="status" className="rounded-lg border border-(--border) p-3 text-sm">{statusSuccess}</p>:null}
         {!total&&!error?<div className="workspace-empty-state p-5 text-sm">Nenhuma notificação pendente.</div>:null}
         {scrum.length>0&&<section aria-label="Notificações de Scrum" className="space-y-3">
           <div className="flex items-center justify-between"><h3 className="font-semibold">Scrum e User Stories</h3>
@@ -75,6 +101,19 @@ export function TaskAlerts({center=false}:{center?:boolean}){
            <p className="text-sm font-semibold">{item.title}</p>
            <p className="text-xs text-(--text-secondary)">Projeto: {item.projectName}</p>
            <p className="text-xs text-(--text-secondary)">Prazo: {item.dueDate?new Date(item.dueDate).toLocaleDateString("pt-BR"):"Não informado"}</p>
+           <label className="block text-xs font-semibold text-(--text-secondary)">
+             Status da atividade
+             <select aria-label={"Alterar status de "+item.title}
+               className="workspace-select mt-1 w-full" value={item.status==="concluida"?"done":item.status==="em_andamento"?"doing":"todo"}
+               disabled={readOnly||checking||savingTaskId===item.id}
+               onChange={e=>void changeTaskStatus(item,e.target.value as "todo"|"doing"|"done")}>
+                <option value="todo">TO DO · A fazer</option>
+                <option value="doing">DOING · Em andamento</option>
+                <option value="done">DONE · Concluída</option>
+             </select>
+           </label>
+           {readOnly?<p className="text-xs text-(--text-secondary)">Somente leitura: a mudança de status deve ser feita em ambiente autorizado.</p>:null}
+           {savingTaskId===item.id?<p className="text-xs text-(--text-secondary)">Atualizando status...</p>:null}
            <Link onClick={()=>setOpen(false)}
              href={"/activities?projectId="+encodeURIComponent(item.projectId)+"&taskId="+encodeURIComponent(item.id)}
              className="workspace-button-primary px-3 py-2 text-xs">Abrir card e trabalhar</Link>
