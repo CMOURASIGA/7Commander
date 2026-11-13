@@ -3,6 +3,7 @@ import {useRef,useState} from "react";
 import {getClientAuthHeaders} from "@/lib/client-auth";
 import {useCentralPilotReadOnly} from "@/lib/use-central-pilot-read-only";
 import type {MeetingDraft} from "@/services/meeting-transcript-draft";
+import {formatApprovedMeetingActions,type MeetingAction} from "@/services/meeting-evidence";
 
 type Editable=Omit<MeetingDraft,"uncertainties"|"suggestedActions">;
 const fields:[keyof Editable,string][]=[
@@ -17,6 +18,7 @@ export function MeetingTranscriptImport({projectId,onSaved}:{projectId:string;on
  const fileInput=useRef<HTMLInputElement|null>(null);
  const [notes,setNotes]=useState("");
  const [draft,setDraft]=useState<MeetingDraft|null>(null);
+ const [reviewTab,setReviewTab]=useState<"meeting"|"actions"|"checks">("meeting");
  const [sourceName,setSourceName]=useState("");
  const [loading,setLoading]=useState(false),[saving,setSaving]=useState(false);
  const [error,setError]=useState(""),[success,setSuccess]=useState("");
@@ -34,6 +36,7 @@ export function MeetingTranscriptImport({projectId,onSaved}:{projectId:string;on
    const body=await response.json();
    if(!response.ok)throw Error(body.error||"Falha ao interpretar transcrição.");
    setDraft({...body.data,sourceArtifactId:file?.name||"Texto colado no chat"} as MeetingDraft);
+   setReviewTab("meeting");
    setSourceName(file?.name||"Texto colado no chat");
   }catch(e){setError(e instanceof Error?e.message:"Não foi possível analisar a fonte.");}
   finally{setLoading(false);}
@@ -44,9 +47,12 @@ export function MeetingTranscriptImport({projectId,onSaved}:{projectId:string;on
   if(!draft.title.trim()||!draft.summary.trim()){setError("Confira título e resumo.");return;}
   setError("");setSaving(true);
   try{
+   const selectedActions=draft.evidence?.actions??[];
+   const formatted=selectedActions.length?formatApprovedMeetingActions(selectedActions):null;
    const response=await fetch("/api/projects/"+encodeURIComponent(projectId)+"/meetings",{
     method:"POST",headers:getClientAuthHeaders({"Content-Type":"application/json"}),
     body:JSON.stringify({...draft,
+     ...(formatted?{commitments:formatted.commitments,pendingItems:formatted.pendingItems}:{}),
      heldAt:new Date(draft.heldAt).toISOString(),
      nextFollowUp:draft.nextFollowUp?new Date(draft.nextFollowUp).toISOString():null,
      sourceArtifactId:draft.sourceArtifactId||sourceName,
@@ -60,6 +66,9 @@ export function MeetingTranscriptImport({projectId,onSaved}:{projectId:string;on
   finally{setSaving(false);}
  }
  const edit=(key:keyof Editable,value:string)=>setDraft(p=>p?{...p,[key]:value}:p);
+ const editAction=(id:string,patch:Partial<MeetingAction>)=>setDraft(previous=>previous?{...previous,
+  evidence:{...previous.evidence,actions:previous.evidence.actions.map(action=>action.id===id?{...action,...patch}:action)}
+ }:previous);
  return <section className="workspace-card space-y-3 p-4" aria-label="Importação de transcrição para reunião">
   <div className="flex flex-wrap items-center justify-between gap-3">
    <div><h2 className="text-sm font-semibold">Importar reunião com o Kairos</h2>
@@ -108,6 +117,13 @@ export function MeetingTranscriptImport({projectId,onSaved}:{projectId:string;on
    {draft&&<section className="space-y-3 rounded-xl border border-(--border) p-4" aria-label="Prévia para aprovação">
     <div><h3 className="text-sm font-semibold">Revisar ata antes de salvar</h3>
      <p className="text-xs text-(--text-secondary)">Origem: {sourceName}. O documento original não foi guardado. Revise datas, participantes e afirmações antes de aprovar.</p></div>
+    <nav className="flex gap-2 overflow-x-auto border-b border-(--border) pb-2" role="tablist" aria-label="Etapas de revisão da reunião">
+     {([["meeting","Dados da reunião"],["actions","Encaminhamentos"],["checks","Conferência da fonte"]] as const).map(([key,label])=>
+      <button type="button" key={key} role="tab" aria-selected={reviewTab===key}
+       className={reviewTab===key?"shrink-0 rounded-lg bg-(--accent-soft) px-3 py-2 text-xs font-semibold text-(--accent)":"shrink-0 rounded-lg px-3 py-2 text-xs text-(--text-secondary) hover:bg-(--bg-muted)"}
+       onClick={()=>setReviewTab(key)}>{label}{key==="actions"?" ("+(draft.evidence?.actions.length??0)+")":""}</button>)}
+    </nav>
+    {reviewTab==="meeting"&&<>
     <label className="block text-xs font-semibold">Data e hora confirmadas (obrigatório)
      <input type="datetime-local" value={draft.heldAt?draft.heldAt.slice(0,16):""} onChange={e=>edit("heldAt",e.target.value)}
       className="workspace-input mt-1 w-full"/>
@@ -122,9 +138,43 @@ export function MeetingTranscriptImport({projectId,onSaved}:{projectId:string;on
      <input type="datetime-local" value={draft.nextFollowUp?draft.nextFollowUp.slice(0,16):""}
       className="workspace-input mt-1 w-full" onChange={e=>edit("nextFollowUp",e.target.value)}/>
     </label>
-    {draft.uncertainties.length>0&&<div className="text-xs"><strong>Informações que precisam de confirmação</strong>
+    </>}
+    {reviewTab==="actions"&&<div className="space-y-3">
+      <p className="text-xs text-(--text-secondary)">Cada encaminhamento é uma proposta extraída da fonte. Selecione somente os itens que deseja registrar na ata. Nenhum card ou decisão será criado automaticamente.</p>
+      {!(draft.evidence?.actions.length)?<p className="rounded-lg border border-(--border) p-3 text-sm text-(--text-secondary)">Nenhum encaminhamento individualizado identificado. Revise o texto da ata antes de aprovar.</p>:null}
+      {(draft.evidence?.actions??[]).map(action=><article key={action.id} className="space-y-2 rounded-xl border border-(--border) p-3">
+       <div className="flex flex-wrap items-center justify-between gap-2">
+        <label className="flex items-center gap-2 text-xs font-semibold"><input type="checkbox" checked={action.included}
+         onChange={e=>editAction(action.id,{included:e.target.checked})}/>{action.id} · Incluir na ata</label>
+        <span className="text-xs text-(--text-secondary)">Bloco {action.sourceBlock}{action.time?" · "+action.time:""}</span>
+       </div>
+       <label className="block text-xs font-semibold">Encaminhamento
+        <textarea className="workspace-input mt-1 w-full" rows={2} value={action.title}
+         onChange={e=>editAction(action.id,{title:e.target.value})}/></label>
+       <div className="grid gap-2 sm:grid-cols-2">
+        <label className="block text-xs font-semibold">Responsável citado ou sugerido
+         <input className="workspace-input mt-1 w-full" value={action.owner} onChange={e=>editAction(action.id,{owner:e.target.value})}/></label>
+        <label className="block text-xs font-semibold">Situação na fonte
+         <select className="workspace-input mt-1 w-full" value={action.status}
+          onChange={e=>editAction(action.id,{status:e.target.value as MeetingAction["status"]})}>
+          <option value="proposta">Proposta</option><option value="assumido">Compromisso assumido</option>
+          <option value="realizado">Informado como realizado</option><option value="pendente">Pendente</option>
+          <option value="a_confirmar">A confirmar</option>
+         </select></label>
+       </div>
+       <p className="rounded-lg bg-(--bg-muted) p-2 text-xs text-(--text-secondary)">Evidência: {action.evidence||"Não fornecida"}{action.time?" · "+action.time:""}</p>
+      </article>)}
+    </div>}
+    {reviewTab==="checks"&&<div className="space-y-3 text-sm">
+      <p><strong>Cobertura da fonte:</strong> {draft.evidence?.coverage.processed??0} de {draft.evidence?.coverage.blocks??0} bloco(s) analisado(s).</p>
+      <p><strong>Encaminhamentos identificados:</strong> {draft.evidence?.actions.length??0}.</p>
+      <p><strong>Pessoas mencionadas, não necessariamente presentes:</strong> {draft.evidence?.participantsMentioned.join("; ")||"Nenhuma identificada"}.</p>
+      <p className="text-xs text-(--text-secondary)">Verifique especialmente responsáveis, identidade dos falantes, datas, regras ainda em discussão e compromissos realmente assumidos.</p>
+      {(draft.evidence?.coverage.notes??[]).length>0&&<ul className="list-disc pl-5 text-xs text-(--text-secondary)">{draft.evidence.coverage.notes.map((note,i)=><li key={i}>{note}</li>)}</ul>}
+    </div>}
+    {reviewTab==="checks"&&draft.uncertainties.length>0&&<div className="text-xs"><strong>Informações que precisam de confirmação</strong>
      <ul className="mt-1 list-disc pl-5">{draft.uncertainties.map((x,i)=><li key={i}>{x}</li>)}</ul></div>}
-    {draft.suggestedActions.length>0&&<div className="text-xs"><strong>Encaminhamentos sugeridos, ainda não cadastrados</strong>
+    {reviewTab==="checks"&&draft.suggestedActions.length>0&&<div className="text-xs"><strong>Encaminhamentos sugeridos, ainda não cadastrados</strong>
      <ul className="mt-1 list-disc pl-5">{draft.suggestedActions.map((x,i)=><li key={i}>{x}</li>)}</ul></div>}
     <p className="text-xs text-(--text-secondary)">Nenhuma sugestão gera atividade, risco ou decisão. Vínculos poderão ser revisados após o cadastro.</p>
     <div className="flex flex-wrap gap-2">
