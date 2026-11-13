@@ -4,6 +4,7 @@ import {resolve} from "node:path";
 import {allowedMeetingFile,normalizeMeetingDraft} from "../../services/meeting-transcript-draft";
 import {chunkTranscript,mergeEvidence,normalizeBlockEvidence,formatApprovedMeetingActions} from "../../services/meeting-evidence";
 import {guardMeetingNarrative,reviewMeetingEvidence} from "../../services/meeting-review-guard";
+import {groundEvidenceItem,verifyMeetingEvidence} from "../../services/meeting-grounding";
 const source=(file:string)=>readFileSync(resolve(process.cwd(),file),"utf8");
 
 test("Teams, Gemini and text exports allow documented meeting formats only",()=>{
@@ -238,4 +239,40 @@ test("MEET-R6 avoids operational cards from in-meeting screen sharing or isolate
  expect(review.actions[2].kind).toBe("operational");
  expect(review.actions.filter(a=>a.kind==="operational")).toHaveLength(1);
  expect(review.actions.every(a=>!a.included)).toBe(true);
+});
+
+test("MEET-02 verifies an exact source excerpt and retains review provenance",()=>{
+ const sourceText="00:42:25 Edson: Vou encaminhar o relatório detalhado de inconsistências.\n";
+ const item=normalizeBlockEvidence({actions:[{title:"Encaminhar relatório detalhado de inconsistências",kind:"operational",status:"assumido",owner:"Edson",evidence:"Vou encaminhar o relatório detalhado de inconsistências."}]},1).actions[0];
+ const checked=groundEvidenceItem(item,sourceText);
+ expect(checked.grounding).toBe("exact");
+ expect(checked.sourceOffset).toBeGreaterThan(0);
+ expect(checked.kind).toBe("operational");
+});
+
+test("MEET-02 rejects fabricated evidence as proof of commitments or responsibilities",()=>{
+ const sourceText="Palestrante 1: A equipe discutiu os erros de XML e notas fiscais.";
+ const item=normalizeBlockEvidence({actions:[{title:"Marcelo decidiu liberar o sistema amanhã",kind:"operational",owner:"Marcelo",status:"assumido",evidence:"Marcelo decidiu liberar o sistema amanhã"}]},1).actions[0];
+ const checked=groundEvidenceItem(item,sourceText);
+ expect(checked.grounding).toBe("unverified");
+ expect(checked.kind).toBe("review");
+ expect(checked.owner).toBe("");
+ expect(checked.included).toBe(false);
+ expect(checked.verificationNotes.length).toBeGreaterThan(0);
+});
+
+test("MEET-02 evidence statistics count only located excerpts, preserving human approval",()=>{
+ const transcript="00:14:56 Temos que listar as notas de entrada com substituição tributária.";
+ const evidence=mergeEvidence([normalizeBlockEvidence({actions:[
+  {title:"Documentar critério tributário das notas",kind:"business_rule",status:"proposta",evidence:"Temos que listar as notas de entrada com substituição tributária."},
+  {title:"Publicar release amanhã",kind:"operational",status:"assumido",owner:"Marcelo",evidence:"Marcelo confirmou publicação amanhã."}
+ ]},1)]);
+ const result=verifyMeetingEvidence(evidence,[transcript]);
+ expect(result.total).toBe(2);
+ expect(result.verified).toBe(1);
+ expect(result.unverified).toBe(1);
+ expect(result.actions[0].kind).toBe("business_rule");
+ expect(result.actions[1].kind).toBe("review");
+ const importer=source("components/projects/meeting-transcript-import.tsx");
+ expect(importer).toContain("Verificação independente das evidências");
 });
