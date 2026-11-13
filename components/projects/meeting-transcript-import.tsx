@@ -264,7 +264,10 @@ export function MeetingTranscriptImport({projectId,onSaved}:{projectId:string;on
           <option value="a_confirmar">A confirmar</option>
          </select></label>
        </div>
-       <p className="rounded-lg bg-(--bg-muted) p-2 text-xs text-(--text-secondary)">Trecho identificado pela IA (conferir na fonte): {action.evidence||"Não fornecido"}{action.time?" · "+action.time:""}</p>
+       <p className="rounded-lg bg-(--bg-muted) p-2 text-xs text-(--text-secondary)">Trecho identificado pela IA: {action.evidence||"Não fornecido"}{action.time?" · "+action.time:""}</p>
+       {"grounding" in action&&<p className="text-xs font-semibold" role="status">
+         {action.grounding==="exact"?"Evidência literal localizada":action.grounding==="normalized"?"Evidência localizada com normalização, conferir":"Evidência não localizada: item retido para revisão"}
+       </p>}
       </article>)}
     </div>}
     {reviewTab==="checks"&&<div className="space-y-3 text-sm">
@@ -278,6 +281,7 @@ export function MeetingTranscriptImport({projectId,onSaved}:{projectId:string;on
       </section>}
 
       <p><strong>Cobertura da fonte:</strong> {draft.evidence?.coverage.processed??0} de {draft.evidence?.coverage.blocks??0} bloco(s) analisado(s).</p>
+      <p><strong>Verificação independente das evidências:</strong> {draft.grounding?.verified??0} de {draft.grounding?.total??0} trechos localizados nos blocos originais. {draft.grounding?.unverified??0} não localizado(s) e encaminhado(s) para revisão.</p>
       <p><strong>Ocorrências analisadas:</strong> {draft.evidence?.actions.length??0}. Ações operacionais propostas: {(draft.evidence?.actions??[]).filter(item=>item.kind==="operational").length}. Outras categorias: {(draft.evidence?.actions??[]).filter(item=>item.kind!=="operational").length}.</p>
       <p><strong>Nomes sinalizados pela IA como possíveis participantes (exigem comprovação):</strong> {draft.evidence?.participantsConfirmed?.join("; ")||"Nenhum identificado"}.</p>
       <p className="text-xs text-(--text-secondary)">Nomes mencionados não significam presença. Quando a autoria da fala não estiver identificada, deixe a atribuição sem nome.</p>
