@@ -237,7 +237,19 @@ export function MeetingTranscriptImport({projectId,onSaved}:{projectId:string;on
        <p className="text-xs text-(--text-secondary)">Ações: {(draft.evidence?.actions??[]).filter(a=>a.kind==="operational").length} · Outras ocorrências: {(draft.evidence?.actions??[]).filter(a=>a.kind!=="operational").length} · Selecionadas: {(draft.evidence?.actions??[]).filter(a=>a.included&&a.kind==="operational").length}</p>
       </div>
       {!(draft.evidence?.actions.length)?<p className="rounded-lg border border-(--border) p-3 text-sm text-(--text-secondary)">Nenhum encaminhamento individualizado identificado. Revise o texto da ata antes de aprovar.</p>:null}
-      {(draft.evidence?.actions??[]).filter(action=>actionFilter==="all"||(actionFilter==="operational"?action.kind==="operational":action.kind!=="operational")).map(action=><article key={action.id} className="space-y-2 rounded-xl border border-(--border) p-3">
+      {(draft.evidence?.actions??[]).filter(action=>actionFilter==="all"||(actionFilter==="operational"?action.kind==="operational":action.kind!=="operational")).map(action=><details key={action.id} className="group rounded-xl border border-(--border) bg-(--bg-surface) open:border-(--accent) open:shadow-sm">
+       <summary className="flex cursor-pointer list-none flex-wrap items-center justify-between gap-2 rounded-xl p-3 text-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-(--accent) [&::-webkit-details-marker]:hidden">
+        <span className="flex min-w-0 flex-1 items-start gap-2">
+         <span aria-hidden="true" className="mt-0.5 shrink-0 text-(--text-secondary) group-open:rotate-90">▸</span>
+         <span className="min-w-0"><span className="block font-semibold">{action.id} · {action.title}</span>
+          <span className="mt-1 block text-xs text-(--text-secondary)">Bloco {action.sourceBlock}{action.time?" · "+action.time:""} · {action.kind==="operational"?"Ação operacional":action.kind==="business_rule"?"Regra de negócio":action.kind==="review"?"A confirmar":"Outra ocorrência"}</span>
+         </span>
+        </span>
+        <span className="rounded-full border border-(--border) px-2 py-1 text-xs font-semibold">
+         {action.included&&action.kind==="operational"?"Selecionada":"Revisar"}
+        </span>
+       </summary>
+       <div className="space-y-2 border-t border-(--border) p-3">
        <div className="flex flex-wrap items-center justify-between gap-2">
         <label className="flex items-center gap-2 text-xs font-semibold"><input type="checkbox" checked={action.included&&action.kind==="operational"} disabled={action.kind!=="operational"}
          onChange={e=>editAction(action.id,{included:e.target.checked})}/>{action.id} · Incluir no acompanhamento</label>
@@ -273,7 +285,8 @@ export function MeetingTranscriptImport({projectId,onSaved}:{projectId:string;on
        {"grounding" in action&&<p className="text-xs font-semibold" role="status">
          {action.grounding==="exact"?"Evidência literal localizada":action.grounding==="normalized"?"Evidência localizada com normalização, conferir":"Evidência não localizada: item retido para revisão"}
        </p>}
-      </article>)}
+       </div>
+      </details>)}
     </div>}
     {reviewTab==="checks"&&<div className="space-y-3 text-sm">
       {(draft.reviewFlags??[]).length>0&&<section className="space-y-2 rounded-xl border border-(--danger) bg-(--danger-soft) p-3" aria-label="Revisão obrigatória de atribuições">
