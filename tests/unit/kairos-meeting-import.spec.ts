@@ -224,3 +224,18 @@ test("MEET-R5 permission denial for meeting list is not misreported as missing m
  expect(api).toContain('code==="42P01"');
  expect(api).toContain("Tabela de reuniões não disponível");
 });
+
+test("MEET-R6 avoids operational cards from in-meeting screen sharing or isolated questions",()=>{
+ const block=normalizeBlockEvidence({actions:[
+  {title:"Disponibilizar compartilhamento de tela do sistema para acompanhamento",kind:"operational",status:"proposta",evidence:"Eu posso compartilhar aqui, só um segundo aqui."},
+  {title:"Apresentar processamento e análise do piloto de setembro de 2020",kind:"operational",status:"assumido",evidence:"O sistema ficou com setembro de 20 como piloto né?"},
+  {title:"Ajustar o XML e os arquivos fiscais do pedido piloto",kind:"operational",status:"proposta",evidence:"A gente precisava ajustar o XML do pedido e os arquivos de produtos."}
+ ]},1);
+ const review=mergeEvidence([block]);
+ reviewMeetingEvidence(review);
+ expect(review.actions[0].kind).toBe("context");
+ expect(review.actions[1].kind).toBe("context");
+ expect(review.actions[2].kind).toBe("operational");
+ expect(review.actions.filter(a=>a.kind==="operational")).toHaveLength(1);
+ expect(review.actions.every(a=>!a.included)).toBe(true);
+});
