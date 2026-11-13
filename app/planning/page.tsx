@@ -158,9 +158,33 @@ export default function PlanningPage(){
    className={/falha|erro|indispon[ií]vel|n[aã]o foi poss[ií]vel|aten[cç][aã]o|selecione|informe/i.test(status)
      ?"rounded-xl border border-(--danger) bg-(--danger-soft) p-3 text-sm font-medium text-(--danger)"
      :"workspace-card border-l-4 border-(--accent) p-3 text-sm"}>{status}</p>:null}
-  <section className="workspace-card flex flex-wrap items-center justify-between gap-3 p-4">
-    <div><h2 className="text-sm font-semibold">{info.label}</h2><p className="mt-1 text-xs text-(--text-secondary)">{info.help}</p></div>
-    <button className="workspace-button-primary text-xs" type="button" onClick={()=>{reset();setEditorOpen(true)}}>Adicionar {kind==="prospect"?"prospect":"registro"}</button>
+  <section className="workspace-card overflow-hidden p-0" aria-label="Resumo operacional de planejamento">
+    <div className="flex flex-wrap items-center justify-between gap-4 border-b border-(--border) p-4 md:p-5">
+      <div className="min-w-0 flex-1 space-y-1">
+        <p className="text-xs font-semibold uppercase tracking-wide text-(--text-secondary)">Carteira de planejamento</p>
+        <h2 className="text-xl font-semibold text-(--text-primary)">{info.label}</h2>
+        <p className="max-w-3xl text-sm text-(--text-secondary)">{info.help}</p>
+      </div>
+      <button className="workspace-button-primary shrink-0 px-4 py-2 text-sm font-semibold" type="button"
+        onClick={()=>{reset();setEditorOpen(true)}}>+ {kind==="prospect"?"Novo prospect":"Novo registro"}</button>
+    </div>
+    <div className="grid grid-cols-1 divide-y divide-(--border) sm:grid-cols-3 sm:divide-x sm:divide-y-0">
+      <div className="p-4">
+        <p className="text-xs font-semibold text-(--text-secondary)">Registros na categoria</p>
+        <p className="mt-1 text-2xl font-semibold tabular-nums">{loadError?"Indisponível":loading?"...":total}</p>
+        <p className="mt-1 text-xs text-(--text-secondary)">Fonte: registros do planejamento</p>
+      </div>
+      <div className="p-4">
+        <p className="text-xs font-semibold text-(--text-secondary)">Página atual</p>
+        <p className="mt-1 text-2xl font-semibold tabular-nums">{loadError?"-":page}</p>
+        <p className="mt-1 text-xs text-(--text-secondary)">Até 25 registros por página</p>
+      </div>
+      <div className="p-4">
+        <p className="text-xs font-semibold text-(--text-secondary)">Registros em exibição</p>
+        <p className="mt-1 text-2xl font-semibold tabular-nums">{loadError?"Indisponível":loading?"...":items.length}</p>
+        <p className="mt-1 text-xs text-(--text-secondary)">Não inclui páginas não carregadas</p>
+      </div>
+    </div>
   </section>
   <div id="planning-active-panel" role="tabpanel" className="min-w-0 space-y-4">
    {editorOpen?<div className="fixed inset-0 z-50">
@@ -247,19 +271,31 @@ export default function PlanningPage(){
      </aside>
    </div>:null}
    <section className="workspace-card min-w-0 p-4 md:p-5">
-    <div className="mb-4 flex flex-wrap items-center justify-between gap-2"><div><h2 className="text-base font-semibold">Registros de {info.label}</h2><p className="mt-1 text-xs text-(--text-secondary)">Consulte e mantenha o histórico de cada item.</p></div>
-     <button onClick={()=>void load()} className="workspace-button-secondary px-3 py-2 text-xs" disabled={loading}>{loading?"Carregando...":"Atualizar"}</button></div>
+    <div className="mb-4 flex flex-wrap items-center justify-between gap-3 border-b border-(--border) pb-4"><div><h2 className="text-base font-semibold">Registros de {info.label}</h2><p className="mt-1 text-sm text-(--text-secondary)">Acompanhe a situação, o responsável e a próxima ação sem perder o contexto.</p></div>
+     <button onClick={()=>void load()} className="workspace-button-secondary px-4 py-2 text-sm" disabled={loading}>{loading?"Atualizando...":"Atualizar lista"}</button></div>
     <p className="mb-3 text-xs text-(--text-secondary)">{loadError?"Consulta indisponível":`${total} registro(s), página ${page} · 25 itens por página`}</p>
-    <div className="space-y-2">{items.map(item=><div key={item.id} className="flex items-center justify-between gap-3 rounded-lg border border-(--border) p-3"><div className="min-w-0 flex-1">
-      <span className="flex flex-wrap items-center justify-between gap-2">
-        <span className="font-medium">{item.title}</span>
-        <span className="rounded-full bg-(--bg-muted) px-2 py-1 text-xs font-semibold">{item.status}</span>
-      </span>
-      <span className="mt-1 block text-xs text-(--text-secondary)">Versão {item.version} · Atualizado em {new Date(item.updated_at).toLocaleDateString("pt-BR")}</span>
-      <p className="mt-2 line-clamp-2 text-sm text-(--text-secondary)">{item.description||"Sem descrição"}</p>
-      {item.payload.nextAction?<p className="mt-2 text-xs text-(--text-secondary)">Próxima ação: {String(item.payload.nextAction)}</p>:null}
-      {item.payload.owner?<p className="mt-1 text-xs text-(--text-secondary)">Responsável: {String(item.payload.owner)}</p>:null}
-     </div><IconActionButton icon="pencil" tone="edit" label={"Editar "+item.title} onClick={()=>edit(item)}/></div>)}{!loading&&!loadError&&!items.length?<p className="rounded-lg border border-dashed border-(--border) bg-(--bg-muted) px-4 py-5 text-sm text-(--text-secondary)">Nenhum registro encontrado nesta categoria. Utilize Adicionar para começar.</p>:null}</div>
+    <div className="grid gap-3 xl:grid-cols-2">{items.map(item=><article key={item.id}
+      className="flex min-w-0 flex-col justify-between gap-3 rounded-xl border border-(--border) bg-(--bg-surface) p-4 transition-colors hover:border-(--accent)">
+      <div className="min-w-0 space-y-2">
+        <div className="flex flex-wrap items-start justify-between gap-2">
+          <h3 className="min-w-0 flex-1 break-words text-base font-semibold text-(--text-primary)">{item.title}</h3>
+          <span className="rounded-full border border-(--border) bg-(--bg-muted) px-2.5 py-1 text-xs font-semibold text-(--text-primary)">{item.status}</span>
+        </div>
+        <p className="line-clamp-3 text-sm leading-6 text-(--text-secondary)">{item.description||"Descrição não informada"}</p>
+        {item.payload.nextAction?<p className="rounded-lg bg-(--bg-muted) p-3 text-sm"><strong className="font-semibold">Próxima ação:</strong> {String(item.payload.nextAction)}</p>:null}
+      </div>
+      <div className="flex flex-wrap items-center justify-between gap-3 border-t border-(--border) pt-3">
+        <div className="space-y-1 text-xs text-(--text-secondary)">
+          <p>Responsável: {item.payload.owner?String(item.payload.owner):"Não informado"}</p>
+          <p>Atualizado: {new Date(item.updated_at).toLocaleDateString("pt-BR")} · Versão {item.version}</p>
+        </div>
+        <button type="button" className="workspace-button-secondary px-3 py-2 text-sm font-semibold"
+          onClick={()=>edit(item)} aria-label={"Abrir registro "+item.title}>Abrir e editar</button>
+      </div>
+    </article>)}{!loading&&!loadError&&!items.length?<div className="col-span-full rounded-xl border border-dashed border-(--border) bg-(--bg-muted) p-6">
+      <p className="font-semibold">Nenhum registro nesta categoria</p>
+      <p className="mt-1 text-sm text-(--text-secondary)">Você pode criar o primeiro registro pelo botão Novo, no resumo acima.</p>
+    </div>:null}</div>
     <div className="mt-4 flex gap-2">
      <button type="button" disabled={page===1} onClick={()=>setPage(p=>p-1)} className="workspace-button-secondary px-3 py-2 text-xs disabled:opacity-40">Anterior</button>
      <button type="button" disabled={page*25>=total} onClick={()=>setPage(p=>p+1)} className="workspace-button-secondary px-3 py-2 text-xs disabled:opacity-40">Próxima</button>
