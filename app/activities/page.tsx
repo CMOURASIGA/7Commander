@@ -122,6 +122,8 @@ export default function ActivitiesPage() {
   useEffect(()=>{let live=true;async function loadAssignees(){try{const r=await fetch("/api/team/assignees",{headers:getClientAuthHeaders(),cache:"no-store"});const j=await r.json();if(!r.ok)throw new Error(j.error||"Falha ao buscar usuários");if(live){setAssignees(j.data||[]);setAssigneeError(null)}}catch(e){if(live)setAssigneeError(e instanceof Error?e.message:"Falha ao buscar equipe")}}void loadAssignees();return()=>{live=false}},[]);
 
   const [commentText, setCommentText] = useState("");
+  const [commentPending,setCommentPending]=useState(false);
+  const [commentError,setCommentError]=useState<string|null>(null);
   const [editingCommentId, setEditingCommentId] = useState<string | null>(null);
   const [editingCommentText, setEditingCommentText] = useState("");
   const [attachmentName, setAttachmentName] = useState("");
@@ -230,6 +232,18 @@ export default function ActivitiesPage() {
       await applyDetailAction({action:"update_core",title:detailForm.title,description:detailForm.description,priority:detailForm.priority,dueDate:detailForm.dueDate||null,responsible:detailForm.responsible||null});
       setCardSaveState("saved");setCardSaveMessage("Alterações salvas com sucesso.");
     }catch(error){setCardSaveState("error");setCardSaveMessage(error instanceof Error?error.message:"Falha ao salvar card.");}
+  }
+  async function submitComment(){
+    if(commentPending||!canEditDetail)return;
+    const value=commentText.trim();
+    if(!value||value.length>4000){setCommentError("Informe um comentário de 1 a 4.000 caracteres.");return;}
+    setCommentPending(true);setCommentError(null);
+    try{
+      await applyDetailAction({action:"add_comment",content:value});
+      setCommentText("");
+    }catch(error){
+      setCommentError(error instanceof Error?error.message:"Não foi possível registrar o comentário.");
+    }finally{setCommentPending(false);}
   }
   async function applyDetailAction(payload: Record<string, unknown>) {
     if (!selectedTaskId) return;
@@ -925,15 +939,13 @@ export default function ActivitiesPage() {
                         />
                         <button
                           type="button"
-                          onClick={() =>
-                            void applyDetailAction({ action: "add_comment", content: commentText }).then(() =>
-                              setCommentText(""),
-                            )
-                          }
-                          className="rounded-lg bg-(--accent) px-3 py-2 text-xs font-medium text-white"
+                          onClick={()=>void submitComment()}
+                          disabled={commentPending||!commentText.trim()}
+                          className="workspace-button-primary px-3 py-2 text-xs"
                         >
-                          Comentar
+                          {commentPending?"Registrando...":"Comentar"}
                         </button>
+                        {commentError?<p role="alert" className="text-xs font-semibold text-(--danger)">{commentError}</p>:null}
                       </>
                     ) : null}
                   </div>
