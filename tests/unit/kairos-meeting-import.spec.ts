@@ -5,6 +5,7 @@ import {allowedMeetingFile,normalizeMeetingDraft} from "../../services/meeting-t
 import {chunkTranscript,mergeEvidence,normalizeBlockEvidence,formatApprovedMeetingActions,markMeetingDuplicateCandidates} from "../../services/meeting-evidence";
 import {guardMeetingNarrative,reviewMeetingEvidence} from "../../services/meeting-review-guard";
 import {groundEvidenceItem,verifyMeetingEvidence} from "../../services/meeting-grounding";
+import {semanticContext,parseSemanticAudit,applySemanticAudit} from "../../services/meeting-semantic-review";
 const source=(file:string)=>readFileSync(resolve(process.cwd(),file),"utf8");
 
 test("Teams, Gemini and text exports allow documented meeting formats only",()=>{
@@ -289,4 +290,41 @@ test("MEET-02 duplicate detection flags similar work but retains both source pas
  expect(reviewed.every(item=>item.included===false)).toBe(true);
  const ui=source("components/projects/meeting-transcript-import.tsx");
  expect(ui).toContain("Possível duplicidade com");
+});
+
+test("MEET-03 independent semantic assessor demotes fiscal requirements but keeps concrete follow-ups",()=>{
+ const sourceText="00:02:00 Palestrante 2: No pedido você tem que listar todas as notas de entrada. 00:04:00 Palestrante 3: Vou enviar o relatório para vocês.";
+ const rules=normalizeBlockEvidence({actions:[
+  {title:"Listar todas as notas de entrada",kind:"operational",status:"assumido",evidence:"No pedido você tem que listar todas as notas de entrada."},
+  {title:"Enviar relatório de erros",kind:"operational",status:"assumido",evidence:"Vou enviar o relatório para vocês."}
+ ]},1);
+ const evidence=mergeEvidence([rules]);
+ expect(semanticContext(evidence.actions[0],sourceText)).toContain("No pedido você tem que listar");
+ const decisions=parseSemanticAudit({decisions:[
+  {id:evidence.actions[0].id,kind:"business_rule",status:"a_confirmar",evidenceSupports:true,commitmentConfirmed:false,reason:"A fala descreve requisito fiscal, sem entrega assumida."},
+  {id:evidence.actions[1].id,kind:"operational",status:"assumido",evidenceSupports:true,commitmentConfirmed:true,reason:"Há promessa explícita de enviar o relatório."}
+ ]},evidence.actions.map(a=>a.id));
+ const report=applySemanticAudit(evidence,decisions);
+ expect(report.demoted).toBe(1);
+ expect(evidence.actions[0].kind).toBe("business_rule");
+ expect(evidence.actions[0].status).toBe("a_confirmar");
+ expect(evidence.actions[1].kind).toBe("operational");
+ expect(evidence.actions[1].status).toBe("assumido");
+ expect(evidence.actions.every(a=>!a.included)).toBe(true);
+ expect(evidence.actions[0].semanticReason).toContain("requisito fiscal");
+});
+
+test("MEET-03 rejects incomplete second opinion and does not accept unsupported assertions",()=>{
+ const part=normalizeBlockEvidence({actions:[{title:"Marcar apresentação do piloto",kind:"operational",status:"assumido",owner:"Marcelo",evidence:"O piloto foi setembro, né?"}]},1);
+ const evidence=mergeEvidence([part]);
+ expect(()=>parseSemanticAudit({decisions:[]},[evidence.actions[0].id])).toThrow();
+ const review=applySemanticAudit(evidence,[{id:evidence.actions[0].id,kind:"review",status:"a_confirmar",
+  evidenceSupports:false,commitmentConfirmed:false,reason:"Pergunta sem aceitação de entrega futura."}]);
+ expect(review.uncertain).toBe(1);
+ expect(evidence.actions[0].kind).toBe("review");
+ expect(evidence.actions[0].owner).toBe("");
+ const pipeline=source("services/meeting-transcript-draft.ts");
+ expect(pipeline).toContain("parseSemanticAudit(data,group.map(item=>item.id))");
+ expect(pipeline).toContain("applySemanticAudit(evidence,decisions)");
+ expect(pipeline).toContain("KAIROS_SEMANTIC_MODEL");
 });
