@@ -46,3 +46,15 @@ test("Kairos retrieves official meetings only with organization and project isol
  expect(svc).toContain("não comprovam execução");
  expect(source("services/kairos-core.ts")).toContain("loadProjectMeetingContext");
 });
+
+test("transcript upload exposes clear action, selected filename and accessible validation",()=>{
+ const ui=source("components/projects/meeting-transcript-import.tsx");
+ expect(ui).toContain("Selecionar arquivo");
+ expect(ui).toContain("Substituir arquivo");
+ expect(ui).toContain("Nenhum arquivo selecionado");
+ expect(ui).toContain("meeting-transcript-file");
+ expect(ui).toContain('aria-label="Selecionar arquivo de transcrição"');
+ expect(ui).toContain("8*1024*1024");
+ expect(ui).toContain("Preparar prévia com Kairos");
+ expect(ui).toContain("Remover");
+});
