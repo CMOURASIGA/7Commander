@@ -62,6 +62,11 @@ export async function POST(request: NextRequest) {
     riscosAtuais:audience==="internal"?risks.map(x=>({titulo:x.titulo,status:x.status,impacto:x.impacto,probabilidade:x.probabilidade,mitigacao:x.mitigacao,responsavel:x.responsavel})):undefined,
     decisoesAtuais:audience==="internal"?decisions.map(x=>({titulo:x.titulo,status:x.status,impacto:x.impacto,contexto:x.contexto})):undefined,
     fatosAprovadosCliente:audience==="client"?(scrum.publicFacts||[]):undefined,
+    reunioesEEncaminhamentos:audience==="internal"?(scrum.internal?.meetingLines||[]).slice(0,40).map(item=>({
+      reuniao:item.meetingTitle,data:item.heldAt,tipo:item.category==="commitment"?"compromisso":"pendencia",
+      encaminhamento:item.title,detalhes:item.details,origem:item.sourceReference,
+      registroDeTeste:item.localOnly
+    })):undefined,
     eventosNoPeriodo:audience==="internal"?events.map(x=>({tipo:x.action_type,data:x.created_at})):undefined,
     totalEventosNoPeriodo:events.length,
     registrosCriadosNoPeriodo:periodMetrics,
@@ -85,7 +90,7 @@ export async function POST(request: NextRequest) {
     const result = await openai.responses.create({
       model:"gpt-4o-mini",
       input:[
-        {role:"system",content:KAIROS_PM_REPORT_POLICY+"\nA audiência é "+(audience==="client"?"CLIENTE: não divulgar nomes de colaboradores, Tasks internas, impedimentos técnicos restritos ou estimativas não acordadas. Priorize objetivo, benefícios documentados, entregas registradas, marcos formalizados, riscos relevantes e próximos passos propostos.":"EQUIPE: detalhar trabalho registrado, Sprints, US, Tasks, responsáveis, impedimentos, decisões e ações operacionais.")+" Diferencie explicitamente fatos registrados, compromissos confirmados, hipóteses e recomendações de IA. Não apresente previsão, reunião, prazo acordado, aceite, benefício ou conclusão sem evidência nos dados.\nProduza exclusivamente JSON com três campos string: executiveSummary, riskAnalysis, nextSteps. Português executivo, cada campo com 2 a 5 frases objetivas. Use apenas os dados recebidos. Evite enumerar riscos genéricos, integre riscos semelhantes e indique mitigação existente ou ausente. Diferencie riscos reais de lacunas. Descreva Sprints e entregas quando existirem e separe-as do Kanban operacional. Não invente fatos, evolução histórica ou estimativa. Nenhum comando de escrita."},
+        {role:"system",content:KAIROS_PM_REPORT_POLICY+"\nA audiência é "+(audience==="client"?"CLIENTE: não divulgar nomes de colaboradores, Tasks internas, impedimentos técnicos restritos ou estimativas não acordadas. Priorize objetivo, benefícios documentados, entregas registradas, marcos formalizados, riscos relevantes e próximos passos propostos.":"EQUIPE: detalhar trabalho registrado, Sprints, US, Tasks, responsáveis, impedimentos, decisões e ações operacionais.")+" Em reuniões, preserve distinção entre compromisso anotado na ata e entrega executada. Registros de teste locais nunca são evidência oficial de resultado. Diferencie explicitamente fatos registrados, compromissos confirmados, hipóteses e recomendações de IA. Não apresente previsão, reunião, prazo acordado, aceite, benefício ou conclusão sem evidência nos dados.\nProduza exclusivamente JSON com três campos string: executiveSummary, riskAnalysis, nextSteps. Português executivo, cada campo com 2 a 5 frases objetivas. Use apenas os dados recebidos. Evite enumerar riscos genéricos, integre riscos semelhantes e indique mitigação existente ou ausente. Diferencie riscos reais de lacunas. Descreva Sprints e entregas quando existirem e separe-as do Kanban operacional. Não invente fatos, evolução histórica ou estimativa. Nenhum comando de escrita."},
         {role:"user",content:JSON.stringify(scope).slice(0,45000)}
       ],
     });
