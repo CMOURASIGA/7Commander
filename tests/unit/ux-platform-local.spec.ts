@@ -153,7 +153,9 @@ test("UX-NOTIFY-03 opens notification center drawer with direct deep links and s
  expect(c).toContain("Central de notificações");
  expect(c).toContain('storyId=');
  expect(c).toContain('taskId=');
- expect(c).toContain("Marcar como lida");
+ expect(c).toContain('<IconActionButton icon="check-circle" tone="success"');
+ expect(c).toContain('label={"Marcar notificação "');
+ expect(c).toContain('como lida"}');
  expect(c).toContain("Abrir card e trabalhar");
  expect(c).toContain("Atividades continuam pendentes");
  expect(c).not.toContain('mt-2 w-80 max-w-[90vw]');
