@@ -3,6 +3,7 @@ import { createClient } from '@supabase/supabase-js';
 import { LOCAL_ACCESS_COOKIE } from './lib/local-ssr-cookie';
 import { localAuthEnabled, localWriteGuardEnabled, shouldBlockLocalApiMutation } from './lib/local-write-guard';
 import { readOnlySupabaseFetch } from './lib/local-supabase-fetch';
+import { localMeetingSandbox } from './services/local-meeting-sandbox';
 
 const PUBLIC_PAGES = new Set(['/login','/central-access']);
 const UUID=/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -23,7 +24,10 @@ function secureNext() {
 export async function middleware(request:NextRequest) {
   // Keep API mutations disabled on localhost until a separate QA database
   // or a truly read-only database credential is available.
-  if (shouldBlockLocalApiMutation({
+  const isolatedMeetingSave=localMeetingSandbox(request)
+    &&request.method.toUpperCase()==="POST"
+    &&/^\\/api\\/projects\\/[0-9a-f-]{36}\\/meetings$/.test(request.nextUrl.pathname);
+  if (!isolatedMeetingSave && shouldBlockLocalApiMutation({
     pathname:request.nextUrl.pathname,
     method:request.method,
     enabled:localWriteGuardEnabled(),
