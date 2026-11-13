@@ -52,3 +52,12 @@ test("meeting rehearsal only bypasses middleware for loopback development with r
  expect(localMeetingSandboxAllowed({pathname:path,hostname:"localhost",method:"POST",
   env:{NODE_ENV:"development",COMMANDER_LOCAL_READ_ONLY:"false"} as NodeJS.ProcessEnv})).toBe(false);
 });
+
+test("central broker and local cookie sync are reachable before session cookie exists",()=>{
+ const middleware=require("node:fs").readFileSync(require("node:path").resolve(process.cwd(),"middleware.ts"),"utf8") as string;
+ expect(middleware).toContain('request.nextUrl.pathname==="/api/auth/central-exchange"');
+ expect(middleware).toContain('request.nextUrl.pathname==="/api/auth/local-session"');
+ expect(middleware).toContain('publicPage(request.nextUrl.pathname)||authBootstrapRoute');
+ expect(middleware).toContain('if (!isolatedMeetingSave && shouldBlockLocalApiMutation(');
+ expect(middleware).toContain("const localToken=request.cookies.get(LOCAL_ACCESS_COOKIE)");
+});
