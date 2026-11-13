@@ -30,7 +30,7 @@ export function normalizeMeetingDraft(raw:unknown):MeetingDraft{
   pendingItems:clean(data.pendingItems),risks:clean(data.risks),
   nextFollowUp:dateOrBlank(data.nextFollowUp),
   sourceArtifactId:"",uncertainties:array(data.uncertainties),suggestedActions:array(data.suggestedActions),
-  evidence:{actions:[],participantsMentioned:[],coverage:{blocks:0,processed:0,notes:[]}},
+  evidence:{actions:[],participantsMentioned:[],participantsConfirmed:[],coverage:{blocks:0,processed:0,notes:[]}},
  };
 }
 export async function prepareMeetingDraft(input:{filename?:string;content?:string;file?:File;projectName:string;existingRecords?:string[]}):Promise<MeetingDraft>{
@@ -73,7 +73,7 @@ export async function prepareMeetingDraft(input:{filename?:string;content?:strin
   // Never silently truncate a source or claim exhaustive coverage when a block fails.
   const blocks=attachment?[]:chunkTranscript(content,12000);
   if(blocks.length>12)throw Error("Transcrição acima do limite de análise completa (12 blocos). Divida o arquivo antes de importar.");
-  let evidence:MeetingEvidence={actions:[],participantsMentioned:[],
+  let evidence:MeetingEvidence={actions:[],participantsMentioned:[],participantsConfirmed:[],
     coverage:{blocks:attachment?1:blocks.length,processed:0,notes:[]}};
   if(blocks.length){
    const extracted:ReturnType<typeof normalizeBlockEvidence>[]=[];
@@ -86,7 +86,7 @@ export async function prepareMeetingDraft(input:{filename?:string;content?:strin
         "Extraia individualmente TODAS as ações e compromissos discerníveis neste bloco.",
         "Para cada ação: title, owner (somente se explícito), status (proposta|assumido|realizado|pendente|a_confirmar), time (HH:MM:SS se presente), evidence (trecho curto literal da fala).",
         "Uma solicitação não é um compromisso assumido; compartilhamento declarado concluído é realizado; hipótese não é regra aprovada.",
-        "Identifique pessoas apenas MENCIONADAS separadamente dos participantes confirmados.",
+        "Extraia participantsConfirmed somente com evidência clara de presença/fala atribuída; participantsMentioned são nomes apenas citados ou sem presença comprovada.",
         "Retorne somente JSON: {\"actions\":[...],\"participantsMentioned\":[...],\"notes\":[...]}.",
         "DOCUMENTO BLOCO:\n"+blocks[i]
       ].join("\n")}]}]
@@ -108,7 +108,8 @@ export async function prepareMeetingDraft(input:{filename?:string;content?:strin
     "Se houver compromissos assumidos ou realizados nos trechos, compromissos NÃO deve ficar vazio.",
     "Não afirme que uma API inexiste quando apenas não foi encontrada pela equipe.",
     "Ações extraídas (evidência separada para revisão humana, não cadastros):\n"+summaries.join("\n").slice(0,22000),
-    "Participantes mencionados (não presumir presença): "+evidence.participantsMentioned.join("; ")
+    "Participantes confirmados no bloco: "+evidence.participantsConfirmed.join("; "),
+    "Pessoas mencionadas sem confirmação de presença: "+evidence.participantsMentioned.join("; ")
   ].join("\n");
   const result=await openai.responses.create({
    model:process.env.KAIROS_INGEST_MODEL?.trim()||"gpt-4.1",
