@@ -36,3 +36,11 @@ Retorne prévia editável com origem e alertas. Usuário deve aprovar explicitam
 - Não corrigir ambiguidades mediante invenção: ao faltar autoria, responsabilidade, quórum, prazo ou aprovação, informar ausência de confirmação.
 - Não escrever no resumo que 'Palestrante 1' é uma pessoa identificada. Sem associação segura do falante ao nome, narrar o fato sem atribuição nominal.
 - Antes de aprovar, conferir diferenças entre uma regra de negócio, uma orientação discutida, uma ação efetivamente assumida e uma entrega realizada.
+
+## MEET-R5 | Consistência de autoria e autorização explícita
+- A consolidação de um resumo não constitui evidência de identidade ou responsabilidade. Se a transcrição indicar mudança de liderança sem identificar nominalmente o falante, registrar o fato sem atribuir nome e exigir revisão humana.
+- Nunca inferir que a pessoa mencionada perto de Varela na transcrição seja a pessoa que assumiu seu projeto.
+- Informações gerenciais de transição de liderança pertencem ao contexto da ata; não criar tarefa futura automaticamente.
+- Compartilhamento de tela durante a reunião, explicações fiscais ou análise pontual realizada no encontro não são compromissos futuros sem evidência adicional.
+- Se o sistema detectar atribuição crítica não comprovada, mostrar aviso e exigir confirmação explícita de que o gestor conferiu a fonte original antes de gravar.
+- Não interpretar erro de permissão de banco como migração não aplicada. O diagnóstico deve indicar a causa técnica corretamente.
