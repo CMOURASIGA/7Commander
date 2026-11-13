@@ -4,6 +4,7 @@ export type MeetingAction={
 };
 export type MeetingEvidence={
  participantsMentioned:string[];
+ participantsConfirmed:string[];
  actions:MeetingAction[];
  coverage:{blocks:number;processed:number;notes:string[]};
 };
@@ -45,11 +46,11 @@ export function chunkTranscript(text:string,maxChars=12000):string[]{
  if(part.trim())result.push(part.trim());
  return result;
 }
-export function normalizeBlockEvidence(value:unknown,block:number):{actions:MeetingAction[];participantsMentioned:string[];notes:string[]}{
- const data=value&&typeof value==="object"&&!Array.isArray(value)?value as Record<string,unknown>:{};
+export function normalizeBlockEvidence(value:unknown,block:number):{actions:MeetingAction[];participantsMentioned:string[];participantsConfirmed:string[];notes:string[]}{
+ const data:Record<string,unknown>=value&&typeof value==="object"&&!Array.isArray(value)?value as Record<string,unknown>:{};
  const rawActions=Array.isArray(data.actions)?data.actions:[];
  return {actions:rawActions.slice(0,24).map((a,i)=>normalizeAction(a,block,i)).filter((a):a is MeetingAction=>Boolean(a)),
-  participantsMentioned:strings(data.participantsMentioned),notes:strings(data.notes,12)};
+  participantsMentioned:strings(data.participantsMentioned),participantsConfirmed:strings(data.participantsConfirmed),notes:strings(data.notes,12)};
 }
 export function mergeEvidence(parts:ReturnType<typeof normalizeBlockEvidence>[]):MeetingEvidence{
  const seen=new Set<string>();
@@ -60,7 +61,7 @@ export function mergeEvidence(parts:ReturnType<typeof normalizeBlockEvidence>[])
   seen.add(key);return true;
  }).slice(0,120);
  const people=Array.from(new Set(parts.flatMap(p=>p.participantsMentioned)));
- return {actions,participantsMentioned:people,
+ return {actions,participantsMentioned:people,participantsConfirmed:Array.from(new Set(parts.flatMap(p=>p.participantsConfirmed))),
   coverage:{blocks:parts.length,processed:parts.length,notes:parts.flatMap(p=>p.notes).slice(0,40)}};
 }
 export function formatApprovedMeetingActions(actions:MeetingAction[]):{commitments:string;pendingItems:string}{
