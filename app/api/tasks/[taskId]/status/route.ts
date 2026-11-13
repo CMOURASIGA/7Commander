@@ -8,7 +8,6 @@ import {updateTaskCard} from "@/services/task-board-service";
 
 const reject=(message:string,status:number)=>NextResponse.json({error:message},{status,headers:{"Cache-Control":"private,no-store"}});
 const uuid=/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-type Target="todo"|"doing"|"done";
 export async function PATCH(request:NextRequest,{params}:{params:Promise<{taskId:string}>}){
  const auth=await requireApiAuth(request);if(!auth.ok)return auth.response;
  if(localWriteGuardEnabled())return reject("Ambiente local somente leitura. Alteração de status bloqueada.",403);
