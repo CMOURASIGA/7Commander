@@ -97,3 +97,12 @@ test("REP-MEET-02 client meeting candidates require editorial authorization and 
  expect(clientSection).toContain("scrum?.publicFacts");
  expect(clientSection).not.toContain("meetingLines");
 });
+
+test("REP-MEET-03 Kairos internal analysis includes meeting lines and never sends them to client",()=>{
+ const analysis=file("app/api/status-report/analysis/route.ts");
+ expect(analysis).toContain('reunioesEEncaminhamentos:audience==="internal"?');
+ expect(analysis).toContain("scrum.internal?.meetingLines");
+ expect(analysis).toContain("registroDeTeste:item.localOnly");
+ expect(analysis).toContain("Registros de teste locais nunca são evidência oficial");
+ expect(analysis).toContain('fatosAprovadosCliente:audience==="client"?');
+});
