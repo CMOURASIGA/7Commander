@@ -65,7 +65,20 @@ export async function POST(request:NextRequest,{params}:RouteContext){
  const existing=await ctx.db.from("project_meetings").select("id")
   .eq("organization_id",ctx.org).eq("project_id",projectId).eq("title",title)
   .eq("held_at",new Date(String(body.heldAt)).toISOString()).maybeSingle();
- if(existing.error)return error("Não foi possível verificar duplicidade.",503);
+ if(existing.error){
+  // Do not bypass duplicate checking when SELECT fails: a retry could create
+  // duplicate official meetings or hide an authorization/schema problem.
+  console.error("[project meetings] duplicate verification failed",{
+   code:existing.error.code,projectId,tenantChecked:true,
+   details:existing.error.details?.slice(0,200),
+  });
+  const code=existing.error.code;
+  if(code==="42501"||code==="PGRST301")return error(
+   "Não foi possível consultar reuniões para verificar duplicidade. Confira a permissão de leitura da tabela project_meetings e as políticas RLS para a empresa ativa. Nada foi gravado.",403);
+  if(code==="42P01"||code==="PGRST205"||code==="PGRST204"||code==="42703")return error(
+   "O banco deste ambiente não possui a estrutura de reuniões esperada. Confira as migrações e as colunas da tabela project_meetings antes de cadastrar. Nada foi gravado.",503);
+  return error("A consulta de duplicidade da reunião falhou no banco (código "+(code||"indisponível")+"). Verifique os logs do servidor e a conexão com project_meetings. Nada foi gravado.",503);
+ }
  if(existing.data)return reply({error:"Esta reunião já está cadastrada.",meetingId:existing.data.id},409);
  const record={
   organization_id:ctx.org,project_id:projectId,created_by:ctx.userId,
