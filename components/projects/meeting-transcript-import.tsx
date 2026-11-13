@@ -52,6 +52,9 @@ export function MeetingTranscriptImport({projectId,onSaved}:{projectId:string;on
    if(formatted&&((selectedActions.filter(action=>action.included&&["assumido","realizado"].includes(action.status)).length>0&&!formatted.commitments)||(selectedActions.filter(action=>action.included&&!["assumido","realizado"].includes(action.status)).length>0&&!formatted.pendingItems))){
     setError("Encaminhamentos selecionados não foram consolidados. Revise a seleção.");return;
    }
+   if(formatted&&(formatted.commitments.length>8000||formatted.pendingItems.length>8000)){
+    setReviewTab("actions");setError("Muitos encaminhamentos selecionados para o campo da ata. Revise a seleção para evitar perda de informações.");return;
+   }
    const response=await fetch("/api/projects/"+encodeURIComponent(projectId)+"/meetings",{
     method:"POST",headers:getClientAuthHeaders({"Content-Type":"application/json"}),
     body:JSON.stringify({...draft,
@@ -166,7 +169,7 @@ export function MeetingTranscriptImport({projectId,onSaved}:{projectId:string;on
           <option value="a_confirmar">A confirmar</option>
          </select></label>
        </div>
-       <p className="rounded-lg bg-(--bg-muted) p-2 text-xs text-(--text-secondary)">Evidência: {action.evidence||"Não fornecida"}{action.time?" · "+action.time:""}</p>
+       <p className="rounded-lg bg-(--bg-muted) p-2 text-xs text-(--text-secondary)">Trecho identificado pela IA (conferir na fonte): {action.evidence||"Não fornecido"}{action.time?" · "+action.time:""}</p>
       </article>)}
     </div>}
     {reviewTab==="checks"&&<div className="space-y-3 text-sm">
