@@ -14,6 +14,7 @@ const fields:[keyof Editable,string][]=[
 ];
 export function MeetingTranscriptImport({projectId,onSaved}:{projectId:string;onSaved?:()=>void}){
  const {readOnly,checking}=useCentralPilotReadOnly();
+ const [localSandboxEnabled,setLocalSandboxEnabled]=useState(false);
  const [file,setFile]=useState<File|null>(null);
  const fileInput=useRef<HTMLInputElement|null>(null);
  const [notes,setNotes]=useState("");
@@ -29,6 +30,18 @@ export function MeetingTranscriptImport({projectId,onSaved}:{projectId:string;on
  const lastProgressRef=useRef(0);
  const [slow,setSlow]=useState(false);
  const [progress,setProgress]=useState<{stage:string;completed:number;total:number;message:string}|null>(null);
+ useEffect(()=>{
+  if(!projectId||checking||!readOnly){setLocalSandboxEnabled(false);return;}
+  let active=true;
+  void fetch("/api/projects/"+encodeURIComponent(projectId)+"/meetings",{
+   headers:getClientAuthHeaders(),cache:"no-store"
+  }).then(async response=>{
+   if(!response.ok)throw Error("Não foi possível verificar o ambiente de gravação local.");
+   return response.json() as Promise<{localSandbox?:boolean}>;
+  }).then(result=>{if(active)setLocalSandboxEnabled(result.localSandbox===true)})
+   .catch(()=>{if(active)setLocalSandboxEnabled(false)});
+  return()=>{active=false};
+ },[projectId,checking,readOnly]);
  useEffect(()=>{
   return ()=>controllerRef.current?.abort();
  },[]);
@@ -96,7 +109,7 @@ export function MeetingTranscriptImport({projectId,onSaved}:{projectId:string;on
   }
  }
  async function save(){
-  if(!draft||!projectId||saving||readOnly||checking)return;
+  if(!draft||!projectId||saving||(readOnly&&!localSandboxEnabled)||checking)return;
   if(!draft.heldAt){setError("Informe a data e o horário confirmados da reunião antes de salvar.");return;}
   if(!draft.title.trim()||!draft.summary.trim()){setError("Confira título e resumo.");return;}
   if(draft.reviewFlags?.some(flag=>flag.severity==="critical")&&!criticalReviewConfirmed){
@@ -123,7 +136,7 @@ export function MeetingTranscriptImport({projectId,onSaved}:{projectId:string;on
    });
    const body=await response.json();
    if(!response.ok)throw Error(body.error||"Erro ao salvar reunião.");
-   setSuccess("Reunião registrada após aprovação. Nenhuma decisão, risco ou atividade foi criada automaticamente.");
+   setSuccess(body.localSandbox===true?"Reunião de TESTE gravada neste computador e disponível no histórico local. Nenhum dado foi enviado ao Supabase.":"Reunião registrada após aprovação. Nenhuma decisão, risco ou atividade foi criada automaticamente.");
    setDraft(null);setNotes("");setFile(null);onSaved?.();
   }catch(e){setError(e instanceof Error?e.message:"Falha ao registrar a reunião.");}
   finally{setSaving(false);}
@@ -312,9 +325,12 @@ export function MeetingTranscriptImport({projectId,onSaved}:{projectId:string;on
     {reviewTab==="checks"&&draft.suggestedActions.length>0&&<div className="text-xs"><strong>Encaminhamentos sugeridos, ainda não cadastrados</strong>
      <ul className="mt-1 list-disc pl-5">{draft.suggestedActions.map((x,i)=><li key={i}>{x}</li>)}</ul></div>}
     <p className="text-xs text-(--text-secondary)">Nenhuma sugestão gera atividade, risco ou decisão. Vínculos poderão ser revisados após o cadastro.</p>
+    {localSandboxEnabled&&<p role="status" className="rounded-lg border border-(--accent) bg-(--bg-muted) p-3 text-xs font-semibold">
+     MODO DE TESTE LOCAL: a reunião será salva somente neste computador e aparecerá no histórico local. Nenhum registro será gravado no Supabase ou disponibilizado a outros usuários.
+    </p>}
     <div className="flex flex-wrap gap-2">
-     <button type="button" onClick={()=>void save()} disabled={saving||readOnly||checking||!draft.heldAt} className="workspace-button-primary px-4 py-2 text-xs">
-      {saving?"Registrando...":readOnly||checking?"Somente leitura":"Aprovar e registrar reunião"}</button>
+     <button type="button" onClick={()=>void save()} disabled={saving||(readOnly&&!localSandboxEnabled)||checking||!draft.heldAt} className="workspace-button-primary px-4 py-2 text-xs">
+      {saving?"Registrando...":checking||(readOnly&&!localSandboxEnabled)?"Somente leitura":localSandboxEnabled?"Salvar reunião de TESTE local":"Aprovar e registrar reunião"}</button>
      <button type="button" onClick={()=>setDraft(null)} className="workspace-button-secondary px-4 py-2 text-xs">Descartar prévia</button>
     </div>
    </section>}
