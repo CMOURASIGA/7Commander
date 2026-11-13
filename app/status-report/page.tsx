@@ -166,6 +166,7 @@ export default function StatusReportPage() {
  },[]);
 
  const [projectId,setProjectId]=useState("");
+ const [mobileReportPane,setMobileReportPane]=useState<"content"|"preview">("content");
  const [board,setBoard]=useState<Board|null>(null);
  const [audience,setAudience]=useState<ReportAudience>("client");
  const [scrumReport,setScrumReport]=useState<ReportData|null>(null);
@@ -324,15 +325,73 @@ export default function StatusReportPage() {
    <span>Prévia não disponível. {busy?"Carregando registros do projeto.":!scrumReport?scrumStatus:!board?"Dados do Kanban indisponíveis.": "Confira a origem dos dados antes de emitir."}</span>
    <button type="button" className="workspace-button-secondary px-3 py-2 text-xs" disabled={busy} onClick={()=>setRetryRevision(r=>r+1)}>Reconsultar dados</button>
   </div>:null}
- {audience==="internal"&&<label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={includeMitigationAnnex} onChange={e=>setIncludeMitigationAnnex(e.target.checked)}/> Incluir anexo de mitigação completa no PDF da Equipe (opcional)</label>}
- <p role="status" className="text-xs text-(--text-secondary)">{scrumStatus}</p>
- {projectId&&<PublicFactsEditor projectId={projectId} proposedNextSteps={analysis?.nextSteps} onChange={()=>setFactsRevision(n=>n+1)}/>}
- <section className="rounded-xl border border-(--border) bg-(--bg-surface) p-4"><h2 className="font-semibold">Histórico de emissões</h2><p className="mt-1 text-xs text-(--text-secondary)">Os indicadores são preservados no momento da emissão. A visualização histórica abaixo resume o snapshot armazenado.</p>
- <select aria-label="Consultar emissão" className="mt-2 w-full rounded border border-(--border) p-2 text-sm" value={historyId} onChange={e=>void openHistory(e.target.value)}><option value="">Selecione uma emissão anterior</option>{history.map(h=><option value={h.id} key={h.id}>{new Date(h.created_at).toLocaleString("pt-BR")} · {h.audience==="client"?"Cliente":"Interno"} · {h.generated_by_email||"Usuário"}</option>)}</select>
- {historyData&&<div className="mt-3 rounded-lg bg-(--bg-muted) p-3 text-sm"><p><b>Projeto:</b> {historyData.project.name} · <b>Emitido:</b> {new Date(historyData.generated_at).toLocaleString("pt-BR")}</p><p><b>Kanban:</b> {historyData.kanban.done} concluídas de {historyData.kanban.total} atividades</p>{historyAudience==="internal"&&<p><b>Sprints:</b> {historyData.scrum.sprints.length} · <b>US:</b> {historyData.scrum.stories_total} · <b>Tasks concluídas:</b> {historyData.scrum.tasks_done}/{historyData.scrum.tasks_total}</p>}<button type="button" onClick={()=>void exportHistory("html")} className="workspace-button-secondary mt-3 rounded-lg px-3 py-2 text-sm">Baixar HTML arquivado</button> <button type="button" disabled={pdfBusy} onClick={()=>void exportHistory("pdf")} className="workspace-button-primary mt-3 rounded-lg px-3 py-2 text-sm disabled:opacity-50">Baixar PDF arquivado</button></div>}
+ <section className="space-y-3" aria-label="Área de preparação e prévia do Status Report">
+  <nav className="grid grid-cols-2 gap-2 xl:hidden" aria-label="Visualização do Status Report">
+   <button type="button" aria-pressed={mobileReportPane==="content"} onClick={()=>setMobileReportPane("content")}
+    className={mobileReportPane==="content"?"workspace-button-primary px-3 py-2 text-sm":"workspace-button-secondary px-3 py-2 text-sm"}>Conteúdo e aprovação</button>
+   <button type="button" aria-pressed={mobileReportPane==="preview"} onClick={()=>setMobileReportPane("preview")}
+    className={mobileReportPane==="preview"?"workspace-button-primary px-3 py-2 text-sm":"workspace-button-secondary px-3 py-2 text-sm"}>Prévia do relatório</button>
+  </nav>
+  <div className="grid min-w-0 items-start gap-4 xl:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]">
+   <section aria-label="Seleção e aprovação do conteúdo"
+    className={(mobileReportPane==="preview"?"hidden ":"")+"min-w-0 space-y-3 xl:sticky xl:top-4 xl:block xl:max-h-[calc(100vh-2rem)] xl:overflow-y-auto xl:overscroll-contain xl:pr-1"}>
+    <div className="workspace-card p-4">
+     <h2 className="text-base font-semibold">1. Selecionar e revisar informações</h2>
+     <p className="mt-1 text-sm text-(--text-secondary)">Selecione os fatos autorizados e confira as regras de divulgação antes de emitir.</p>
+     <p className="mt-2 text-xs text-(--text-secondary)">Projeto: {project?.name||"Não selecionado"} · {audience==="client"?"Cliente":"Equipe"} · {periodMode==="current"?"Situação atual":"Período personalizado"}</p>
+    </div>
+    {audience==="internal"&&<label className="workspace-card flex items-center gap-2 p-3 text-sm">
+     <input type="checkbox" checked={includeMitigationAnnex} onChange={e=>setIncludeMitigationAnnex(e.target.checked)}/>
+     Incluir anexo de mitigação completa no PDF da Equipe (opcional)
+    </label>}
+    <p role="status" className="text-xs text-(--text-secondary)">{scrumStatus}</p>
+    {projectId&&<PublicFactsEditor projectId={projectId} proposedNextSteps={analysis?.nextSteps} onChange={()=>setFactsRevision(n=>n+1)}/>}
+    <section className="workspace-card space-y-2 p-4" aria-label="Análise opcional do Kairos">
+     <h3 className="text-sm font-semibold">Análise Kairos</h3>
+     <p className="text-xs text-(--text-secondary)">A análise é opcional. Não publica informações nem registra emissão automaticamente.</p>
+     <button type="button" className="workspace-button-secondary rounded-lg px-4 py-2 text-sm"
+      disabled={!projectId||analysisLoading} onClick={()=>setAnalysisRequest(prev=>({key:analysisKey,revision:prev.revision+1}))}>
+      {analysisLoading?"Analisando...":"Gerar análise Kairos"}
+     </button>
+     <p role="status" className="text-xs text-(--text-secondary)">{analysisStatus}</p>
+    </section>
+    <section className="workspace-card p-4" aria-label="Histórico de emissões">
+     <h3 className="font-semibold">Histórico de emissões</h3>
+     <p className="mt-1 text-xs text-(--text-secondary)">Cada emissão preserva os dados daquele momento. Histórico não é recalculado ao abrir.</p>
+     <select aria-label="Consultar emissão" className="mt-2 w-full rounded border border-(--border) p-2 text-sm"
+      value={historyId} onChange={e=>void openHistory(e.target.value)}>
+      <option value="">Selecione uma emissão anterior</option>
+      {history.map(h=><option value={h.id} key={h.id}>{new Date(h.created_at).toLocaleString("pt-BR")} · {h.audience==="client"?"Cliente":"Interno"} · {h.generated_by_email||"Usuário"}</option>)}
+     </select>
+     {historyData&&<div className="mt-3 rounded-lg bg-(--bg-muted) p-3 text-sm">
+      <p><b>Projeto:</b> {historyData.project.name} · <b>Emitido:</b> {new Date(historyData.generated_at).toLocaleString("pt-BR")}</p>
+      <p><b>Kanban:</b> {historyData.kanban.done} concluídas de {historyData.kanban.total} atividades</p>
+      {historyAudience==="internal"&&<p><b>Sprints:</b> {historyData.scrum.sprints.length} · <b>US:</b> {historyData.scrum.stories_total} · <b>Tasks concluídas:</b> {historyData.scrum.tasks_done}/{historyData.scrum.tasks_total}</p>}
+      <button type="button" onClick={()=>void exportHistory("html")} className="workspace-button-secondary mt-3 rounded-lg px-3 py-2 text-sm">Baixar HTML arquivado</button>
+      {" "}
+      <button type="button" disabled={pdfBusy} onClick={()=>void exportHistory("pdf")} className="workspace-button-primary mt-3 rounded-lg px-3 py-2 text-sm disabled:opacity-50">Baixar PDF arquivado</button>
+     </div>}
+    </section>
+   </section>
+   <section aria-label="Prévia do Status Report"
+    className={(mobileReportPane==="content"?"hidden ":"")+"min-w-0 space-y-3 xl:sticky xl:top-4 xl:block"}>
+    <div className="workspace-card flex flex-wrap items-center justify-between gap-2 p-4">
+     <div>
+      <h2 className="text-base font-semibold">2. Prévia do relatório</h2>
+      <p className="mt-1 text-xs text-(--text-secondary)">Exibição do documento {audience==="client"?"Cliente · Executivo":"Equipe · Gerencial"}. Confira antes de emitir.</p>
+     </div>
+     <span className="rounded-lg border border-(--border) px-3 py-1.5 text-xs text-(--text-secondary)">Prévia, não emitida</span>
+    </div>
+    <p role="status" className="text-xs text-(--text-secondary)">{busy?"Consolidando dados...":status}</p>
+    <div className="min-w-0 rounded-xl border border-(--border) bg-(--bg-muted) p-2 sm:p-3">
+     {documentHtml?<iframe key={projectId+"|"+audience+"|"+periodMode+"|"+start+"|"+end}
+      title="Prévia do Status Report" srcDoc={documentHtml} sandbox="allow-scripts"
+      className="h-[min(950px,75vh)] min-h-[520px] w-full rounded-lg border border-(--border) bg-white xl:h-[calc(100vh-15rem)] xl:min-h-[580px]"/>:
+      <div className="flex min-h-[420px] items-center justify-center rounded-lg border border-(--border) bg-(--bg-surface) p-8 text-center text-sm">Nenhuma prévia disponível. Verifique as fontes e os dados autorizados.</div>}
+    </div>
+    <p className="text-xs text-(--text-secondary)">As exportações HTML e PDF utilizam as informações autorizadas para o público selecionado. O histórico é registrado quando uma emissão é solicitada.</p>
+   </section>
+  </div>
  </section>
- <p role="status" className="text-sm text-(--text-secondary)">{busy?"Consolidando dados...":status}</p><div className="flex flex-wrap items-center gap-3"><button type="button" className="workspace-button-secondary rounded-lg px-4 py-2 text-sm" disabled={!projectId||analysisLoading} onClick={()=>setAnalysisRequest(prev=>({key:analysisKey,revision:prev.revision+1}))}>{analysisLoading?"Analisando...":"Gerar análise Kairos"}</button><p role="status" className="text-sm text-(--text-secondary)">{analysisStatus}</p></div>
- {documentHtml?<iframe title="Prévia do Status Report" srcDoc={documentHtml} sandbox="allow-scripts" className="h-[900px] w-full rounded-xl border border-(--border) bg-white"/>:<div className="rounded-xl border border-(--border) p-10 text-center text-sm">Nenhuma prévia disponível.</div>}
- <p className="text-xs text-(--text-secondary)">Os botões Baixar PDF e Baixar HTML utilizam o mesmo relatório e registram a emissão no histórico. O PDF possui texto selecionável, tabelas e paginação próprias de documento A4, sem capturar o HTML como imagem. Revise as informações autorizadas antes de enviar ao cliente.</p>
  </main>
 }
