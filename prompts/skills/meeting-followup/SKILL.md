@@ -22,3 +22,10 @@ Retorne prévia editável com origem e alertas. Usuário deve aprovar explicitam
 - Não equiparar "tentamos localizar API de consulta por lote sem sucesso" a "API não existe".
 - Diferenciar compromisso assumido, proposta e envio já relatado como realizado; nunca deixar um compromisso atestado no documento fora dos encaminhamentos por conveniência narrativa.
 - Os campos finais da reunião e os encaminhamentos são prévias editáveis. Só selecionar e confirmar no formulário grava a ata, nunca cartões, US, riscos ou decisões. Exibir avisos de perda de granularidade e limites de armazenamento.
+
+## MEET-R3 | Diferenciar ocorrência de ação gerenciável
+- Número de ocorrências extraídas não é número de atividades ou compromissos. O modelo deve classificar cada ocorrência como operational, business_rule, context, offer, completed ou review.
+- Registrar como ação operacional somente entregas ou atividades concretas. Obrigações fiscais e requisitos técnicos são regras de negócio, não necessariamente compromissos assumidos.
+- Exemplo de contexto: dependência do sistema de dados fiscais; exemplo de oferta genérica: "podem contar comigo"; exemplo de fato realizado: "já mandei".
+- Rótulos "Palestrante 1", "Speaker 2" e equivalentes não são nomes de pessoas confirmadas nem responsáveis identificados. Não atribuir a terceiros papéis de liderança apenas por menção.
+- Todas as ocorrências começam não selecionadas. O gestor decide quais ações operacionais compõem os campos da ata. Não gerar atividades no Kanban automaticamente.
