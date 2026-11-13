@@ -265,6 +265,10 @@ export function MeetingTranscriptImport({projectId,onSaved}:{projectId:string;on
          </select></label>
        </div>
        <p className="rounded-lg bg-(--bg-muted) p-2 text-xs text-(--text-secondary)">Trecho identificado pela IA: {action.evidence||"Não fornecido"}{action.time?" · "+action.time:""}</p>
+       {action.semanticReason?<p className="rounded-md border border-(--border) bg-(--bg-muted) p-2 text-xs text-(--text-secondary)">
+        <strong className="font-semibold">Revisão semântica independente:</strong> {action.semanticReason}
+        {action.semanticVerified===false?" · Não validado":""}
+       </p>:null}
        {action.duplicateCandidateOf?<p className="text-xs font-semibold text-(--text-secondary)">Possível duplicidade com {action.duplicateCandidateOf}. Compare as evidências antes de selecionar.</p>:null}
        {"grounding" in action&&<p className="text-xs font-semibold" role="status">
          {action.grounding==="exact"?"Evidência literal localizada":action.grounding==="normalized"?"Evidência localizada com normalização, conferir":"Evidência não localizada: item retido para revisão"}
