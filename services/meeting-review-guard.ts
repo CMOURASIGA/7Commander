@@ -58,3 +58,19 @@ export function reviewMeetingEvidence(evidence:MeetingEvidence):MeetingReviewFla
  evidence.participantsConfirmed=evidence.participantsConfirmed.filter(p=>!isSpeakerPlaceholder(p));
  return flags;
 }
+
+/** Only an explicit attendee roster can populate nominal attendance automatically.
+ * A name mentioned in a discussion is not proof of participation.
+ */
+export function explicitAttendeeRoster(source:string):string[]{
+ const result:string[]=[];
+ for(const line of source.split(/\r?\n/)){
+  const match=line.trim().match(/^(?:participantes(?: presentes)?|presentes|attendees)\s*:\s*(.+)$/i);
+  if(!match)continue;
+  for(const item of match[1].split(/[;,]+/)){
+   const name=item.trim();
+   if(name&&name.length<=100&&!isSpeakerPlaceholder(name)&&!/\d/.test(name))result.push(name);
+  }
+ }
+ return Array.from(new Set(result));
+}
