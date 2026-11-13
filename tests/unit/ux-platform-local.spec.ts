@@ -144,3 +144,31 @@ test("local safe mode clearly prevents Kanban deletion and preserves authorized 
  expect(route).toContain("localWriteGuardEnabled()");
  expect(route).toContain("somente leitura");
 });
+
+test("UX-NOTIFY-03 opens notification center drawer with direct deep links and safe actions",()=>{
+ const c=source("components/notifications/task-alerts.tsx");
+ expect(c).toContain('id="commander-notification-drawer"');
+ expect(c).toContain('role="dialog"');
+ expect(c).toContain('aria-modal="true"');
+ expect(c).toContain("Central de notificações");
+ expect(c).toContain('storyId=');
+ expect(c).toContain('taskId=');
+ expect(c).toContain("Marcar como lida");
+ expect(c).toContain("Abrir card e trabalhar");
+ expect(c).toContain("Atividades continuam pendentes");
+ expect(c).not.toContain('mt-2 w-80 max-w-[90vw]');
+});
+
+test("Kanban comments reject local writes explicitly and surface error without losing draft",()=>{
+ const route=source("app/api/tasks/[taskId]/details/route.ts");
+ const svc=source("services/task-card-detail-service.ts");
+ const ui=source("app/activities/page.tsx");
+ expect(route).toContain("LOCAL_READ_ONLY");
+ expect(route).toContain("INVALID_COMMENT");
+ expect(route).toContain("ACTION_NOT_APPLIED");
+ expect(svc).toContain('from("task_comments").insert({');
+ expect(svc).toContain('organization_id:await requireEffectiveTenant(params.userId)');
+ expect(ui).toContain("async function submitComment()");
+ expect(ui).toContain("setCommentError(");
+ expect(ui).toContain("Registrando...");
+});
