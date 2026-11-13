@@ -44,3 +44,11 @@ Retorne prévia editável com origem e alertas. Usuário deve aprovar explicitam
 - Compartilhamento de tela durante a reunião, explicações fiscais ou análise pontual realizada no encontro não são compromissos futuros sem evidência adicional.
 - Se o sistema detectar atribuição crítica não comprovada, mostrar aviso e exigir confirmação explícita de que o gestor conferiu a fonte original antes de gravar.
 - Não interpretar erro de permissão de banco como migração não aplicada. O diagnóstico deve indicar a causa técnica corretamente.
+
+## MEET-02 | Verificação de evidências independente
+- Antes da ata ser apresentada, cada trecho de evidência extraído da transcrição textual deve ser procurado novamente no bloco original, sem utilizar a saída do LLM como prova de si mesma.
+- Evidência com correspondência literal: preservar o trecho e a posição. Evidência localizada com normalização de acentos/pontuação: marcar para conferência. Evidência não localizada: converter ocorrência em revisão, limpar responsável presumido e nunca pré-selecionar.
+- A conferência da fonte exibe total de evidências localizadas e itens que exigem revisão. Cobertura de blocos não significa precisão, e uma citação encontrada não prova sozinha que a interpretação do compromisso está correta.
+- Identificadores de falante sem correspondência nominal não se tornam responsáveis. Nenhum registro operacional é criado automaticamente.
+- Critério de integração de terceiros: utilizar ideias de arquitetura e código apenas quando licença permitir. JEV é experimento em modo observação, não requisito desta etapa; medir ganho antes de adotá-lo.
+- A capacidade é incorporada ao pipeline do Kairos, sem substituir o agente por produto externo.
