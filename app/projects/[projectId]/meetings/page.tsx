@@ -74,7 +74,7 @@ export default function ProjectMeetings(){
    const response=await fetch(`/api/projects/${projectId}/meetings`,{headers:getClientAuthHeaders(),cache:"no-store"});
    const result=await response.json();
    if(!response.ok)throw Error(result.error||"Falha na consulta.");
-   setMeetings(result.data??[]);setLocalSandboxMode(result.localSandbox===true);setError("");
+   setMeetings(result.data??[]);setLocalSandboxMode(result.localRehearsal===true);setError("");
   }catch(err){setError(err instanceof Error?err.message:"Não foi possível consultar as reuniões.");}
   finally{setLoading(false)}
  },[projectId]);
