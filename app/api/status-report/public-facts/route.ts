@@ -4,6 +4,7 @@ import {getReportScope} from "@/lib/scrum/report-data";
 import {getApprovedRiskFields} from "@/lib/reports/risk-report-html";
 import {isVagueNextStep} from "@/lib/reports/editorial-rules";
 import {executiveRiskTitle} from "@/lib/reports/risk-editorial";
+import {loadProjectMeetingReport,meetingReportLines,localMeetingReportEnabled} from "@/services/meeting-report-context";
 
 export const dynamic="force-dynamic";
 const uuid=/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -63,6 +64,24 @@ export async function GET(request:NextRequest){
      "Avaliação: impacto "+(row.impacto||"não informado")+", probabilidade "+(row.probabilidade||"não informada")+
      ". Situação do risco: "+row.status+". A execução da mitigação não é confirmada por esses dados.");
   }
+  // Meeting follow-ups are DRAFT CANDIDATES only: nothing is client-approved here.
+  // Never suggest entire minutes, participants, meeting summaries or unconfirmed decisions.
+  try{
+   const meetingSource=await loadProjectMeetingReport(scope.db,scope.organizationId,projectId,15);
+   for(const record of meetingSource.records){
+    for(const item of meetingReportLines(record).slice(0,45)){
+     add("next_step",item.title,
+       "Ponto registrado para acompanhamento na reunião "+record.title+
+       " ("+new Date(record.held_at).toLocaleDateString("pt-BR")+"). "+(item.category==="commitment"?"Classificado na ata como compromisso.":"Classificado na ata como pendência ou proposta.")+
+       " Revisar escopo, finalidade, responsável e divulgação antes de publicar.",
+       "in_progress","",""+item.sourceReference,
+       meetingSource.source==="local"?"Reunião de TESTE · não publicável":"Reunião · revisão obrigatória");
+    }
+   }
+  }catch(error){
+   console.error("[public-facts] meeting candidates unavailable",error instanceof Error?error.message:"unknown");
+   // Existing operational candidates remain available; do not fabricate meeting facts.
+  }
   // Decisões não representam automaticamente ações futuras. Próximos passos devem ser registrados com finalidade própria.
   // Public facts and proposed drafts are managed separately; suggestions are never persisted.
   return out({data:entries.slice(0,160)});
@@ -109,8 +128,24 @@ export async function POST(request:NextRequest){
   // Untrusted source references cannot bypass tenant boundaries.
   if(sourceReference){
    const matched=/^(project|task|story|epic|sprint|risk|decision):([0-9a-f-]{36})$/i.exec(sourceReference);
+   const meetingRef=/^meeting:([0-9a-f-]{36}):(commitment|pending):(\\d{1,2})$/i.exec(sourceReference);
+   if(meetingRef){
+    // A local rehearsal is never a publishable source, even for an editor.
+    if(localMeetingReportEnabled())return out({error:"Reuniões locais de teste não podem ser publicadas no relatório Cliente."},403);
+    if(kind!=="next_step")return out({error:"Encaminhamentos de reunião só podem ser publicados como próximos passos revisados."},400);
+    const meeting=await scope.db.from("project_meetings")
+      .select("id,title,held_at,commitments,pending_items,next_follow_up,source_artifact_id")
+      .eq("id",meetingRef[1]).eq("project_id",projectId)
+      .eq("organization_id",scope.organizationId).maybeSingle();
+    if(meeting.error||!meeting.data)return out({error:"Reunião de origem não disponível neste projeto."},403);
+    const lines=meetingReportLines({...meeting.data,commitments:meeting.data.commitments||"",
+      pending_items:meeting.data.pending_items||"",local_only:false});
+    if(!lines.some(item=>item.sourceReference===sourceReference))
+     return out({error:"Encaminhamento original não encontrado na reunião."},403);
+   }
+
    const kairos=sourceReference==="kairos:proposta:"+projectId;
-   if(!matched&&!kairos)return out({error:"Origem da informação inválida."},400);
+   if(!matched&&!kairos&&!meetingRef)return out({error:"Origem da informação inválida."},400);
    if(matched){
     const tables:Record<string,string>={project:"projects",task:"tasks",story:"scrum_user_stories",epic:"scrum_backlog_items",sprint:"scrum_sprints",risk:"risks",decision:"decisions"};
     const source=await scope.db.from(tables[matched[1]]).select("id")
