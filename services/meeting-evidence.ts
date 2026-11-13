@@ -2,6 +2,7 @@ export type MeetingAction={
  id:string;title:string;owner:string;kind:"operational"|"business_rule"|"context"|"offer"|"completed"|"review";status:"proposta"|"assumido"|"realizado"|"pendente"|"a_confirmar";
  evidence:string;time:string;sourceBlock:number;included:boolean;
  duplicateCandidateOf?:string;
+ semanticReason?:string;semanticVerified?:boolean;
 };
 export type MeetingEvidence={
  participantsMentioned:string[];
