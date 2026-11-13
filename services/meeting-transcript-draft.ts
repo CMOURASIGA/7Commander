@@ -2,6 +2,7 @@ import {getOpenAIClient} from "@/lib/openai";
 import mammoth from "mammoth";
 import {toFile} from "openai/uploads";
 import {chunkTranscript,mergeEvidence,normalizeBlockEvidence,formatApprovedMeetingActions,isSpeakerPlaceholder,type MeetingEvidence} from "@/services/meeting-evidence";
+import {guardMeetingNarrative,reviewMeetingEvidence,type MeetingReviewFlag} from "@/services/meeting-review-guard";
 
 export type MeetingDraft={
  title:string;heldAt:string;participants:string;objective:string;summary:string;
@@ -9,6 +10,7 @@ export type MeetingDraft={
  nextFollowUp:string;sourceArtifactId:string;
  uncertainties:string[];suggestedActions:string[];
  evidence:MeetingEvidence;
+ reviewFlags:MeetingReviewFlag[];
 };
 export const allowedMeetingFile=(name:string)=>
  /\.(txt|md|csv|json|vtt|srt|docx|pdf)$/i.test(name);
@@ -30,7 +32,7 @@ export function normalizeMeetingDraft(raw:unknown):MeetingDraft{
   pendingItems:clean(data.pendingItems),risks:clean(data.risks),
   nextFollowUp:dateOrBlank(data.nextFollowUp),
   sourceArtifactId:"",uncertainties:array(data.uncertainties),suggestedActions:array(data.suggestedActions),
-  evidence:{actions:[],participantsMentioned:[],participantsConfirmed:[],coverage:{blocks:0,processed:0,notes:[]}},
+  evidence:{actions:[],participantsMentioned:[],participantsConfirmed:[],coverage:{blocks:0,processed:0,notes:[]}},reviewFlags:[],
  };
 }
 export type MeetingExtractionProgress={stage:"preparing"|"blocks"|"consolidating"|"completed";completed:number;total:number;message:string};
@@ -145,7 +147,17 @@ export async function prepareMeetingDraft(input:{filename?:string;content?:strin
   let data:unknown;try{data=JSON.parse(output)}catch{throw Error("A IA não devolveu uma ata estruturada válida. Nenhuma reunião foi gravada.");}
   const draft=normalizeMeetingDraft(data);
   if(!draft.title||!draft.summary)throw Error("A extração não identificou título e resumo suficientes. Revise a fonte.");
+  draft.reviewFlags=reviewMeetingEvidence(evidence);
   draft.evidence=evidence;
+  for(const key of ["summary","advances","objective","decisions"] as const){
+   const checked=guardMeetingNarrative(draft[key]);
+   draft[key]=checked.text;
+   if(checked.flagged&&!draft.reviewFlags.some(flag=>flag.code==="LEADERSHIP_IDENTITY"))
+    draft.reviewFlags.push({code:"LEADERSHIP_IDENTITY",severity:"critical",
+      message:"A narrativa atribuiu ou descreveu mudança de liderança sem comprovação nominal. Revise o resumo e confirme quem assumiu o projeto."});
+  }
+  if(draft.reviewFlags.some(flag=>flag.code==="LEADERSHIP_IDENTITY"))
+    draft.uncertainties.push("Identidade do responsável pela substituição de Varela não comprovada. Corrija manualmente somente com evidência externa verificada.");
   draft.uncertainties.push("Nenhum encaminhamento está aprovado por padrão. Selecione somente ações operacionais para registrar.");
   if(evidence.actions.length){
    const structured=formatApprovedMeetingActions(evidence.actions);
