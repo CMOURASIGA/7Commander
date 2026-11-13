@@ -106,6 +106,8 @@ export default function ActivitiesPage() {
   const [detailLoading, setDetailLoading] = useState(false);
   const [cardSaveState,setCardSaveState] = useState<"idle"|"saving"|"saved"|"error">("idle");
   const [cardSaveMessage,setCardSaveMessage] = useState("");
+  const [statusChanging,setStatusChanging]=useState(false);
+  const [statusChangeError,setStatusChangeError]=useState<string|null>(null);
   const [detailForm, setDetailForm] = useState({
     title: "",
     description: "",
@@ -225,6 +227,27 @@ export default function ActivitiesPage() {
     }
   }
 
+  async function changeDetailCardStatus(columnKey:"todo"|"doing"|"done"){
+    if(!selectedTaskId||!activeProjectId||!taskDetail||!canEditDetail||statusChanging)return;
+    if(taskDetail.card.columnKey===columnKey)return;
+    setStatusChanging(true);setStatusChangeError(null);
+    try{
+      const response=await fetch("/api/tasks/"+encodeURIComponent(selectedTaskId)+"/status",{
+        method:"PATCH",headers:getClientAuthHeaders({"Content-Type":"application/json"}),
+        body:JSON.stringify({projectId:activeProjectId,columnKey})
+      });
+      const result=await response.json().catch(()=>({}));
+      if(!response.ok)throw Error(result.error||"Não foi possível atualizar o status.");
+      if(result.data?.columnKey!==columnKey||!result.data?.status)
+        throw Error("O servidor não confirmou a mudança de status.");
+      setTaskDetail(prev=>prev?{...prev,card:{...prev.card,columnKey,status:result.data.status}}:prev);
+      setCardSaveState("saved");
+      setCardSaveMessage("Status atualizado no Kanban. Os demais campos ainda precisam ser salvos separadamente.");
+      window.dispatchEvent(new Event("7commander:tasks-changed"));
+      void loadBoard(activeProjectId);
+    }catch(error){setStatusChangeError(error instanceof Error?error.message:"Falha ao mudar status do card.");}
+    finally{setStatusChanging(false);}
+  }
   async function saveCard() {
     if(cardSaveState==="saving")return;
     setCardSaveState("saving");setCardSaveMessage("Salvando alterações...");
@@ -673,6 +696,20 @@ export default function ActivitiesPage() {
                     <option value="alta">alta</option>
                     <option value="critica">critica</option>
                   </select>
+                  <div>
+                    <label htmlFor="task-detail-status" className="mb-1 block text-xs font-medium">Status do card</label>
+                    <select id="task-detail-status" aria-label="Status do card"
+                      value={taskDetail.card.columnKey}
+                      disabled={!canEditDetail||statusChanging}
+                      onChange={event=>void changeDetailCardStatus(event.target.value as "todo"|"doing"|"done")}
+                      className="w-full rounded-lg border border-(--border) bg-white px-3 py-2 text-sm outline-none focus:border-(--accent)">
+                      <option value="todo">TO DO · A fazer</option>
+                      <option value="doing">DOING · Em andamento</option>
+                      <option value="done">DONE · Concluída</option>
+                    </select>
+                    <p className="mt-1 text-xs text-(--text-secondary)">{statusChanging?"Atualizando status...":"A mudança de status é salva imediatamente e registrada no histórico."}</p>
+                    {statusChangeError?<p role="alert" className="mt-1 text-xs font-semibold text-(--danger)">{statusChangeError}</p>:null}
+                  </div>
                   <input
                     type="date"
                     value={detailForm.dueDate}
