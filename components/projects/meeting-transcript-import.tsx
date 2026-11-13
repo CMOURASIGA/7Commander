@@ -1,5 +1,5 @@
 "use client";
-import {useState} from "react";
+import {useRef,useState} from "react";
 import {getClientAuthHeaders} from "@/lib/client-auth";
 import {useCentralPilotReadOnly} from "@/lib/use-central-pilot-read-only";
 import type {MeetingDraft} from "@/services/meeting-transcript-draft";
@@ -14,6 +14,7 @@ const fields:[keyof Editable,string][]=[
 export function MeetingTranscriptImport({projectId,onSaved}:{projectId:string;onSaved?:()=>void}){
  const {readOnly,checking}=useCentralPilotReadOnly();
  const [file,setFile]=useState<File|null>(null);
+ const fileInput=useRef<HTMLInputElement|null>(null);
  const [notes,setNotes]=useState("");
  const [draft,setDraft]=useState<MeetingDraft|null>(null);
  const [sourceName,setSourceName]=useState("");
@@ -66,9 +67,38 @@ export function MeetingTranscriptImport({projectId,onSaved}:{projectId:string;on
    <button type="button" className="workspace-button-secondary px-3 py-2 text-xs" onClick={()=>setOpen(p=>!p)} aria-expanded={open}>{open?"Ocultar importação":"Importar transcrição"}</button>
   </div>
   {open&&<div className="space-y-3">
-   <label className="block text-xs font-semibold">Arquivo de transcrição (PDF, DOCX, TXT, MD, CSV, JSON, VTT, SRT)
-    <input type="file" accept=".pdf,.docx,.txt,.md,.csv,.json,.vtt,.srt" className="workspace-input mt-1 block w-full" onChange={e=>setFile(e.target.files?.[0]??null)}/>
-   </label>
+   <div className="space-y-2">
+    <p className="text-xs font-semibold">Arquivo de transcrição</p>
+    <div className="flex flex-wrap items-center gap-3 rounded-xl border border-(--border) bg-(--bg-surface) p-3">
+     <input ref={fileInput} id="meeting-transcript-file" type="file"
+      accept=".pdf,.docx,.txt,.md,.csv,.json,.vtt,.srt"
+      aria-label="Selecionar arquivo de transcrição"
+      className="sr-only"
+      onChange={event=>{
+       const next=event.target.files?.[0]??null;
+       setError("");setSuccess("");setDraft(null);
+       if(next&& !/\\.(pdf|docx|txt|md|csv|json|vtt|srt)$/i.test(next.name)){
+        setFile(null);setError("Formato não suportado. Selecione PDF, DOCX, TXT, MD, CSV, JSON, VTT ou SRT.");event.target.value="";return;
+       }
+       if(next&&next.size>8*1024*1024){
+        setFile(null);setError("O arquivo deve ter no máximo 8 MB.");event.target.value="";return;
+       }
+       setFile(next);
+      }}/>
+     <button type="button" onClick={()=>fileInput.current?.click()}
+      disabled={loading||saving}
+      className="workspace-button-primary inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold">
+      <span aria-hidden="true">↥</span>{file?"Substituir arquivo":"Selecionar arquivo"}
+     </button>
+     <div className="min-w-0 flex-1" role="status" aria-live="polite">
+      <p className="truncate text-sm font-medium text-(--text-primary)">{file?file.name:"Nenhum arquivo selecionado"}</p>
+      <p className="text-xs text-(--text-secondary)">{file?(file.size/1024/1024).toFixed(2)+" MB · Pronto para análise":"PDF, DOCX, TXT, MD, CSV, JSON, VTT ou SRT · até 8 MB"}</p>
+     </div>
+     {file?<button type="button" onClick={()=>{setFile(null);setDraft(null);if(fileInput.current)fileInput.current.value="";}}
+       className="workspace-button-secondary px-3 py-2 text-xs" disabled={loading||saving}>Remover</button>:null}
+    </div>
+    <p className="text-xs text-(--text-secondary)">Depois de selecionar, clique em Preparar prévia com Kairos. O documento não será cadastrado automaticamente.</p>
+   </div>
    <label className="block text-xs font-semibold">Ou cole as anotações e a transcrição
     <textarea className="workspace-input mt-1 min-h-28 w-full" value={notes} onChange={e=>setNotes(e.target.value)}
      placeholder="Cole aqui o texto do Teams, Gemini ou suas próprias anotações..."/>
