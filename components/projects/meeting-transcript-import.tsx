@@ -279,7 +279,7 @@ export function MeetingTranscriptImport({projectId,onSaved}:{projectId:string;on
 
       <p><strong>Cobertura da fonte:</strong> {draft.evidence?.coverage.processed??0} de {draft.evidence?.coverage.blocks??0} bloco(s) analisado(s).</p>
       <p><strong>Ocorrências analisadas:</strong> {draft.evidence?.actions.length??0}. Ações operacionais propostas: {(draft.evidence?.actions??[]).filter(item=>item.kind==="operational").length}. Outras categorias: {(draft.evidence?.actions??[]).filter(item=>item.kind!=="operational").length}.</p>
-      <p><strong>Participantes confirmados nos trechos:</strong> {draft.evidence?.participantsConfirmed?.join("; ")||"Nenhum identificado"}.</p>
+      <p><strong>Nomes sinalizados pela IA como possíveis participantes (exigem comprovação):</strong> {draft.evidence?.participantsConfirmed?.join("; ")||"Nenhum identificado"}.</p>
       <p className="text-xs text-(--text-secondary)">Nomes mencionados não significam presença. Quando a autoria da fala não estiver identificada, deixe a atribuição sem nome.</p>
       <p><strong>Pessoas mencionadas, não necessariamente presentes:</strong> {draft.evidence?.participantsMentioned.join("; ")||"Nenhuma identificada"}.</p>
       <p className="text-xs text-(--text-secondary)">Verifique especialmente responsáveis, identidade dos falantes, datas, regras ainda em discussão e compromissos realmente assumidos.</p>
