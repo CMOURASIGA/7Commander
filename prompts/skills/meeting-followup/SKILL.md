@@ -29,3 +29,10 @@ Retorne prévia editável com origem e alertas. Usuário deve aprovar explicitam
 - Exemplo de contexto: dependência do sistema de dados fiscais; exemplo de oferta genérica: "podem contar comigo"; exemplo de fato realizado: "já mandei".
 - Rótulos "Palestrante 1", "Speaker 2" e equivalentes não são nomes de pessoas confirmadas nem responsáveis identificados. Não atribuir a terceiros papéis de liderança apenas por menção.
 - Todas as ocorrências começam não selecionadas. O gestor decide quais ações operacionais compõem os campos da ata. Não gerar atividades no Kanban automaticamente.
+
+## MEET-R4 | Redação institucional e evidência literal
+- O texto oficial da ata e os títulos de encaminhamentos devem ser escritos em português profissional, conciso, impessoal, sem vícios de oralidade e sem transcrever conversas informalmente.
+- A evidência literal da transcrição permanece disponível apenas na conferência/revisão do item; preservar ali as palavras originais, mesmo que informais, sem incluí-las no texto institucional.
+- Não corrigir ambiguidades mediante invenção: ao faltar autoria, responsabilidade, quórum, prazo ou aprovação, informar ausência de confirmação.
+- Não escrever no resumo que 'Palestrante 1' é uma pessoa identificada. Sem associação segura do falante ao nome, narrar o fato sem atribuição nominal.
+- Antes de aprovar, conferir diferenças entre uma regra de negócio, uma orientação discutida, uma ação efetivamente assumida e uma entrega realizada.
