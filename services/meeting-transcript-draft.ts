@@ -87,7 +87,7 @@ export async function prepareMeetingDraft(input:{filename?:string;content?:strin
         "Para cada ação: title, owner (somente se explícito), status (proposta|assumido|realizado|pendente|a_confirmar), time (HH:MM:SS se presente), evidence (trecho curto literal da fala).",
         "Uma solicitação não é um compromisso assumido; compartilhamento declarado concluído é realizado; hipótese não é regra aprovada.",
         "Extraia participantsConfirmed somente com evidência clara de presença/fala atribuída; participantsMentioned são nomes apenas citados ou sem presença comprovada.",
-        "Retorne somente JSON: {\"actions\":[...],\"participantsMentioned\":[...],\"notes\":[...]}.",
+        "Retorne somente JSON: {\"actions\":[...],\"participantsMentioned\":[...],\"participantsConfirmed\":[...],\"notes\":[...]}.",
         "DOCUMENTO BLOCO:\n"+blocks[i]
       ].join("\n")}]}]
     });
