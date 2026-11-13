@@ -108,3 +108,30 @@ test("human deselection prevents an extracted action from being recorded in the 
  expect(ui).toContain("formatApprovedMeetingActions(selectedActions)");
  expect(ui).toContain("Aprovar e registrar reunião");
 });
+
+test("meeting import emits true streaming progress after each completed source block",()=>{
+ const service=source("services/meeting-transcript-draft.ts");
+ const api=source("app/api/projects/[projectId]/meetings/draft/route.ts");
+ expect(service).toContain('onProgress?:(progress:MeetingExtractionProgress)=>void');
+ expect(service).toContain('completed:i+1,total:blocks.length');
+ expect(service).toContain('stage:"consolidating"');
+ expect(service).toContain('stage:"completed"');
+ expect(api).toContain('application/x-ndjson');
+ expect(api).toContain('start(controller){');
+ expect(api).toContain('void (async()=>{');
+ expect(api).toContain('JSON.stringify(value)+"\\n"');
+ expect(api).toContain('type:"result"');
+ expect(api).toContain('type:"error"');
+ expect(api).not.toContain(".insert(");
+});
+
+test("meeting importer shows processing progress and warns on delayed replies without inventing remaining time",()=>{
+ const ui=source("components/projects/meeting-transcript-import.tsx");
+ expect(ui).toContain('role="progressbar"');
+ expect(ui).toContain('progress.completed/progress.total*100');
+ expect(ui).toContain('45 segundos');
+ expect(ui).toContain('Cancelar análise');
+ expect(ui).toContain('controllerRef.current?.abort()');
+ expect(ui).toContain('Processamento encerrado sem gerar a prévia');
+ expect(ui).toContain('barra mostra blocos concluídos, não uma estimativa de tempo restante');
+});
