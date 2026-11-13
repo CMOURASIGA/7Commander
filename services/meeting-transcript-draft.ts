@@ -125,8 +125,10 @@ export async function prepareMeetingDraft(input:{filename?:string;content?:strin
   draft.evidence=evidence;
   if(evidence.actions.length){
    const structured=formatApprovedMeetingActions(evidence.actions);
-   draft.commitments=structured.commitments||draft.commitments;
-   draft.pendingItems=structured.pendingItems||draft.pendingItems;
+   draft.commitments=structured.commitments.slice(0,8000)||draft.commitments;
+   draft.pendingItems=structured.pendingItems.slice(0,8000)||draft.pendingItems;
+   if(structured.commitments.length>8000||structured.pendingItems.length>8000)
+    draft.uncertainties.push("Alguns encaminhamentos ultrapassam o limite do campo da ata. Revise a seleção antes de aprovar.");
   }
   if(!attachment&&evidence.coverage.processed!==blocks.length)throw Error("Nem todos os blocos da fonte foram analisados.");
   if(attachment)draft.uncertainties.push("PDF processado diretamente: cobertura textual por blocos não verificada.");
