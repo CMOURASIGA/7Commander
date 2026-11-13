@@ -128,7 +128,7 @@ export async function POST(request:NextRequest){
   // Untrusted source references cannot bypass tenant boundaries.
   if(sourceReference){
    const matched=/^(project|task|story|epic|sprint|risk|decision):([0-9a-f-]{36})$/i.exec(sourceReference);
-   const meetingRef=/^meeting:([0-9a-f-]{36}):(commitment|pending):(\\d{1,2})$/i.exec(sourceReference);
+   const meetingRef=/^meeting:([0-9a-f-]{36}):(commitment|pending):(\d{1,2})$/i.exec(sourceReference);
    if(meetingRef){
     // A local rehearsal is never a publishable source, even for an editor.
     if(localMeetingReportEnabled())return out({error:"Reuniões locais de teste não podem ser publicadas no relatório Cliente."},403);
