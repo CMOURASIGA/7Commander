@@ -136,7 +136,9 @@ test("meeting importer shows processing progress and warns on delayed replies wi
  expect(ui).toContain('Cancelar análise');
  expect(ui).toContain('controllerRef.current?.abort()');
  expect(ui).toContain('Processamento encerrado sem gerar a prévia');
- expect(ui).toContain('barra mostra blocos concluídos, não uma estimativa de tempo restante');
+ expect(ui).toContain('barra mostra blocos ou lotes semânticos concluídos, não uma estimativa de tempo restante');
+ expect(ui).toContain('progress.stage==="semantic"');
+ expect(ui).toContain('lotes semânticos analisados');
 });
 
 test("MEET-R3 separates work from business rules, offers and technical explanation",()=>{
