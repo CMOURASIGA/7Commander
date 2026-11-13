@@ -19,6 +19,7 @@ export function MeetingTranscriptImport({projectId,onSaved}:{projectId:string;on
  const [notes,setNotes]=useState("");
  const [draft,setDraft]=useState<MeetingDraft|null>(null);
  const [reviewTab,setReviewTab]=useState<"meeting"|"actions"|"checks">("meeting");
+ const [actionFilter,setActionFilter]=useState<"operational"|"all"|"non_operational">("operational");
  const [sourceName,setSourceName]=useState("");
  const [loading,setLoading]=useState(false),[saving,setSaving]=useState(false);
  const [error,setError]=useState(""),[success,setSuccess]=useState("");
@@ -67,7 +68,7 @@ export function MeetingTranscriptImport({projectId,onSaved}:{projectId:string;on
     if(message.type==="result"&&message.data){
      received=true;
      setDraft({...message.data,sourceArtifactId:file?.name||"Texto colado no chat"});
-     setReviewTab("meeting");
+     setReviewTab("meeting");setActionFilter("operational");
      setSourceName(file?.name||"Texto colado no chat");
      setProgress({stage:"completed",completed:1,total:1,message:"Prévia pronta para revisão"});
     }
@@ -101,7 +102,7 @@ export function MeetingTranscriptImport({projectId,onSaved}:{projectId:string;on
   try{
    const selectedActions=draft.evidence?.actions??[];
    const formatted=selectedActions.length?formatApprovedMeetingActions(selectedActions):null;
-   if(formatted&&((selectedActions.filter(action=>action.included&&["assumido","realizado"].includes(action.status)).length>0&&!formatted.commitments)||(selectedActions.filter(action=>action.included&&!["assumido","realizado"].includes(action.status)).length>0&&!formatted.pendingItems))){
+   if(formatted&&((selectedActions.filter(action=>action.included&&action.kind==="operational"&&action.status==="assumido").length>0&&!formatted.commitments)||(selectedActions.filter(action=>action.included&&action.kind==="operational"&&action.status!=="assumido").length>0&&!formatted.pendingItems))){
     setError("Encaminhamentos selecionados não foram consolidados. Revise a seleção.");return;
    }
    if(formatted&&(formatted.commitments.length>8000||formatted.pendingItems.length>8000)){
@@ -220,18 +221,35 @@ export function MeetingTranscriptImport({projectId,onSaved}:{projectId:string;on
     </label>
     </>}
     {reviewTab==="actions"&&<div className="space-y-3">
-      <p className="text-xs text-(--text-secondary)">Cada encaminhamento é uma proposta extraída da fonte. Selecione somente os itens que deseja registrar na ata. Nenhum card ou decisão será criado automaticamente.</p>
+      <p className="text-xs text-(--text-secondary)">A IA também identifica regras, fatos, ofertas e debates. Só ações operacionais selecionadas são registradas como compromissos ou pendências. Nada é aprovado por padrão.</p>
+      <div className="flex flex-wrap items-center gap-3 rounded-lg bg-(--bg-muted) p-3">
+       <label className="text-xs font-semibold">Exibir
+        <select className="workspace-input ml-2" value={actionFilter} onChange={e=>setActionFilter(e.target.value as typeof actionFilter)}>
+         <option value="operational">Ações para acompanhamento</option>
+         <option value="non_operational">Regras, fatos e outras ocorrências</option>
+         <option value="all">Todas as ocorrências</option>
+        </select>
+       </label>
+       <p className="text-xs text-(--text-secondary)">Ações: {(draft.evidence?.actions??[]).filter(a=>a.kind==="operational").length} · Outras ocorrências: {(draft.evidence?.actions??[]).filter(a=>a.kind!=="operational").length} · Selecionadas: {(draft.evidence?.actions??[]).filter(a=>a.included&&a.kind==="operational").length}</p>
+      </div>
       {!(draft.evidence?.actions.length)?<p className="rounded-lg border border-(--border) p-3 text-sm text-(--text-secondary)">Nenhum encaminhamento individualizado identificado. Revise o texto da ata antes de aprovar.</p>:null}
-      {(draft.evidence?.actions??[]).map(action=><article key={action.id} className="space-y-2 rounded-xl border border-(--border) p-3">
+      {(draft.evidence?.actions??[]).filter(action=>actionFilter==="all"||(actionFilter==="operational"?action.kind==="operational":action.kind!=="operational")).map(action=><article key={action.id} className="space-y-2 rounded-xl border border-(--border) p-3">
        <div className="flex flex-wrap items-center justify-between gap-2">
-        <label className="flex items-center gap-2 text-xs font-semibold"><input type="checkbox" checked={action.included}
-         onChange={e=>editAction(action.id,{included:e.target.checked})}/>{action.id} · Incluir na ata</label>
+        <label className="flex items-center gap-2 text-xs font-semibold"><input type="checkbox" checked={action.included&&action.kind==="operational"} disabled={action.kind!=="operational"}
+         onChange={e=>editAction(action.id,{included:e.target.checked})}/>{action.id} · Incluir no acompanhamento</label>
         <span className="text-xs text-(--text-secondary)">Bloco {action.sourceBlock}{action.time?" · "+action.time:""}</span>
        </div>
        <label className="block text-xs font-semibold">Encaminhamento
         <textarea className="workspace-input mt-1 w-full" rows={2} value={action.title}
          onChange={e=>editAction(action.id,{title:e.target.value})}/></label>
        <div className="grid gap-2 sm:grid-cols-2">
+        <label className="block text-xs font-semibold">Natureza da ocorrência
+         <select className="workspace-input mt-1 w-full" value={action.kind}
+          onChange={e=>editAction(action.id,{kind:e.target.value as MeetingAction["kind"],included:false})}>
+          <option value="operational">Ação operacional</option><option value="business_rule">Regra de negócio</option>
+          <option value="context">Contexto / explicação</option><option value="offer">Oferta de apoio</option>
+          <option value="completed">Fato relatado como realizado</option><option value="review">A confirmar</option>
+         </select></label>
         <label className="block text-xs font-semibold">Responsável citado ou sugerido
          <input className="workspace-input mt-1 w-full" value={action.owner} onChange={e=>editAction(action.id,{owner:e.target.value})}/></label>
         <label className="block text-xs font-semibold">Situação na fonte
@@ -247,7 +265,7 @@ export function MeetingTranscriptImport({projectId,onSaved}:{projectId:string;on
     </div>}
     {reviewTab==="checks"&&<div className="space-y-3 text-sm">
       <p><strong>Cobertura da fonte:</strong> {draft.evidence?.coverage.processed??0} de {draft.evidence?.coverage.blocks??0} bloco(s) analisado(s).</p>
-      <p><strong>Encaminhamentos identificados:</strong> {draft.evidence?.actions.length??0}.</p>
+      <p><strong>Ocorrências analisadas:</strong> {draft.evidence?.actions.length??0}. Ações operacionais propostas: {(draft.evidence?.actions??[]).filter(item=>item.kind==="operational").length}. Outras categorias: {(draft.evidence?.actions??[]).filter(item=>item.kind!=="operational").length}.</p>
       <p><strong>Participantes confirmados nos trechos:</strong> {draft.evidence?.participantsConfirmed?.join("; ")||"Nenhum identificado"}.</p>
       <p><strong>Pessoas mencionadas, não necessariamente presentes:</strong> {draft.evidence?.participantsMentioned.join("; ")||"Nenhuma identificada"}.</p>
       <p className="text-xs text-(--text-secondary)">Verifique especialmente responsáveis, identidade dos falantes, datas, regras ainda em discussão e compromissos realmente assumidos.</p>
