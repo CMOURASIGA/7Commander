@@ -34,7 +34,7 @@ test("Sprint selection automatically includes only linked US, with no separate U
 
 test("Client decisions only come from the official Decisions register",()=>{
  const source=file("lib/reports/client-report-candidates.ts");
- expect(source).toContain('db.from("decisions").select("id,titulo,status")');
+ expect(source).toContain('listDecisions(actor.userId,projectId)');
  expect(source).toContain('add("decision:"+x.id,"next_step"');
  expect(source).toContain('if(!["objective","benefit","risk"].includes(x.kind))continue;');
 });
@@ -44,6 +44,6 @@ test("Client selections match Kanban board across all three columns",()=>{
  expect(source).toContain('board.columns.flatMap(column=>column.cards)');
  expect(source).toContain('({todo:"A fazer",doing:"Em andamento",done:"Concluída"}');
  const page=file("app/status-report/page.tsx");
- expect(page).toContain('kind==="milestone"&&item.id.startsWith("sprint:")');
- expect(page).toContain('Nenhum registro disponível para este projeto nesta categoria.');
+ expect(page).toContain('Sprints e suas US');
+ expect(page).toContain('Nenhum registro disponível nesta categoria.');
 });
