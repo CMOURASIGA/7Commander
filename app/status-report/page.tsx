@@ -377,6 +377,24 @@ export default function StatusReportPage() {
      <p className="mt-1 text-sm text-(--text-secondary)">Selecione os fatos autorizados e confira as regras de divulgação antes de emitir.</p>
      <p className="mt-2 text-xs text-(--text-secondary)">Projeto: {project?.name||"Não selecionado"} · {audience==="client"?"Cliente":"Equipe"} · {periodMode==="current"?"Situação atual":"Período personalizado"}</p>
     </div>
+    {audience==="internal"&&<section className="workspace-card space-y-3 p-4" aria-label="Curadoria do relatório Equipe">
+      <h3 className="text-sm font-semibold">Conteúdo do relatório Equipe</h3>
+      <p className="text-xs text-(--text-secondary)">Selecione os registros que devem aparecer. A escolha afeta a prévia, o HTML, o PDF e o snapshot arquivado. Indicadores gerais seguem representando o projeto completo.</p>
+      <div className="flex gap-2">
+       <button className="workspace-button-secondary px-3 py-2 text-xs" type="button" onClick={()=>setInternalSelection(availableInternal)}>Selecionar todos</button>
+       <button className="workspace-button-secondary px-3 py-2 text-xs" type="button" onClick={()=>setInternalSelection({cards:[],risks:[],decisions:[],sprints:[],stories:[],tasks:[],meetings:[]})}>Limpar seleção</button>
+      </div>
+      {internalGroups.map(group=><details key={group.key} className="rounded-lg border border-(--border) p-3">
+        <summary className="cursor-pointer text-sm font-medium">{group.label} ({chosenInternal[group.key].length}/{group.items.length})</summary>
+        <div className="mt-3 max-h-52 space-y-2 overflow-y-auto">
+         {group.items.length===0?<p className="text-xs text-(--text-secondary)">Sem registros disponíveis.</p>:group.items.map(item=><label key={item.id} className="flex items-start gap-2 text-xs">
+           <input type="checkbox" checked={chosenInternal[group.key].includes(item.id)} onChange={event=>toggleInternalItem(group.key,item.id,event.target.checked)}/>
+           <span>{item.title}</span>
+         </label>)}
+        </div>
+      </details>)}
+      <p className="text-xs text-(--text-secondary)">Ao modificar a seleção, a narrativa anterior do Kairos é retirada da prévia para não analisar registros excluídos.</p>
+    </section>}
     {audience==="internal"&&<label className="workspace-card flex items-center gap-2 p-3 text-sm">
      <input type="checkbox" checked={includeMitigationAnnex} onChange={e=>setIncludeMitigationAnnex(e.target.checked)}/>
      Incluir anexo de mitigação completa no PDF da Equipe (opcional)
