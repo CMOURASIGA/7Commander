@@ -40,7 +40,7 @@ export function applyInternalReportSelection(report:ReportData,selection:Interna
     riskAssessments:assessments,
     governance:{...report.governance,
       risks_open:assessments.filter(x=>["aberto","em_mitigacao"].includes(x.status.toLowerCase())).length,
-      client_decisions:report.governance.client_decisions.filter(x=>selectionAllows(selection.decisions,x.title)),
+      client_decisions:report.governance.client_decisions, // resolved from verified decision IDs by the history endpoint
     },
     internal:report.internal?{...report.internal,stories,tasks,meetingLines:meetings}:undefined,
   };
