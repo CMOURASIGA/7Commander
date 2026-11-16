@@ -36,7 +36,7 @@ export function applyInternalReportSelection(report:ReportData,selection:Interna
   const assessments=(report.riskAssessments||[]).filter(x=>selectionAllows(selection.risks,x.id));
   return {
     ...report,
-    scrum:{...report.scrum,sprints,stories_total:stories.length,tasks_total:tasks.length},
+    scrum:{...report.scrum,sprints,stories_total:stories.length,tasks_total:tasks.length,tasks_done:tasks.filter(x=>x.state==="done").length,backlog_stories:stories.filter(x=>!x.sprint_id).length},
     riskAssessments:assessments,
     governance:{...report.governance,
       risks_open:assessments.filter(x=>["aberto","em_mitigacao"].includes(x.status.toLowerCase())).length,
