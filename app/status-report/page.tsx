@@ -160,6 +160,41 @@ function historicalDocument(data:ReportData,audience:ReportAudience,narrative:Ai
    +'<footer class="foot">Commander · Relatório Cliente arquivado</footer><div class="actions"><button onclick="window.print()">Salvar PDF / Imprimir</button></div></main></body></html>';
  }
 
+ if(audience==="internal"&&data.internalSelection){
+  const chosen=data.internalSelection;
+  const entries:string[]=[];
+  const item=(title:string,detail="")=>'<div class="item"><div>'+htmlEscape(title)+'</div><span>'+htmlEscape(detail)+'</span></div>';
+  if(chosen.cards.length){
+   entries.push('<section class="panel"><h2>Atividades selecionadas</h2>'+
+    data.kanban.completed_titles.map(name=>item(name,"Concluída")).join("")+
+    '<p class="muted">Cards selecionados: '+data.kanban.total+' · Concluídos: '+data.kanban.done+'</p></section>');
+  }
+  if(chosen.sprints.length){
+   entries.push('<section class="panel"><h2>Sprints selecionadas</h2>'+
+    data.scrum.sprints.map(sp=>item(sp.name,sp.status+" · "+sp.start_date+" a "+sp.end_date)).join("")+'</section>');
+  }
+  if(chosen.stories.length&&data.internal){
+   entries.push('<section class="panel"><h2>Histórias de Usuário selecionadas</h2>'+
+    data.internal.stories.map(st=>item(st.title,st.workflow_stage)).join("")+'</section>');
+  }
+  if(chosen.tasks.length&&data.internal){
+   entries.push('<section class="panel"><h2>Tasks selecionadas</h2>'+
+    data.internal.tasks.map(task=>item(task.title,task.state)).join("")+'</section>');
+  }
+  if(chosen.risks.length&&data.riskAssessments?.length)entries.push(riskReportHtml(data.riskAssessments,"internal"));
+  if(chosen.decisions.length)entries.push('<section class="panel"><h2>Decisões selecionadas</h2>'+
+   data.governance.client_decisions.map(d=>item(d.title,d.status)).join("")+'</section>');
+  if(chosen.meetings.length&&data.internal?.meetingLines?.length){
+   entries.push('<section class="panel"><h2>Encaminhamentos de reuniões selecionados</h2>'+
+    data.internal.meetingLines.map(m=>item(m.title,m.meetingTitle+" · "+m.category)).join("")+'</section>');
+  }
+  if(narrative?.nextSteps?.trim())entries.push('<section class="panel"><h2>Próximos passos</h2><p>'+
+    htmlEscape(narrative.nextSteps)+'</p></section>');
+  return '<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>Status Report Equipe arquivado</title><style>'+
+   css+'</style></head><body><main class="wrap"><header class="hero"><h1>'+htmlEscape(data.project.name)+
+   '</h1><p>Relatório Equipe · '+htmlEscape(issued)+'</p></header><p class="note">Emissão arquivada com seleção editorial preservada.</p>'+
+   entries.join("")+'<footer class="foot">Commander · Emissão registrada</footer></main></body></html>';
+ }
  const rows=data.scrum.sprints.map(sp=>'<div class="item"><div><b>'+htmlEscape(sp.name)+'</b><p>Período: '+htmlEscape(sp.start_date)+' a '+htmlEscape(sp.end_date)+'</p><p>US concluídas: '+sp.closed+'/'+sp.stories+' · Story points: '+sp.points_done+'/'+sp.points_planned+' · Atrasadas: '+sp.overdue+'</p></div><span>'+htmlEscape(sp.status)+'</span></div>').join("");
  const internal=audience==="internal"&&data.internal?'<section class="panel"><h2>Detalhamento interno</h2>'+data.internal.stories.map(st=>'<div class="item"><div>'+htmlEscape(st.title)+'</div><span>'+htmlEscape(st.workflow_stage)+' · '+htmlEscape(st.responsible||"Não atribuído")+'</span></div>').join("")+'</section>':"";
  const meetingHistory=audience==="internal"&&data.internal?.meetingLines?.length
