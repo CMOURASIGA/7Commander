@@ -19,7 +19,7 @@ export function KairosBacklogPreview({content,projectId,onClose}:{content:string
   </div></div>;
  const chosen=selected??proposal.stories.map(x=>x.code);
  async function execute(){
-  if(!projectId||busy||chosen.length===0)return;
+  if(!projectId||!proposal||busy||chosen.length===0)return;
   setBusy(true);setError("");setResults([]);
   const lines:string[]=[];
   try{
