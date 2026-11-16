@@ -468,21 +468,6 @@ export default function StatusReportPage() {
      <p className="mt-1 text-sm text-(--text-secondary)">Selecione os fatos autorizados e confira as regras de divulgação antes de emitir.</p>
      <p className="mt-2 text-xs text-(--text-secondary)">Projeto: {project?.name||"Não selecionado"} · {audience==="client"?"Cliente":"Equipe"} · {periodMode==="current"?"Situação atual":"Período personalizado"}</p>
     </div>
-    {audience==="client"&&<section className="workspace-card space-y-3 p-4" aria-label="Seleção dos fatos aprovados para o Cliente">
-      <h3 className="text-sm font-semibold">Conteúdo desta emissão · Cliente</h3>
-      <p className="text-xs text-(--text-secondary)">Só aparecem aqui informações já publicadas e autorizadas para o Cliente. Desmarcar oculta apenas nesta emissão; para retirar a autorização permanentemente, use a opção de despublicar abaixo.</p>
-      <div className="flex flex-wrap gap-2">
-       <button type="button" className="workspace-button-secondary px-3 py-2 text-xs" onClick={()=>setClientFactIds(approvedClientFacts.map(x=>x.id))}>Selecionar todos</button>
-       <button type="button" className="workspace-button-secondary px-3 py-2 text-xs" onClick={()=>setClientFactIds([])}>Limpar seleção</button>
-      </div>
-      <div className="max-h-64 space-y-2 overflow-y-auto">
-       {approvedClientFacts.length===0?<p className="text-xs text-(--text-secondary)">Nenhuma informação autorizada para o Cliente. Utilize a revisão abaixo para publicar fatos.</p>:approvedClientFacts.map(fact=><label key={fact.id} className="flex items-start gap-2 rounded-lg border border-(--border) p-2 text-xs">
-        <input type="checkbox" checked={chosenClientFactIds.includes(fact.id)} onChange={e=>setClientFactIds(prev=>{const base=prev??approvedClientFacts.map(x=>x.id);return e.target.checked?[...new Set([...base,fact.id])]:base.filter(id=>id!==fact.id);})}/>
-        <span><strong>{fact.title}</strong><span className="block text-(--text-secondary)">{fact.kind==="next_step"?"Próximo passo":fact.kind} · Publicado</span></span>
-       </label>)}
-      </div>
-      <p className="text-xs text-(--text-secondary)">Selecionados: {chosenClientFactIds.length}/{approvedClientFacts.length}. A prévia e o relatório arquivado usarão somente esses registros aprovados.</p>
-    </section>}
     {audience==="internal"&&<section className="workspace-card space-y-3 p-4" aria-label="Curadoria do relatório Equipe">
       <h3 className="text-sm font-semibold">Conteúdo do relatório Equipe</h3>
       <p className="text-xs text-(--text-secondary)">Selecione os registros que devem aparecer. A escolha afeta a prévia, o HTML, o PDF e o snapshot arquivado. Indicadores gerais seguem representando o projeto completo.</p>
@@ -512,7 +497,7 @@ export default function StatusReportPage() {
      Incluir anexo de mitigação completa no PDF da Equipe (opcional)
     </label>}
     <p role="status" className="text-xs text-(--text-secondary)">{scrumStatus}</p>
-    {audience==="client"&&projectId&&<PublicFactsEditor projectId={projectId} proposedNextSteps={analysis?.nextSteps} onChange={()=>setFactsRevision(n=>n+1)}/>}
+    {audience==="client"&&projectId&&<PublicFactsEditor projectId={projectId} proposedNextSteps={analysis?.nextSteps} selectedFactIds={chosenClientFactIds} onSelectionChange={setClientFactIds} onChange={()=>setFactsRevision(n=>n+1)}/>}
     <section className="workspace-card space-y-2 p-4" aria-label="Análise opcional do Kairos">
      <h3 className="text-sm font-semibold">Análise Kairos</h3>
      <p className="text-xs text-(--text-secondary)">A análise é opcional. Não publica informações nem registra emissão automaticamente.</p>
