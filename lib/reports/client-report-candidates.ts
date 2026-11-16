@@ -3,6 +3,7 @@ import {executiveRiskTitle} from "@/lib/reports/risk-editorial";
 import {getSupabaseServerClient} from "@/lib/supabase/server";
 import {listTaskBoard} from "@/services/task-board-service";
 import {loadReportData} from "@/lib/scrum/report-data";
+import {listDecisions} from "@/services/decision-service";
 
 type DB=NonNullable<ReturnType<typeof getSupabaseServerClient>>;
 type Candidate=ClientReportFact;
@@ -14,12 +15,12 @@ export async function getClientReportCandidates(db:DB,org:string,projectId:strin
  const [project,risks,decisions,approvedFacts,board,report]=await Promise.all([
   db.from("projects").select("id,nome,objetivo").eq("id",projectId).eq("organization_id",org).maybeSingle(),
   db.from("risks").select("id,titulo,status").eq("project_id",projectId).eq("organization_id",org).limit(200),
-  db.from("decisions").select("id,titulo,status").eq("project_id",projectId).eq("organization_id",org).limit(200),
+  listDecisions(actor.userId,projectId),
   db.from("project_report_public_facts").select("id,kind,title,description,classification,due_date,source_reference").eq("project_id",projectId).eq("organization_id",org).limit(200),
   listTaskBoard({projectId,userId:actor.userId,userEmail:actor.userEmail}),
   loadReportData(db,org,projectId,"internal"),
  ]);
- if([project,risks,decisions,approvedFacts].some(x=>x.error)||!board)throw Error("Fontes de conteúdo do Cliente indisponíveis.");
+ if([project,risks,approvedFacts].some(x=>x.error)||!board)throw Error("Fontes de conteúdo do Cliente indisponíveis.");
  const candidates:Candidate[]=[];
  const add=(id:string,kind:ClientReportFact["kind"],title:string,classification:ClientReportFact["classification"],description="",source_reference?:string)=>{
   if(!title.trim())return;
@@ -42,7 +43,7 @@ export async function getClientReportCandidates(db:DB,org:string,projectId:strin
   }
  }
  for(const x of risks.data||[])add("risk:"+x.id,"risk",executiveRiskTitle(x.titulo),status(x.status),"Ponto de atenção cadastrado no projeto.");
- for(const x of decisions.data||[])add("decision:"+x.id,"next_step",x.titulo,status(x.status),"Decisão registrada · "+text(x.status));
+ for(const x of decisions)add("decision:"+x.id,"next_step",x.title,status(x.status),"Decisão registrada · "+text(x.status));
  // Somente objetivos, benefícios e riscos editoriais complementam as fontes oficiais.\n // Entregas, Sprints e decisões são sempre lidas de seus próprios cadastros.
  for(const x of approvedFacts.data||[]){
   if(!["objective","benefit","risk"].includes(x.kind))continue;
