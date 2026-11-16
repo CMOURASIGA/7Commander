@@ -3,6 +3,7 @@ import {requireApiAuth} from "@/lib/api-auth";
 import {getReportScope,loadReportData,ReportAudience} from "@/lib/scrum/report-data";
 import {applyInternalReportSelection,parseInternalReportSelection} from "@/lib/reports/internal-report-selection";
 import {getClientReportCandidates} from "@/lib/reports/client-report-candidates";
+import {selectClientReportFacts} from "@/lib/reports/client-report-selection";
 export const dynamic="force-dynamic";
 const res=(data:unknown,status=200)=>NextResponse.json(data,{status,headers:{"Cache-Control":"private,no-store"}});
 const UUID=/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -73,7 +74,7 @@ export async function POST(req:NextRequest){
    const selected=new Set(clientFactIds as string[]);
    // All options are rebuilt server-side from authorized project records.
    // Client output excludes raw operational descriptions and internal narrative.
-   report.publicFacts=options.filter(fact=>selected.has(fact.id));
+   report.publicFacts=selectClientReportFacts(options,[...selected]);
    report.riskAssessments=[];
    report.governance.risks_open=report.publicFacts.filter(fact=>fact.kind==="risk").length;
    report.governance.client_decisions=[];

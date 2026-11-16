@@ -7,6 +7,7 @@ import Link from "next/link";
 import { getClientAuthHeaders } from "@/lib/client-auth";
 import { BRAND_LOGO_URL } from "@/lib/brand";
 import type {ReportData,ReportAudience,ClientReportFact} from "@/lib/scrum/report-data";
+import {clientSelectableFacts,selectClientReportFacts} from "@/lib/reports/client-report-selection";
 import {riskReportHtml} from "@/lib/reports/risk-report-html";
 import {isVagueNextStep} from "@/lib/reports/editorial-rules";
 import {safeMarkdownHtml} from "@/lib/safe-markdown-html";
@@ -92,6 +93,7 @@ function reportDocument(project:Project, cards:Card[], risks:Risk[], decisions:D
     const publicItems=(kind:string)=>shareable.filter(x=>x.kind===kind).slice(0,100).map(x=>({
       title:x.title,note:classify(x.classification)+(x.due_date?" · Prazo informado: "+x.due_date:"")+(x.description&&!/validar contexto|antes da divulga[cç][aã]o|informação interna/i.test(x.description)?" · "+x.description:"")
     }));
+    const selectedSprints=shareable.filter(x=>x.id.startsWith("sprint:"));
     const publicObjective=shareable.find(x=>x.kind==="objective");
     const publicObjectiveText=publicObjective?.description||publicObjective?.title||"";
     const published=Boolean(scrum?.publicFactsAvailable);
@@ -100,9 +102,9 @@ function reportDocument(project:Project, cards:Card[], risks:Risk[], decisions:D
     <header class="hero"><div class="top"><img class="logo" src="${logo}" alt="Consult Services Tecnologia"><div class="topright">RELATÓRIO PARA CLIENTE<br><small>Visão de objetivos, entregas e compromissos</small></div></div><p class="eyebrow">COMMANDER · ACOMPANHAMENTO DO PROJETO</p><h1>${htmlEscape(project.name)}</h1>${publicObjectiveText?`<p class="desc">${htmlEscape(publicObjectiveText)}</p>`:""}<div class="chips"><span class="chip">Referência: ${htmlEscape(period)}</span><span class="chip">Emissão: ${htmlEscape(issueDate)}</span><span class="chip">Público: Cliente</span></div></header>
     <div class="note">Informações autorizadas para acompanhamento. As contagens não indicam aceite contratual nem percentual físico de conclusão.</div>
     ${publicItems("benefit").length?`<section class="panel"><h3>01 · Benefícios</h3><h2>Benefícios documentados</h2>${list(publicItems("benefit"),approvalNotice)}</section>`:""}
-    <section class="metrics"><div class="metric"><small>ENTREGAS SELECIONADAS</small><strong>${shareable.filter(x=>x.kind==="deliverable").length}</strong></div><div class="metric green"><small>BENEFÍCIOS SELECIONADOS</small><strong>${shareable.filter(x=>x.kind==="benefit").length}</strong></div><div class="metric amber"><small>RISCOS SELECIONADOS</small><strong>${shareable.filter(x=>x.kind==="risk").length}</strong></div><div class="metric"><small>MARCOS SELECIONADOS</small><strong>${shareable.filter(x=>x.kind==="milestone").length}</strong></div></section>
+    <section class="metrics"><div class="metric"><small>ENTREGAS SELECIONADAS</small><strong>${shareable.filter(x=>x.kind==="deliverable").length}</strong></div><div class="metric green"><small>BENEFÍCIOS SELECIONADOS</small><strong>${shareable.filter(x=>x.kind==="benefit").length}</strong></div><div class="metric amber"><small>RISCOS SELECIONADOS</small><strong>${shareable.filter(x=>x.kind==="risk").length}</strong></div><div class="metric"><small>MARCOS SELECIONADOS</small><strong>${selectedSprints.length}</strong></div></section>
     ${publicItems("deliverable").length?`<section class="panel"><h3>02 · Entregas registradas</h3><h2>Entregas e evolução</h2>${list(publicItems("deliverable"),approvalNotice)}</section>`:""}
-    ${publicItems("milestone").length?`<section class="panel"><h3>03 · Marcos e prazos</h3><h2>Compromissos confirmados</h2>${list(publicItems("milestone"),approvalNotice)}</section>`:""}
+    ${selectedSprints.length?`<section class="panel"><h3>03 · Sprints e histórias</h3><h2>Sprints selecionadas e respectivas US</h2>${selectedSprints.map(sp=>`<div class="item"><div><strong>${htmlEscape(sp.title)}</strong><p>${htmlEscape(sp.description||classify(sp.classification))}</p>${shareable.filter(st=>st.id.startsWith("story:")&&st.source_reference===sp.id).map(st=>`<p style="font-size:12px;margin:6px 0 6px 14px">• ${htmlEscape(st.title)} · ${htmlEscape(st.description||classify(st.classification))}</p>`).join("")}</div></div>`).join("")}</section>`:""}
     ${publicItems("risk").length?`<section class="panel"><h3>04 · Riscos</h3><h2>Pontos de atenção selecionados</h2>${list(publicItems("risk"),approvalNotice)}</section>`:""}
     ${publicItems("next_step").length?`<section class="panel"><h3>05 · Decisões e próximos passos</h3><h2>Próximos passos</h2>${list(publicItems("next_step"),approvalNotice)}</section>`:""}
     <footer class="foot"><span>CONSULT SERVICES TECNOLOGIA · Commander / Relatório Cliente</span><span>Emitido em ${htmlEscape(issueDate)}</span></footer><div class="actions"><button onclick="window.print()">Imprimir / Salvar em PDF</button></div></main></body></html>`;
@@ -292,11 +294,11 @@ export default function StatusReportPage() {
   meetings:scrumReport?.internal?.meetingLines?.map(x=>x.sourceReference)||[],
  };
  const chosenInternal=internalSelection??availableInternal;
- const clientItems=clientCandidates||[];
+ const clientItems=clientSelectableFacts(clientCandidates||[]);
  const chosenClientFactIds=clientFactIds??clientItems.map(x=>x.id);
  const visibleClientReport=scrumReport&&audience==="client"?{
   ...scrumReport,
-  publicFacts:clientItems.filter(x=>chosenClientFactIds.includes(x.id)),
+  publicFacts:selectClientReportFacts(clientCandidates||[],chosenClientFactIds),
   riskAssessments:[] // External risks are rendered exclusively as safe, selected client facts.
  }:scrumReport;
  const internalGroups:Array<{key:InternalReportSelectionKey;label:string;items:Array<{id:string;title:string}>}>=[
@@ -518,7 +520,7 @@ export default function StatusReportPage() {
       <p className="text-xs text-(--text-secondary)">{clientCandidatesStatus||chosenClientFactIds.length+" de "+clientItems.length+" informações selecionadas"}</p>
       {(["objective","benefit","deliverable","milestone","risk","next_step"] as const).map(kind=>{
        const choices=clientItems.filter(x=>x.kind===kind);if(!choices.length)return null;
-       const titles:{[key:string]:string}={objective:"Objetivos",benefit:"Benefícios",deliverable:"Entregas, Épicos, Features, US e atividades",milestone:"Sprints e marcos",risk:"Riscos",next_step:"Decisões e próximos passos"};
+       const titles:{[key:string]:string}={objective:"Objetivos",benefit:"Benefícios",deliverable:"Entregas do Kanban do Projeto",milestone:"Sprints e respectivas US",risk:"Riscos",next_step:"Decisões registradas"};
        return <details key={kind} className="rounded-lg border border-(--border) p-3">
         <summary className="cursor-pointer text-sm font-medium">{titles[kind]} ({choices.filter(x=>chosenClientFactIds.includes(x.id)).length}/{choices.length})</summary>
         <div className="mt-3 max-h-52 space-y-2 overflow-y-auto">
