@@ -56,6 +56,7 @@ export function applyInternalReportSelection(report:ReportData,selection:Interna
     ...report,
     internalSelection:selection,
     scrum:{...report.scrum,sprints,stories_total:stories.length,tasks_total:tasks.length,tasks_done:tasks.filter(x=>x.state==="done").length,backlog_stories:stories.filter(x=>!x.sprint_id).length},
+    kanban:{...report.kanban,items:(report.kanban.items||[]).filter(x=>selection.cards.includes(x.id))},
     riskAssessments:assessments,
     governance:{...report.governance,
       risks_open:assessments.filter(x=>["aberto","em_mitigacao"].includes(x.status.toLowerCase())).length,
