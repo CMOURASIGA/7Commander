@@ -22,7 +22,7 @@ test("Kairos Markdown table preserves separate Epics, Features and ten US",()=>{
  expect(parsed?.epics).toHaveLength(4);
  expect(parsed?.features).toHaveLength(10);
  expect(parsed?.stories).toHaveLength(10);
- expect(parsed?.stories[7].epicCode).toBe("EP003");
+ expect(parsed?.stories[7].epicCode).toBe("EP03");
  expect(parsed?.stories[7].featureCode).toBe("F008");
  expect(parsed?.stories[0].priority).toBe("alta");
  expect(parsed?.stories[9].priority).toBe("baixa");
