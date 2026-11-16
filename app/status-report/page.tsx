@@ -407,6 +407,21 @@ export default function StatusReportPage() {
      <p className="mt-1 text-sm text-(--text-secondary)">Selecione os fatos autorizados e confira as regras de divulgação antes de emitir.</p>
      <p className="mt-2 text-xs text-(--text-secondary)">Projeto: {project?.name||"Não selecionado"} · {audience==="client"?"Cliente":"Equipe"} · {periodMode==="current"?"Situação atual":"Período personalizado"}</p>
     </div>
+    {audience==="client"&&<section className="workspace-card space-y-3 p-4" aria-label="Seleção dos fatos aprovados para o Cliente">
+      <h3 className="text-sm font-semibold">Conteúdo desta emissão · Cliente</h3>
+      <p className="text-xs text-(--text-secondary)">Só aparecem aqui informações já publicadas e autorizadas para o Cliente. Desmarcar oculta apenas nesta emissão; para retirar a autorização permanentemente, use a opção de despublicar abaixo.</p>
+      <div className="flex flex-wrap gap-2">
+       <button type="button" className="workspace-button-secondary px-3 py-2 text-xs" onClick={()=>setClientFactIds(approvedClientFacts.map(x=>x.id))}>Selecionar todos</button>
+       <button type="button" className="workspace-button-secondary px-3 py-2 text-xs" onClick={()=>setClientFactIds([])}>Limpar seleção</button>
+      </div>
+      <div className="max-h-64 space-y-2 overflow-y-auto">
+       {approvedClientFacts.length===0?<p className="text-xs text-(--text-secondary)">Nenhuma informação autorizada para o Cliente. Utilize a revisão abaixo para publicar fatos.</p>:approvedClientFacts.map(fact=><label key={fact.id} className="flex items-start gap-2 rounded-lg border border-(--border) p-2 text-xs">
+        <input type="checkbox" checked={chosenClientFactIds.includes(fact.id)} onChange={e=>setClientFactIds(prev=>{const base=prev??approvedClientFacts.map(x=>x.id);return e.target.checked?[...new Set([...base,fact.id])]:base.filter(id=>id!==fact.id);})}/>
+        <span><strong>{fact.title}</strong><span className="block text-(--text-secondary)">{fact.kind==="next_step"?"Próximo passo":fact.kind} · Publicado</span></span>
+       </label>)}
+      </div>
+      <p className="text-xs text-(--text-secondary)">Selecionados: {chosenClientFactIds.length}/{approvedClientFacts.length}. A prévia e o relatório arquivado usarão somente esses registros aprovados.</p>
+    </section>}
     {audience==="internal"&&<section className="workspace-card space-y-3 p-4" aria-label="Curadoria do relatório Equipe">
       <h3 className="text-sm font-semibold">Conteúdo do relatório Equipe</h3>
       <p className="text-xs text-(--text-secondary)">Selecione os registros que devem aparecer. A escolha afeta a prévia, o HTML, o PDF e o snapshot arquivado. Indicadores gerais seguem representando o projeto completo.</p>
@@ -424,6 +439,12 @@ export default function StatusReportPage() {
         </div>
       </details>)}
       <p className="text-xs text-(--text-secondary)">Ao modificar a seleção, a narrativa anterior do Kairos é retirada da prévia para não analisar registros excluídos.</p>
+    </section>}
+    {audience==="internal"&&<section className="workspace-card space-y-2 p-4" aria-label="Próximos passos da equipe">
+      <h3 className="text-sm font-semibold">Próximos passos da Equipe</h3>
+      <p className="text-xs text-(--text-secondary)">Preencha ações acordadas e pendentes de execução. Este campo é editorial, não cria Tasks e não deve afirmar entregas concluídas sem evidência. Se ficar vazio, a seção não deve inventar próximos passos.</p>
+      <textarea rows={4} className="workspace-input w-full" placeholder="Ex.: Confirmar com a área fiscal os critérios de homologação da C01 (responsável e prazo a definir)." value={teamNextSteps} onChange={e=>setTeamNextSteps(e.target.value)}/>
+      <button type="button" className="workspace-button-secondary px-3 py-2 text-xs" onClick={()=>setTeamNextSteps("")}>Limpar próximos passos</button>
     </section>}
     {audience==="internal"&&<label className="workspace-card flex items-center gap-2 p-3 text-sm">
      <input type="checkbox" checked={includeMitigationAnnex} onChange={e=>setIncludeMitigationAnnex(e.target.checked)}/>
