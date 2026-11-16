@@ -66,7 +66,7 @@ export function KairosBacklogPreview({content,projectId,onClose}:{content:string
      lines.push(story.code+" | US existente, nenhuma duplicação: "+duplicate.id+(duplicate.feature_id!==featureId?" (verificar Feature vinculada)":""));
      continue;
     }
-    const id=await create("/api/scrum/stories",{action:"create",fromKairos:true,title:story.title,description:story.description||"Origem: "+story.code,acceptanceCriteria:story.acceptanceCriteria,priority:story.priority,featureId});
+    const id=await create("/api/scrum/stories",{action:"create",fromKairos:true,title:story.title,description:"Origem da proposta Kairos: "+story.code+" | "+feature.code+" | "+epic.code+"\n"+(story.description||"Descrição pendente de refinamento."),acceptanceCriteria:story.acceptanceCriteria,priority:story.priority,featureId});
     existingStories.push({id,title:story.title,feature_id:featureId});
     lines.push(story.code+" | US criada: "+id);
    }
