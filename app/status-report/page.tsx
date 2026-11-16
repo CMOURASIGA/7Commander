@@ -11,6 +11,7 @@ import {riskReportHtml} from "@/lib/reports/risk-report-html";
 import {isVagueNextStep} from "@/lib/reports/editorial-rules";
 import {safeMarkdownHtml} from "@/lib/safe-markdown-html";
 import {PublicFactsEditor} from "@/components/status-report/public-facts-editor";
+import {applyInternalReportSelection,type InternalReportSelection,type InternalReportSelectionKey} from "@/lib/reports/internal-report-selection";
 import {downloadReportDocumentPdf} from "@/lib/reports/pdf-document";
 
 type Project = { id:string; name:string; objective?:string; status?:string; clientName?:string|null };
@@ -174,6 +175,7 @@ export default function StatusReportPage() {
  const [mobileReportPane,setMobileReportPane]=useState<"content"|"preview">("content");
  const [board,setBoard]=useState<Board|null>(null);
  const [audience,setAudience]=useState<ReportAudience>("client");
+ const [internalSelection,setInternalSelection]=useState<InternalReportSelection|null>(null);
  const [scrumReport,setScrumReport]=useState<ReportData|null>(null);
  const [retryRevision,setRetryRevision]=useState(0);
  const [factsRevision,setFactsRevision]=useState(0);
@@ -222,15 +224,45 @@ export default function StatusReportPage() {
   }catch(e){if(!cancelled)setStatus(e instanceof Error?e.message:"Erro ao consolidar dados.");}finally{if(!cancelled)setBusy(false);}})();return()=>{cancelled=true}},[projectId,retryRevision]);
  useEffect(()=>{if(!projectId||analysisRequest.key!==analysisKey){setAnalysisLoading(false);setAnalysis(null);setPeriodEvents(null);setPeriodMetrics(null);setAnalysisStatus(projectId?"Análise Kairos opcional. Os indicadores operacionais estão disponíveis.":"Selecione um projeto.");return;}if(periodMode==="period"&&(!start||!end||start>end)){setAnalysis(null);setAnalysisStatus("Corrija as datas do período.");return;}let cancelled=false;setAnalysis(null);setPeriodEvents(null);setPeriodMetrics(null);setAnalysisLoading(true);setAnalysisStatus("Kairos analisando os registros autorizados...");void(async()=>{try{const response=await measuredFetch("/api/status-report/analysis",{method:"POST",headers:getClientAuthHeaders({"Content-Type":"application/json"}),body:JSON.stringify({projectId,mode:periodMode,start,end,audience}),cache:"no-store"});const payload=await response.json();if(!response.ok)throw Error(payload.error||"Falha na análise.");if(!cancelled){setAnalysis(payload.data?.analysis??null);setPeriodEvents(payload.data?.periodEvents??null);setPeriodMetrics(payload.data?.periodMetrics??null);setAnalysisStatus(payload.data?.source==="ai"?"Análise Kairos gerada. Revise antes de enviar ao cliente.":payload.warning||"Análise de IA indisponível.");}}catch(e){if(!cancelled){setAnalysisStatus(e instanceof Error?e.message:"Falha na análise.");setAnalysis(null);}}finally{if(!cancelled)setAnalysisLoading(false);}})();return()=>{cancelled=true};},[projectId,periodMode,start,end,audience,analysisKey,analysisRequest.key,analysisRequest.revision]);
  const project=projects.find(x=>x.id===projectId);
+ useEffect(()=>setInternalSelection(null),[projectId]);
  const cards=useMemo(()=>board?.columns.flatMap(x=>x.cards)||[],[board]);
+
+ const availableInternal:InternalReportSelection={
+  cards:cards.map(x=>x.id),risks:risks.map(x=>x.id),decisions:decisions.map(x=>x.id),
+  sprints:scrumReport?.scrum.sprints.map(x=>x.id)||[],
+  stories:scrumReport?.internal?.stories.map(x=>x.id)||[],
+  tasks:scrumReport?.internal?.tasks.map(x=>x.id)||[],
+  meetings:scrumReport?.internal?.meetingLines?.map(x=>x.sourceReference)||[],
+ };
+ const chosenInternal=internalSelection??availableInternal;
+ const internalGroups:Array<{key:InternalReportSelectionKey;label:string;items:Array<{id:string;title:string}>}>=[
+  {key:"cards",label:"Cards e entregas do Kanban",items:cards.map(x=>({id:x.id,title:x.title}))},
+  {key:"risks",label:"Riscos",items:risks.map(x=>({id:x.id,title:x.title}))},
+  {key:"decisions",label:"Decisões",items:decisions.map(x=>({id:x.id,title:x.title}))},
+  {key:"sprints",label:"Sprints",items:(scrumReport?.scrum.sprints||[]).map(x=>({id:x.id,title:x.name}))},
+  {key:"stories",label:"Histórias de Usuário",items:(scrumReport?.internal?.stories||[]).map(x=>({id:x.id,title:x.title}))},
+  {key:"tasks",label:"Tasks",items:(scrumReport?.internal?.tasks||[]).map(x=>({id:x.id,title:x.title}))},
+  {key:"meetings",label:"Compromissos e pendências das reuniões",items:(scrumReport?.internal?.meetingLines||[]).map(x=>({id:x.sourceReference,title:x.meetingTitle+" · "+x.title}))}
+ ];
+ function toggleInternalItem(key:InternalReportSelectionKey,id:string,checked:boolean){
+  setInternalSelection(previous=>{
+   const base=previous??availableInternal;
+   return {...base,[key]:checked?[...new Set([...base[key],id])]:base[key].filter(value=>value!==id)};
+  });
+ }
+ const visibleCards=audience==="internal"?cards.filter(x=>chosenInternal.cards.includes(x.id)):cards;
+ const visibleRisks=audience==="internal"?risks.filter(x=>chosenInternal.risks.includes(x.id)):risks;
+ const visibleDecisions=audience==="internal"?decisions.filter(x=>chosenInternal.decisions.includes(x.id)):decisions;
+ const visibleScrum=audience==="internal"&&scrumReport?applyInternalReportSelection(scrumReport,chosenInternal):scrumReport;
+ const visibleAnalysis=audience==="internal"&&internalSelection?null:analysis;
  const issueDate=new Date().toLocaleDateString("pt-BR");
- const reportHtml=project&&board&&scrumReport?renumberReportSections(reportDocument(project,cards,audience==="client"?risks.map(r=>({...r,owner:null,mitigation:null})):risks,decisions,period,issueDate,analysis,periodEvents,periodMetrics,audience,scrumReport)):"";
+ const reportHtml=project&&board&&scrumReport?renumberReportSections(reportDocument(project,visibleCards,audience==="client"?risks.map(r=>({...r,owner:null,mitigation:null})):visibleRisks,visibleDecisions,period,issueDate,visibleAnalysis,periodEvents,periodMetrics,audience,visibleScrum)):"";
  const documentHtml=reportHtml.replaceAll(BRAND_LOGO_URL,brandLogoData).replaceAll("CONSULT SERVICES TECNOLOGIA",htmlEscape(brandName)).replaceAll('alt="Consult Services Tecnologia"','alt="'+htmlEscape(brandName)+'"');
  async function issue():Promise<string|null>{
   if(!projectId||!scrumReport||!documentHtml||issuing)return null;
   setIssuing(true);setStatus("Registrando emissão...");
   try{
-   const r=await measuredFetch("/api/status-report/history",{method:"POST",headers:getClientAuthHeaders({"Content-Type":"application/json"}),body:JSON.stringify({projectId,audience,mode:periodMode,start,end,narrative:analysis}),cache:"no-store"});
+   const r=await measuredFetch("/api/status-report/history",{method:"POST",headers:getClientAuthHeaders({"Content-Type":"application/json"}),body:JSON.stringify({projectId,audience,mode:periodMode,start,end,narrative:visibleAnalysis,...(audience==="internal"?{internalSelection:chosenInternal}:{})}),cache:"no-store"});
    const j=await r.json();if(!r.ok)throw Error(j.error||"Falha ao registrar emissão.");
    setStatus("Emissão registrada no histórico: "+j.data.id);
    setHistory(h=>[j.data,...h]);setHistoryId(j.data.id);
@@ -276,7 +308,7 @@ export default function StatusReportPage() {
   try{
    const filename="status-report-"+(audience==="client"?"cliente":"equipe")+"-"+project.id+"-"+new Date().toISOString().slice(0,10)+".pdf";
    const pdfHtml=audience==="internal"&&includeMitigationAnnex
-    ?renumberReportSections(reportDocument(project,cards,risks,decisions,period,issueDate,analysis,periodEvents,periodMetrics,audience,scrumReport,true)).replaceAll(BRAND_LOGO_URL,brandLogoData).replaceAll("CONSULT SERVICES TECNOLOGIA",htmlEscape(brandName))
+    ?renumberReportSections(reportDocument(project,visibleCards,visibleRisks,visibleDecisions,period,issueDate,visibleAnalysis,periodEvents,periodMetrics,audience,visibleScrum,true)).replaceAll(BRAND_LOGO_URL,brandLogoData).replaceAll("CONSULT SERVICES TECNOLOGIA",htmlEscape(brandName))
     :documentHtml;
    await downloadReportDocumentPdf(pdfHtml,filename);
    setStatus("PDF gerado, registrando emissão...");
@@ -350,7 +382,7 @@ export default function StatusReportPage() {
      Incluir anexo de mitigação completa no PDF da Equipe (opcional)
     </label>}
     <p role="status" className="text-xs text-(--text-secondary)">{scrumStatus}</p>
-    {projectId&&<PublicFactsEditor projectId={projectId} proposedNextSteps={analysis?.nextSteps} onChange={()=>setFactsRevision(n=>n+1)}/>}
+    {audience==="client"&&projectId&&<PublicFactsEditor projectId={projectId} proposedNextSteps={analysis?.nextSteps} onChange={()=>setFactsRevision(n=>n+1)}/>}
     <section className="workspace-card space-y-2 p-4" aria-label="Análise opcional do Kairos">
      <h3 className="text-sm font-semibold">Análise Kairos</h3>
      <p className="text-xs text-(--text-secondary)">A análise é opcional. Não publica informações nem registra emissão automaticamente.</p>
