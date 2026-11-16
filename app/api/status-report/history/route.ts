@@ -101,7 +101,11 @@ export async function POST(req:NextRequest){
    report.kanban.todo=cards.filter(card=>["aberta","todo","to_do"].includes(card.status)).length;
    report.kanban.doing=cards.filter(card=>["em_andamento","doing"].includes(card.status)).length;
    report.kanban.done=cards.filter(card=>["concluida","done"].includes(card.status)).length;
-   report.kanban.completed_titles=cards.filter(card=>["concluida","done"].includes(card.status)).slice(0,12).map(card=>rows.find(row=>row.id===card.id)?.titulo||"").filter(Boolean);
+   report.kanban.items=cards.map(card=>({
+     id:card.id,title:rows.find(row=>row.id===card.id)?.titulo||"Sem título",
+     status:card.status,dueDate:card.due_date||null
+   }));
+   report.kanban.completed_titles=report.kanban.items.filter(card=>["concluida","done"].includes(card.status)).slice(0,12).map(card=>card.title);
    report.kanban.overdue=cards.filter(card=>card.due_date&&card.due_date<new Date().toISOString().slice(0,10)&&!["concluida","done"].includes(card.status)).length;
    report.governance.decisions_pending=report.governance.client_decisions.filter(row=>["aberta","em_andamento"].includes(row.status)).length;
   }
