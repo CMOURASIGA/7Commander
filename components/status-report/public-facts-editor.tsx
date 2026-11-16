@@ -23,7 +23,7 @@ const riskTemplate=(description:string,title:string)=>{
 };
 
 
-export function PublicFactsEditor({projectId,onChange,proposedNextSteps}:{projectId:string;onChange?:()=>void;proposedNextSteps?:string|null}){
+export function PublicFactsEditor({projectId,onChange,proposedNextSteps,selectedFactIds,onSelectionChange}:{projectId:string;onChange?:()=>void;proposedNextSteps?:string|null;selectedFactIds:string[];onSelectionChange:(ids:string[])=>void}){
  const [items,setItems]=useState<Fact[]>([]);
  const [candidates,setCandidates]=useState<Candidate[]>([]);
  const [canManage,setCanManage]=useState(false);
@@ -149,62 +149,73 @@ export function PublicFactsEditor({projectId,onChange,proposedNextSteps}:{projec
   existing&&riskReady(existing)?fromFact(existing):candidate;
  const proposed=proposedNextSteps?.trim()?{kind:"next_step",title:"Próximos passos do projeto",description:proposedNextSteps.slice(0,3000),classification:"ai_recommendation",dueDate:"",sourceReference:"kairos:proposta:"+projectId}:null;
 
- if(!projectId||loading||!canManage)return null;
- return <section className="rounded-xl border border-(--border) bg-(--bg-surface) p-4 space-y-4">
-  <header className="flex flex-wrap items-center justify-between gap-3">
-   <div><h2 className="text-lg font-semibold">Informações do relatório Cliente</h2>
-    <p className="text-sm text-(--text-secondary)">Confira o conteúdo existente e escolha Publicar ou Editar. Apenas o que você publicar entra no relatório do cliente.</p>
-   </div>
+ const suggestions=[...candidates,...(proposed?[proposed]:[])].filter(candidate=>
+   !items.some(item=>item.source_reference===candidate.sourceReference));
+ const publishedItems=items.filter(item=>item.approved_for_client);
+ if(!projectId||loading)return <div className="workspace-card p-4 text-sm">Consultando informações autorizadas para o Cliente...</div>;
+ if(!canManage)return <section className="workspace-card p-4">
+  <h3 className="font-semibold">Gestão do conteúdo | Cliente</h3>
+  <p className="text-sm text-(--text-secondary)">A gestão de publicações exige permissão de editor ou responsável pelo projeto. Dados internos não serão apresentados nesta interface.</p>
+ </section>;
+ return <section className="workspace-card space-y-3 p-4" aria-label="Gestão do conteúdo do relatório Cliente">
+  <header className="space-y-2">
+   <h2 className="text-base font-semibold">Gestão do conteúdo | Cliente</h2>
+   <p className="text-xs text-(--text-secondary)">Controle exclusivo do Cliente. Primeiro publique a informação revisada, depois selecione se ela entra nesta emissão. Desmarcar não revoga a publicação; despublicar revoga a autorização para futuras emissões.</p>
    <div className="flex flex-wrap gap-2">
-     <button type="button" className="workspace-button-secondary" disabled={busy||!items.some(item=>item.approved_for_client)} onClick={()=>void withdrawAll()}>Despublicar tudo</button>
-     <button type="button" className="workspace-button-secondary" onClick={()=>edit(blank())}>Adicionar informação</button>
-    </div>
+    <button type="button" disabled={busy} className="workspace-button-secondary px-3 py-2 text-xs" onClick={()=>onSelectionChange(publishedItems.map(x=>x.id))}>Selecionar todos</button>
+    <button type="button" disabled={busy} className="workspace-button-secondary px-3 py-2 text-xs" onClick={()=>onSelectionChange([])}>Limpar seleção</button>
+    <button type="button" disabled={busy||!publishedItems.length} className="workspace-button-secondary px-3 py-2 text-xs" onClick={()=>void withdrawAll()}>Despublicar tudo</button>
+    <button type="button" className="workspace-button-secondary px-3 py-2 text-xs" onClick={()=>edit(blank())}>Adicionar informação</button>
+    <button type="button" className="workspace-button-secondary px-3 py-2 text-xs" disabled={busy||suggestionsLoading} onClick={()=>void loadSuggestions()}>{suggestionsLoading?"Atualizando...":"Atualizar dados"}</button>
+   </div>
+   <p className="text-xs text-(--text-secondary)">{publishedItems.filter(item=>selectedFactIds.includes(item.id)).length} de {publishedItems.length} informações publicadas selecionadas para esta emissão</p>
   </header>
-  {error?<p role="alert" className="text-sm text-red-700">{error}</p>:null}
-  {message?<p role="status" className="text-sm text-(--text-secondary)">{message}</p>:null}
-   {items.some(item=>item.kind==="next_step"&&item.approved_for_client&&isVagueNextStep(item.title,item.description))&&<p role="alert" className="text-sm text-amber-700">Alguns próximos passos publicados anteriormente precisam ser reescritos como ações objetivas antes de aparecerem na versão Cliente.</p>}
-   {items.some(item=>item.kind==="risk"&&item.approved_for_client&&!riskReady(item))&&<p role="alert" className="text-sm text-amber-700">Alguns riscos aprovados anteriormente não tinham ponto de atenção legível. Selecione Publicar ou Editar para atualizar o texto diretamente a partir do cadastro do risco.</p>}
-  <div className="space-y-2 rounded-xl border border-(--border) bg-(--bg-muted) p-3">
-   <div className="flex flex-wrap items-center justify-between gap-2">
-    <h3 className="font-semibold">Informações do projeto</h3>
-    <button className="workspace-button-secondary text-xs" disabled={suggestionsLoading||busy} onClick={()=>void loadSuggestions()}>{suggestionsLoading?"Consultando...":"Atualizar dados"}</button>
-   </div>
-   <div className="flex flex-wrap items-center justify-between gap-2"><label className="flex items-center gap-2 text-xs"><input type="checkbox" disabled={busy} checked={candidates.filter(c=>(!recorded(c.sourceReference)?.approved_for_client||!riskReady(recorded(c.sourceReference)!))&&riskReady(c)).length>0&&candidates.filter(c=>!recorded(c.sourceReference)?.approved_for_client&&riskReady(recorded(c.sourceReference)||c)).every(c=>selected.includes(c.sourceReference))} onChange={e=>setSelected(e.target.checked?candidates.filter(c=>!recorded(c.sourceReference)?.approved_for_client&&riskReady(recorded(c.sourceReference)||c)).map(c=>c.sourceReference):[])} /> Selecionar informações não publicadas</label><button type="button" className="workspace-button-primary text-xs" disabled={busy||selected.length===0} onClick={()=>void publishSelected()}>{bulkProgress||`Publicar selecionadas (${selected.length})`}</button></div>
-   {candidates.length===0?<p className="text-sm text-(--text-secondary)">Nenhuma informação disponível para seleção.</p>:
-    <div className="max-h-80 space-y-2 overflow-y-auto">
-     {candidates.map(candidate=>{
-      const existing=recorded(candidate.sourceReference);
-      const published=Boolean(existing?.approved_for_client&&riskReady(existing));
-      const needsRiskRevision=!riskReady(candidate);
-      return <article key={candidate.sourceReference} className="rounded-lg border border-(--border) bg-(--bg-surface) p-3">
-       <div className="flex flex-wrap items-center justify-between gap-2">
-        {!published?<input aria-label={"Selecionar "+candidate.title} type="checkbox" checked={selected.includes(candidate.sourceReference)} disabled={busy||needsRiskRevision} onChange={e=>setSelected(current=>e.target.checked?[...current,candidate.sourceReference]:current.filter(ref=>ref!==candidate.sourceReference))}/>:null}
-        <div className="min-w-0 flex-1">
-         <p className="text-sm font-semibold">{candidate.title}</p>
-         <p className="text-xs text-(--text-secondary)">{candidate.origin} · {kinds.find(k=>k[0]===candidate.kind)?.[1]}{published?" · Publicado":existing?" · Não publicado":""}</p>
-         {candidate.description&&(candidate.kind==="risk"
-          ?<details className="mt-1 text-xs text-(--text-secondary)"><summary className="cursor-pointer">Ver texto existente que será autorizado</summary><p className="mt-2 whitespace-pre-wrap">{editorialInfo(candidate,existing).description}</p><p className="mt-1">O conteúdo mostrado será incluído na versão Cliente ao clicar em Publicar. Use Editar para ajustar o texto.</p></details>
-          :<p className="mt-1 line-clamp-2 text-xs text-(--text-secondary)">{candidate.description}</p>)}
-          {candidate.internalContext?<p className="mt-1 text-xs text-(--text-secondary)">Consulta interna do risco: {candidate.internalContext}</p>:null}
-        </div>
-        <div className="flex flex-wrap gap-2">
-         {published?<IconActionButton icon="archive" tone="danger" label={"Despublicar "+candidate.title} disabled={busy||!existing} onClick={()=>existing&&void withdraw(existing)}/>:needsRiskRevision?<span className="text-xs text-(--text-secondary)">Revisar o conteúdo disponível</span>:
-          <IconActionButton icon="check-circle" tone="success" label="Publicar informação sugerida" disabled={busy} onClick={()=>void publish(editorialInfo(candidate,existing),existing?.id)}/>}
-         <IconActionButton icon="pencil" tone="edit" label="Editar informação sugerida" disabled={busy} onClick={()=>edit(editorialInfo(candidate,existing),existing?.id)}/>
-        </div>
+  {error?<p role="alert" className="text-xs text-red-700">{error}</p>:null}
+  {message?<p role="status" className="text-xs text-(--text-secondary)">{message}</p>:null}
+  {items.some(x=>x.kind==="next_step"&&x.approved_for_client&&isVagueNextStep(x.title,x.description))&&<p className="text-xs text-amber-700">Próximos passos genéricos precisam ser revisados antes de aparecer no relatório.</p>}
+  <div className="max-h-[26rem] space-y-3 overflow-y-auto">
+   {kinds.map(([kind,label])=>{
+    const registered=items.filter(item=>item.kind===kind);
+    const proposals=suggestions.filter(item=>item.kind===kind);
+    if(!registered.length&&!proposals.length)return null;
+    return <details key={kind} className="rounded-lg border border-(--border) p-3" open={kind==="next_step"?true:undefined}>
+     <summary className="cursor-pointer text-sm font-semibold">{label} ({registered.length+proposals.length})</summary>
+     <div className="mt-3 space-y-2">
+      {registered.map(item=><div key={item.id} className="flex items-start gap-2 rounded-lg border border-(--border) p-2 text-xs">
+       <input type="checkbox" className="mt-1" disabled={busy||!item.approved_for_client||!riskReady(item)} checked={item.approved_for_client&&selectedFactIds.includes(item.id)}
+        aria-label={"Incluir "+item.title+" na emissão Cliente"}
+        onChange={event=>onSelectionChange(event.target.checked?[...new Set([...selectedFactIds,item.id])]:selectedFactIds.filter(id=>id!==item.id))}/>
+       <div className="min-w-0 flex-1">
+        <p className="font-semibold">{item.title}</p>
+        <p className="mt-1 text-(--text-secondary)">{item.approved_for_client?(riskReady(item)?"Publicado · apto à seleção":"Publicado · requer revisão"):"Não publicado"} · {item.classification}</p>
+        {item.description?<p className="mt-1 line-clamp-2 text-(--text-secondary)">{item.description}</p>:null}
        </div>
-      </article>;
-     })}
-    </div>}
+       <div className="flex shrink-0 gap-1">
+        {item.approved_for_client?<IconActionButton icon="archive" tone="danger" label={"Despublicar "+item.title} disabled={busy} onClick={()=>void withdraw(item)}/>:
+         <IconActionButton icon="check-circle" tone="success" label={"Publicar "+item.title} disabled={busy} onClick={()=>void publish(fromFact(item),item.id)}/>}
+        <IconActionButton icon="pencil" tone="edit" label={"Editar "+item.title} disabled={busy} onClick={()=>edit(fromFact(item),item.id)}/>
+       </div>
+      </div>)}
+      {proposals.map(candidate=><div key={candidate.sourceReference} className="flex items-start gap-2 rounded-lg border border-dashed border-(--border) p-2 text-xs">
+       <input type="checkbox" className="mt-1" disabled={!riskReady(candidate)||busy}
+        aria-label={"Selecionar sugestão "+candidate.title} checked={selected.includes(candidate.sourceReference)}
+        onChange={event=>setSelected(current=>event.target.checked?[...new Set([...current,candidate.sourceReference])]:current.filter(ref=>ref!==candidate.sourceReference))}/>
+       <div className="min-w-0 flex-1">
+        <p className="font-semibold">{candidate.title}</p>
+        <p className="mt-1 text-(--text-secondary)">Sugestão não publicada · {candidate.origin||"Kairos"}</p>
+        {candidate.description?<p className="mt-1 line-clamp-2 text-(--text-secondary)">{candidate.description}</p>:null}
+       </div>
+       <div className="flex shrink-0 gap-1">
+        <IconActionButton icon="check-circle" tone="success" label={"Publicar sugestão "+candidate.title} disabled={busy||!riskReady(candidate)} onClick={()=>void publish(candidate)}/>
+        <IconActionButton icon="pencil" tone="edit" label={"Revisar sugestão "+candidate.title} disabled={busy} onClick={()=>edit(candidate)}/>
+       </div>
+      </div>)}
+     </div>
+    </details>;
+   })}
+   {items.length===0&&suggestions.length===0?<p className="text-xs text-(--text-secondary)">Nenhuma informação disponível. Adicione uma informação ou atualize os dados.</p>:null}
   </div>
-  {proposed?<div className="rounded-xl border border-(--border) bg-(--bg-muted) p-3 space-y-2">
-   <h3 className="font-semibold">Sugestão de próximos passos</h3>
-   <p className="whitespace-pre-wrap text-sm">{proposed.description}</p>
-   <div className="flex gap-2">
-    <IconActionButton icon="check-circle" tone="success" label="Publicar próximo passo sugerido" disabled={busy||!!recorded(proposed.sourceReference)?.approved_for_client} onClick={()=>void publish(recorded(proposed.sourceReference)?fromFact(recorded(proposed.sourceReference)!):proposed,recorded(proposed.sourceReference)?.id)}/>
-    <IconActionButton icon="pencil" tone="edit" label="Editar sugestão" disabled={busy} onClick={()=>edit(recorded(proposed.sourceReference)?fromFact(recorded(proposed.sourceReference)!):proposed,recorded(proposed.sourceReference)?.id)}/>
-   </div>
-  </div>:null}
+  {selected.length>0&&<button type="button" disabled={busy} className="workspace-button-primary px-3 py-2 text-xs" onClick={()=>void publishSelected()}>{bulkProgress||"Publicar sugestões selecionadas ("+selected.length+")"}</button>}
   {showEditor?<div id="client-fact-editor" className="rounded-xl border border-(--border) p-3 space-y-3">
    <div className="flex items-center justify-between"><h3 className="font-semibold">Editar informação para publicação</h3>
     <button type="button" className="workspace-button-secondary text-xs" onClick={()=>{setShowEditor(false);setEditingId("");}}>Cancelar</button>
@@ -220,16 +231,6 @@ export function PublicFactsEditor({projectId,onChange,proposedNextSteps}:{projec
    </div>
    <button disabled={busy||form.title.trim().length<3} className="workspace-button-primary" onClick={()=>void publish(form,editingId)}>{busy?"Publicando...":"Publicar"}</button>
   </div>:null}
-  <div className="space-y-2 border-t border-(--border) pt-3">
-   <h3 className="font-semibold">Conteúdo registrado para o Cliente</h3>
-   {items.length===0?<p className="text-sm text-(--text-secondary)">Nenhuma informação publicada ainda.</p>:items.map(fact=><article key={fact.id} className="flex flex-wrap items-start justify-between gap-2 rounded-lg border border-(--border) p-3">
-    <div><p className="text-sm font-medium">{fact.title}</p><p className="text-xs text-(--text-secondary)">{kinds.find(k=>k[0]===fact.kind)?.[1]} · {fact.approved_for_client?(riskReady(fact)?"Publicado":"Revisar conteúdo para o Cliente"):"Não publicado"}</p></div>
-    <div className="flex flex-wrap gap-2">
-     {!fact.approved_for_client?<IconActionButton icon="check-circle" tone="success" label={"Publicar "+fact.title} disabled={busy} onClick={()=>void publish(fromFact(fact),fact.id)}/>:null}
-     <IconActionButton icon="pencil" tone="edit" label={"Editar "+fact.title} disabled={busy} onClick={()=>edit(fromFact(fact),fact.id)}/>
-     {fact.approved_for_client?<IconActionButton icon="archive" tone="danger" label={"Retirar publicação de "+fact.title} disabled={busy} onClick={()=>void withdraw(fact)}/>:null}
-    </div>
-   </article>)}
-  </div>
+
  </section>;
 }
