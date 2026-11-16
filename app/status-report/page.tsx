@@ -6,11 +6,11 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { getClientAuthHeaders } from "@/lib/client-auth";
 import { BRAND_LOGO_URL } from "@/lib/brand";
-import type {ReportData,ReportAudience} from "@/lib/scrum/report-data";
+import type {ReportData,ReportAudience,ClientReportFact} from "@/lib/scrum/report-data";
 import {riskReportHtml} from "@/lib/reports/risk-report-html";
 import {isVagueNextStep} from "@/lib/reports/editorial-rules";
 import {safeMarkdownHtml} from "@/lib/safe-markdown-html";
-import {PublicFactsEditor} from "@/components/status-report/public-facts-editor";
+
 import {applyInternalReportSelection,type InternalReportSelection,type InternalReportSelectionKey} from "@/lib/reports/internal-report-selection";
 import {downloadReportDocumentPdf} from "@/lib/reports/pdf-document";
 
@@ -103,7 +103,7 @@ function reportDocument(project:Project, cards:Card[], risks:Risk[], decisions:D
     <section class="metrics"><div class="metric"><small>ENTREGAS AUTORIZADAS</small><strong>${shareable.filter(x=>x.kind==="deliverable").length}</strong></div><div class="metric green"><small>BENEFÍCIOS AUTORIZADOS</small><strong>${shareable.filter(x=>x.kind==="benefit").length}</strong></div><div class="metric amber"><small>RISCOS AUTORIZADOS</small><strong>${scrum?.riskAssessments?.length||0}</strong></div><div class="metric"><small>MARCOS CONFIRMADOS</small><strong>${shareable.filter(x=>x.kind==="milestone"&&x.classification==="confirmed").length}</strong></div></section>
     ${publicItems("deliverable").length?`<section class="panel"><h3>02 · Entregas registradas</h3><h2>Entregas e evolução</h2>${list(publicItems("deliverable"),approvalNotice)}</section>`:""}
     ${publicItems("milestone").length?`<section class="panel"><h3>03 · Marcos e prazos</h3><h2>Compromissos confirmados</h2>${list(publicItems("milestone"),approvalNotice)}</section>`:""}
-    ${scrum?.riskAssessments?.length?riskReportHtml(scrum.riskAssessments,"client"):""}
+    ${publicItems("risk").length?`<section class="panel"><h3>04 · Riscos</h3><h2>Pontos de atenção selecionados</h2>${list(publicItems("risk"),approvalNotice)}</section>`:""}
     ${publicItems("next_step").length?`<section class="panel"><h3>05 · Decisões e próximos passos</h3><h2>Próximos passos</h2>${list(publicItems("next_step"),approvalNotice)}</section>`:""}
     <footer class="foot"><span>CONSULT SERVICES TECNOLOGIA · Commander / Relatório Cliente</span><span>Emitido em ${htmlEscape(issueDate)}</span></footer><div class="actions"><button onclick="window.print()">Imprimir / Salvar em PDF</button></div></main></body></html>`;
   }
@@ -221,6 +221,8 @@ export default function StatusReportPage() {
  const [audience,setAudience]=useState<ReportAudience>("client");
  const [internalSelection,setInternalSelection]=useState<InternalReportSelection|null>(null);
  const [clientFactIds,setClientFactIds]=useState<string[]|null>(null);
+ const [clientCandidates,setClientCandidates]=useState<ClientReportFact[]|null>(null);
+ const [clientCandidatesStatus,setClientCandidatesStatus]=useState("");
  const [teamNextSteps,setTeamNextSteps]=useState("");
  const [scrumReport,setScrumReport]=useState<ReportData|null>(null);
  const [retryRevision,setRetryRevision]=useState(0);
@@ -270,7 +272,16 @@ export default function StatusReportPage() {
   }catch(e){if(!cancelled)setStatus(e instanceof Error?e.message:"Erro ao consolidar dados.");}finally{if(!cancelled)setBusy(false);}})();return()=>{cancelled=true}},[projectId,retryRevision]);
  useEffect(()=>{if(!projectId||analysisRequest.key!==analysisKey){setAnalysisLoading(false);setAnalysis(null);setPeriodEvents(null);setPeriodMetrics(null);setAnalysisStatus(projectId?"Análise Kairos opcional. Os indicadores operacionais estão disponíveis.":"Selecione um projeto.");return;}if(periodMode==="period"&&(!start||!end||start>end)){setAnalysis(null);setAnalysisStatus("Corrija as datas do período.");return;}let cancelled=false;setAnalysis(null);setPeriodEvents(null);setPeriodMetrics(null);setAnalysisLoading(true);setAnalysisStatus("Kairos analisando os registros autorizados...");void(async()=>{try{const response=await measuredFetch("/api/status-report/analysis",{method:"POST",headers:getClientAuthHeaders({"Content-Type":"application/json"}),body:JSON.stringify({projectId,mode:periodMode,start,end,audience}),cache:"no-store"});const payload=await response.json();if(!response.ok)throw Error(payload.error||"Falha na análise.");if(!cancelled){setAnalysis(payload.data?.analysis??null);setPeriodEvents(payload.data?.periodEvents??null);setPeriodMetrics(payload.data?.periodMetrics??null);setAnalysisStatus(payload.data?.source==="ai"?"Análise Kairos gerada. Revise antes de enviar ao cliente.":payload.warning||"Análise de IA indisponível.");}}catch(e){if(!cancelled){setAnalysisStatus(e instanceof Error?e.message:"Falha na análise.");setAnalysis(null);}}finally{if(!cancelled)setAnalysisLoading(false);}})();return()=>{cancelled=true};},[projectId,periodMode,start,end,audience,analysisKey,analysisRequest.key,analysisRequest.revision]);
  const project=projects.find(x=>x.id===projectId);
- useEffect(()=>{setInternalSelection(null);setClientFactIds(null);setTeamNextSteps("");},[projectId]);
+ useEffect(()=>{setInternalSelection(null);setClientFactIds(null);setClientCandidates(null);setTeamNextSteps("");},[projectId]);
+ useEffect(()=>{
+  if(!projectId||audience!=="client")return;
+  let live=true;setClientCandidates(null);setClientCandidatesStatus("Consultando conteúdo do projeto...");
+  void measuredFetch("/api/status-report/client-candidates?projectId="+encodeURIComponent(projectId),
+   {headers:getClientAuthHeaders(),cache:"no-store"})
+   .then(async response=>{const payload=await response.json();if(!response.ok)throw Error(payload.error||"Conteúdo indisponível.");if(live){setClientCandidates(payload.data||[]);setClientCandidatesStatus("");}})
+   .catch(error=>{if(live){setClientCandidatesStatus(error instanceof Error?error.message:"Falha ao consultar conteúdo.");}});
+  return()=>{live=false};
+ },[projectId,audience,retryRevision]);
  const cards=useMemo(()=>board?.columns.flatMap(x=>x.cards)||[],[board]);
 
  const availableInternal:InternalReportSelection={
@@ -281,12 +292,12 @@ export default function StatusReportPage() {
   meetings:scrumReport?.internal?.meetingLines?.map(x=>x.sourceReference)||[],
  };
  const chosenInternal=internalSelection??availableInternal;
- const approvedClientFacts=scrumReport?.publicFacts||[];
- const chosenClientFactIds=clientFactIds??approvedClientFacts.map(x=>x.id);
+ const clientItems=clientCandidates||[];
+ const chosenClientFactIds=clientFactIds??clientItems.map(x=>x.id);
  const visibleClientReport=scrumReport&&audience==="client"?{
   ...scrumReport,
-  publicFacts:approvedClientFacts.filter(x=>chosenClientFactIds.includes(x.id)),
-  riskAssessments:(scrumReport.riskAssessments||[]).filter(risk=>approvedClientFacts.some(f=>f.kind==="risk"&&chosenClientFactIds.includes(f.id)&&f.source_reference==="risk:"+risk.id))
+  publicFacts:clientItems.filter(x=>chosenClientFactIds.includes(x.id)),
+  riskAssessments:[] // External risks are rendered exclusively as safe, selected client facts.
  }:scrumReport;
  const internalGroups:Array<{key:InternalReportSelectionKey;label:string;items:Array<{id:string;title:string}>}>=[
   {key:"cards",label:"Cards e entregas do Kanban",items:cards.map(x=>({id:x.id,title:x.title}))},
@@ -347,10 +358,10 @@ export default function StatusReportPage() {
     nextSteps:visibleNextSteps||(!internalSelection?analysis?.nextSteps||"":"")
    }:null):analysis;
  const issueDate=new Date().toLocaleDateString("pt-BR");
- const reportHtml=project&&board&&scrumReport?renumberReportSections(reportDocument(project,visibleCards,audience==="client"?risks.map(r=>({...r,owner:null,mitigation:null})):visibleRisks,visibleDecisions,period,issueDate,visibleAnalysis,audience==="internal"&&internalSelection?null:periodEvents,audience==="internal"&&internalSelection?null:periodMetrics,audience,visibleScrum,false,audience==="internal"?chosenInternal:undefined)):"";
+ const reportHtml=project&&board&&scrumReport&&(audience!=="client"||clientCandidates!==null)?renumberReportSections(reportDocument(project,visibleCards,audience==="client"?risks.map(r=>({...r,owner:null,mitigation:null})):visibleRisks,visibleDecisions,period,issueDate,visibleAnalysis,audience==="internal"&&internalSelection?null:periodEvents,audience==="internal"&&internalSelection?null:periodMetrics,audience,visibleScrum,false,audience==="internal"?chosenInternal:undefined)):"";
  const documentHtml=reportHtml.replaceAll(BRAND_LOGO_URL,brandLogoData).replaceAll("CONSULT SERVICES TECNOLOGIA",htmlEscape(brandName)).replaceAll('alt="Consult Services Tecnologia"','alt="'+htmlEscape(brandName)+'"');
  async function issue():Promise<string|null>{
-  if(!projectId||!scrumReport||!documentHtml||issuing)return null;
+  if(!projectId||!scrumReport||!documentHtml||issuing||(audience==="client"&&clientCandidates===null))return null;
   setIssuing(true);setStatus("Registrando emissão...");
   try{
    const r=await measuredFetch("/api/status-report/history",{method:"POST",headers:getClientAuthHeaders({"Content-Type":"application/json"}),body:JSON.stringify({projectId,audience,mode:periodMode,start,end,narrative:visibleAnalysis,...(audience==="internal"?{internalSelection:chosenInternal}:{clientFactIds:chosenClientFactIds})}),cache:"no-store"});
@@ -497,7 +508,28 @@ export default function StatusReportPage() {
      Incluir anexo de mitigação completa no PDF da Equipe (opcional)
     </label>}
     <p role="status" className="text-xs text-(--text-secondary)">{scrumStatus}</p>
-    {audience==="client"&&projectId&&<PublicFactsEditor projectId={projectId} proposedNextSteps={analysis?.nextSteps} selectedFactIds={chosenClientFactIds} onSelectionChange={setClientFactIds} onChange={()=>setFactsRevision(n=>n+1)}/>}
+    {audience==="client"&&<section className="workspace-card space-y-3 p-4" aria-label="Gestão do conteúdo Cliente">
+      <h3 className="font-semibold">Gestão do conteúdo | Cliente</h3>
+      <p className="text-xs text-(--text-secondary)">Selecione diretamente os registros que deseja apresentar. Não é necessário publicar ou despublicar. A versão Cliente utiliza títulos, situações e resumos de acompanhamento, sem notas internas, responsáveis, impedimentos ou detalhes técnicos reservados.</p>
+      <div className="flex gap-2">
+       <button type="button" disabled={!clientCandidates} className="workspace-button-secondary px-3 py-2 text-xs" onClick={()=>setClientFactIds(clientItems.map(x=>x.id))}>Selecionar todos</button>
+       <button type="button" disabled={!clientCandidates} className="workspace-button-secondary px-3 py-2 text-xs" onClick={()=>setClientFactIds([])}>Limpar seleção</button>
+      </div>
+      <p className="text-xs text-(--text-secondary)">{clientCandidatesStatus||chosenClientFactIds.length+" de "+clientItems.length+" informações selecionadas"}</p>
+      {(["objective","benefit","deliverable","milestone","risk","next_step"] as const).map(kind=>{
+       const choices=clientItems.filter(x=>x.kind===kind);if(!choices.length)return null;
+       const titles:{[key:string]:string}={objective:"Objetivos",benefit:"Benefícios",deliverable:"Entregas, Épicos, Features, US e atividades",milestone:"Sprints e marcos",risk:"Riscos",next_step:"Decisões e próximos passos"};
+       return <details key={kind} className="rounded-lg border border-(--border) p-3">
+        <summary className="cursor-pointer text-sm font-medium">{titles[kind]} ({choices.filter(x=>chosenClientFactIds.includes(x.id)).length}/{choices.length})</summary>
+        <div className="mt-3 max-h-52 space-y-2 overflow-y-auto">
+         {choices.map(item=><label key={item.id} className="flex items-start gap-2 text-xs">
+          <input type="checkbox" checked={chosenClientFactIds.includes(item.id)} onChange={event=>setClientFactIds(previous=>{const ids=previous??clientItems.map(x=>x.id);return event.target.checked?[...new Set([...ids,item.id])]:ids.filter(x=>x!==item.id);})}/>
+          <span><strong>{item.title}</strong><span className="block text-(--text-secondary)">{item.description} · {item.classification}</span></span>
+         </label>)}
+        </div>
+       </details>;
+      })}
+     </section>}
     <section className="workspace-card space-y-2 p-4" aria-label="Análise opcional do Kairos">
      <h3 className="text-sm font-semibold">Análise Kairos</h3>
      <p className="text-xs text-(--text-secondary)">A análise é opcional. Não publica informações nem registra emissão automaticamente.</p>
