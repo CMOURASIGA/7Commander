@@ -202,7 +202,7 @@ export function PublicFactsEditor({projectId,onChange,proposedNextSteps,selected
         onChange={event=>setSelected(current=>event.target.checked?[...new Set([...current,candidate.sourceReference])]:current.filter(ref=>ref!==candidate.sourceReference))}/>
        <div className="min-w-0 flex-1">
         <p className="font-semibold">{candidate.title}</p>
-        <p className="mt-1 text-(--text-secondary)">Sugestão não publicada · {candidate.origin||"Kairos"}</p>
+        <p className="mt-1 text-(--text-secondary)">Sugestão não publicada · {"origin" in candidate?candidate.origin:"Kairos"}</p>
         {candidate.description?<p className="mt-1 line-clamp-2 text-(--text-secondary)">{candidate.description}</p>:null}
        </div>
        <div className="flex shrink-0 gap-1">
