@@ -59,7 +59,7 @@ export async function POST(req:NextRequest){
  if(audience==="client"&&body.internalSelection!==undefined)return res({error:"Seleção interna não permitida no relatório Cliente."},400);
  const clientFactIds=body.clientFactIds;
  if(audience==="client"&&clientFactIds!==undefined&&
-   (!Array.isArray(clientFactIds)||clientFactIds.length>1500||!clientFactIds.every((id:unknown)=>typeof id==="string"&&/^(project|epic|feature|story|sprint|task|risk|decision):[0-9a-f-]{36}$/i.test(id))))
+   (!Array.isArray(clientFactIds)||clientFactIds.length>1500||!clientFactIds.every((id:unknown)=>typeof id==="string"&&/^(project|epic|feature|story|sprint|task|risk|decision|fact):[0-9a-f-]{36}$/i.test(id))))
    return res({error:"Seleção pública inválida."},400);
  if(audience==="internal"&&clientFactIds!==undefined)return res({error:"Seleção de cliente inválida no relatório Equipe."},400);
  const context=await getReportScope(auth.context,projectId,true);
