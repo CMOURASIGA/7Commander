@@ -34,6 +34,15 @@ export async function getClientReportCandidates(db:DB,org:string,projectId:strin
  for(const x of tasks.data||[])add("task:"+x.id,"deliverable",x.titulo,status(x.status),"Atividade · "+text(x.status));
  for(const x of risks.data||[])add("risk:"+x.id,"risk",executiveRiskTitle(x.titulo),status(x.status),"Ponto de atenção cadastrado no projeto.");
  for(const x of decisions.data||[])add("decision:"+x.id,"next_step",x.titulo,status(x.status),"Decisão registrada · "+text(x.status));
- for(const x of approvedFacts.data||[])candidates.push({...x,id:"fact:"+x.id,source_reference:x.source_reference||null});
+ for(const x of approvedFacts.data||[]){
+  if(!["objective","benefit","deliverable","milestone","risk","next_step"].includes(x.kind))continue;
+  const classification=String(x.classification);
+  candidates.push({
+   id:"fact:"+x.id,kind:x.kind as ClientReportFact["kind"],title:text(x.title),
+   description:text(x.description,3000),
+   classification:(["confirmed","in_progress","hypothesis","ai_recommendation"].includes(classification)?classification:"hypothesis") as ClientReportFact["classification"],
+   due_date:x.due_date||null,source_reference:x.source_reference||null
+  });
+ }
  return candidates;
 }
