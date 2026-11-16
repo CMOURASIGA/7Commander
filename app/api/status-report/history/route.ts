@@ -91,6 +91,18 @@ export async function POST(req:NextRequest){
    const cardNames=new Set((cardRows.data||[]).map(row=>row.titulo));
    report.governance.client_decisions=report.governance.client_decisions.filter(row=>decisionNames.has(row.title));
    report.kanban.completed_titles=report.kanban.completed_titles.filter(title=>cardNames.has(title));
+   const rows=cardRows.data||[];
+   // The report is an editorial selection, so count only selected, verified cards.
+   const statusRows=rows.length?await context.db.from("tasks").select("id,status,due_date").eq("project_id",projectId)
+    .eq("organization_id",context.organizationId).in("id",rows.map(row=>row.id)):{data:[],error:null};
+   if(statusRows.error)return res({error:"Não foi possível calcular as atividades selecionadas."},503);
+   const cards=statusRows.data||[];
+   report.kanban.total=cards.length;
+   report.kanban.todo=cards.filter(card=>["aberta","todo","to_do"].includes(card.status)).length;
+   report.kanban.doing=cards.filter(card=>["em_andamento","doing"].includes(card.status)).length;
+   report.kanban.done=cards.filter(card=>["concluida","done"].includes(card.status)).length;
+   report.kanban.overdue=cards.filter(card=>card.due_date&&card.due_date<new Date().toISOString().slice(0,10)&&!["concluida","done"].includes(card.status)).length;
+   report.governance.decisions_pending=report.governance.client_decisions.filter(row=>["aberta","em_andamento"].includes(row.status)).length;
   }
   const narrative=body.narrative&&typeof body.narrative==="object"&&!Array.isArray(body.narrative)?body.narrative as Record<string,unknown>:{};
   // A client snapshot must not accept an arbitrary narrative submitted by the
