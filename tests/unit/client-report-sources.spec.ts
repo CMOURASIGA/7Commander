@@ -47,3 +47,16 @@ test("Client selections match Kanban board across all three columns",()=>{
  expect(page).toContain('Sprints e suas US');
  expect(page).toContain('Nenhum registro disponível nesta categoria.');
 });
+
+test("Archived editorial milestones never remove Sprint candidates from the Client preview",()=>{
+ const source=file("lib/reports/client-report-candidates.ts");
+ // Legacy published milestones and deliveries are no longer eligible as editorial replacements.
+ expect(source).toContain('filter(x=>["objective","benefit","risk"].includes(x.kind)).map(x=>x.source_reference)');
+ expect(source).toContain('for(const sprint of report.scrum.sprints)');
+ expect(source).toContain('add("sprint:"+sprint.id,"milestone"');
+ expect(source).toContain('add("story:"+story.id,"milestone"');
+ const ui=file("app/status-report/page.tsx");
+ expect(ui).toContain('const selectedSprints=shareable.filter(x=>x.id.startsWith("sprint:"))');
+ expect(ui).toContain('publicFacts:selectClientReportFacts(clientCandidates||[],chosenClientFactIds)');
+ expect(file("app/api/status-report/history/route.ts")).toContain('report.publicFacts=selectClientReportFacts(options,[...selected]);');
+});
