@@ -37,6 +37,7 @@ test("internal report selection validates IDs and excludes unselected records",(
  const report={
   scrum:{enabled:true,sprints:[],backlog_stories:0,stories_total:2,tasks_total:1,tasks_done:0},
   governance:{risks_open:0,decisions_pending:0,client_risks:[],client_decisions:[]},
+  kanban:{total:0,todo:0,doing:0,done:0,overdue:0,completed_titles:[],items:[]},
   internal:{stories:[{id:"story-1"},{id:"story-2"}],tasks:[{id:"task-1"}],meetingLines:[]}
  } as unknown as ReportData;
  const filtered=applyInternalReportSelection(report,selection!);
