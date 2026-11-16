@@ -298,13 +298,18 @@ export default function StatusReportPage() {
   {key:"meetings",label:"Compromissos e pendências das reuniões",items:(scrumReport?.internal?.meetingLines||[]).map(x=>({id:x.sourceReference,title:x.meetingTitle+" · "+x.title}))}
  ];
  function toggleInternalItem(key:InternalReportSelectionKey,id:string,checked:boolean){
-  if(key==="sprints"){
-   const linked=new Set((scrumReport?.internal?.stories||[]).filter(st=>st.sprint_id===id).map(st=>st.id));
+  if(key==="sprints"||key==="stories"){
+   const linkedStoryIds=key==="sprints"
+    ?(scrumReport?.internal?.stories||[]).filter(st=>st.sprint_id===id).map(st=>st.id)
+    :[id];
+   const linked=new Set(linkedStoryIds);
+   const linkedTasks=new Set((scrumReport?.internal?.tasks||[]).filter(t=>t.story_id&&linked.has(t.story_id)).map(t=>t.id));
    setInternalSelection(previous=>{
     const base=previous??availableInternal;
     return {...base,
-      sprints:checked?[...new Set([...base.sprints,id])]:base.sprints.filter(value=>value!==id),
-      stories:checked?[...new Set([...base.stories,...linked])]:base.stories.filter(value=>!linked.has(value))
+      ...(key==="sprints"?{sprints:checked?[...new Set([...base.sprints,id])]:base.sprints.filter(value=>value!==id)}:{}),
+      stories:checked?[...new Set([...base.stories,...linked])]:base.stories.filter(value=>!linked.has(value)),
+      tasks:checked?[...new Set([...base.tasks,...linkedTasks])]:base.tasks.filter(value=>!linkedTasks.has(value))
     };
    });
    return;
