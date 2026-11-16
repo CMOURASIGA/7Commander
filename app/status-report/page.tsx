@@ -165,8 +165,8 @@ function historicalDocument(data:ReportData,audience:ReportAudience,narrative:Ai
   const entries:string[]=[];
   const item=(title:string,detail="")=>'<div class="item"><div>'+htmlEscape(title)+'</div><span>'+htmlEscape(detail)+'</span></div>';
   if(chosen.cards.length){
-   entries.push('<section class="panel"><h2>Atividades selecionadas</h2>'+
-    data.kanban.completed_titles.map(name=>item(name,"Concluída")).join("")+
+   entries.push('<section class="panel"><h2>Cards selecionados por status</h2>'+
+    (data.kanban.items||[]).map(card=>item(card.title,card.status)).join("")+
     '<p class="muted">Cards selecionados: '+data.kanban.total+' · Concluídos: '+data.kanban.done+'</p></section>');
   }
   if(chosen.sprints.length){
