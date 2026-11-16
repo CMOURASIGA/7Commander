@@ -73,7 +73,7 @@ function renumberReportSections(html:string):string{
  let count=0;
  return html.replace(/(<h3>)(\d{2})( · )/g,(_m,tag:string,_number:string,dot:string)=>tag+String(++count).padStart(2,"0")+dot);
 }
-function reportDocument(project:Project, cards:Card[], risks:Risk[], decisions:Decision[], period:string, issueDate:string, analysis:AiAnalysis|null, periodEvents:number|null, periodMetrics:PeriodMetrics|null, audience:ReportAudience, scrum:ReportData|null, includeMitigationAnnex=false) {
+function reportDocument(project:Project, cards:Card[], risks:Risk[], decisions:Decision[], period:string, issueDate:string, analysis:AiAnalysis|null, periodEvents:number|null, periodMetrics:PeriodMetrics|null, audience:ReportAudience, scrum:ReportData|null, includeMitigationAnnex=false, selection?:InternalReportSelection) {
   const done=scrum?.kanban.done??cards.filter(x=>x.columnKey==="done").length, doing=scrum?.kanban.doing??cards.filter(x=>x.columnKey==="doing").length, todo=scrum?.kanban.todo??cards.filter(x=>x.columnKey==="todo").length;
   const atRisk=risks.filter(x=>x.status==="aberto"||x.status==="em_mitigacao");
   const undecided=decisions.filter(x=>x.status==="aberta"||x.status==="em_andamento");
@@ -82,6 +82,8 @@ function reportDocument(project:Project, cards:Card[], risks:Risk[], decisions:D
   const list=(rows:Array<{title:string;note:string}>,missing:string)=>rows.length?rows.map(x=>`<div class="item"><div>${htmlEscape(x.title)}</div><span>${htmlEscape(x.note)}</span></div>`).join(""):`<p class="empty">${missing}</p>`;
   const logo=htmlEscape(BRAND_LOGO_URL);
   const isInternal=audience==="internal";
+  const show=(key:InternalReportSelectionKey)=>!selection||selection[key].length>0;
+  const noneSelected=Boolean(selection&&Object.values(selection).every(a=>a.length===0));
   // REP-01: client document is a separate, strictly public projection.
   // It never interpolates internal story/task/member information.
   if(audience==="client"){
@@ -105,7 +107,7 @@ function reportDocument(project:Project, cards:Card[], risks:Risk[], decisions:D
     ${publicItems("next_step").length?`<section class="panel"><h3>05 · Decisões e próximos passos</h3><h2>Próximos passos</h2>${list(publicItems("next_step"),approvalNotice)}</section>`:""}
     <footer class="foot"><span>CONSULT SERVICES TECNOLOGIA · Commander / Relatório Cliente</span><span>Emitido em ${htmlEscape(issueDate)}</span></footer><div class="actions"><button onclick="window.print()">Imprimir / Salvar em PDF</button></div></main></body></html>`;
   }
-  const scrumSection=scrum?.scrum.enabled?`
+  const scrumSection=show("sprints")&&scrum?.scrum.enabled&&scrum.scrum.sprints.length?`
    <section class="panel" style="margin:16px 0"><div class="scrum-overview"><h3>07 · Scrum</h3><h2>Panorama de Sprints</h2>
    <p class="empty">Indicadores calculados a partir do estado atual das US. Não representam a situação histórica do período escolhido.</p>
    <div class="metrics" style="margin:12px 0"><div class="metric"><small>SPRINTS</small><strong>${scrum.scrum.sprints.length}</strong></div>
@@ -113,7 +115,7 @@ function reportDocument(project:Project, cards:Card[], risks:Risk[], decisions:D
    <div class="metric"><small>TASKS CONCLUÍDAS</small><strong>${scrum.scrum.tasks_done}/${scrum.scrum.tasks_total}</strong></div></div></div>
    ${scrum.scrum.sprints.map(sp=>`<div class="item"><div><b>${htmlEscape(sp.name)}</b><p style="font-size:12px;margin:5px 0">Meta: ${htmlEscape(sp.goal||"Não definida")} · ${htmlEscape(sp.start_date)} a ${htmlEscape(sp.end_date)}</p><p style="font-size:12px;margin:5px 0">US: ${sp.closed}/${sp.stories} concluídas · Pontos: ${sp.points_done}/${sp.points_planned} · Atrasadas: ${sp.overdue} · Bloqueadas: ${sp.blocked}</p>${sp.status==="planned"&&(sp.active>0||sp.resolved>0||sp.closed>0)?`<p class="note">Inconsistência a revisar: Sprint planejada com US em execução ou concluídas.</p>`:""}<p style="font-size:12px;margin:5px 0">Entregas realizadas: ${sp.delivery_actual}/${sp.delivery_planned} previstas · No prazo: ${sp.delivery_on_time} · Fora do prazo: ${sp.delivery_late}</p></div><span>${htmlEscape(sp.status)}</span></div>`).join("")}
    </section>`: "";
-  const internalSection=isInternal&&scrum?.internal?`
+  const internalSection=isInternal&&scrum?.internal&&(show("stories")||show("tasks"))?`
    <section class="panel" style="margin:16px 0"><h3>08 · Operação interna</h3><h2>US, Tasks e impedimentos</h2>
    ${list(scrum.internal.stories.slice(0,35).map(st=>({title:st.title,note:st.workflow_stage.toUpperCase()+" · "+(st.responsible||"Sem responsável")+" · Prazo: "+(st.due_date||"Não definido")+(st.blocked?" · IMPEDIDA: "+st.blocker_reason:"")})),"Sem US cadastradas.")}
    <h2 style="margin-top:18px">Tasks de desenvolvimento</h2>
@@ -129,8 +131,8 @@ function reportDocument(project:Project, cards:Card[], risks:Risk[], decisions:D
   <section class="panel"><h3>03 · Atividades concluídas</h3><h2>Cards concluídos, incluindo reuniões e atividades administrativas</h2>${list(completed.map(x=>({title:x.title,note:"Concluída"})),"Nenhum card em DONE.")}</section>
   <section class="panel"><h3>04 · Governança</h3><h2>Decisões necessárias</h2>${list(undecided.map(x=>({title:x.title,note:x.status})),"Nenhuma decisão pendente registrada.")}</section>
   <section class="panel"><h3>05 · Perspectiva</h3><h2>Próximos passos</h2>${analysis?`<div class="report-ai-text">${safeMarkdownHtml(analysis.nextSteps)}</div>`:`<p class="muted">Próximas ações ainda não registradas.</p>`}<p>Sem linha de base histórica suficiente para uma previsão de custo, prazo ou tendência.</p></section></div>
-  ${isInternal&&scrum?.internal?.meetingLines?.length?`<section class="panel" style="margin:16px 0"><h3>Reuniões registradas</h3><h2>Compromissos e pendências</h2><p class="muted">Origem: atas do projeto. Compromissos não comprovam execução. ${scrum.internal.meetingSource==="local"?"DADOS DE HOMOLOGAÇÃO LOCAL, NÃO OFICIAIS.":""}</p>${scrum.internal.meetingLines.slice(0,75).map(item=>`<div class="item"><div><b>${htmlEscape(item.title)}</b><p style="font-size:12px">${htmlEscape(item.details||"Sem detalhamento")} · ${htmlEscape(item.meetingTitle)} · ${htmlEscape(new Date(item.heldAt).toLocaleDateString("pt-BR"))}</p></div><span>${item.category==="commitment"?"Compromisso":"Pendência"}</span></div>`).join("")}</section>`:""}
-  ${riskReportHtml(scrum?.riskAssessments||[],"internal",{includeMitigationAnnex})}${scrumSection}${internalSection}
+  ${show("meetings")&&isInternal&&scrum?.internal?.meetingLines?.length?`<section class="panel" style="margin:16px 0"><h3>Reuniões registradas</h3><h2>Compromissos e pendências</h2><p class="muted">Origem: atas do projeto. Compromissos não comprovam execução. ${scrum.internal.meetingSource==="local"?"DADOS DE HOMOLOGAÇÃO LOCAL, NÃO OFICIAIS.":""}</p>${scrum.internal.meetingLines.slice(0,75).map(item=>`<div class="item"><div><b>${htmlEscape(item.title)}</b><p style="font-size:12px">${htmlEscape(item.details||"Sem detalhamento")} · ${htmlEscape(item.meetingTitle)} · ${htmlEscape(new Date(item.heldAt).toLocaleDateString("pt-BR"))}</p></div><span>${item.category==="commitment"?"Compromisso":"Pendência"}</span></div>`).join("")}</section>`:""}
+  ${show("risks")&&scrum?.riskAssessments?.length?riskReportHtml(scrum.riskAssessments,"internal",{includeMitigationAnnex}):""}${scrumSection}${internalSection}
   <footer class="foot"><span>CONSULT SERVICES TECNOLOGIA · Commander / Relatório Equipe</span><span>Registro gerado em ${htmlEscape(issueDate)}</span></footer>
   <div class="actions"><button onclick="window.print()">Salvar como PDF / Imprimir</button></div>
   </main></body></html>`;
