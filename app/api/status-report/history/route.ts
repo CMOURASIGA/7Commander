@@ -56,12 +56,26 @@ export async function POST(req:NextRequest){
  const selection=body.internalSelection===undefined?null:parseInternalReportSelection(body.internalSelection);
  if(audience==="internal"&&body.internalSelection!==undefined&&!selection)return res({error:"Seleção de conteúdo inválida."},400);
  if(audience==="client"&&body.internalSelection!==undefined)return res({error:"Seleção interna não permitida no relatório Cliente."},400);
+ const clientFactIds=body.clientFactIds;
+ if(audience==="client"&&clientFactIds!==undefined&&
+   (!Array.isArray(clientFactIds)||clientFactIds.length>150||!clientFactIds.every((id:unknown)=>typeof id==="string"&&UUID.test(id))))
+   return res({error:"Seleção pública inválida."},400);
+ if(audience==="internal"&&clientFactIds!==undefined)return res({error:"Seleção de cliente inválida no relatório Equipe."},400);
  const context=await getReportScope(auth.context,projectId,true);
  if("error" in context)return res({error:context.error},context.status);
  // Recompute on the server. Never store user-supplied report content or unrestricted AI output.
  try{
   const rawReport=await loadReportData(context.db,context.organizationId,projectId,audience);
   const report=audience==="internal"&&selection?applyInternalReportSelection(rawReport,selection):rawReport;
+  if(audience==="client"&&Array.isArray(clientFactIds)){
+   const chosen=new Set(clientFactIds as string[]);
+   // Approved facts ONLY. Do not accept free-text or internal records from the browser.
+   report.publicFacts=(report.publicFacts||[]).filter(fact=>chosen.has(fact.id));
+   const selectedRiskIds=new Set((rawReport.publicFacts||[]).filter(fact=>fact.kind==="risk"&&chosen.has(fact.id))
+    .map(fact=>(fact.source_reference||"").replace(/^risk:/,"")));
+   report.riskAssessments=(report.riskAssessments||[]).filter(risk=>selectedRiskIds.has(risk.id));
+   report.governance.risks_open=report.riskAssessments.filter(risk=>["aberto","em_mitigacao"].includes(risk.status)).length;
+  }
   if(audience==="internal"&&selection){
    // Resolve selected record IDs server-side. Titles are never trusted from the browser.
    const [decisionRows,cardRows]=await Promise.all([
@@ -89,7 +103,7 @@ export async function POST(req:NextRequest){
   }:{
    executiveSummary:`O projeto possui ${report.kanban.total} registros de atividades, com ${report.kanban.done} marcados como concluídos no sistema. O aceite externo não foi comprovado por esses indicadores.`,
    riskAnalysis:`${report.governance.risks_open} riscos ativos constam nos registros autorizados. A ausência de registros não comprova ausência de riscos.`,
-   nextSteps:"Confirmar com a gestão do projeto os próximos marcos, responsáveis, prazos acordados e compromissos antes de comunicá-los como definitivos."
+   nextSteps:"Os próximos passos constam exclusivamente das informações selecionadas e aprovadas para este relatório."
   };
   const created=await context.db.from("project_report_snapshots").insert({
    organization_id:context.organizationId,project_id:projectId,audience,
