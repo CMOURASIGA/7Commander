@@ -8,6 +8,6 @@ export async function GET(req:NextRequest){
  const projectId=req.nextUrl.searchParams.get("projectId")||"";
  const scope=await getReportScope(auth.context,projectId,true);
  if("error" in scope)return NextResponse.json({error:scope.error},{status:scope.status});
- try{return NextResponse.json({data:await getClientReportCandidates(scope.db,scope.organizationId,projectId)},{headers:{"Cache-Control":"private,no-store"}})}
+ try{return NextResponse.json({data:await getClientReportCandidates(scope.db,scope.organizationId,projectId,auth.context)},{headers:{"Cache-Control":"private,no-store"}})}
  catch{return NextResponse.json({error:"Conteúdo do Cliente indisponível."},{status:503})}
 }
