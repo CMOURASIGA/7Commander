@@ -17,7 +17,7 @@ export async function getClientReportCandidates(db:DB,org:string,projectId:strin
   db.from("tasks").select("id,titulo,status").eq("project_id",projectId).eq("organization_id",org).limit(500),
   db.from("risks").select("id,titulo,status").eq("project_id",projectId).eq("organization_id",org).limit(200),
   db.from("decisions").select("id,titulo,status").eq("project_id",projectId).eq("organization_id",org).limit(200),
-  db.from("project_report_public_facts").select("id,kind,title,description,classification,due_date,source_reference").eq("project_id",projectId).eq("organization_id",org).eq("approved_for_client",true).limit(200),
+  db.from("project_report_public_facts").select("id,kind,title,description,classification,due_date,source_reference").eq("project_id",projectId).eq("organization_id",org).limit(200),
  ]);
  if([project,epics,stories,sprints,tasks,risks,decisions,approvedFacts].some(x=>x.error))throw Error("Fontes de conteúdo do Cliente indisponíveis.");
  const candidates:Candidate[]=[];
@@ -34,6 +34,7 @@ export async function getClientReportCandidates(db:DB,org:string,projectId:strin
  for(const x of tasks.data||[])add("task:"+x.id,"deliverable",x.titulo,status(x.status),"Atividade · "+text(x.status));
  for(const x of risks.data||[])add("risk:"+x.id,"risk",executiveRiskTitle(x.titulo),status(x.status),"Ponto de atenção cadastrado no projeto.");
  for(const x of decisions.data||[])add("decision:"+x.id,"next_step",x.titulo,status(x.status),"Decisão registrada · "+text(x.status));
+ // Registros editoriais da área Cliente são candidatos automaticamente, sem publicação prévia.
  for(const x of approvedFacts.data||[]){
   if(!["objective","benefit","deliverable","milestone","risk","next_step"].includes(x.kind))continue;
   const classification=String(x.classification);
@@ -44,5 +45,7 @@ export async function getClientReportCandidates(db:DB,org:string,projectId:strin
    due_date:x.due_date||null,source_reference:x.source_reference||null
   });
  }
- return candidates;
+ // A versão editorial substitui a síntese automática da mesma origem, evitando duplicidade.
+ const editorialSources=new Set((approvedFacts.data||[]).map(x=>x.source_reference).filter(Boolean));
+ return candidates.filter(item=>item.id.startsWith("fact:")||!editorialSources.has(item.source_reference));
 }
