@@ -104,6 +104,17 @@ export async function POST(request:NextRequest){
  const scope=await getReportScope(auth.context,projectId,true);if("error" in scope)return out({error:scope.error},scope.status);
  if(!["owner","editor"].includes(scope.role))return out({error:"Aprovação pública restrita ao responsável do projeto."},403);
  const action=String(data.action||"");
+ if(action==="withdraw_all"){
+  const existing=await scope.db.from("project_report_public_facts").select("id").eq("project_id",projectId)
+   .eq("organization_id",scope.organizationId).eq("approved_for_client",true).limit(250);
+  if(existing.error)return out({error:"Não foi possível conferir as publicações atuais."},503);
+  if((existing.data||[]).length===0)return out({data:{withdrawn:0}});
+  const result=await scope.db.from("project_report_public_facts").update({
+   approved_for_client:false,approved_by:null,approved_at:null,
+   updated_by:auth.context.userId,updated_at:new Date().toISOString()
+  }).eq("project_id",projectId).eq("organization_id",scope.organizationId).eq("approved_for_client",true).select("id");
+  return result.error?out({error:"Não foi possível retirar todas as publicações."},503):out({data:{withdrawn:result.data?.length||0}});
+ }
  if(action==="publish"){
   // One explicit click is authorization. Server checks both editor role and tenant-scoped source.
   const kind=String(data.kind||""),classification=String(data.classification||"");
