@@ -305,9 +305,9 @@ export default function StatusReportPage() {
   {key:"cards",label:"Cards e entregas do Kanban",items:cards.map(x=>({id:x.id,title:x.title}))},
   {key:"risks",label:"Riscos",items:risks.map(x=>({id:x.id,title:x.title}))},
   {key:"decisions",label:"Decisões",items:decisions.map(x=>({id:x.id,title:x.title}))},
-  {key:"sprints",label:"Sprints",items:(scrumReport?.scrum.sprints||[]).map(x=>({id:x.id,title:x.name}))},
-  {key:"stories",label:"Histórias de Usuário",items:(scrumReport?.internal?.stories||[]).map(x=>({id:x.id,title:x.title}))},
-  {key:"tasks",label:"Tasks",items:(scrumReport?.internal?.tasks||[]).map(x=>({id:x.id,title:x.title}))},
+  {key:"sprints",label:"Sprints e suas US",items:(scrumReport?.scrum.sprints||[]).map(x=>({id:x.id,title:x.name+" · "+x.status+" · "+(scrumReport?.internal?.stories||[]).filter(st=>st.sprint_id===x.id).length+" US"}))},
+  {key:"stories",label:"Histórias de Usuário",items:(scrumReport?.internal?.stories||[]).map(x=>({id:x.id,title:x.title+" · "+x.workflow_stage}))},
+  {key:"tasks",label:"Tasks do Scrum",items:(scrumReport?.internal?.tasks||[]).map(x=>({id:x.id,title:x.title+" · "+x.state}))},
   {key:"meetings",label:"Compromissos e pendências das reuniões",items:(scrumReport?.internal?.meetingLines||[]).map(x=>({id:x.sourceReference,title:x.meetingTitle+" · "+x.title}))}
  ];
  function toggleInternalItem(key:InternalReportSelectionKey,id:string,checked:boolean){
@@ -483,7 +483,7 @@ export default function StatusReportPage() {
     </div>
     {audience==="internal"&&<section className="workspace-card space-y-3 p-4" aria-label="Curadoria do relatório Equipe">
       <h3 className="text-sm font-semibold">Conteúdo do relatório Equipe</h3>
-      <p className="text-xs text-(--text-secondary)">Selecione os registros que devem aparecer. A escolha afeta a prévia, o HTML, o PDF e o snapshot arquivado. Indicadores gerais seguem representando o projeto completo.</p>
+      <p className="text-xs text-(--text-secondary)">Selecione os registros que devem aparecer. O número antes da barra é a quantidade selecionada, e o número depois da barra é a quantidade disponível. A escolha afeta a prévia, o HTML, o PDF e o snapshot arquivado. Indicadores gerais seguem representando o projeto completo.</p>
       <div className="flex gap-2">
        <button className="workspace-button-secondary px-3 py-2 text-xs" type="button" onClick={()=>setInternalSelection(availableInternal)}>Selecionar todos</button>
        <button className="workspace-button-secondary px-3 py-2 text-xs" type="button" onClick={()=>setInternalSelection({cards:[],risks:[],decisions:[],sprints:[],stories:[],tasks:[],meetings:[]})}>Limpar seleção</button>
@@ -519,14 +519,17 @@ export default function StatusReportPage() {
       </div>
       <p className="text-xs text-(--text-secondary)">{clientCandidatesStatus||chosenClientFactIds.length+" de "+clientItems.length+" informações selecionadas"}</p>
       {(["objective","benefit","deliverable","milestone","risk","next_step"] as const).map(kind=>{
-       const choices=clientItems.filter(x=>x.kind===kind);if(!choices.length)return null;
+       const choices=clientItems.filter(x=>x.kind===kind);
        const titles:{[key:string]:string}={objective:"Objetivos",benefit:"Benefícios",deliverable:"Entregas do Kanban do Projeto",milestone:"Sprints e respectivas US",risk:"Riscos",next_step:"Decisões registradas"};
        return <details key={kind} className="rounded-lg border border-(--border) p-3">
         <summary className="cursor-pointer text-sm font-medium">{titles[kind]} ({choices.filter(x=>chosenClientFactIds.includes(x.id)).length}/{choices.length})</summary>
         <div className="mt-3 max-h-52 space-y-2 overflow-y-auto">
+         {!choices.length&&<p className="text-xs text-(--text-secondary)">Nenhum registro disponível para este projeto nesta categoria.</p>}
          {choices.map(item=><label key={item.id} className="flex items-start gap-2 text-xs">
           <input type="checkbox" checked={chosenClientFactIds.includes(item.id)} onChange={event=>setClientFactIds(previous=>{const ids=previous??clientItems.map(x=>x.id);return event.target.checked?[...new Set([...ids,item.id])]:ids.filter(x=>x!==item.id);})}/>
-          <span><strong>{item.title}</strong><span className="block text-(--text-secondary)">{item.description} · {item.classification}</span></span>
+          <span><strong>{item.title}</strong><span className="block text-(--text-secondary)">{item.description} · {item.classification}</span>
+           {kind==="milestone"&&item.id.startsWith("sprint:")&&<span className="mt-1 block space-y-1 pl-2 text-(--text-secondary)">{(clientCandidates||[]).filter(st=>st.id.startsWith("story:")&&st.source_reference===item.id).map(st=><span className="block" key={st.id}>{st.title} · {st.description}</span>)}</span>}
+          </span>
          </label>)}
         </div>
        </details>;
