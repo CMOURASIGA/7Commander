@@ -62,6 +62,22 @@ export async function POST(req:NextRequest){
  try{
   const rawReport=await loadReportData(context.db,context.organizationId,projectId,audience);
   const report=audience==="internal"&&selection?applyInternalReportSelection(rawReport,selection):rawReport;
+  if(audience==="internal"&&selection){
+   // Resolve selected record IDs server-side. Titles are never trusted from the browser.
+   const [decisionRows,cardRows]=await Promise.all([
+    selection.decisions.length
+     ?context.db.from("decisions").select("id,titulo").eq("project_id",projectId).eq("organization_id",context.organizationId).in("id",selection.decisions)
+     :Promise.resolve({data:[],error:null}),
+    selection.cards.length
+     ?context.db.from("tasks").select("id,titulo").eq("project_id",projectId).eq("organization_id",context.organizationId).in("id",selection.cards)
+     :Promise.resolve({data:[],error:null}),
+   ]);
+   if(decisionRows.error||cardRows.error)return res({error:"Registros selecionados indisponíveis."},503);
+   const decisionNames=new Set((decisionRows.data||[]).map(row=>row.titulo));
+   const cardNames=new Set((cardRows.data||[]).map(row=>row.titulo));
+   report.governance.client_decisions=report.governance.client_decisions.filter(row=>decisionNames.has(row.title));
+   report.kanban.completed_titles=report.kanban.completed_titles.filter(title=>cardNames.has(title));
+  }
   const narrative=body.narrative&&typeof body.narrative==="object"&&!Array.isArray(body.narrative)?body.narrative as Record<string,unknown>:{};
   // A client snapshot must not accept an arbitrary narrative submitted by the
   // browser, since an editor could accidentally archive internal discussion
