@@ -2,6 +2,7 @@ import {NextRequest,NextResponse} from "next/server";
 import {requireApiAuth} from "@/lib/api-auth";
 import {getReportScope,loadReportData,ReportAudience} from "@/lib/scrum/report-data";
 import {applyInternalReportSelection,parseInternalReportSelection} from "@/lib/reports/internal-report-selection";
+import {getClientReportCandidates} from "@/lib/reports/client-report-candidates";
 export const dynamic="force-dynamic";
 const res=(data:unknown,status=200)=>NextResponse.json(data,{status,headers:{"Cache-Control":"private,no-store"}});
 const UUID=/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -58,7 +59,7 @@ export async function POST(req:NextRequest){
  if(audience==="client"&&body.internalSelection!==undefined)return res({error:"Seleção interna não permitida no relatório Cliente."},400);
  const clientFactIds=body.clientFactIds;
  if(audience==="client"&&clientFactIds!==undefined&&
-   (!Array.isArray(clientFactIds)||clientFactIds.length>150||!clientFactIds.every((id:unknown)=>typeof id==="string"&&UUID.test(id))))
+   (!Array.isArray(clientFactIds)||clientFactIds.length>1500||!clientFactIds.every((id:unknown)=>typeof id==="string"&&/^(project|epic|feature|story|sprint|task|risk|decision):[0-9a-f-]{36}$/i.test(id))))
    return res({error:"Seleção pública inválida."},400);
  if(audience==="internal"&&clientFactIds!==undefined)return res({error:"Seleção de cliente inválida no relatório Equipe."},400);
  const context=await getReportScope(auth.context,projectId,true);
@@ -68,13 +69,15 @@ export async function POST(req:NextRequest){
   const rawReport=await loadReportData(context.db,context.organizationId,projectId,audience);
   const report=audience==="internal"&&selection?applyInternalReportSelection(rawReport,selection):rawReport;
   if(audience==="client"&&Array.isArray(clientFactIds)){
-   const chosen=new Set(clientFactIds as string[]);
-   // Approved facts ONLY. Do not accept free-text or internal records from the browser.
-   report.publicFacts=(report.publicFacts||[]).filter(fact=>chosen.has(fact.id));
-   const selectedRiskIds=new Set((rawReport.publicFacts||[]).filter(fact=>fact.kind==="risk"&&chosen.has(fact.id))
-    .map(fact=>(fact.source_reference||"").replace(/^risk:/,"")));
-   report.riskAssessments=(report.riskAssessments||[]).filter(risk=>selectedRiskIds.has(risk.id));
-   report.governance.risks_open=report.riskAssessments.filter(risk=>["aberto","em_mitigacao"].includes(risk.status)).length;
+   const options=await getClientReportCandidates(context.db,context.organizationId,projectId);
+   const selected=new Set(clientFactIds as string[]);
+   // All options are rebuilt server-side from authorized project records.
+   // Client output excludes raw operational descriptions and internal narrative.
+   report.publicFacts=options.filter(fact=>selected.has(fact.id));
+   report.riskAssessments=[];
+   report.governance.risks_open=report.publicFacts.filter(fact=>fact.kind==="risk").length;
+   report.governance.client_decisions=[];
+   report.governance.client_risks=[];
   }
   if(audience==="internal"&&selection){
    // Resolve selected record IDs server-side. Titles are never trusted from the browser.
