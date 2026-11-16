@@ -227,6 +227,7 @@ export default function StatusReportPage() {
  const [clientCandidatesStatus,setClientCandidatesStatus]=useState("");
  const [teamNextSteps,setTeamNextSteps]=useState("");
  const [scrumReport,setScrumReport]=useState<ReportData|null>(null);
+ const [selectionCatalog,setSelectionCatalog]=useState<ReportData|null>(null);
  const [retryRevision,setRetryRevision]=useState(0);
  const [factsRevision,setFactsRevision]=useState(0);
  const [scrumStatus,setScrumStatus]=useState("Consultando indicadores do projeto...");
@@ -274,28 +275,53 @@ export default function StatusReportPage() {
   }catch(e){if(!cancelled)setStatus(e instanceof Error?e.message:"Erro ao consolidar dados.");}finally{if(!cancelled)setBusy(false);}})();return()=>{cancelled=true}},[projectId,retryRevision]);
  useEffect(()=>{if(!projectId||analysisRequest.key!==analysisKey){setAnalysisLoading(false);setAnalysis(null);setPeriodEvents(null);setPeriodMetrics(null);setAnalysisStatus(projectId?"Análise Kairos opcional. Os indicadores operacionais estão disponíveis.":"Selecione um projeto.");return;}if(periodMode==="period"&&(!start||!end||start>end)){setAnalysis(null);setAnalysisStatus("Corrija as datas do período.");return;}let cancelled=false;setAnalysis(null);setPeriodEvents(null);setPeriodMetrics(null);setAnalysisLoading(true);setAnalysisStatus("Kairos analisando os registros autorizados...");void(async()=>{try{const response=await measuredFetch("/api/status-report/analysis",{method:"POST",headers:getClientAuthHeaders({"Content-Type":"application/json"}),body:JSON.stringify({projectId,mode:periodMode,start,end,audience}),cache:"no-store"});const payload=await response.json();if(!response.ok)throw Error(payload.error||"Falha na análise.");if(!cancelled){setAnalysis(payload.data?.analysis??null);setPeriodEvents(payload.data?.periodEvents??null);setPeriodMetrics(payload.data?.periodMetrics??null);setAnalysisStatus(payload.data?.source==="ai"?"Análise Kairos gerada. Revise antes de enviar ao cliente.":payload.warning||"Análise de IA indisponível.");}}catch(e){if(!cancelled){setAnalysisStatus(e instanceof Error?e.message:"Falha na análise.");setAnalysis(null);}}finally{if(!cancelled)setAnalysisLoading(false);}})();return()=>{cancelled=true};},[projectId,periodMode,start,end,audience,analysisKey,analysisRequest.key,analysisRequest.revision]);
  const project=projects.find(x=>x.id===projectId);
- useEffect(()=>{setInternalSelection(null);setClientFactIds(null);setClientCandidates(null);setTeamNextSteps("");},[projectId]);
+ useEffect(()=>{setInternalSelection(null);setClientFactIds(null);setClientCandidates(null);setSelectionCatalog(null);setTeamNextSteps("");},[projectId]);
+ // The selectable Scrum inventory is independent of the report audience.
+ // Only authorized editors can retrieve the internal catalogue; public rendering
+ // continues to use the server-generated, client-safe candidate projection.
  useEffect(()=>{
-  if(!projectId||audience!=="client")return;
+  if(!projectId)return;
+  let active=true;setSelectionCatalog(null);
+  void measuredFetch("/api/status-report/scrum?projectId="+encodeURIComponent(projectId)+"&audience=internal",
+   {headers:getClientAuthHeaders(),cache:"no-store"})
+   .then(async response=>{if(!response.ok)return null;const body=await response.json();return body.data as ReportData|null})
+   .then(data=>{if(active)setSelectionCatalog(data)})
+   .catch(()=>{if(active)setSelectionCatalog(null)});
+  return()=>{active=false};
+ },[projectId,retryRevision]);
+ useEffect(()=>{
+  if(!projectId)return;
   let live=true;setClientCandidates(null);setClientCandidatesStatus("Consultando conteúdo do projeto...");
   void measuredFetch("/api/status-report/client-candidates?projectId="+encodeURIComponent(projectId),
    {headers:getClientAuthHeaders(),cache:"no-store"})
    .then(async response=>{const payload=await response.json();if(!response.ok)throw Error(payload.error||"Conteúdo indisponível.");if(live){setClientCandidates(payload.data||[]);setClientCandidatesStatus("");}})
    .catch(error=>{if(live){setClientCandidatesStatus(error instanceof Error?error.message:"Falha ao consultar conteúdo.");}});
   return()=>{live=false};
- },[projectId,audience,retryRevision]);
+ },[projectId,retryRevision]);
  const cards=useMemo(()=>board?.columns.flatMap(x=>x.cards)||[],[board]);
 
+ const sourceCatalog=selectionCatalog??scrumReport;
  const availableInternal:InternalReportSelection={
   cards:cards.map(x=>x.id),risks:risks.map(x=>x.id),decisions:decisions.map(x=>x.id),
-  sprints:scrumReport?.scrum.sprints.map(x=>x.id)||[],
-  stories:scrumReport?.internal?.stories.map(x=>x.id)||[],
-  tasks:scrumReport?.internal?.tasks.map(x=>x.id)||[],
-  meetings:scrumReport?.internal?.meetingLines?.map(x=>x.sourceReference)||[],
+  sprints:sourceCatalog?.scrum.sprints.map(x=>x.id)||[],
+  stories:sourceCatalog?.internal?.stories.map(x=>x.id)||[],
+  tasks:sourceCatalog?.internal?.tasks.map(x=>x.id)||[],
+  meetings:sourceCatalog?.internal?.meetingLines?.map(x=>x.sourceReference)||[],
  };
  const chosenInternal=internalSelection??availableInternal;
  const clientItems=clientSelectableFacts(clientCandidates||[]);
- const chosenClientFactIds=clientFactIds??clientItems.map(x=>x.id);
+ // Single project-level selection is projected to each report audience.
+ const isClientFactSelected=(fact:ClientReportFact):boolean=>{
+  if(fact.kind==="deliverable"&&fact.id.startsWith("task:"))return chosenInternal.cards.includes(fact.id.slice(5));
+  if(fact.kind==="milestone"&&fact.id.startsWith("sprint:"))return chosenInternal.sprints.includes(fact.id.slice(7));
+  if(fact.kind==="next_step"&&fact.id.startsWith("decision:"))return chosenInternal.decisions.includes(fact.id.slice(9));
+  if(fact.kind==="risk"){
+   const ref=fact.id.startsWith("risk:")?fact.id:fact.source_reference;
+   if(ref?.startsWith("risk:"))return chosenInternal.risks.includes(ref.slice(5));
+  }
+  return (clientFactIds??clientItems.map(x=>x.id)).includes(fact.id);
+ };
+ const chosenClientFactIds=clientItems.filter(isClientFactSelected).map(item=>item.id);
  const visibleClientReport=scrumReport&&audience==="client"?{
   ...scrumReport,
   publicFacts:selectClientReportFacts(clientCandidates||[],chosenClientFactIds),
@@ -305,18 +331,18 @@ export default function StatusReportPage() {
   {key:"cards",label:"Cards e entregas do Kanban",items:cards.map(x=>({id:x.id,title:x.title}))},
   {key:"risks",label:"Riscos",items:risks.map(x=>({id:x.id,title:x.title}))},
   {key:"decisions",label:"Decisões",items:decisions.map(x=>({id:x.id,title:x.title}))},
-  {key:"sprints",label:"Sprints e suas US",items:(scrumReport?.scrum.sprints||[]).map(x=>({id:x.id,title:x.name+" · "+x.status+" · "+(scrumReport?.internal?.stories||[]).filter(st=>st.sprint_id===x.id).length+" US"}))},
-  {key:"stories",label:"Histórias de Usuário",items:(scrumReport?.internal?.stories||[]).map(x=>({id:x.id,title:x.title+" · "+x.workflow_stage}))},
-  {key:"tasks",label:"Tasks do Scrum",items:(scrumReport?.internal?.tasks||[]).map(x=>({id:x.id,title:x.title+" · "+x.state}))},
-  {key:"meetings",label:"Compromissos e pendências das reuniões",items:(scrumReport?.internal?.meetingLines||[]).map(x=>({id:x.sourceReference,title:x.meetingTitle+" · "+x.title}))}
+  {key:"sprints",label:"Sprints e suas US",items:(sourceCatalog?.scrum.sprints||[]).map(x=>({id:x.id,title:x.name+" · "+x.status+" · "+(sourceCatalog?.internal?.stories||[]).filter(st=>st.sprint_id===x.id).length+" US"}))},
+  {key:"stories",label:"Histórias de Usuário",items:(sourceCatalog?.internal?.stories||[]).map(x=>({id:x.id,title:x.title+" · "+x.workflow_stage}))},
+  {key:"tasks",label:"Tasks do Scrum",items:(sourceCatalog?.internal?.tasks||[]).map(x=>({id:x.id,title:x.title+" · "+x.state}))},
+  {key:"meetings",label:"Compromissos e pendências das reuniões (somente Equipe)",items:(sourceCatalog?.internal?.meetingLines||[]).map(x=>({id:x.sourceReference,title:x.meetingTitle+" · "+x.title}))}
  ];
  function toggleInternalItem(key:InternalReportSelectionKey,id:string,checked:boolean){
   if(key==="sprints"||key==="stories"){
    const linkedStoryIds=key==="sprints"
-    ?(scrumReport?.internal?.stories||[]).filter(st=>st.sprint_id===id).map(st=>st.id)
+    ?(sourceCatalog?.internal?.stories||[]).filter(st=>st.sprint_id===id).map(st=>st.id)
     :[id];
    const linked=new Set(linkedStoryIds);
-   const linkedTasks=new Set((scrumReport?.internal?.tasks||[]).filter(t=>t.story_id&&linked.has(t.story_id)).map(t=>t.id));
+   const linkedTasks=new Set((sourceCatalog?.internal?.tasks||[]).filter(t=>t.story_id&&linked.has(t.story_id)).map(t=>t.id));
    setInternalSelection(previous=>{
     const base=previous??availableInternal;
     return {...base,
@@ -481,24 +507,38 @@ export default function StatusReportPage() {
      <p className="mt-1 text-sm text-(--text-secondary)">Selecione os fatos autorizados e confira as regras de divulgação antes de emitir.</p>
      <p className="mt-2 text-xs text-(--text-secondary)">Projeto: {project?.name||"Não selecionado"} · {audience==="client"?"Cliente":"Equipe"} · {periodMode==="current"?"Situação atual":"Período personalizado"}</p>
     </div>
-    {audience==="internal"&&<section className="workspace-card space-y-3 p-4" aria-label="Curadoria do relatório Equipe">
-      <h3 className="text-sm font-semibold">Conteúdo do relatório Equipe</h3>
-      <p className="text-xs text-(--text-secondary)">Selecione os registros que devem aparecer. O número antes da barra é a quantidade selecionada, e o número depois da barra é a quantidade disponível. A escolha afeta a prévia, o HTML, o PDF e o snapshot arquivado. Indicadores gerais seguem representando o projeto completo.</p>
-      <div className="flex gap-2">
-       <button className="workspace-button-secondary px-3 py-2 text-xs" type="button" onClick={()=>setInternalSelection(availableInternal)}>Selecionar todos</button>
-       <button className="workspace-button-secondary px-3 py-2 text-xs" type="button" onClick={()=>setInternalSelection({cards:[],risks:[],decisions:[],sprints:[],stories:[],tasks:[],meetings:[]})}>Limpar seleção</button>
+    <section className="workspace-card space-y-3 p-4" aria-label="Seleção única de conteúdo do projeto">
+      <h3 className="font-semibold">Conteúdo do projeto | Seleção única</h3>
+      <p className="text-xs text-(--text-secondary)">Uma única escolha para Cliente e Equipe. Os mesmos registros ficam selecionados ao trocar o público. Cliente recebe somente a versão resumida e segura; detalhes reservados e reuniões internas aparecem exclusivamente no relatório Equipe. Não é necessário publicar ou despublicar.</p>
+      <div className="flex flex-wrap gap-2">
+       <button type="button" className="workspace-button-secondary px-3 py-2 text-xs" disabled={!board||!clientCandidates} onClick={()=>{setInternalSelection(availableInternal);setClientFactIds(clientItems.map(x=>x.id))}}>Selecionar todos</button>
+       <button type="button" className="workspace-button-secondary px-3 py-2 text-xs" onClick={()=>{setInternalSelection({cards:[],risks:[],decisions:[],sprints:[],stories:[],tasks:[],meetings:[]});setClientFactIds([])}}>Limpar seleção</button>
       </div>
-      {internalGroups.map(group=><details key={group.key} className="rounded-lg border border-(--border) p-3">
-        <summary className="cursor-pointer text-sm font-medium">{group.label} ({chosenInternal[group.key].length}/{group.items.length})</summary>
+      {(["objective","benefit"] as const).map(kind=>{
+       const choices=clientItems.filter(x=>x.kind===kind);
+       const labels={objective:"Objetivos",benefit:"Benefícios"};
+       return <details key={kind} className="rounded-lg border border-(--border) p-3">
+        <summary className="cursor-pointer text-sm font-medium">{labels[kind]} ({choices.filter(isClientFactSelected).length}/{choices.length})</summary>
         <div className="mt-3 max-h-52 space-y-2 overflow-y-auto">
-         {group.items.length===0?<p className="text-xs text-(--text-secondary)">Sem registros disponíveis.</p>:group.items.map(item=><label key={item.id} className="flex items-start gap-2 text-xs">
-           <input type="checkbox" checked={chosenInternal[group.key].includes(item.id)} onChange={event=>toggleInternalItem(group.key,item.id,event.target.checked)}/>
-           <span>{item.title}</span>
+         {!choices.length?<p className="text-xs text-(--text-secondary)">Nenhum registro cadastrado.</p>:choices.map(item=><label key={item.id} className="flex items-start gap-2 text-xs">
+          <input type="checkbox" checked={isClientFactSelected(item)} onChange={e=>setClientFactIds(prev=>{const base=prev??clientItems.map(x=>x.id);return e.target.checked?[...new Set([...base,item.id])]:base.filter(id=>id!==item.id)})}/>
+          <span>{item.title}</span>
          </label>)}
         </div>
+       </details>
+      })}
+      {internalGroups.map(group=><details key={group.key} className="rounded-lg border border-(--border) p-3">
+       <summary className="cursor-pointer text-sm font-medium">{group.label} ({chosenInternal[group.key].length}/{group.items.length})</summary>
+       <div className="mt-3 max-h-52 space-y-2 overflow-y-auto">
+        {!group.items.length?<p className="text-xs text-(--text-secondary)">Nenhum registro disponível nesta categoria.</p>:group.items.map(item=><label key={item.id} className="flex items-start gap-2 text-xs">
+         <input type="checkbox" checked={chosenInternal[group.key].includes(item.id)} onChange={event=>toggleInternalItem(group.key,item.id,event.target.checked)}/>
+         <span>{item.title}</span>
+        </label>)}
+       </div>
       </details>)}
-      <p className="text-xs text-(--text-secondary)">Ao modificar a seleção, a narrativa anterior do Kairos é retirada da prévia para não analisar registros excluídos.</p>
-    </section>}
+      {clientCandidatesStatus&&<p role="status" className="text-xs text-(--text-secondary)">{clientCandidatesStatus}</p>}
+      <p className="text-xs text-(--text-secondary)">Os totais indicam selecionados/disponíveis. As escolhas controlam a prévia e a emissão do público selecionado.</p>
+     </section>
     {audience==="internal"&&<section className="workspace-card space-y-2 p-4" aria-label="Próximos passos da equipe">
       <h3 className="text-sm font-semibold">Próximos passos da Equipe</h3>
       <p className="text-xs text-(--text-secondary)">Preencha ações acordadas e pendentes de execução. Este campo é editorial, não cria Tasks e não deve afirmar entregas concluídas sem evidência. Se ficar vazio, a seção não deve inventar próximos passos.</p>
@@ -510,31 +550,6 @@ export default function StatusReportPage() {
      Incluir anexo de mitigação completa no PDF da Equipe (opcional)
     </label>}
     <p role="status" className="text-xs text-(--text-secondary)">{scrumStatus}</p>
-    {audience==="client"&&<section className="workspace-card space-y-3 p-4" aria-label="Gestão do conteúdo Cliente">
-      <h3 className="font-semibold">Gestão do conteúdo | Cliente</h3>
-      <p className="text-xs text-(--text-secondary)">Selecione diretamente os registros que deseja apresentar. Não é necessário publicar ou despublicar. A versão Cliente utiliza títulos, situações e resumos de acompanhamento, sem notas internas, responsáveis, impedimentos ou detalhes técnicos reservados.</p>
-      <div className="flex gap-2">
-       <button type="button" disabled={!clientCandidates} className="workspace-button-secondary px-3 py-2 text-xs" onClick={()=>setClientFactIds(clientItems.map(x=>x.id))}>Selecionar todos</button>
-       <button type="button" disabled={!clientCandidates} className="workspace-button-secondary px-3 py-2 text-xs" onClick={()=>setClientFactIds([])}>Limpar seleção</button>
-      </div>
-      <p className="text-xs text-(--text-secondary)">{clientCandidatesStatus||chosenClientFactIds.length+" de "+clientItems.length+" informações selecionadas"}</p>
-      {(["objective","benefit","deliverable","milestone","risk","next_step"] as const).map(kind=>{
-       const choices=clientItems.filter(x=>x.kind===kind);
-       const titles:{[key:string]:string}={objective:"Objetivos",benefit:"Benefícios",deliverable:"Entregas do Kanban do Projeto",milestone:"Sprints e respectivas US",risk:"Riscos",next_step:"Decisões registradas"};
-       return <details key={kind} className="rounded-lg border border-(--border) p-3">
-        <summary className="cursor-pointer text-sm font-medium">{titles[kind]} ({choices.filter(x=>chosenClientFactIds.includes(x.id)).length}/{choices.length})</summary>
-        <div className="mt-3 max-h-52 space-y-2 overflow-y-auto">
-         {!choices.length&&<p className="text-xs text-(--text-secondary)">Nenhum registro disponível para este projeto nesta categoria.</p>}
-         {choices.map(item=><label key={item.id} className="flex items-start gap-2 text-xs">
-          <input type="checkbox" checked={chosenClientFactIds.includes(item.id)} onChange={event=>setClientFactIds(previous=>{const ids=previous??clientItems.map(x=>x.id);return event.target.checked?[...new Set([...ids,item.id])]:ids.filter(x=>x!==item.id);})}/>
-          <span><strong>{item.title}</strong><span className="block text-(--text-secondary)">{item.description} · {item.classification}</span>
-           {kind==="milestone"&&item.id.startsWith("sprint:")&&<span className="mt-1 block space-y-1 pl-2 text-(--text-secondary)">{(clientCandidates||[]).filter(st=>st.id.startsWith("story:")&&st.source_reference===item.id).map(st=><span className="block" key={st.id}>{st.title} · {st.description}</span>)}</span>}
-          </span>
-         </label>)}
-        </div>
-       </details>;
-      })}
-     </section>}
     <section className="workspace-card space-y-2 p-4" aria-label="Análise opcional do Kairos">
      <h3 className="text-sm font-semibold">Análise Kairos</h3>
      <p className="text-xs text-(--text-secondary)">A análise é opcional. Não publica informações nem registra emissão automaticamente.</p>

@@ -14,7 +14,7 @@ test("Sprint filters preserve parent collapse and expand behavior",()=>{
 test("Client report selection does not depend on publishing",()=>{
  const page=readFileSync(resolve(process.cwd(),"app/status-report/page.tsx"),"utf8");
  const source=readFileSync(resolve(process.cwd(),"lib/reports/client-report-candidates.ts"),"utf8");
- expect(page).toContain('aria-label="Gestão do conteúdo Cliente"');
+ expect(page).toContain('aria-label="Seleção única de conteúdo do projeto"');
  expect(page).toContain('Não é necessário publicar ou despublicar.');
  expect(page).not.toContain('<PublicFactsEditor');
  expect(page).not.toContain('Despublicar tudo');

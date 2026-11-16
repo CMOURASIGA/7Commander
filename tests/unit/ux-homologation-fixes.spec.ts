@@ -58,7 +58,7 @@ test("UX-REP-04 shows client selection and report preview side-by-side while pre
  expect(page).toContain('xl:max-h-[calc(100vh-2rem)]');
  expect(page).toContain('xl:h-[calc(100vh-15rem)]');
  expect(page).toContain('sandbox="allow-scripts"');
- expect(page).toContain('aria-label="Gestão do conteúdo Cliente"');
+ expect(page).toContain('aria-label="Seleção única de conteúdo do projeto"');
  expect(page).toContain('publicFacts:selectClientReportFacts(clientCandidates||[],chosenClientFactIds)');
  expect(page).toContain('Registrar emissão no histórico');
  expect(page).toContain('documentHtml');
