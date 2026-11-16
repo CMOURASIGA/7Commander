@@ -34,7 +34,10 @@ export async function getClientReportCandidates(db:DB,org:string,projectId:strin
   add("sprint:"+sprint.id,"milestone",sprint.name,status(sprint.status),"Sprint · "+text(sprint.status)+" · "+text(sprint.start_date)+" a "+text(sprint.end_date));
   for(const story of stories.data||[]){
    if(story.sprint_id!==sprint.id)continue;
-   add("story:"+story.id,"milestone","US: "+story.title,status(story.workflow_stage),"Status da US: "+text(story.workflow_stage),"sprint:"+sprint.id);
+   const stage=String(story.workflow_stage||"new").toLowerCase();
+   const stageLabel=({new:"Nova",ready:"Pronta",active:"Em execução",resolved:"Aguardando validação",closed:"Concluída"} as Record<string,string>)[stage]||text(stage);
+   const stageClassification=stage==="closed"?"confirmed":stage==="active"||stage==="resolved"?"in_progress":"hypothesis";
+   add("story:"+story.id,"milestone","US: "+story.title,stageClassification,"Status da US: "+stageLabel,"sprint:"+sprint.id);
   }
  }
  for(const x of risks.data||[])add("risk:"+x.id,"risk",executiveRiskTitle(x.titulo),status(x.status),"Ponto de atenção cadastrado no projeto.");
