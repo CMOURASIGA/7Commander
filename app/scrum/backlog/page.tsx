@@ -86,13 +86,23 @@ export default function BacklogPage(){
   deepLinkHandled.current=true;
   open(item,item.type,true);
  },[data.projects,data.projectId,rows]);
+ const sprintScopedIds=useMemo(()=>{
+  if(sprintFilter==="all")return null;
+  const relatedStories=data.stories.filter(st=>sprintFilter==="unassigned"?!st.sprint_id:st.sprint_id===sprintFilter);
+  const storyIds=new Set(relatedStories.map(st=>st.id));
+  const featureIds=new Set(relatedStories.map(st=>st.feature_id).filter((id):id is string=>Boolean(id)));
+  const epicIds=new Set(items.filter(item=>item.item_type==="feature"&&featureIds.has(item.id)).map(item=>item.parent_id).filter((id):id is string=>Boolean(id)));
+  const ids=new Set<string>([...storyIds,...featureIds,...epicIds]);
+  for(const item of items)if(item.item_type==="task"&&item.story_id&&storyIds.has(item.story_id))ids.add(item.id);
+  return ids;
+ },[data.stories,items,sprintFilter]);
  const visible=rows.filter(r=>{
   const term=query.trim().toLowerCase().replace(/^#/,"");
   const matchesText=!term||r.title.toLowerCase().includes(term)||r.number===term||r.number.startsWith(term+".");
   const matchesType=typeFilter==="all"||r.type===typeFilter;
   const matchesState=stateFilter==="all"||r.state===stateFilter;
   const matchesResponsible=responsibleFilter==="all"||(r.story?.responsible||r.item?.responsible||"")===responsibleFilter;
-  const matchesSprint=sprintFilter==="all"||(r.story?sprintFilter==="unassigned"?!r.story.sprint_id:r.story.sprint_id===sprintFilter:true);
+  const matchesSprint=sprintScopedIds===null||sprintScopedIds.has(r.id);
   const filtersActive=query||typeFilter!=="all"||stateFilter!=="all"||sprintFilter!=="all"||responsibleFilter!=="all";
   return matchesText&&matchesType&&matchesState&&matchesResponsible&&matchesSprint&&(!r.ancestorIds.some(p=>collapsed.includes(p))||Boolean(filtersActive));
  });
