@@ -9,7 +9,7 @@ export type ReportAudience="client"|"internal";
 export type ScrumReportStory={id:string;sprint_id:string|null;title:string;workflow_stage:string;story_points:number|null;due_date:string|null;actual_end_date:string|null;blocked:boolean;blocker_reason:string;responsible:string|null};
 export type ScrumReportTask={id:string;story_id:string|null;title:string;state:string;responsible:string|null};
 export type ScrumReportSprint={id:string;name:string;goal:string;status:string;start_date:string;end_date:string;stories:number;closed:number;resolved:number;active:number;blocked:number;overdue:number;points_planned:number;points_done:number;delivery_planned:number;delivery_actual:number;delivery_on_time:number;delivery_late:number};
-export type ClientReportFact={kind:"objective"|"benefit"|"deliverable"|"milestone"|"risk"|"next_step";title:string;description:string;classification:"confirmed"|"in_progress"|"hypothesis"|"ai_recommendation";due_date:string|null;source_reference?:string|null};
+export type ClientReportFact={id:string;kind:"objective"|"benefit"|"deliverable"|"milestone"|"risk"|"next_step";title:string;description:string;classification:"confirmed"|"in_progress"|"hypothesis"|"ai_recommendation";due_date:string|null;source_reference?:string|null};
 export type ReportRiskAssessment={id:string;code:string;title:string;description:string;status:string;probability:number|null;impact:number|null;score:number|null;severity:"Baixo"|"Moderado"|"Alto"|"Crítico"|"Não avaliado";mitigation:string|null;owner:string|null;decisionId:string|null;taskId:string|null;lastUpdated:string|null};
 export type ReportData={project:{id:string;name:string};generated_at:string;scope:"current_snapshot";publicFacts?:ClientReportFact[];publicFactsAvailable?:boolean;riskAssessments?:ReportRiskAssessment[];kanban:{total:number;todo:number;doing:number;done:number;overdue:number;completed_titles:string[]};governance:{risks_open:number;decisions_pending:number;client_risks:{title:string;status:string}[];client_decisions:{title:string;status:string}[]};scrum:{enabled:boolean;sprints:ScrumReportSprint[];backlog_stories:number;stories_total:number;tasks_total:number;tasks_done:number};internal?:{stories:ScrumReportStory[];tasks:ScrumReportTask[];meetingLines?:MeetingReportLine[];meetingSource?:"official"|"local"}};
 const uuid=/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -33,7 +33,7 @@ export async function loadReportData(db:DB,org:string,projectId:string,audience:
   db.from("tasks").select("id,titulo,status,due_date").eq("project_id",projectId).eq("organization_id",org).limit(2000),
   db.from("risks").select("id,titulo,status,probabilidade,impacto,mitigacao,responsavel,decision_id,task_id,updated_at").eq("project_id",projectId).eq("organization_id",org).limit(500),
   db.from("decisions").select("titulo,status").eq("project_id",projectId).eq("organization_id",org).limit(500),
-  db.from("project_report_public_facts").select("kind,title,description,classification,due_date,source_reference").eq("project_id",projectId).eq("organization_id",org).eq("approved_for_client",true).order("created_at",{ascending:false}).limit(150),
+  db.from("project_report_public_facts").select("id,kind,title,description,classification,due_date,source_reference").eq("project_id",projectId).eq("organization_id",org).eq("approved_for_client",true).order("created_at",{ascending:false}).limit(150),
  ]);
  const required=[project,sprints,stories,tasks,kanban,risks,decisions];
  const sources=["Projeto","Sprints","User Stories","Tasks Scrum","Kanban","Riscos","Decisões"];
@@ -106,7 +106,7 @@ export async function loadReportData(db:DB,org:string,projectId:string,audience:
  return {
   project:{id:projectId,name:project.data?.nome||"Projeto"},
   generated_at:new Date().toISOString(),scope:"current_snapshot",
-  publicFacts:approvedFacts.error?[]:(approvedFacts.data||[]).map(fact=>audience==="client"?{kind:fact.kind,title:fact.title,description:fact.description,classification:fact.classification,due_date:fact.due_date}:fact) as ClientReportFact[],
+  publicFacts:approvedFacts.error?[]:(approvedFacts.data||[]).map(fact=>audience==="client"?{id:fact.id,kind:fact.kind,title:fact.title,description:fact.description,classification:fact.classification,due_date:fact.due_date}:fact) as ClientReportFact[],
   publicFactsAvailable:!approvedFacts.error,
   riskAssessments,
   kanban:{
