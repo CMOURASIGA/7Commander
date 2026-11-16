@@ -75,7 +75,7 @@ export default function ScrumPage(){
      </div>
      <div className="mt-4 flex flex-wrap items-center gap-2">
        <Link href={"/scrum/kanban?projectId="+encodeURIComponent(data.projectId)+"&sprintId="+encodeURIComponent(selected.id)} className="workspace-button-primary rounded-lg px-4 py-2 text-sm">Abrir Kanban da Sprint</Link>
-       <Link href={"/scrum/backlog?projectId="+encodeURIComponent(data.projectId)} className="workspace-button-secondary rounded-lg px-4 py-2 text-sm">Gerenciar backlog</Link>
+       <Link href={"/scrum/backlog?projectId="+encodeURIComponent(data.projectId)+"&sprintId="+encodeURIComponent(selected.id)} className="workspace-button-secondary rounded-lg px-4 py-2 text-sm">Gerenciar backlog</Link>
      </div>
     </SurfaceCard>:<SurfaceCard><p className="text-sm text-(--text-secondary)">{data.loading ? "Carregando..." : data.error ? "Consulta indisponível. Verifique a mensagem de erro acima antes de criar uma nova Sprint." : "Selecione ou crie uma Sprint para acompanhar seus indicadores."}</p></SurfaceCard>}
    <ScrumKairosActions projectId={data.projectId} sprintId={data.sprintId}/>
