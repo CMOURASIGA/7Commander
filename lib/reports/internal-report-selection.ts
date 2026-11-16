@@ -32,7 +32,25 @@ export function applyInternalReportSelection(report:ReportData,selection:Interna
   const stories=(report.internal?.stories||[]).filter(x=>selectionAllows(selection.stories,x.id));
   const tasks=(report.internal?.tasks||[]).filter(x=>selectionAllows(selection.tasks,x.id));
   const meetings=(report.internal?.meetingLines||[]).filter(x=>selectionAllows(selection.meetings,x.sourceReference));
-  const sprints=report.scrum.sprints.filter(x=>selectionAllows(selection.sprints,x.id));
+  const now=new Date().toISOString().slice(0,10);
+  const sprints=report.scrum.sprints.filter(x=>selectionAllows(selection.sprints,x.id)).map(sp=>{
+    const linked=stories.filter(st=>st.sprint_id===sp.id);
+    const completed=linked.filter(st=>st.workflow_stage==="closed");
+    const delivered=linked.filter(st=>Boolean(st.actual_end_date));
+    return {...sp,
+      stories:linked.length,closed:completed.length,
+      resolved:linked.filter(st=>st.workflow_stage==="resolved").length,
+      active:linked.filter(st=>st.workflow_stage==="active").length,
+      blocked:linked.filter(st=>st.blocked).length,
+      overdue:linked.filter(st=>st.workflow_stage!=="closed"&&st.due_date&&st.due_date<now).length,
+      points_planned:linked.reduce((n,st)=>n+Number(st.story_points||0),0),
+      points_done:completed.reduce((n,st)=>n+Number(st.story_points||0),0),
+      delivery_planned:linked.filter(st=>Boolean(st.due_date)).length,
+      delivery_actual:delivered.length,
+      delivery_on_time:delivered.filter(st=>st.due_date&&st.actual_end_date!<=st.due_date).length,
+      delivery_late:delivered.filter(st=>st.due_date&&st.actual_end_date!>st.due_date).length
+    };
+  });
   const assessments=(report.riskAssessments||[]).filter(x=>selectionAllows(selection.risks,x.id));
   return {
     ...report,
