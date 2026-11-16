@@ -1,6 +1,7 @@
 import {NextRequest,NextResponse} from "next/server";
 import {requireApiAuth} from "@/lib/api-auth";
 import {getReportScope,loadReportData,ReportAudience} from "@/lib/scrum/report-data";
+import {applyInternalReportSelection,parseInternalReportSelection} from "@/lib/reports/internal-report-selection";
 export const dynamic="force-dynamic";
 const res=(data:unknown,status=200)=>NextResponse.json(data,{status,headers:{"Cache-Control":"private,no-store"}});
 const UUID=/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -52,11 +53,15 @@ export async function POST(req:NextRequest){
  const mode=body.mode==="period"?"period":"current";
  const start=String(body.start||""),end=String(body.end||"");
  if(mode==="period"&&(!/^\d{4}-\d{2}-\d{2}$/.test(start)||!/^\d{4}-\d{2}-\d{2}$/.test(end)||start>end))return res({error:"Período inválido."},400);
+ const selection=body.internalSelection===undefined?null:parseInternalReportSelection(body.internalSelection);
+ if(audience==="internal"&&body.internalSelection!==undefined&&!selection)return res({error:"Seleção de conteúdo inválida."},400);
+ if(audience==="client"&&body.internalSelection!==undefined)return res({error:"Seleção interna não permitida no relatório Cliente."},400);
  const context=await getReportScope(auth.context,projectId,true);
  if("error" in context)return res({error:context.error},context.status);
  // Recompute on the server. Never store user-supplied report content or unrestricted AI output.
  try{
-  const report=await loadReportData(context.db,context.organizationId,projectId,audience);
+  const rawReport=await loadReportData(context.db,context.organizationId,projectId,audience);
+  const report=audience==="internal"&&selection?applyInternalReportSelection(rawReport,selection):rawReport;
   const narrative=body.narrative&&typeof body.narrative==="object"&&!Array.isArray(body.narrative)?body.narrative as Record<string,unknown>:{};
   // A client snapshot must not accept an arbitrary narrative submitted by the
   // browser, since an editor could accidentally archive internal discussion
