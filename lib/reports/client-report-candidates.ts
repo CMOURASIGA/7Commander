@@ -56,6 +56,6 @@ export async function getClientReportCandidates(db:DB,org:string,projectId:strin
   });
  }
  // A versão editorial substitui a síntese automática da mesma origem, evitando duplicidade.
- const editorialSources=new Set((approvedFacts.data||[]).map(x=>x.source_reference).filter(Boolean));
+ const editorialSources=new Set((approvedFacts.data||[]).filter(x=>["objective","benefit","risk"].includes(x.kind)).map(x=>x.source_reference).filter(Boolean));
  return candidates.filter(item=>item.id.startsWith("fact:")||!editorialSources.has(item.source_reference));
 }
