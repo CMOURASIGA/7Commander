@@ -1,6 +1,7 @@
 import type {ClientReportFact} from "@/lib/scrum/report-data";
 import {executiveRiskTitle} from "@/lib/reports/risk-editorial";
 import {getSupabaseServerClient} from "@/lib/supabase/server";
+import {listTaskBoard} from "@/services/task-board-service";
 
 type DB=NonNullable<ReturnType<typeof getSupabaseServerClient>>;
 type Candidate=ClientReportFact;
@@ -8,17 +9,17 @@ const text=(value:unknown,max=180)=>String(value||"").trim().slice(0,max);
 const status=(state:unknown):ClientReportFact["classification"]=>
  ["closed","done","concluida","resolved","concluido"].includes(String(state).toLowerCase())?"confirmed":
  ["active","doing","em_andamento","in_progress"].includes(String(state).toLowerCase())?"in_progress":"hypothesis";
-export async function getClientReportCandidates(db:DB,org:string,projectId:string):Promise<Candidate[]>{
- const [project,stories,sprints,tasks,risks,decisions,approvedFacts]=await Promise.all([
+export async function getClientReportCandidates(db:DB,org:string,projectId:string,actor:{userId:string;userEmail:string|null}):Promise<Candidate[]>{
+ const [project,stories,sprints,risks,decisions,approvedFacts,board]=await Promise.all([
   db.from("projects").select("id,nome,objetivo").eq("id",projectId).eq("organization_id",org).maybeSingle(),
   db.from("scrum_user_stories").select("id,title,workflow_stage,sprint_id").eq("project_id",projectId).eq("organization_id",org).limit(500),
   db.from("scrum_sprints").select("id,name,status,start_date,end_date").eq("project_id",projectId).eq("organization_id",org).limit(120),
-  db.from("tasks").select("id,titulo,status").eq("project_id",projectId).eq("organization_id",org).limit(500),
   db.from("risks").select("id,titulo,status").eq("project_id",projectId).eq("organization_id",org).limit(200),
   db.from("decisions").select("id,titulo,status").eq("project_id",projectId).eq("organization_id",org).limit(200),
   db.from("project_report_public_facts").select("id,kind,title,description,classification,due_date,source_reference").eq("project_id",projectId).eq("organization_id",org).limit(200),
+  listTaskBoard({projectId,userId:actor.userId,userEmail:actor.userEmail}),
  ]);
- if([project,stories,sprints,tasks,risks,decisions,approvedFacts].some(x=>x.error))throw Error("Fontes de conteúdo do Cliente indisponíveis.");
+ if([project,stories,sprints,risks,decisions,approvedFacts].some(x=>x.error)||!board)throw Error("Fontes de conteúdo do Cliente indisponíveis.");
  const candidates:Candidate[]=[];
  const add=(id:string,kind:ClientReportFact["kind"],title:string,classification:ClientReportFact["classification"],description="",source_reference?:string)=>{
   if(!title.trim())return;
@@ -28,7 +29,7 @@ export async function getClientReportCandidates(db:DB,org:string,projectId:strin
  // responsible names, impediments, risk mitigations or meeting transcripts.
  if(project.data?.objetivo)add("project:"+projectId,"objective",text(project.data.objetivo,180),"in_progress","Objetivo cadastrado no projeto.");
  // Entregas pertencem exclusivamente ao Kanban do Projeto (tasks), nunca ao Scrum.
- for(const x of tasks.data||[])add("task:"+x.id,"deliverable",x.titulo,status(x.status),"Atividade do Kanban do Projeto · "+text(x.status));
+ for(const x of board.columns.flatMap(column=>column.cards))add("task:"+x.id,"deliverable",x.title,status(x.columnKey),"Atividade do Kanban do Projeto · "+({todo:"A fazer",doing:"Em andamento",done:"Concluída"} as Record<string,string>)[x.columnKey]);
  // US são detalhes automáticos do marco escolhido, não entregas do Kanban.
  for(const sprint of sprints.data||[]){
   add("sprint:"+sprint.id,"milestone",sprint.name,status(sprint.status),"Sprint · "+text(sprint.status)+" · "+text(sprint.start_date)+" a "+text(sprint.end_date));

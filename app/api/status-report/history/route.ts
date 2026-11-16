@@ -70,7 +70,7 @@ export async function POST(req:NextRequest){
   const rawReport=await loadReportData(context.db,context.organizationId,projectId,audience);
   const report=audience==="internal"&&selection?applyInternalReportSelection(rawReport,selection):rawReport;
   if(audience==="client"&&Array.isArray(clientFactIds)){
-   const options=await getClientReportCandidates(context.db,context.organizationId,projectId);
+   const options=await getClientReportCandidates(context.db,context.organizationId,projectId,auth.context);
    const selected=new Set(clientFactIds as string[]);
    // All options are rebuilt server-side from authorized project records.
    // Client output excludes raw operational descriptions and internal narrative.
