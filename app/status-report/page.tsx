@@ -141,6 +141,10 @@ function reportDocument(project:Project, cards:Card[], risks:Risk[], decisions:D
   </main></body></html>`;
 }
 function historicalDocument(data:ReportData,audience:ReportAudience,narrative:AiAnalysis|null,issued:string){
+ if(audience==="internal"&&data.internalSelection&&Object.values(data.internalSelection).every(values=>values.length===0)){
+  const hasNext=Boolean(narrative?.nextSteps?.trim());
+  return '<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>Status Report Equipe arquivado</title><style>'+css+'</style></head><body><main class="wrap"><header class="hero"><h1>'+htmlEscape(data.project.name)+'</h1><p>Relatório Equipe · '+htmlEscape(issued)+'</p></header><section class="panel"><h2>'+(hasNext?'Próximos passos registrados':'Nenhum conteúdo selecionado')+'</h2><p>'+htmlEscape(hasNext?narrative?.nextSteps||'':'Nenhum registro foi incluído nesta emissão.')+'</p></section></main></body></html>';
+ }
  if(audience==="client"){
   const listPublic=(kind:string)=>{
     const values=(data.publicFacts||[]).filter(item=>item.kind===kind);
