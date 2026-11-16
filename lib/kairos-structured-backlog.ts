@@ -9,7 +9,7 @@ const tagged=(input:string,prefix:"EP"|"F"|"US")=>{
  const re=prefix==="US"?/\bUS\s*[- ]?\s*(\d{1,4})\s*[:.\-|]?\s*(.*)/i:
   new RegExp("\\b"+prefix+"\\s*[- ]?\\s*(\\d{1,4})\\s*[:.\\-|]?\\s*(.*)","i");
  const match=clean(input).match(re);
- return match?{code:prefix+match[1].padStart(3,"0"),title:clean(match[2]||"")}:null;
+ return match?{code:prefix+match[1].padStart(prefix==="EP"?2:3,"0"),title:clean(match[2]||"")}:null;
 };
 const priority=(value:string):BacklogStory["priority"]=>{
  const n=norm(value);
