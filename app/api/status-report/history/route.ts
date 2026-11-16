@@ -88,9 +88,9 @@ export async function POST(req:NextRequest){
    ]);
    if(decisionRows.error||cardRows.error)return res({error:"Registros selecionados indisponíveis."},503);
    const decisionNames=new Set((decisionRows.data||[]).map(row=>row.titulo));
-   const cardNames=new Set((cardRows.data||[]).map(row=>row.titulo));
+
    report.governance.client_decisions=report.governance.client_decisions.filter(row=>decisionNames.has(row.title));
-   report.kanban.completed_titles=report.kanban.completed_titles.filter(title=>cardNames.has(title));
+   report.kanban.completed_titles=[]; // recomputed from selected, verified card IDs below
    const rows=cardRows.data||[];
    // The report is an editorial selection, so count only selected, verified cards.
    const statusRows=rows.length?await context.db.from("tasks").select("id,status,due_date").eq("project_id",projectId)
@@ -101,6 +101,7 @@ export async function POST(req:NextRequest){
    report.kanban.todo=cards.filter(card=>["aberta","todo","to_do"].includes(card.status)).length;
    report.kanban.doing=cards.filter(card=>["em_andamento","doing"].includes(card.status)).length;
    report.kanban.done=cards.filter(card=>["concluida","done"].includes(card.status)).length;
+   report.kanban.completed_titles=cards.filter(card=>["concluida","done"].includes(card.status)).slice(0,12).map(card=>rows.find(row=>row.id===card.id)?.titulo||"").filter(Boolean);
    report.kanban.overdue=cards.filter(card=>card.due_date&&card.due_date<new Date().toISOString().slice(0,10)&&!["concluida","done"].includes(card.status)).length;
    report.governance.decisions_pending=report.governance.client_decisions.filter(row=>["aberta","em_andamento"].includes(row.status)).length;
   }
