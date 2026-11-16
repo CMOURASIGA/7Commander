@@ -103,7 +103,7 @@ function reportDocument(project:Project, cards:Card[], risks:Risk[], decisions:D
     <section class="metrics"><div class="metric"><small>ENTREGAS AUTORIZADAS</small><strong>${shareable.filter(x=>x.kind==="deliverable").length}</strong></div><div class="metric green"><small>BENEFÍCIOS AUTORIZADOS</small><strong>${shareable.filter(x=>x.kind==="benefit").length}</strong></div><div class="metric amber"><small>RISCOS AUTORIZADOS</small><strong>${scrum?.riskAssessments?.length||0}</strong></div><div class="metric"><small>MARCOS CONFIRMADOS</small><strong>${shareable.filter(x=>x.kind==="milestone"&&x.classification==="confirmed").length}</strong></div></section>
     ${publicItems("deliverable").length?`<section class="panel"><h3>02 · Entregas registradas</h3><h2>Entregas e evolução</h2>${list(publicItems("deliverable"),approvalNotice)}</section>`:""}
     ${publicItems("milestone").length?`<section class="panel"><h3>03 · Marcos e prazos</h3><h2>Compromissos confirmados</h2>${list(publicItems("milestone"),approvalNotice)}</section>`:""}
-    ${riskReportHtml(scrum?.riskAssessments||[],"client")}
+    ${scrum?.riskAssessments?.length?riskReportHtml(scrum.riskAssessments,"client"):""}
     ${publicItems("next_step").length?`<section class="panel"><h3>05 · Decisões e próximos passos</h3><h2>Próximos passos</h2>${list(publicItems("next_step"),approvalNotice)}</section>`:""}
     <footer class="foot"><span>CONSULT SERVICES TECNOLOGIA · Commander / Relatório Cliente</span><span>Emitido em ${htmlEscape(issueDate)}</span></footer><div class="actions"><button onclick="window.print()">Imprimir / Salvar em PDF</button></div></main></body></html>`;
   }
@@ -133,7 +133,7 @@ function reportDocument(project:Project, cards:Card[], risks:Risk[], decisions:D
   <section class="panel"><h3>02 · Fluxo de trabalho</h3><h2>Situação dos cards do Kanban</h2><div class="bar"><span style="width:${total?done/total*100:0}%;background:#11a47f"></span><span style="width:${total?doing/total*100:0}%;background:#4689d9"></span><span style="width:${total?todo/total*100:0}%;background:#e5a23f"></span></div><div class="item">Cards concluídos <span>${done} de ${total} registros</span></div><div class="item">Em andamento <span>${doing}</span></div><div class="item">A fazer <span>${todo}</span></div><p class="empty">Métricas históricas como throughput, lead time e cycle time não são inferidas deste retrato.</p></section>
   <section class="panel"><h3>03 · Atividades concluídas</h3><h2>Cards concluídos, incluindo reuniões e atividades administrativas</h2>${list(completed.map(x=>({title:x.title,note:"Concluída"})),"Nenhum card em DONE.")}</section>
   <section class="panel"><h3>04 · Governança</h3><h2>Decisões necessárias</h2>${list(undecided.map(x=>({title:x.title,note:x.status})),"Nenhuma decisão pendente registrada.")}</section>
-  <section class="panel"><h3>05 · Perspectiva</h3><h2>Próximos passos</h2>${analysis?`<div class="report-ai-text">${safeMarkdownHtml(analysis.nextSteps)}</div>`:`<p class="muted">Próximas ações ainda não registradas.</p>`}<p>Sem linha de base histórica suficiente para uma previsão de custo, prazo ou tendência.</p></section></div>
+  <section class="panel"><h3>05 · Perspectiva</h3><h2>Próximos passos</h2>${analysis?.nextSteps?.trim()?`<div class="report-ai-text">${safeMarkdownHtml(analysis.nextSteps)}</div>`:`<p class="muted">Nenhum próximo passo selecionado. Informe as ações no campo de revisão da Equipe.</p>`}<p>Sem linha de base histórica suficiente para uma previsão de custo, prazo ou tendência.</p></section></div>
   ${show("meetings")&&isInternal&&scrum?.internal?.meetingLines?.length?`<section class="panel" style="margin:16px 0"><h3>Reuniões registradas</h3><h2>Compromissos e pendências</h2><p class="muted">Origem: atas do projeto. Compromissos não comprovam execução. ${scrum.internal.meetingSource==="local"?"DADOS DE HOMOLOGAÇÃO LOCAL, NÃO OFICIAIS.":""}</p>${scrum.internal.meetingLines.slice(0,75).map(item=>`<div class="item"><div><b>${htmlEscape(item.title)}</b><p style="font-size:12px">${htmlEscape(item.details||"Sem detalhamento")} · ${htmlEscape(item.meetingTitle)} · ${htmlEscape(new Date(item.heldAt).toLocaleDateString("pt-BR"))}</p></div><span>${item.category==="commitment"?"Compromisso":"Pendência"}</span></div>`).join("")}</section>`:""}
   ${show("risks")&&scrum?.riskAssessments?.length?riskReportHtml(scrum.riskAssessments,"internal",{includeMitigationAnnex}):""}${scrumSection}${internalSection}
   <footer class="foot"><span>CONSULT SERVICES TECNOLOGIA · Commander / Relatório Equipe</span><span>Registro gerado em ${htmlEscape(issueDate)}</span></footer>
@@ -296,11 +296,12 @@ export default function StatusReportPage() {
   }
  }:visibleClientReport;
  const visibleNextSteps=audience==="internal"?teamNextSteps.trim():"";
- const visibleAnalysis=audience==="internal"?{
-  executiveSummary:internalSelection?"":analysis?.executiveSummary||"",
-  riskAnalysis:internalSelection?"":analysis?.riskAnalysis||"",
-  nextSteps:visibleNextSteps||(!internalSelection?analysis?.nextSteps||"":"")
- }:analysis;
+ const visibleAnalysis=audience==="internal"?
+  (visibleNextSteps||(!internalSelection&&analysis)?{
+    executiveSummary:internalSelection?"":analysis?.executiveSummary||"",
+    riskAnalysis:internalSelection?"":analysis?.riskAnalysis||"",
+    nextSteps:visibleNextSteps||(!internalSelection?analysis?.nextSteps||"":"")
+   }:null):analysis;
  const issueDate=new Date().toLocaleDateString("pt-BR");
  const reportHtml=project&&board&&scrumReport?renumberReportSections(reportDocument(project,visibleCards,audience==="client"?risks.map(r=>({...r,owner:null,mitigation:null})):visibleRisks,visibleDecisions,period,issueDate,visibleAnalysis,periodEvents,periodMetrics,audience,visibleScrum,false,audience==="internal"?chosenInternal:undefined)):"";
  const documentHtml=reportHtml.replaceAll(BRAND_LOGO_URL,brandLogoData).replaceAll("CONSULT SERVICES TECNOLOGIA",htmlEscape(brandName)).replaceAll('alt="Consult Services Tecnologia"','alt="'+htmlEscape(brandName)+'"');
