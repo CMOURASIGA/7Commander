@@ -8,7 +8,8 @@ const make=(id:string,kind:ClientReportFact["kind"],source_reference=id):ClientR
 
 test("Client deliverables come from project Kanban, not Scrum backlog",()=>{
  const source=file("lib/reports/client-report-candidates.ts");
- expect(source).toContain('db.from("tasks").select("id,titulo,status")');
+ expect(source).toContain('listTaskBoard({projectId,userId:actor.userId,userEmail:actor.userEmail})');
+ expect(source).toContain('board.columns.flatMap(column=>column.cards)');
  expect(source).toContain('add("task:"+x.id,"deliverable"');
  expect(source).not.toContain('db.from("scrum_backlog_items")');
  expect(source).not.toContain('add("story:"+x.id,"deliverable"');
@@ -36,4 +37,13 @@ test("Client decisions only come from the official Decisions register",()=>{
  expect(source).toContain('db.from("decisions").select("id,titulo,status")');
  expect(source).toContain('add("decision:"+x.id,"next_step"');
  expect(source).toContain('if(!["objective","benefit","risk"].includes(x.kind))continue;');
+});
+
+test("Client selections match Kanban board across all three columns",()=>{
+ const source=file("lib/reports/client-report-candidates.ts");
+ expect(source).toContain('board.columns.flatMap(column=>column.cards)');
+ expect(source).toContain('({todo:"A fazer",doing:"Em andamento",done:"Concluída"}');
+ const page=file("app/status-report/page.tsx");
+ expect(page).toContain('kind==="milestone"&&item.id.startsWith("sprint:")');
+ expect(page).toContain('Nenhum registro disponível para este projeto nesta categoria.');
 });
