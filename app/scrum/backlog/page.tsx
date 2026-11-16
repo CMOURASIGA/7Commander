@@ -25,7 +25,7 @@ function WorkItemIcon({type}:{type:Row["type"]}){
 function Icon({kind}:{kind:"view"|"edit"|"delete"|"add"}){return <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">{kind==="view"?<><path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/></>:kind==="edit"?<><path d="m4 20 4-1 11-11-3-3L5 16l-1 4Z"/><path d="m14 6 3 3"/></>:kind==="delete"?<><path d="M4 6h16M9 6V4h6v2M7 6l1 14h8l1-14M10 10v7M14 10v7"/></>:<path d="M12 4v16M4 12h16"/>}</svg>}
 const types={epic:"Epic",feature:"Feature",story:"User Story",task:"Task"} as const;
 export default function BacklogPage(){
- const data=useScrumData();const confirm=useConfirm();const deepLinkHandled=useRef(false);
+ const data=useScrumData();const confirm=useConfirm();const deepLinkHandled=useRef(false);const sprintLinkHandled=useRef(false);
  const [items,setItems]=useState<BacklogItem[]>([]);const [members,setMembers]=useState<ProjectMember[]>([]);const [opened,setOpened]=useState<Row|null>(null);const [drawerOpen,setDrawerOpen]=useState(false);const [readOnly,setReadOnly]=useState(false);
  const [form,setForm]=useState<Form>(initial);const [saving,setSaving]=useState(false);const [comment,setComment]=useState("");const [transitionComment,setTransitionComment]=useState("");
  const [query,setQuery]=useState("");const [typeFilter,setTypeFilter]=useState("all");const [stateFilter,setStateFilter]=useState("all");const [sprintFilter,setSprintFilter]=useState("all");const [responsibleFilter,setResponsibleFilter]=useState("all");const [collapsed,setCollapsed]=useState<string[]>([]);
@@ -43,6 +43,16 @@ export default function BacklogPage(){
   return()=>{alive=false};
  },[drawerOpen,opened?.id,opened?.type,data.projectId]);
 
+ useEffect(()=>{
+  if(sprintLinkHandled.current)return;
+  const params=new URLSearchParams(window.location.search);
+  const project=params.get("projectId"),sprint=params.get("sprintId");
+  if(!project||!sprint||!data.projects.some(p=>p.id===project))return;
+  if(data.projectId!==project){data.setProjectId(project);return;}
+  if(!data.sprints.some(sp=>sp.id===sprint))return;
+  sprintLinkHandled.current=true;
+  setSprintFilter(sprint);
+ },[data.projects,data.projectId,data.sprints,data.setProjectId]);
  const loadItems=useCallback(async()=>{if(!data.projectId){setItems([]);return;}try{const rows=await apiGet("/api/scrum/backlog-items?projectId="+encodeURIComponent(data.projectId));setItems(rows as BacklogItem[])}catch(e){setError(e instanceof Error?e.message:"Erro ao carregar hierarquia.")}},[data.projectId]);
  useEffect(()=>{void loadItems()},[loadItems]);
  useEffect(()=>{let live=true;if(!data.projectId){setMembers([]);return}void apiGet("/api/scrum/project-members?projectId="+encodeURIComponent(data.projectId)).then((v:ProjectMember[])=>{if(live)setMembers(v)}).catch(()=>{if(live)setMembers([])});return()=>{live=false}},[data.projectId]);
