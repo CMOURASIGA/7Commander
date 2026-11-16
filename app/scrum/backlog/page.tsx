@@ -116,8 +116,8 @@ export default function BacklogPage(){
   const matchesState=stateFilter==="all"||r.state===stateFilter;
   const matchesResponsible=responsibleFilter==="all"||(r.story?.responsible||r.item?.responsible||"")===responsibleFilter;
   const matchesSprint=sprintScopedIds===null||sprintScopedIds.has(r.id);
-  const filtersActive=query||typeFilter!=="all"||stateFilter!=="all"||sprintFilter!=="all"||responsibleFilter!=="all";
-  return matchesText&&matchesType&&matchesState&&matchesResponsible&&matchesSprint&&(!r.ancestorIds.some(p=>collapsed.includes(p))||Boolean(filtersActive));
+  // Active filters narrow the hierarchy, but must never override collapse controls.
+  return matchesText&&matchesType&&matchesState&&matchesResponsible&&matchesSprint&&!r.ancestorIds.some(p=>collapsed.includes(p));
  });
  function open(row:Row|null,type:Row["type"],view=false,defaults?:Partial<Form>){
   setOpened(row);setDrawerOpen(true);setReadOnly(view);setComment("");setTransitionComment("");setError("");
