@@ -30,6 +30,7 @@ export default function BacklogPage(){
  const [form,setForm]=useState<Form>(initial);const [saving,setSaving]=useState(false);const [comment,setComment]=useState("");const [transitionComment,setTransitionComment]=useState("");
  const [query,setQuery]=useState("");const [typeFilter,setTypeFilter]=useState("all");const [stateFilter,setStateFilter]=useState("all");const [sprintFilter,setSprintFilter]=useState("all");const [responsibleFilter,setResponsibleFilter]=useState("all");const [collapsed,setCollapsed]=useState<string[]>([]);
  const [error,setError]=useState("");
+ // A Sprint é o limite de todas as pesquisas, inclusive épicos e features ancestrais.
  const [assignmentHistory,setAssignmentHistory]=useState<Array<{previous_responsible:string|null;new_responsible:string|null;changed_at:string}>>([]);
  const [assignmentHistoryStatus,setAssignmentHistoryStatus]=useState("");
  useEffect(()=>{
@@ -96,6 +97,7 @@ export default function BacklogPage(){
   deepLinkHandled.current=true;
   open(item,item.type,true);
  },[data.projects,data.projectId,rows]);
+ useEffect(()=>{setSprintFilter("all");setQuery("");},[data.projectId]);
  const sprintScopedIds=useMemo(()=>{
   if(sprintFilter==="all")return null;
   const relatedStories=data.stories.filter(st=>sprintFilter==="unassigned"?!st.sprint_id:st.sprint_id===sprintFilter);
@@ -106,6 +108,7 @@ export default function BacklogPage(){
   for(const item of items)if(item.item_type==="task"&&item.story_id&&storyIds.has(item.story_id))ids.add(item.id);
   return ids;
  },[data.stories,items,sprintFilter]);
+ const sprintStories=sprintFilter==="all"?data.stories:data.stories.filter(st=>sprintFilter==="unassigned"?!st.sprint_id:st.sprint_id===sprintFilter);
  const visible=rows.filter(r=>{
   const term=query.trim().toLowerCase().replace(/^#/,"");
   const matchesText=!term||r.title.toLowerCase().includes(term)||r.number===term||r.number.startsWith(term+".");
@@ -161,7 +164,7 @@ export default function BacklogPage(){
     <select className="workspace-select" aria-label="Filtrar responsável" value={responsibleFilter} onChange={e=>setResponsibleFilter(e.target.value)}><option value="all">Todos os responsáveis</option><option value="">Não atribuídos</option>{members.map(m=><option key={m.email} value={m.email}>{m.name}</option>)}</select>
     <select className="workspace-select" aria-label="Filtrar Sprint" value={sprintFilter} onChange={e=>setSprintFilter(e.target.value)}><option value="all">Todas as Sprints</option><option value="unassigned">Sem Sprint</option>{data.sprints.map(s=><option key={s.id} value={s.id}>{s.name}</option>)}</select>
    </div>
-   <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-xs text-(--text-secondary)"><span>{visible.length} itens exibidos · {data.stories.length} US cadastradas</span><div className="flex gap-2"><button className="workspace-button-secondary px-2 py-1" onClick={()=>setCollapsed([...epics.map(e=>e.id),...features.map(f=>f.id)])}>Recolher</button><button className="workspace-button-secondary px-2 py-1" onClick={()=>setCollapsed([])}>Expandir</button><button className="workspace-button-secondary px-2 py-1" onClick={()=>{setQuery("");setTypeFilter("all");setStateFilter("all");setSprintFilter("all");setResponsibleFilter("all")}}>Limpar filtros</button></div></div>
+   <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-xs text-(--text-secondary)"><span>{visible.length} itens exibidos · {sprintStories.length} US da seleção</span><div className="flex gap-2"><button className="workspace-button-secondary px-2 py-1" onClick={()=>setCollapsed([...epics.map(e=>e.id),...features.map(f=>f.id)])}>Recolher</button><button className="workspace-button-secondary px-2 py-1" onClick={()=>setCollapsed([])}>Expandir</button><button className="workspace-button-secondary px-2 py-1" onClick={()=>{setQuery("");setTypeFilter("all");setStateFilter("all");setSprintFilter("all");setResponsibleFilter("all")}}>Limpar filtros</button></div></div>
    {(error||data.error)&&<p role="alert" className="mt-3 text-sm text-(--danger)">{error||data.error}</p>}
   </SurfaceCard>
   <SurfaceCard>
