@@ -109,6 +109,23 @@ export function PublicFactsEditor({projectId,onChange,proposedNextSteps}:{projec
    await reload();onChange?.();
   }finally{setBusy(false);setBulkProgress("");}
  }
+ async function withdrawAll(){
+  if(busy||!items.some(item=>item.approved_for_client))return;
+  if(!window.confirm("Despublicar TODAS as informações aprovadas do relatório Cliente? Os registros permanecem cadastrados, mas não serão exibidos em novas emissões."))return;
+  setBusy(true);setError("");setMessage("");
+  try{
+   const response=await fetch("/api/status-report/public-facts",{
+    method:"POST",headers:getClientAuthHeaders({"Content-Type":"application/json"}),
+    body:JSON.stringify({action:"withdraw_all",projectId})
+   });
+   const payload=await response.json().catch(()=>({}));
+   if(!response.ok)throw Error(payload.error||"Falha ao despublicar.");
+   setSelected([]);
+   setMessage((payload.data?.withdrawn||0)+" informações despublicadas.");
+   await reload();onChange?.();
+  }catch(error){setError(error instanceof Error?error.message:"Erro ao despublicar.");}
+  finally{setBusy(false);}
+ }
  async function withdraw(fact:Fact){
   if(busy)return;setBusy(true);setError("");setMessage("");
   try{
@@ -138,7 +155,10 @@ export function PublicFactsEditor({projectId,onChange,proposedNextSteps}:{projec
    <div><h2 className="text-lg font-semibold">Informações do relatório Cliente</h2>
     <p className="text-sm text-(--text-secondary)">Confira o conteúdo existente e escolha Publicar ou Editar. Apenas o que você publicar entra no relatório do cliente.</p>
    </div>
-   <button type="button" className="workspace-button-secondary" onClick={()=>edit(blank())}>Adicionar informação</button>
+   <div className="flex flex-wrap gap-2">
+     <button type="button" className="workspace-button-secondary" disabled={busy||!items.some(item=>item.approved_for_client)} onClick={()=>void withdrawAll()}>Despublicar tudo</button>
+     <button type="button" className="workspace-button-secondary" onClick={()=>edit(blank())}>Adicionar informação</button>
+    </div>
   </header>
   {error?<p role="alert" className="text-sm text-red-700">{error}</p>:null}
   {message?<p role="status" className="text-sm text-(--text-secondary)">{message}</p>:null}
@@ -168,7 +188,7 @@ export function PublicFactsEditor({projectId,onChange,proposedNextSteps}:{projec
           {candidate.internalContext?<p className="mt-1 text-xs text-(--text-secondary)">Consulta interna do risco: {candidate.internalContext}</p>:null}
         </div>
         <div className="flex flex-wrap gap-2">
-         {published?<span className="text-xs text-(--text-secondary)">Publicado</span>:needsRiskRevision?<span className="text-xs text-(--text-secondary)">Revisar o conteúdo disponível</span>:
+         {published?<IconActionButton icon="archive" tone="danger" label={"Despublicar "+candidate.title} disabled={busy||!existing} onClick={()=>existing&&void withdraw(existing)}/>:needsRiskRevision?<span className="text-xs text-(--text-secondary)">Revisar o conteúdo disponível</span>:
           <IconActionButton icon="check-circle" tone="success" label="Publicar informação sugerida" disabled={busy} onClick={()=>void publish(editorialInfo(candidate,existing),existing?.id)}/>}
          <IconActionButton icon="pencil" tone="edit" label="Editar informação sugerida" disabled={busy} onClick={()=>edit(editorialInfo(candidate,existing),existing?.id)}/>
         </div>
