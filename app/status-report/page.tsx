@@ -278,7 +278,23 @@ export default function StatusReportPage() {
  const visibleCards=audience==="internal"?cards.filter(x=>chosenInternal.cards.includes(x.id)):cards;
  const visibleRisks=audience==="internal"?risks.filter(x=>chosenInternal.risks.includes(x.id)):risks;
  const visibleDecisions=audience==="internal"?decisions.filter(x=>chosenInternal.decisions.includes(x.id)):decisions;
- const visibleScrum=audience==="internal"&&scrumReport?applyInternalReportSelection(scrumReport,chosenInternal):visibleClientReport;
+ const selectedKanban={
+   total:visibleCards.length,
+   todo:visibleCards.filter(c=>["todo","to_do","aberta"].includes(c.columnKey)||c.status==="aberta").length,
+   doing:visibleCards.filter(c=>["doing","em_andamento"].includes(c.columnKey)||c.status==="em_andamento").length,
+   done:visibleCards.filter(c=>["done","concluida"].includes(c.columnKey)||c.status==="concluida").length,
+   overdue:visibleCards.filter(c=>c.dueDate&&c.dueDate<new Date().toISOString().slice(0,10)&&!["done","concluida"].includes(c.status)).length,
+   completed_titles:visibleCards.filter(c=>["done","concluida"].includes(c.columnKey)||c.status==="concluida").slice(0,12).map(c=>c.title)
+ };
+ const visibleScrum=audience==="internal"&&scrumReport?{
+  ...applyInternalReportSelection(scrumReport,chosenInternal),
+  kanban:selectedKanban,
+  governance:{...scrumReport.governance,
+   risks_open:visibleRisks.filter(r=>["aberto","em_mitigacao"].includes(r.status)).length,
+   decisions_pending:visibleDecisions.filter(d=>["aberta","em_andamento"].includes(d.status)).length,
+   client_decisions:scrumReport.governance.client_decisions.filter(d=>visibleDecisions.some(x=>x.title===d.title))
+  }
+ }:visibleClientReport;
  const visibleNextSteps=audience==="internal"?teamNextSteps.trim():"";
  const visibleAnalysis=audience==="internal"?{
   executiveSummary:internalSelection?"":analysis?.executiveSummary||"",
