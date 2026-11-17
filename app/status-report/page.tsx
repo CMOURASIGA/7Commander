@@ -544,6 +544,34 @@ export default function StatusReportPage() {
       {clientCandidatesStatus&&<p role="status" className="text-xs text-(--text-secondary)">{clientCandidatesStatus}</p>}
       <p className="text-xs text-(--text-secondary)">Os totais indicam selecionados/disponíveis. As escolhas controlam a prévia e a emissão do público selecionado.</p>
      </section>
+    {audience==="client"&&<section className="workspace-card space-y-3 p-4" aria-label="Complemento Executivo do Cliente">
+      <h3 className="text-sm font-semibold">Complemento Executivo | Cliente</h3>
+      <p className="text-xs text-(--text-secondary)">Descreva avanços, alinhamentos e próximos compromissos. A sugestão do Kairos usa a última reunião oficial, mas exige revisão antes de entrar no relatório.</p>
+      <div className="flex flex-wrap gap-2">
+       <button type="button" className="workspace-button-secondary px-3 py-2 text-xs" disabled={!projectId||clientExecutiveGenerating}
+        onClick={async()=>{
+         setClientExecutiveGenerating(true);setClientExecutiveError("");setClientExecutiveApproved(false);
+         try{
+          const response=await measuredFetch("/api/status-report/client-executive-suggestion",{method:"POST",headers:getClientAuthHeaders({"Content-Type":"application/json"}),body:JSON.stringify({projectId}),cache:"no-store"});
+          const payload=await response.json();
+          if(!response.ok)throw Error(payload.error||"Não foi possível gerar o resumo.");
+          setClientExecutiveComplement(payload.data.suggestion||"");
+          setClientExecutiveSource("Baseado em: "+payload.data.meetingTitle+" · "+new Date(payload.data.meetingDate).toLocaleDateString("pt-BR"));
+         }catch(error){setClientExecutiveError(error instanceof Error?error.message:"Falha ao consultar o Kairos.");}
+         finally{setClientExecutiveGenerating(false);}
+        }}>{clientExecutiveGenerating?"Gerando sugestão...":"Kairos: resumir última reunião"}</button>
+       <button type="button" className="workspace-button-secondary px-3 py-2 text-xs" onClick={()=>{setClientExecutiveComplement("");setClientExecutiveApproved(false);setClientExecutiveSource("");setClientExecutiveError("");}}>Limpar complemento</button>
+      </div>
+      {clientExecutiveSource&&<p className="text-xs text-(--text-secondary)">{clientExecutiveSource}</p>}
+      {clientExecutiveError&&<p role="alert" className="text-xs text-red-700">{clientExecutiveError}</p>}
+      <textarea rows={6} maxLength={3000} className="workspace-input w-full" aria-label="Texto do Complemento Executivo"
+       placeholder="Principais avanços, alinhamentos com o cliente e próximos compromissos confirmados..."
+       value={clientExecutiveComplement} onChange={event=>{setClientExecutiveComplement(event.target.value);setClientExecutiveApproved(false);}}/>
+      <label className="flex items-start gap-2 text-xs"><input type="checkbox" checked={clientExecutiveApproved}
+       disabled={!clientExecutiveComplement.trim()} onChange={event=>setClientExecutiveApproved(event.target.checked)}/>
+       Revisei este texto e autorizo sua inclusão no Status Report Cliente.</label>
+      <p className="text-xs text-(--text-secondary)">{clientExecutiveApproved?"Complemento aprovado para esta emissão.":"Texto em revisão. Não será incluído na prévia ou exportação até a aprovação."}</p>
+    </section>}
     {audience==="internal"&&<section className="workspace-card space-y-2 p-4" aria-label="Próximos passos da equipe">
       <h3 className="text-sm font-semibold">Próximos passos da Equipe</h3>
       <p className="text-xs text-(--text-secondary)">Preencha ações acordadas e pendentes de execução. Este campo é editorial, não cria Tasks e não deve afirmar entregas concluídas sem evidência. Se ficar vazio, a seção não deve inventar próximos passos.</p>
