@@ -113,6 +113,13 @@ export async function POST(req:NextRequest){
    report.kanban.overdue=cards.filter(card=>card.due_date&&card.due_date<new Date().toISOString().slice(0,10)&&!["concluida","done"].includes(card.status)).length;
    report.governance.decisions_pending=report.governance.client_decisions.filter(row=>["aberta","em_andamento"].includes(row.status)).length;
   }
+  // Explicit editorial approval is mandatory before storing externally visible prose.
+  const complement=body.clientExecutiveComplement;
+  if(audience==="client"){
+   if(typeof complement!=="string"||complement.length>3000)return res({error:"Complemento Executivo inválido."},400);
+   if(complement.trim()&&body.clientExecutiveApproved!==true)return res({error:"Revise e aprove o Complemento Executivo antes da emissão."},400);
+   report.clientExecutiveComplement=complement.trim().slice(0,3000);
+  }
   const narrative=body.narrative&&typeof body.narrative==="object"&&!Array.isArray(body.narrative)?body.narrative as Record<string,unknown>:{};
   // A client snapshot must not accept an arbitrary narrative submitted by the
   // browser, since an editor could accidentally archive internal discussion
