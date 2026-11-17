@@ -17,7 +17,9 @@ test.describe("SPEC 01–05 — UI de planejamento (dados sintéticos)",()=>{
   await page.getByRole("button",{name:"Criar rascunho"}).click();
   await expect.poll(()=>received.length).toBe(1);
   expect(received[0]).toMatchObject({kind:"prospect",title:"Prospect QA sintético"});
+  await page.getByRole("button",{name:"Fechar editor"}).click();
   await page.getByRole("tab",{name:"Oportunidades"}).click();
+  await page.getByRole("button",{name:/Novo registro/i}).click();
   await expect(page.getByText("Prospect vinculado")).toBeVisible();
  });
  test("A matriz não apresenta score sem evidência",async({page})=>{
