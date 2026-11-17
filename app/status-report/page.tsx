@@ -93,7 +93,6 @@ function reportDocument(project:Project, cards:Card[], risks:Risk[], decisions:D
     const publicItems=(kind:string)=>shareable.filter(x=>x.kind===kind).slice(0,100).map(x=>({
       title:x.title,note:classify(x.classification)+(x.due_date?" · Prazo informado: "+x.due_date:"")+(x.description&&!/validar contexto|antes da divulga[cç][aã]o|informação interna/i.test(x.description)?" · "+x.description:"")
     }));
-    const selectedSprints=shareable.filter(x=>x.id.startsWith("sprint:"));
     const publicObjective=shareable.find(x=>x.kind==="objective");
     const publicObjectiveText=publicObjective?.description||publicObjective?.title||"";
     const published=Boolean(scrum?.publicFactsAvailable);
