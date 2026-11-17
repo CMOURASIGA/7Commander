@@ -1,12 +1,12 @@
 import { getSupabaseServerClient } from "@/lib/supabase/server";
 
 const activeProjectStates = new Set(["active", "accepted", "ativo"]);
-const emailPattern = /^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/;
+const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 /**
- * Fail closed: an assignee needs an active project membership AND an active
- * company membership. A stale invitation, suspended user or foreign-tenant
- * project row must not authorize an assignment.
+ * Require both an active project membership and active company membership.
+ * Verify the recipient against Supabase Auth, never an unverified profile or
+ * a browser-supplied email. A local suspension always overrides membership.
  */
 export async function isEligibleProjectAssignee(input: {
   organizationId: string;
@@ -23,54 +23,37 @@ export async function isEligibleProjectAssignee(input: {
     .eq("project_id", input.projectId)
     .ilike("member_email", email);
   if (projectMembers.error) return false;
-  const eligibleRows = (projectMembers.data ?? []).filter(
-    row => activeProjectStates.has(String(row.status ?? "").toLowerCase())
-  );
-  if (!eligibleRows.length) return false;
+  const rows = (projectMembers.data ?? []).filter(row =>
+    activeProjectStates.has(String(row.status ?? "").toLowerCase()));
+  if (!rows.length) return false;
 
   const organizationMembers = await db.from("organization_members")
     .select("user_id")
     .eq("organization_id", input.organizationId)
     .eq("status", "active");
   if (organizationMembers.error || !organizationMembers.data?.length) return false;
-  const ids = new Set(organizationMembers.data.map(member => member.user_id));
 
-  const idCandidates = eligibleRows
-    .map(row => row.member_user_id)
-    .filter((id): id is string => typeof id === "string" && ids.has(id));
+  const companyIds = organizationMembers.data.map(m => m.user_id);
+  const namedIds = new Set(rows.map(row => row.member_user_id).filter(Boolean));
+  const candidates = namedIds.size
+    ? companyIds.filter(id => namedIds.has(id))
+    : companyIds;
+  if (!candidates.length) return false;
 
-  // Name/email matching alone never creates an authorization. For legacy
-  // project membership rows without user IDs, resolve only within active
-  // company memberships, never globally.
-  let verifiedIds = [...new Set(idCandidates)];
-  if (!verifiedIds.length) {
-    const companyIds = [...ids];
-    const [profiles, internal] = await Promise.all([
-      db.from("profiles").select("user_id,email").in("user_id", companyIds).ilike("email", email),
-      db.from("internal_user_access").select("user_id,email,active").in("user_id", companyIds).ilike("email", email),
-    ]);
-    if (profiles.error || internal.error) return false;
-    verifiedIds = [...new Set([
-      ...(profiles.data ?? []).map(person => person.user_id),
-      ...(internal.data ?? []).filter(person => person.active).map(person => person.user_id),
-    ])].filter(id => ids.has(id));
-    // Some old company members exist only in Supabase Auth. Check the IDs
-    // that are already confirmed as active company members, not all users.
-    if (!verifiedIds.length) {
-      for (const id of companyIds) {
-        const authUser = await db.auth.admin.getUserById(id);
-        if (authUser.error) return false;
-        if (authUser.data.user?.email?.trim().toLowerCase() === email) {
-          verifiedIds.push(id);
-          break;
-        }
-      }
-    }
-  }
-  if (!verifiedIds.length) return false;
   const access = await db.from("internal_user_access")
-    .select("user_id,active").in("user_id", verifiedIds);
+    .select("user_id,active").in("user_id", candidates);
   if (access.error) return false;
-  const suspended = new Set((access.data ?? []).filter(row => row.active === false).map(row => row.user_id));
-  return verifiedIds.some(id => !suspended.has(id));
+  const suspended = new Set((access.data ?? [])
+    .filter(row => row.active === false).map(row => row.user_id));
+
+  for (const id of candidates) {
+    if (suspended.has(id)) continue;
+    const account = await db.auth.admin.getUserById(id);
+    if (account.error) return false;
+    if (account.data.user?.email?.trim().toLowerCase() !== email) continue;
+    // Legacy project memberships may have null user IDs, but no foreign
+    // or mismatched non-null user ID can be used for assignment.
+    if (rows.some(row => row.member_user_id === id || !row.member_user_id)) return true;
+  }
+  return false;
 }
