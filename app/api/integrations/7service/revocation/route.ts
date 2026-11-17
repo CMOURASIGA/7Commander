@@ -67,5 +67,14 @@ export async function POST(request: NextRequest) {
     .eq('user_id', userId).eq('organization_id', organizationId).maybeSingle();
   if (confirmed.error || confirmed.data?.status !== 'suspended')
     return json({ error: 'Suspension not confirmed' }, 503);
+  const audit = await db.from('central_access_decision_audit').insert({
+    commander_user_id: userId,
+    commander_company_id: organizationId,
+    route: '/api/integrations/7service/revocation',
+    method: 'POST',
+    allowed: false,
+    reason_code: 'CENTRAL_REVOCATION_SYNC',
+  });
+  if (audit.error) return json({ error: 'Suspended, audit confirmation pending' }, 503);
   return json({ confirmed: true }, 200);
 }
