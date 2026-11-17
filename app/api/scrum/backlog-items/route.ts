@@ -4,6 +4,7 @@ import {getProjectAccessRole,getProjectById} from "@/services/project-service";
 import {getSupabaseServerClient} from "@/lib/supabase/server";
 import {TENANT_SCHEMA_READY,requireEffectiveTenant} from "@/lib/tenant-runtime";
 import {CONSULT_ORG_ID} from "@/lib/consult-workspace";
+import {isEligibleProjectAssignee} from "@/lib/tenant-assignee-authorization";
 export const dynamic="force-dynamic";
 const uuid=/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const reply=(data:unknown,status=200)=>NextResponse.json(data,{status,headers:{"Cache-Control":"private,no-store"}});
@@ -83,10 +84,8 @@ export async function POST(req:NextRequest){
  if(!(itemType==="task"?["todo","doing","done"]:["new","ready","active","resolved","closed","review","rejected"]).includes(state))return bad("Status inválido.");
  if(action==="create"&&itemType==="task"&&state!=="todo")return bad("Toda Task deve iniciar em TO DO.");
  const responsible=String(body.responsible??item?.responsible??"").trim().toLowerCase();
- if(responsible){
-  const member=await db.from("project_members").select("id").eq("organization_id",org).eq("project_id",projectId).ilike("member_email",responsible).limit(1);
-  if(member.error||!member.data?.length)return bad("Responsável não participa do projeto.");
- }
+ if(responsible && !(await isEligibleProjectAssignee({organizationId:org,projectId,email:responsible})))
+  return bad("Responsável sem vínculo ativo com esta empresa e projeto.",403);
 
  const rank=body.sortOrder===undefined?Number(item?.sort_order||0):Number(body.sortOrder);
  if(!Number.isInteger(rank)||rank<0||rank>1000000)return bad("Ordem inválida.");

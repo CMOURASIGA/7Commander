@@ -4,6 +4,7 @@ import {getProjectAccessRole,getProjectById} from "@/services/project-service";
 import {getSupabaseServerClient} from "@/lib/supabase/server";
 import {TENANT_SCHEMA_READY,requireEffectiveTenant} from "@/lib/tenant-runtime";
 import {CONSULT_ORG_ID} from "@/lib/consult-workspace";
+import {isEligibleProjectAssignee} from "@/lib/tenant-assignee-authorization";
 
 export const dynamic="force-dynamic";
 const uuid=/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -110,10 +111,8 @@ export async function POST(req:NextRequest){
   const actualEnd=body.actualEndDate===undefined?current?.actual_end_date||null:body.actualEndDate||null;
   if(actualEnd!==null&&!validDate(actualEnd))return fail("Data real inválida.");
   const responsible=String(body.responsible===undefined?current?.responsible||"":body.responsible||"").trim().toLowerCase();
-  if(responsible){
-    const members=await db.from("project_members").select("id").eq("project_id",projectId).eq("organization_id",org).ilike("member_email",responsible).limit(1);
-    if(members.error||!members.data?.length)return fail("Responsável não tem acesso ao projeto.",400);
-  }
+  if(responsible && !(await isEligibleProjectAssignee({organizationId:org,projectId,email:responsible})))
+    return fail("Responsável sem vínculo ativo com esta empresa e projeto.",403);
   const requestedSprint=body.sprintId===undefined?current?.sprint_id||null:body.sprintId||null;
   const featureId=body.featureId===undefined?current?.feature_id||null:body.featureId||null;
   if(featureId!==null){
