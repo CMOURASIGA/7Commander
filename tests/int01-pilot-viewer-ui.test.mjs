@@ -16,7 +16,9 @@ test("INT-01 client mutations are hidden for read-only pilot", () => {
   assert.match(text, /useCentralPilotReadOnly/);
   assert.match(text, /readOnly \|\| checking \|\| !form\.name\.trim/);
   assert.match(text, /!readOnly && !checking \? <SurfaceCard>/);
-  assert.match(text, /!readOnly && !checking \? <div className="flex gap-2"/);
+  assert.match(text, /!readOnly && !checking \? <>/);
+  assert.match(text, /<IconActionButton icon="pencil"/);
+  assert.match(text, /<IconActionButton icon="trash"/);
 });
 
 test("INT-01 company selector requires server-derived switch permission", () => {
