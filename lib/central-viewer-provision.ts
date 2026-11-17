@@ -19,7 +19,12 @@ export async function provisionCentralViewerOnLogin(input: {
     !uuid.test(input.identityId) || !uuid.test(input.companyId) || !input.emailVerified) return fail('identity-or-flag');
   const pilotId = process.env.SERVICE_7SERVICE_PILOT_ORG_ID ?? '';
   const actorId = process.env.COMMANDER_CENTRAL_PROVISION_ACTOR_ID ?? '';
-  if (input.companyId !== pilotId || !uuid.test(pilotId) || !uuid.test(actorId)) return fail('pilot-or-approver');
+  const linkedMode = process.env.COMMANDER_CENTRAL_BROKER_MULTITENANT_ENABLED === 'true'
+    && process.env.SERVICE_7SERVICE_ENFORCE_LINKED_TENANTS === 'true';
+  // Pilot-only mode is preserved. Multitenant JIT requires the separate
+  // linked-tenant flags and explicit company/role checks below.
+  if ((!linkedMode && (input.companyId !== pilotId || !uuid.test(pilotId))) ||
+      !uuid.test(actorId)) return fail('pilot-or-approver');
   const email = input.email.trim().toLowerCase();
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || email.length > 254) return fail('invalid-email');
 
