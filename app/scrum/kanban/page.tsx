@@ -1,4 +1,6 @@
 "use client";
+import {IconActionButton} from "@/components/ui/icon-action-button";
+import { AgileWorkspaceNav } from "@/components/scrum/agile-workspace-nav";
 import {ScrumKairosActions} from "@/components/scrum/scrum-kairos-actions";
 import {MarkdownContent} from "@/components/ui/markdown-content";
 import {useEffect,useRef,useState} from "react";
@@ -131,6 +133,7 @@ export default function ScrumKanbanPage(){
  }
  const counts={total:stories.length,done:stories.filter(s=>s.workflow_stage==="closed").length,blocked:stories.filter(s=>s.blocked).length,overdue:stories.filter(s=>s.workflow_stage!=="closed"&&s.due_date&&s.due_date<today()).length};
  return <section className="space-y-3">
+      <AgileWorkspaceNav context={data.projects.find(p=>p.id===data.projectId)?.name}/>
   <PageIntro eyebrow="Scrum e Sprints" title="Kanban Scrum" description="Acompanhe User Stories e Tasks em quadros separados. REVIEW exige justificativa e o avanço de Tasks atualiza a US." aside={<div className="flex gap-2"><button className={mode==="stories"?"workspace-button-primary rounded-lg px-3 py-2 text-sm":"workspace-button-secondary rounded-lg px-3 py-2 text-sm"} onClick={()=>setMode("stories")}>User Stories</button><button className={mode==="tasks"?"workspace-button-primary rounded-lg px-3 py-2 text-sm":"workspace-button-secondary rounded-lg px-3 py-2 text-sm"} onClick={()=>setMode("tasks")}>Tasks</button></div>}/>
   <SurfaceCard>
    <ScrumSelectors projects={data.projects} projectId={data.projectId} onProject={data.setProjectId} sprints={data.sprints} sprintId={data.sprintId} onSprint={data.setSprintId}/>
@@ -170,10 +173,10 @@ export default function ScrumKanbanPage(){
         <p className="mt-1 truncate text-[10px] text-(--text-secondary)" title={s.responsible||""}>{s.responsible||"Sem responsável"}</p>
         <p className="mt-1 text-[10px] text-(--text-secondary)">{dateBR(s.due_date)} · {s.story_points??"–"} pt</p>
         {s.blocked&&<span className="text-[10px] font-semibold text-(--danger)">Bloqueada</span>}
-        <div className="mt-2 flex items-center gap-1">
-         <button type="button" className="rounded-md border border-(--border) p-1.5" title="Visualizar US e comentários" aria-label={"Visualizar "+s.title} onClick={()=>view(s)}><ScrumIcon kind="eye" size={14}/></button>
-         <button type="button" className="rounded-md border border-(--border) p-1.5" title="Editar US" aria-label={"Editar "+s.title} disabled={closed} onClick={()=>view(s,true)}><ScrumIcon kind="pencil" size={14}/></button>
-         <button type="button" className="rounded-md border border-(--border) p-1.5" title="Comentários" aria-label={"Comentar "+s.title} onClick={()=>view(s)}><ScrumIcon kind="message" size={14}/></button>
+        <div className="cs-record-actions mt-2" role="group" aria-label={"Ações da US "+s.title}>
+         <IconActionButton icon="eye" label={"Visualizar "+s.title} tone="neutral" onClick={()=>view(s)}/>
+         <IconActionButton icon="pencil" label={"Editar "+s.title} tone="edit" disabled={closed} onClick={()=>view(s,true)}/>
+         <IconActionButton icon="message-square" label={"Comentar "+s.title} tone="neutral" onClick={()=>view(s)}/>
         </div>
         {!closed&&transitions[key]?.length>0&&<select aria-label={"Alterar status de "+s.title} className="workspace-select mt-2 w-full text-[11px]" disabled={Boolean(saving)||pendingCards.includes(s.id)} value={key} onChange={e=>{const stage=e.target.value;setTransition({story:s,stage})}}>
          <option value={key}>Mover para…</option>{transitions[key].map(next=><option value={next} key={next}>{stages.find(x=>x[0]===next)?.[1]||next}</option>)}
@@ -219,7 +222,7 @@ export default function ScrumKanbanPage(){
     {data.comments.filter(c=>c.story_id===selected.id).map(c=><div className="mt-2 rounded-lg bg-(--bg-muted) p-3 text-xs" key={c.id}><p className="text-(--text-secondary)">{c.author_email} · {new Date(c.created_at).toLocaleString("pt-BR")}</p><p className="mt-1 whitespace-pre-wrap">{c.content}</p></div>)}
     {!closed&&<><textarea rows={3} className="workspace-input mt-3 w-full" placeholder="Registrar decisão, impedimento ou atualização…" value={comment} onChange={e=>setComment(e.target.value)}/><button className="workspace-button-secondary mt-2 px-3 py-2 text-xs" disabled={Boolean(saving)||!comment.trim()} onClick={()=>void addComment()}>Adicionar comentário</button></>}
    </div>
-   {!closed&&<div className="mt-5 flex gap-2 border-t border-(--border) pt-3"><button className="workspace-button-secondary px-3 py-2 text-xs" onClick={()=>setEditing(!editing)}>{editing?"Visualizar":"Editar"}</button><button className="workspace-button-secondary px-3 py-2 text-xs" disabled={Boolean(saving)} onClick={()=>void returnBacklog(currentSelected||selected)}>Retornar ao backlog</button></div>}
+   {!closed&&<div className="mt-5 flex gap-2 border-t border-(--border) pt-3"><IconActionButton icon={editing?"eye":"pencil"} tone={editing?"neutral":"edit"} label={editing?"Visualizar US":"Editar US"} onClick={()=>setEditing(!editing)}/><button className="workspace-button-secondary px-3 py-2 text-xs" disabled={Boolean(saving)} onClick={()=>void returnBacklog(currentSelected||selected)}>Retornar ao backlog</button></div>}
   </aside></div>}
   {transition&&<div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4"><div className="w-full max-w-md rounded-xl bg-(--bg-surface) p-5 shadow-xl" role="dialog" aria-modal="true" aria-label="Registrar mudança de status">
    <h2 className="font-semibold">Mover para {transition.stage.toUpperCase()}</h2><p className="mt-2 text-xs text-(--text-secondary)">{transition.stage==="review"?"A justificativa é obrigatória para solicitar REVIEW.":"Comentário opcional para registrar a decisão."} O registro será preservado no histórico e o responsável será notificado.</p>

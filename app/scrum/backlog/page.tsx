@@ -1,4 +1,6 @@
 "use client";
+import {IconActionButton} from "@/components/ui/icon-action-button";
+import { AgileWorkspaceNav } from "@/components/scrum/agile-workspace-nav";
 import {ScrumKairosActions} from "@/components/scrum/scrum-kairos-actions";
 import {MarkdownContent} from "@/components/ui/markdown-content";
 import {useCallback,useEffect,useMemo,useRef,useState} from "react";
@@ -23,11 +25,12 @@ function WorkItemIcon({type}:{type:Row["type"]}){
 function Icon({kind}:{kind:"view"|"edit"|"delete"|"add"}){return <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">{kind==="view"?<><path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/></>:kind==="edit"?<><path d="m4 20 4-1 11-11-3-3L5 16l-1 4Z"/><path d="m14 6 3 3"/></>:kind==="delete"?<><path d="M4 6h16M9 6V4h6v2M7 6l1 14h8l1-14M10 10v7M14 10v7"/></>:<path d="M12 4v16M4 12h16"/>}</svg>}
 const types={epic:"Epic",feature:"Feature",story:"User Story",task:"Task"} as const;
 export default function BacklogPage(){
- const data=useScrumData();const confirm=useConfirm();const deepLinkHandled=useRef(false);
+ const data=useScrumData();const confirm=useConfirm();const deepLinkHandled=useRef(false);const sprintLinkHandled=useRef(false);
  const [items,setItems]=useState<BacklogItem[]>([]);const [members,setMembers]=useState<ProjectMember[]>([]);const [opened,setOpened]=useState<Row|null>(null);const [drawerOpen,setDrawerOpen]=useState(false);const [readOnly,setReadOnly]=useState(false);
  const [form,setForm]=useState<Form>(initial);const [saving,setSaving]=useState(false);const [comment,setComment]=useState("");const [transitionComment,setTransitionComment]=useState("");
  const [query,setQuery]=useState("");const [typeFilter,setTypeFilter]=useState("all");const [stateFilter,setStateFilter]=useState("all");const [sprintFilter,setSprintFilter]=useState("all");const [responsibleFilter,setResponsibleFilter]=useState("all");const [collapsed,setCollapsed]=useState<string[]>([]);
  const [error,setError]=useState("");
+ // A Sprint é o limite de todas as pesquisas, inclusive épicos e features ancestrais.
  const [assignmentHistory,setAssignmentHistory]=useState<Array<{previous_responsible:string|null;new_responsible:string|null;changed_at:string}>>([]);
  const [assignmentHistoryStatus,setAssignmentHistoryStatus]=useState("");
  useEffect(()=>{
@@ -41,6 +44,16 @@ export default function BacklogPage(){
   return()=>{alive=false};
  },[drawerOpen,opened?.id,opened?.type,data.projectId]);
 
+ useEffect(()=>{
+  if(sprintLinkHandled.current)return;
+  const params=new URLSearchParams(window.location.search);
+  const project=params.get("projectId"),sprint=params.get("sprintId");
+  if(!project||!sprint||!data.projects.some(p=>p.id===project))return;
+  if(data.projectId!==project){data.setProjectId(project);return;}
+  if(!data.sprints.some(sp=>sp.id===sprint))return;
+  sprintLinkHandled.current=true;
+  setSprintFilter(sprint);
+ },[data.projects,data.projectId,data.sprints,data.setProjectId]);
  const loadItems=useCallback(async()=>{if(!data.projectId){setItems([]);return;}try{const rows=await apiGet("/api/scrum/backlog-items?projectId="+encodeURIComponent(data.projectId));setItems(rows as BacklogItem[])}catch(e){setError(e instanceof Error?e.message:"Erro ao carregar hierarquia.")}},[data.projectId]);
  useEffect(()=>{void loadItems()},[loadItems]);
  useEffect(()=>{let live=true;if(!data.projectId){setMembers([]);return}void apiGet("/api/scrum/project-members?projectId="+encodeURIComponent(data.projectId)).then((v:ProjectMember[])=>{if(live)setMembers(v)}).catch(()=>{if(live)setMembers([])});return()=>{live=false}},[data.projectId]);
@@ -84,15 +97,27 @@ export default function BacklogPage(){
   deepLinkHandled.current=true;
   open(item,item.type,true);
  },[data.projects,data.projectId,rows]);
+ useEffect(()=>{setSprintFilter("all");setQuery("");},[data.projectId]);
+ const sprintScopedIds=useMemo(()=>{
+  if(sprintFilter==="all")return null;
+  const relatedStories=data.stories.filter(st=>sprintFilter==="unassigned"?!st.sprint_id:st.sprint_id===sprintFilter);
+  const storyIds=new Set(relatedStories.map(st=>st.id));
+  const featureIds=new Set(relatedStories.map(st=>st.feature_id).filter((id):id is string=>Boolean(id)));
+  const epicIds=new Set(items.filter(item=>item.item_type==="feature"&&featureIds.has(item.id)).map(item=>item.parent_id).filter((id):id is string=>Boolean(id)));
+  const ids=new Set<string>([...storyIds,...featureIds,...epicIds]);
+  for(const item of items)if(item.item_type==="task"&&item.story_id&&storyIds.has(item.story_id))ids.add(item.id);
+  return ids;
+ },[data.stories,items,sprintFilter]);
+ const sprintStories=sprintFilter==="all"?data.stories:data.stories.filter(st=>sprintFilter==="unassigned"?!st.sprint_id:st.sprint_id===sprintFilter);
  const visible=rows.filter(r=>{
   const term=query.trim().toLowerCase().replace(/^#/,"");
   const matchesText=!term||r.title.toLowerCase().includes(term)||r.number===term||r.number.startsWith(term+".");
   const matchesType=typeFilter==="all"||r.type===typeFilter;
   const matchesState=stateFilter==="all"||r.state===stateFilter;
   const matchesResponsible=responsibleFilter==="all"||(r.story?.responsible||r.item?.responsible||"")===responsibleFilter;
-  const matchesSprint=sprintFilter==="all"||(r.story?sprintFilter==="unassigned"?!r.story.sprint_id:r.story.sprint_id===sprintFilter:true);
-  const filtersActive=query||typeFilter!=="all"||stateFilter!=="all"||sprintFilter!=="all"||responsibleFilter!=="all";
-  return matchesText&&matchesType&&matchesState&&matchesResponsible&&matchesSprint&&(!r.ancestorIds.some(p=>collapsed.includes(p))||Boolean(filtersActive));
+  const matchesSprint=sprintScopedIds===null||sprintScopedIds.has(r.id);
+  // Active filters narrow the hierarchy, but must never override collapse controls.
+  return matchesText&&matchesType&&matchesState&&matchesResponsible&&matchesSprint&&!r.ancestorIds.some(p=>collapsed.includes(p));
  });
  function open(row:Row|null,type:Row["type"],view=false,defaults?:Partial<Form>){
   setOpened(row);setDrawerOpen(true);setReadOnly(view);setComment("");setTransitionComment("");setError("");
@@ -128,6 +153,7 @@ export default function BacklogPage(){
  const memberName=(email:string|null|undefined)=>!email?"Não atribuído":members.find(m=>m.email.toLowerCase()===email.toLowerCase())?.name||"Nome não cadastrado";
  const allComments=opened?.story?data.comments.filter(c=>c.story_id===opened.id):[];
  return <section className="space-y-3">
+      <AgileWorkspaceNav context={data.projects.find(p=>p.id===data.projectId)?.name}/>
   <PageIntro eyebrow="Scrum e Sprints" title="Backlog do projeto" description="Hierarquia Epic → Feature → User Story → Task. Gerencie e priorize os itens independentemente de Sprint." aside={<div className="flex flex-wrap gap-2">{(["epic","feature","story","task"] as const).map(t=><button key={t} className="workspace-button-secondary rounded-lg px-3 py-2 text-xs" onClick={()=>open(null,t)}>+ {types[t]}</button>)}</div>}/>
   <SurfaceCard>
    <label className="block text-xs font-medium">Projeto<select className="workspace-select mt-1 w-full" value={data.projectId} onChange={e=>data.setProjectId(e.target.value)}><option value="">Selecione</option>{data.projects.map(p=><option value={p.id} key={p.id}>{p.name}</option>)}</select></label>
@@ -138,7 +164,7 @@ export default function BacklogPage(){
     <select className="workspace-select" aria-label="Filtrar responsável" value={responsibleFilter} onChange={e=>setResponsibleFilter(e.target.value)}><option value="all">Todos os responsáveis</option><option value="">Não atribuídos</option>{members.map(m=><option key={m.email} value={m.email}>{m.name}</option>)}</select>
     <select className="workspace-select" aria-label="Filtrar Sprint" value={sprintFilter} onChange={e=>setSprintFilter(e.target.value)}><option value="all">Todas as Sprints</option><option value="unassigned">Sem Sprint</option>{data.sprints.map(s=><option key={s.id} value={s.id}>{s.name}</option>)}</select>
    </div>
-   <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-xs text-(--text-secondary)"><span>{visible.length} itens exibidos · {data.stories.length} US cadastradas</span><div className="flex gap-2"><button className="workspace-button-secondary px-2 py-1" onClick={()=>setCollapsed([...epics.map(e=>e.id),...features.map(f=>f.id)])}>Recolher</button><button className="workspace-button-secondary px-2 py-1" onClick={()=>setCollapsed([])}>Expandir</button><button className="workspace-button-secondary px-2 py-1" onClick={()=>{setQuery("");setTypeFilter("all");setStateFilter("all");setSprintFilter("all");setResponsibleFilter("all")}}>Limpar filtros</button></div></div>
+   <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-xs text-(--text-secondary)"><span>{visible.length} itens exibidos · {sprintStories.length} US da seleção</span><div className="flex gap-2"><button className="workspace-button-secondary px-2 py-1" onClick={()=>setCollapsed(rows.filter(r=>r.type==="epic"||r.type==="feature"||r.type==="story").map(r=>r.id))}>Recolher</button><button className="workspace-button-secondary px-2 py-1" onClick={()=>setCollapsed([])}>Expandir</button><button className="workspace-button-secondary px-2 py-1" onClick={()=>{setQuery("");setTypeFilter("all");setStateFilter("all");setSprintFilter("all");setResponsibleFilter("all")}}>Limpar filtros</button></div></div>
    {(error||data.error)&&<p role="alert" className="mt-3 text-sm text-(--danger)">{error||data.error}</p>}
   </SurfaceCard>
   <SurfaceCard>
@@ -150,14 +176,14 @@ export default function BacklogPage(){
      <td className="p-2"><div className="flex items-center gap-2" style={{paddingLeft:r.depth*18}}>
       {(r.type==="epic"||r.type==="feature"||r.type==="story")?<button type="button" className="shrink-0 text-xs" aria-label={collapsed.includes(r.id)?"Expandir":"Recolher"} onClick={()=>setCollapsed(c=>c.includes(r.id)?c.filter(x=>x!==r.id):[...c,r.id])}>{collapsed.includes(r.id)?"▸":"▾"}</button>:<span className="w-3"/>}
       <span className={r.type==="epic"?"font-semibold":""}>{r.title}</span>
-      {(r.type==="epic"||r.type==="feature"||r.type==="story")&&<button type="button" title="Adicionar filho" className="rounded-md border border-(--border) p-1" onClick={()=>open(null,r.type==="epic"?"feature":r.type==="feature"?"story":"task",false,r.type==="epic"?{parentId:r.id}:r.type==="feature"?{featureId:r.id}:{storyId:r.id})}><Icon kind="add"/></button>}
+      {(r.type==="epic"||r.type==="feature"||r.type==="story")&&<IconActionButton icon="plus" tone="success" label={"Adicionar item subordinado a "+r.title} onClick={()=>open(null,r.type==="epic"?"feature":r.type==="feature"?"story":"task",false,r.type==="epic"?{parentId:r.id}:r.type==="feature"?{featureId:r.id}:{storyId:r.id})}/>}
      </div></td>
      <td className="p-2 text-xs"><div className="flex items-center gap-2">{(r.story?.responsible||r.item?.responsible)?<span className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-sky-100 text-[11px] font-semibold text-sky-800">{memberName(r.story?.responsible||r.item?.responsible).slice(0,1).toUpperCase()}</span>:null}<span className="truncate" title={memberName(r.story?.responsible||r.item?.responsible)}>{memberName(r.story?.responsible||r.item?.responsible)}</span></div></td>
      <td className="p-2 text-xs">{r.state.toUpperCase()}</td>
-     <td className="p-2"><div className="flex gap-1">
-      <button title="Visualizar" aria-label={"Visualizar "+r.title} className="rounded-md border border-(--border) p-1.5" onClick={()=>open(r,r.type,true)}><Icon kind="view"/></button>
-      <button title="Editar" aria-label={"Editar "+r.title} className="rounded-md border border-(--border) p-1.5" onClick={()=>open(r,r.type)}><Icon kind="edit"/></button>
-      <button title="Excluir" aria-label={"Excluir "+r.title} className="rounded-md border border-(--border) p-1.5 text-(--danger)" disabled={saving||Boolean(r.story&&(r.story.has_history||r.story.sprint_id||r.story.workflow_stage!=="new"))} onClick={()=>void remove(r)}><Icon kind="delete"/></button>
+     <td className="p-2"><div className="cs-record-actions" role="group" aria-label={"Ações do item "+r.title}>
+      <IconActionButton icon="eye" label={"Visualizar "+r.title} tone="neutral" onClick={()=>open(r,r.type,true)}/>
+      <IconActionButton icon="pencil" label={"Editar "+r.title} tone="edit" onClick={()=>open(r,r.type)}/>
+      <IconActionButton icon="trash" label={"Excluir "+r.title} tone="danger" disabled={saving||Boolean(r.story&&(r.story.has_history||r.story.sprint_id||r.story.workflow_stage!=="new"))} onClick={()=>void remove(r)}/>
      </div></td>
     </tr>)}</tbody>
    </table>{!visible.length&&<p className="p-4 text-sm text-(--text-secondary)">Nenhum item encontrado. Ajuste os filtros ou cadastre um Epic.</p>}</div>

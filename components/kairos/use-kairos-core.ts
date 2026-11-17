@@ -248,15 +248,6 @@ function lastConversationKey(projectId: string): string {
   return `kairos:lastConversation:${projectId}`;
 }
 
-function readLastConversationId(projectId: string): string | null {
-  if (typeof window === "undefined") return null;
-  try {
-    return window.localStorage.getItem(lastConversationKey(projectId));
-  } catch {
-    return null;
-  }
-}
-
 function writeLastConversationId(projectId: string, conversationId: string) {
   if (typeof window === "undefined") return;
   try {
@@ -448,23 +439,9 @@ export function useKairosCore(options?: UseKairosCoreOptions) {
     void loadMessages(conversationId);
   }, [conversationId, isNewConversation, loadMessages]);
 
-  // Ao entrar num projeto (primeira ativacao apos carregar, ou troca manual)
-  // com a conversa ainda "em branco", retoma a ultima conversa salva desse
-  // projeto em vez de comecar do zero -- e o que faz reabrir a tela (ou dar
-  // F5) continuar de onde parou, e nao so navegar dentro do app.
+  // New sessions start with a blank chat. Saved conversations remain accessible
+  // through the history list, never auto-reused as official project records.
   const restoredProjectRef = useRef<string | null>(null);
-  useEffect(() => {
-    if (!canLoadWorkspace || !activeProjectId) return;
-    if (restoredProjectRef.current === activeProjectId) return;
-    restoredProjectRef.current = activeProjectId;
-    if (!isNewConversation || hasMessages) return;
-    const savedConversationId = readLastConversationId(activeProjectId);
-    if (savedConversationId && savedConversationId !== conversationId) {
-      setConversationId(savedConversationId);
-      setIsNewConversation(false);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeProjectId, canLoadWorkspace]);
 
   function clearVoiceCaptureResources() {
     if (silenceFrameRef.current) { cancelAnimationFrame(silenceFrameRef.current); silenceFrameRef.current = null; }
@@ -501,7 +478,7 @@ export function useKairosCore(options?: UseKairosCoreOptions) {
       setError("Selecione um projeto antes de continuar.");
       return;
     }
-    if (projectId !== activeProjectId && hasMessages) {
+    if (projectId !== activeProjectId && !isNewConversation && hasMessages) {
       const confirmed = await confirm({
         title: "Trocar de projeto?",
         description: "Trocar o projeto inicia uma nova conversa com o Kairos. O histórico atual continua salvo, mas deixa de aparecer aqui.",
@@ -511,6 +488,15 @@ export function useKairosCore(options?: UseKairosCoreOptions) {
       if (!confirmed) return;
       startNewConversation();
       addSessionEvent(setSessionMemory, "Nova conversa iniciada para evitar mistura de contextos entre projetos.");
+    }
+    // A conversation ID belongs to a single project even when the UI has no
+    // messages loaded yet. Never reuse a saved ID after changing project.
+    if(projectId!==activeProjectId){
+      setConversationId(createConversationId());
+      setMessages([]);
+      setIsNewConversation(true);
+      setError(null);
+      restoredProjectRef.current=null;
     }
     setActiveProjectId(projectId);
     try {
@@ -568,6 +554,10 @@ export function useKairosCore(options?: UseKairosCoreOptions) {
     if (!value || loading) return;
     if (!activeProjectId) {
       setError("Selecione um projeto antes de iniciar a conversa.");
+      return;
+    }
+    if (!isNewConversation && selectedConversation?.projectId && selectedConversation.projectId!==activeProjectId) {
+      setError("A conversa selecionada pertence a outro projeto. Inicie uma nova conversa no projeto atual.");
       return;
     }
     if (!isNewConversation && !selectedConversation?.projectId) {

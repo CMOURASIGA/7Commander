@@ -1,4 +1,5 @@
 "use client";
+import {IconActionButton} from "@/components/ui/icon-action-button";
 
 import { useEffect, useState } from "react";
 import { MemoryPriority, MemoryRecord } from "@/types/memory";
@@ -8,6 +9,8 @@ const PRIORITIES: MemoryPriority[] = ["P0", "P1", "P2", "P3", "P4"];
 
 export default function MemoryPage() {
   const [memories, setMemories] = useState<MemoryRecord[]>([]);
+  const [search,setSearch]=useState("");
+  const [priorityFilter,setPriorityFilter]=useState<"all"|MemoryPriority>("all");
   const [loading, setLoading] = useState(true);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
   const [compressing, setCompressing] = useState(false);
@@ -140,6 +143,9 @@ export default function MemoryPage() {
     await patchMemory(memory.id, { content: nextContent });
   }
 
+  const filteredMemories=memories.filter(memory=>
+    (priorityFilter==="all"||memory.priority===priorityFilter)&&
+    [memory.content,memory.type].join(" ").toLocaleLowerCase("pt-BR").includes(search.trim().toLocaleLowerCase("pt-BR")));
   return (
     <section className="space-y-3">
       <PageIntro
@@ -193,17 +199,28 @@ export default function MemoryPage() {
         <p className="workspace-card-muted px-3 py-2 text-xs text-(--text-secondary)">{priorityInfo}</p>
       ) : null}
 
+      <div className="workspace-card grid gap-3 p-4 sm:grid-cols-[minmax(0,1fr)_180px]">
+        <label className="text-sm">Pesquisar na memória
+          <input className="workspace-input mt-1 w-full" value={search} onChange={event=>setSearch(event.target.value)} placeholder="Buscar conteúdo ou tipo"/>
+        </label>
+        <label className="text-sm">Prioridade
+          <select className="workspace-select mt-1 w-full" value={priorityFilter} onChange={event=>setPriorityFilter(event.target.value as "all"|MemoryPriority)}>
+            <option value="all">Todas</option>{PRIORITIES.map(item=><option key={item} value={item}>{item}</option>)}
+          </select>
+        </label>
+        <p className="text-xs text-(--text-secondary) sm:col-span-2">{filteredMemories.length} de {memories.length} registros</p>
+      </div>
       {loading ? (
         <div className="workspace-card p-4 text-sm text-(--text-secondary)">
           Carregando memorias...
         </div>
-      ) : memories.length === 0 ? (
+      ) : filteredMemories.length === 0 ? (
         <div className="workspace-empty-state text-sm">
-          Nenhuma memoria registrada ainda.
+          Nenhuma memória encontrada para os filtros selecionados.
         </div>
       ) : (
         <div className="space-y-3">
-          {memories.map((memory) => (
+          {filteredMemories.map((memory) => (
             <SurfaceCard key={memory.id}>
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <div>
@@ -231,46 +248,11 @@ export default function MemoryPage() {
               <p className="mt-3 text-sm leading-6 text-(--text-primary)">{memory.content}</p>
 
               <div className="mt-4 flex flex-wrap gap-2">
-                <button
-                  type="button"
-                  onClick={() => void patchMemory(memory.id, { priority: "P0", type: "fixed" })}
-                  disabled={updatingId === memory.id}
-                  className="workspace-button-secondary px-3 py-2 text-[13px]"
-                >
-                  Fixar (P0)
-                </button>
-                <button
-                  type="button"
-                  onClick={() => void sendFeedback(memory.id, "useful")}
-                  disabled={updatingId === memory.id}
-                  className="workspace-button-secondary px-3 py-2 text-[13px]"
-                >
-                  Util
-                </button>
-                <button
-                  type="button"
-                  onClick={() => void sendFeedback(memory.id, "not_useful")}
-                  disabled={updatingId === memory.id}
-                  className="workspace-button-secondary px-3 py-2 text-[13px]"
-                >
-                  Nao util
-                </button>
-                <button
-                  type="button"
-                  onClick={() => void patchMemory(memory.id, { priority: "P4", type: "obsolete" })}
-                  disabled={updatingId === memory.id}
-                  className="workspace-button-secondary px-3 py-2 text-[13px]"
-                >
-                  Marcar obsoleta
-                </button>
-                <button
-                  type="button"
-                  onClick={() => void handleEdit(memory)}
-                  disabled={updatingId === memory.id}
-                  className="workspace-button-primary px-3 py-2 text-[13px]"
-                >
-                  Editar
-                </button>
+                <IconActionButton icon="pin" tone="success" label={"Fixar memória "+memory.id} disabled={updatingId === memory.id} onClick={() => void patchMemory(memory.id, { priority: "P0", type: "fixed" })}/>
+                <IconActionButton icon="thumbs-up" tone="success" label={"Marcar útil "+memory.id} disabled={updatingId === memory.id} onClick={() => void sendFeedback(memory.id, "useful")}/>
+                <IconActionButton icon="thumbs-down" tone="neutral" label={"Marcar não útil "+memory.id} disabled={updatingId === memory.id} onClick={() => void sendFeedback(memory.id, "not_useful")}/>
+                <IconActionButton icon="archive" tone="danger" label={"Marcar memória obsoleta "+memory.id} disabled={updatingId === memory.id} onClick={() => void patchMemory(memory.id, { priority: "P4", type: "obsolete" })}/>
+                <IconActionButton icon="pencil" tone="edit" label={"Editar memória "+memory.id} disabled={updatingId === memory.id} onClick={() => void handleEdit(memory)}/>
               </div>
             </SurfaceCard>
           ))}

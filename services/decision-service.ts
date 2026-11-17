@@ -440,3 +440,25 @@ export async function updateDecisionStatus(params: {
   });
   return found;
 }
+
+/** Edit content without fabricating a new decision or altering status/history. */
+export async function updateDecisionFields(params:{
+ userId:string;decisionId:string;
+ patch:{title:string;context:string;reason:string;impact:string};
+}):Promise<Decision|null>{
+ const current=await getDecisionById({userId:params.userId,decisionId:params.decisionId});
+ if(!current)return null;
+ const db=getSupabaseServerClient();
+ if(!db)return null;
+ const patch={
+  titulo:params.patch.title.trim().slice(0,180),
+  contexto:params.patch.context.trim(),
+  motivo:params.patch.reason.trim(),
+  impacto:params.patch.impact.trim()
+ };
+ if(!patch.titulo)return null;
+ let query=db.from("decisions").update(patch).eq("id",params.decisionId).eq("user_id",params.userId);
+ if(TENANT_SCHEMA_READY)query=query.eq("organization_id",await requireEffectiveTenant(params.userId));
+ const updated=await query.select("id,user_id,titulo,contexto,motivo,impacto,status,project_id,conversation_id,artifact_id,created_at").maybeSingle();
+ return updated.error||!updated.data?null:mapSupabaseDecision(updated.data);
+}

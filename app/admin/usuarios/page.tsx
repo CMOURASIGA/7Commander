@@ -1,4 +1,5 @@
 "use client";
+import {IconActionButton} from "@/components/ui/icon-action-button";
 import { useEffect, useState } from "react";
 import { getClientAuthHeaders } from "@/lib/client-auth";
 type Entry = { user_id: string; email: string; nome: string; role: string; active: boolean };
@@ -38,6 +39,6 @@ export default function AdminUsers() {
     </form>
     {message&&<p role="status">{message}</p>}
     <section className="space-y-3"><h2 className="text-xl font-semibold">Usuários</h2>
-      {loading?<p>Carregando...</p>:entries.map(u=><article key={u.user_id} className="flex flex-wrap items-center justify-between gap-3 rounded-xl border p-4"><div><strong>{u.nome}</strong><p>{u.email}</p><p>{u.active?"Ativo":"Suspenso"} {u.role==="superadmin"?" · Conta principal protegida":""}</p></div><div className="flex gap-2"><select aria-label={"Perfil de "+u.nome} value={u.role} onChange={e=>void update(u.user_id,{role:e.target.value})} disabled={u.role==="superadmin"} className="rounded border p-2"><option value="superadmin">Superadmin</option><option value="admin">Admin</option><option value="gestor">Gestor</option><option value="colaborador">Colaborador</option><option value="leitor">Leitor</option></select><button disabled={u.role==="superadmin"} className="rounded border p-2 disabled:opacity-50" onClick={()=>void update(u.user_id,{active:!u.active})}>{u.active?"Suspender":"Ativar"}</button></div></article>)}
+      {loading?<p>Carregando...</p>:entries.map(u=><article key={u.user_id} className="flex flex-wrap items-center justify-between gap-3 rounded-xl border p-4"><div><strong>{u.nome}</strong><p>{u.email}</p><p>{u.active?"Ativo":"Suspenso"} {u.role==="superadmin"?" · Conta principal protegida":""}</p></div><div className="flex gap-2"><select aria-label={"Perfil de "+u.nome} value={u.role} onChange={e=>void update(u.user_id,{role:e.target.value})} disabled={u.role==="superadmin"} className="rounded border p-2"><option value="superadmin">Superadmin</option><option value="admin">Admin</option><option value="gestor">Gestor</option><option value="colaborador">Colaborador</option><option value="leitor">Leitor</option></select><IconActionButton icon={u.active?"circle-minus":"check-circle"} tone={u.active?"danger":"success"} label={(u.active?"Suspender ":"Ativar ")+u.email} disabled={u.role==="superadmin"} onClick={()=>void update(u.user_id,{active:!u.active})}/></div></article>)}
     </section></main>;
 }

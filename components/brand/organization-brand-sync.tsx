@@ -5,9 +5,12 @@ import { getClientAuthHeaders } from "@/lib/client-auth";
 import { applyClientBrandSettings, CLIENT_BRAND_STORAGE_KEY, DEFAULT_CLIENT_BRAND, type ClientBrandSettings } from "@/lib/brand-settings";
 
 function publishBrand(brand: ClientBrandSettings) {
-  // Cache only visual preferences. Permissions and active tenant are always resolved server-side.
-  window.localStorage.setItem(CLIENT_BRAND_STORAGE_KEY, JSON.stringify(brand));
+  // The API confirms the active tenant. Browser storage only caches styling.
+  const serialized=JSON.stringify(brand);
+  const previous=window.localStorage.getItem(CLIENT_BRAND_STORAGE_KEY);
   applyClientBrandSettings(brand);
+  if(previous===serialized)return;
+  window.localStorage.setItem(CLIENT_BRAND_STORAGE_KEY,serialized);
   window.dispatchEvent(new CustomEvent("client-brand-updated", { detail: brand }));
 }
 
@@ -35,13 +38,14 @@ export function OrganizationBrandSync() {
         if(isConsult){publishBrand(DEFAULT_CLIENT_BRAND);return;}
         publishBrand({clientName:b?.displayName||data.name||DEFAULT_CLIENT_BRAND.clientName,logoUrl:logo,primaryColor:color(b?.primaryColor,DEFAULT_CLIENT_BRAND.primaryColor),highlightColor:color(b?.secondaryColor,DEFAULT_CLIENT_BRAND.highlightColor)});
       }catch {
-        if(alive)publishBrand(DEFAULT_CLIENT_BRAND);
+        // Transient network or session failures must not erase a verified tenant's
+        // brand. Only signing out resets the local visual cache.
       }
     }
     void load();
     const onChange=()=>void load();
     window.addEventListener("7commander:organization-selected",onChange);
     return ()=>{alive=false;window.removeEventListener("7commander:organization-selected",onChange);};
-  },[auth.loading,auth.user]);
+  },[auth.loading,auth.user?.id]);
   return null;
 }

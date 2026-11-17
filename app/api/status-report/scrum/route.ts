@@ -11,5 +11,11 @@ export async function GET(req:NextRequest){
  if("error" in context)return out({error:context.error},context.status);
  if(audience==="internal"&&!["owner","editor"].includes(context.role))return out({error:"Relatório interno restrito."},403);
  try{return out({data:await loadReportData(context.db,context.organizationId,projectId,audience)})}
- catch{return out({error:"Dados de Scrum e Kanban indisponíveis; relatório não gerado."},503)}
+ catch(error){
+  console.error("[status-report/scrum] failed to load report data",error);
+  const reason=error instanceof Error?error.message:"";
+  const safe=/^(Consulta de |Códigos permanentes dos riscos indisponíveis)/.test(reason)
+    ? reason:"Dados de Scrum e Kanban indisponíveis; relatório não gerado.";
+  return out({error:safe,code:"REPORT_DATA_UNAVAILABLE"},503);
+ }
 }

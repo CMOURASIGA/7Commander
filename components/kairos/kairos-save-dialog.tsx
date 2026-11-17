@@ -1,6 +1,7 @@
 "use client";
 
 import type { KairosCore } from "@/components/kairos/use-kairos-core";
+import {parseStructuredBacklog} from "@/lib/kairos-structured-backlog";
 
 /**
  * Modal "Direcionar resposta" (Decisao / Risco / Conhecimento / Atividade),
@@ -11,6 +12,8 @@ import type { KairosCore } from "@/components/kairos/use-kairos-core";
 export function KairosSaveDialog({ core }: { core: KairosCore }) {
   const { saveDialog } = core;
   if (!saveDialog) return null;
+  const hierarchicalProposal=parseStructuredBacklog(saveDialog.message.content);
+  const blockWholeReportAsStory=saveDialog.kind==="story"&&Boolean(hierarchicalProposal);
 
   const isSaving =
     core.decisionLoadingId === saveDialog.message.id ||
@@ -121,6 +124,7 @@ export function KairosSaveDialog({ core }: { core: KairosCore }) {
           </div>
         ) : saveDialog.kind==="story" ? (
           <div className="mt-5 grid gap-3 sm:grid-cols-2">
+            {blockWholeReportAsStory&&<p role="alert" className="sm:col-span-2 rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">Esta resposta contém múltiplos Épicos, Features e US. Para evitar cadastrar o relatório inteiro como uma única US, feche este formulário e selecione “Estruturar backlog” na resposta do Kairos.</p>}
             <label className="text-xs sm:col-span-2">Título da US<input className="workspace-input mt-1 w-full" value={core.storyForm.title} onChange={e=>core.setStoryForm(f=>({...f,title:e.target.value}))}/></label>
             <label className="text-xs sm:col-span-2">Descrição<textarea rows={4} className="workspace-input mt-1 w-full" value={core.storyForm.description} onChange={e=>core.setStoryForm(f=>({...f,description:e.target.value}))}/></label>
             <label className="text-xs sm:col-span-2">Critérios de aceite<textarea rows={2} className="workspace-input mt-1 w-full" value={core.storyForm.acceptanceCriteria} onChange={e=>core.setStoryForm(f=>({...f,acceptanceCriteria:e.target.value}))}/></label>
@@ -260,7 +264,7 @@ export function KairosSaveDialog({ core }: { core: KairosCore }) {
                       : ["meeting","story","story-task"].includes(saveDialog.kind) ? core.handleSaveStructuredDestination()
                       : core.handleSaveTask()
               )}
-              disabled={isSaving}
+              disabled={isSaving||blockWholeReportAsStory}
               className="workspace-button-primary px-4 py-2 text-sm"
             >
               {isSaving ? "Salvando..." : "Confirmar e salvar"}

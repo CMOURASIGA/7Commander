@@ -6,11 +6,13 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { getClientAuthHeaders } from "@/lib/client-auth";
 import { BRAND_LOGO_URL } from "@/lib/brand";
-import type {ReportData,ReportAudience} from "@/lib/scrum/report-data";
+import type {ReportData,ReportAudience,ClientReportFact} from "@/lib/scrum/report-data";
+import {clientSelectableFacts,selectClientReportFacts} from "@/lib/reports/client-report-selection";
 import {riskReportHtml} from "@/lib/reports/risk-report-html";
 import {isVagueNextStep} from "@/lib/reports/editorial-rules";
 import {safeMarkdownHtml} from "@/lib/safe-markdown-html";
-import {PublicFactsEditor} from "@/components/status-report/public-facts-editor";
+
+import {applyInternalReportSelection,type InternalReportSelection,type InternalReportSelectionKey} from "@/lib/reports/internal-report-selection";
 import {downloadReportDocumentPdf} from "@/lib/reports/pdf-document";
 
 type Project = { id:string; name:string; objective?:string; status?:string; clientName?:string|null };
@@ -72,7 +74,7 @@ function renumberReportSections(html:string):string{
  let count=0;
  return html.replace(/(<h3>)(\d{2})( · )/g,(_m,tag:string,_number:string,dot:string)=>tag+String(++count).padStart(2,"0")+dot);
 }
-function reportDocument(project:Project, cards:Card[], risks:Risk[], decisions:Decision[], period:string, issueDate:string, analysis:AiAnalysis|null, periodEvents:number|null, periodMetrics:PeriodMetrics|null, audience:ReportAudience, scrum:ReportData|null, includeMitigationAnnex=false) {
+function reportDocument(project:Project, cards:Card[], risks:Risk[], decisions:Decision[], period:string, issueDate:string, analysis:AiAnalysis|null, periodEvents:number|null, periodMetrics:PeriodMetrics|null, audience:ReportAudience, scrum:ReportData|null, includeMitigationAnnex=false, selection?:InternalReportSelection) {
   const done=scrum?.kanban.done??cards.filter(x=>x.columnKey==="done").length, doing=scrum?.kanban.doing??cards.filter(x=>x.columnKey==="doing").length, todo=scrum?.kanban.todo??cards.filter(x=>x.columnKey==="todo").length;
   const atRisk=risks.filter(x=>x.status==="aberto"||x.status==="em_mitigacao");
   const undecided=decisions.filter(x=>x.status==="aberta"||x.status==="em_andamento");
@@ -81,15 +83,17 @@ function reportDocument(project:Project, cards:Card[], risks:Risk[], decisions:D
   const list=(rows:Array<{title:string;note:string}>,missing:string)=>rows.length?rows.map(x=>`<div class="item"><div>${htmlEscape(x.title)}</div><span>${htmlEscape(x.note)}</span></div>`).join(""):`<p class="empty">${missing}</p>`;
   const logo=htmlEscape(BRAND_LOGO_URL);
   const isInternal=audience==="internal";
+  const show=(key:InternalReportSelectionKey)=>!selection||selection[key].length>0;
+  const noneSelected=Boolean(selection&&Object.values(selection).every(a=>a.length===0));
   // REP-01: client document is a separate, strictly public projection.
   // It never interpolates internal story/task/member information.
   if(audience==="client"){
     const shareable=scrum?.publicFacts||[];
     const classify=(value:string)=>({confirmed:"Concluído ou confirmado",in_progress:"Em andamento",hypothesis:"Em avaliação",ai_recommendation:"Proposta"} as Record<string,string>)[value]||"A confirmar";
-    const publicItems=(kind:string)=>shareable.filter(x=>x.kind===kind && !(kind==="milestone"&&x.classification!=="confirmed")&&!(kind==="next_step"&&isVagueNextStep(x.title,x.description))).slice(0,15).map(x=>({
+    const publicItems=(kind:string)=>shareable.filter(x=>x.kind===kind).slice(0,100).map(x=>({
       title:x.title,note:classify(x.classification)+(x.due_date?" · Prazo informado: "+x.due_date:"")+(x.description&&!/validar contexto|antes da divulga[cç][aã]o|informação interna/i.test(x.description)?" · "+x.description:"")
     }));
-    const publicObjective=shareable.find(x=>x.kind==="objective"&&x.classification==="confirmed");
+    const publicObjective=shareable.find(x=>x.kind==="objective");
     const publicObjectiveText=publicObjective?.description||publicObjective?.title||"";
     const published=Boolean(scrum?.publicFactsAvailable);
     const approvalNotice=published?"":"Informações ainda não disponíveis para divulgação.";
@@ -97,43 +101,50 @@ function reportDocument(project:Project, cards:Card[], risks:Risk[], decisions:D
     <header class="hero"><div class="top"><img class="logo" src="${logo}" alt="Consult Services Tecnologia"><div class="topright">RELATÓRIO PARA CLIENTE<br><small>Visão de objetivos, entregas e compromissos</small></div></div><p class="eyebrow">COMMANDER · ACOMPANHAMENTO DO PROJETO</p><h1>${htmlEscape(project.name)}</h1>${publicObjectiveText?`<p class="desc">${htmlEscape(publicObjectiveText)}</p>`:""}<div class="chips"><span class="chip">Referência: ${htmlEscape(period)}</span><span class="chip">Emissão: ${htmlEscape(issueDate)}</span><span class="chip">Público: Cliente</span></div></header>
     <div class="note">Informações autorizadas para acompanhamento. As contagens não indicam aceite contratual nem percentual físico de conclusão.</div>
     ${publicItems("benefit").length?`<section class="panel"><h3>01 · Benefícios</h3><h2>Benefícios documentados</h2>${list(publicItems("benefit"),approvalNotice)}</section>`:""}
-    <section class="metrics"><div class="metric"><small>ENTREGAS AUTORIZADAS</small><strong>${shareable.filter(x=>x.kind==="deliverable").length}</strong></div><div class="metric green"><small>BENEFÍCIOS AUTORIZADOS</small><strong>${shareable.filter(x=>x.kind==="benefit").length}</strong></div><div class="metric amber"><small>RISCOS AUTORIZADOS</small><strong>${scrum?.riskAssessments?.length||0}</strong></div><div class="metric"><small>MARCOS CONFIRMADOS</small><strong>${shareable.filter(x=>x.kind==="milestone"&&x.classification==="confirmed").length}</strong></div></section>
+    ${shareable.some(x=>x.kind==="deliverable")?`<section class="metrics"><div class="metric"><small>ATIVIDADES SELECIONADAS</small><strong>${shareable.filter(x=>x.kind==="deliverable").length}</strong></div><div class="metric green"><small>CONCLUÍDAS</small><strong>${shareable.filter(x=>x.kind==="deliverable"&&x.classification==="confirmed").length}</strong></div><div class="metric"><small>EM ANDAMENTO</small><strong>${shareable.filter(x=>x.kind==="deliverable"&&x.classification==="in_progress").length}</strong></div></section>`:""}
+    ${scrum?.clientExecutiveComplement?.trim()?`<section class="panel"><h3>01 · Acompanhamento executivo</h3><h2>Evolução e principais alinhamentos</h2><p style="white-space:pre-wrap;line-height:1.65">${htmlEscape(scrum.clientExecutiveComplement)}</p></section>`:""}
     ${publicItems("deliverable").length?`<section class="panel"><h3>02 · Entregas registradas</h3><h2>Entregas e evolução</h2>${list(publicItems("deliverable"),approvalNotice)}</section>`:""}
-    ${publicItems("milestone").length?`<section class="panel"><h3>03 · Marcos e prazos</h3><h2>Compromissos confirmados</h2>${list(publicItems("milestone"),approvalNotice)}</section>`:""}
-    ${riskReportHtml(scrum?.riskAssessments||[],"client")}
-    ${publicItems("next_step").length?`<section class="panel"><h3>05 · Decisões e próximos passos</h3><h2>Próximos passos</h2>${list(publicItems("next_step"),approvalNotice)}</section>`:""}
+    ${publicItems("next_step").length?`<section class="panel"><h3>03 · Decisões e encaminhamentos</h3><h2>Decisões registradas</h2>${list(publicItems("next_step"),approvalNotice)}</section>`:""}
     <footer class="foot"><span>CONSULT SERVICES TECNOLOGIA · Commander / Relatório Cliente</span><span>Emitido em ${htmlEscape(issueDate)}</span></footer><div class="actions"><button onclick="window.print()">Imprimir / Salvar em PDF</button></div></main></body></html>`;
   }
-  const scrumSection=scrum?.scrum.enabled?`
+  const scrumSection=show("sprints")&&scrum?.scrum.enabled&&scrum.scrum.sprints.length?`
    <section class="panel" style="margin:16px 0"><div class="scrum-overview"><h3>07 · Scrum</h3><h2>Panorama de Sprints</h2>
    <p class="empty">Indicadores calculados a partir do estado atual das US. Não representam a situação histórica do período escolhido.</p>
    <div class="metrics" style="margin:12px 0"><div class="metric"><small>SPRINTS</small><strong>${scrum.scrum.sprints.length}</strong></div>
-   <div class="metric"><small>US NO BACKLOG</small><strong>${scrum.scrum.backlog_stories}</strong></div>
-   <div class="metric"><small>TASKS CONCLUÍDAS</small><strong>${scrum.scrum.tasks_done}/${scrum.scrum.tasks_total}</strong></div></div></div>
+   <div class="metric"><small>US SELECIONADAS</small><strong>${scrum.scrum.stories_total}</strong></div>
+   <div class="metric"><small>TASKS SELECIONADAS</small><strong>${scrum.scrum.tasks_total}</strong><em>${scrum.scrum.tasks_done} concluídas</em></div></div></div>
    ${scrum.scrum.sprints.map(sp=>`<div class="item"><div><b>${htmlEscape(sp.name)}</b><p style="font-size:12px;margin:5px 0">Meta: ${htmlEscape(sp.goal||"Não definida")} · ${htmlEscape(sp.start_date)} a ${htmlEscape(sp.end_date)}</p><p style="font-size:12px;margin:5px 0">US: ${sp.closed}/${sp.stories} concluídas · Pontos: ${sp.points_done}/${sp.points_planned} · Atrasadas: ${sp.overdue} · Bloqueadas: ${sp.blocked}</p>${sp.status==="planned"&&(sp.active>0||sp.resolved>0||sp.closed>0)?`<p class="note">Inconsistência a revisar: Sprint planejada com US em execução ou concluídas.</p>`:""}<p style="font-size:12px;margin:5px 0">Entregas realizadas: ${sp.delivery_actual}/${sp.delivery_planned} previstas · No prazo: ${sp.delivery_on_time} · Fora do prazo: ${sp.delivery_late}</p></div><span>${htmlEscape(sp.status)}</span></div>`).join("")}
    </section>`: "";
-  const internalSection=isInternal&&scrum?.internal?`
+  const internalSection=isInternal&&scrum?.internal&&(show("stories")||show("tasks"))?`
    <section class="panel" style="margin:16px 0"><h3>08 · Operação interna</h3><h2>US, Tasks e impedimentos</h2>
    ${list(scrum.internal.stories.slice(0,35).map(st=>({title:st.title,note:st.workflow_stage.toUpperCase()+" · "+(st.responsible||"Sem responsável")+" · Prazo: "+(st.due_date||"Não definido")+(st.blocked?" · IMPEDIDA: "+st.blocker_reason:"")})),"Sem US cadastradas.")}
    <h2 style="margin-top:18px">Tasks de desenvolvimento</h2>
    ${list(scrum.internal.tasks.slice(0,35).map(t=>({title:t.title,note:t.state.toUpperCase()+" · "+(t.responsible||"Sem responsável")})),"Nenhuma Task de desenvolvimento cadastrada nesta extração. Isso não confirma ausência de trabalho em andamento.")}
    </section>`: "";
+  if(noneSelected){
+    return '<!doctype html><html lang="pt-BR"><head><meta charset="UTF-8"><title>Status Report Equipe</title><style>'+css+'</style></head><body><main class="wrap"><header class="hero"><h1>'+htmlEscape(project.name)+'</h1><p>Relatório Equipe · '+htmlEscape(period)+' · '+htmlEscape(issueDate)+'</p></header><section class="panel"><h2>'+(analysis?.nextSteps?.trim()?"Próximos passos registrados":"Nenhum conteúdo selecionado")+'</h2><p>'+htmlEscape(analysis?.nextSteps?.trim()||"Selecione registros antes da emissão.")+'</p></section></main></body></html>';
+  }
   return `<!doctype html><html lang="pt-BR"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Status Report — ${htmlEscape(project.name)}</title><style>${css}</style></head><body><main class="wrap">
   <header class="hero"><div class="top"><img class="logo" src="${logo}" alt="Consult Services Tecnologia"><div class="topright">RELATÓRIO ${isInternal?"GERENCIAL":"EXECUTIVO"}<br><small style="font-weight:400">MODELO INSTITUCIONAL · V1.1</small></div></div><p class="eyebrow" style="margin-top:24px">GESTÃO DE PROJETOS</p><div class="rule"></div><span class="eyebrow">COMMANDER · STATUS REPORT</span><h1>${htmlEscape(project.name)}</h1><p class="desc">${htmlEscape(project.objective||"Objetivo do projeto não registrado.")}</p><div class="chips"><span class="chip">Período: ${htmlEscape(period)}</span><span class="chip">Emitido: ${htmlEscape(issueDate)}</span><span class="chip">Público: ${isInternal?"Equipe interna":"Cliente"}</span><span class="chip warning">Riscos ativos: ${atRisk.length}</span></div></header>
   <div class="note">RELATÓRIO EXTRAÍDO DE DADOS CADASTRADOS. Contagens representam registros Kanban disponíveis no momento da geração, não o percentual físico de conclusão do projeto. Ausência de registros não comprova ausência de riscos ou impedimentos. O Kanban e a lista de riscos representam o estado atual, não um retrato retrospectivo. ${periodEvents===null?"Não há recorte temporal de eventos.":`Eventos registrados no período selecionado: ${periodEvents}. Esses eventos não equivalem a entregas concluídas.`}</div>
-  <section class="metrics"><div class="metric"><small>ITENS NO QUADRO</small><strong>${total}</strong><em>Cards registrados</em></div><div class="metric green"><small>CONCLUÍDOS</small><strong>${done}</strong><em>Coluna DONE</em></div><div class="metric"><small>EM EXECUÇÃO</small><strong>${doing}</strong><em>WIP atual</em></div><div class="metric amber"><small>RISCOS ABERTOS</small><strong>${atRisk.length}</strong><em>Em aberto / mitigação</em></div></section>
+  ${show("cards")||show("risks")?`<section class="metrics"><div class="metric"><small>ITENS NO QUADRO</small><strong>${total}</strong><em>Cards registrados</em></div><div class="metric green"><small>CONCLUÍDOS</small><strong>${done}</strong><em>Coluna DONE</em></div><div class="metric"><small>EM EXECUÇÃO</small><strong>${doing}</strong><em>WIP atual</em></div><div class="metric amber"><small>RISCOS ABERTOS</small><strong>${atRisk.length}</strong><em>Em aberto / mitigação</em></div></section>`:""}
   ${periodMetrics?`<section class="panel" style="margin-bottom:14px"><h3>Registros do período</h3><h2>Movimentação documentada</h2><div class="item">Atividades criadas <span>${periodMetrics.tasksCreated}</span></div><div class="item">Riscos registrados <span>${periodMetrics.risksRegistered}</span></div><div class="item">Decisões registradas <span>${periodMetrics.decisionsRegistered}</span></div><div class="item">Eventos de tarefas no histórico <span>${periodMetrics.activityEvents}</span></div><p class="empty">Datas filtram a criação de registros e os eventos registrados; situação de cartões, riscos e decisões é atual, não reconstrução histórica.</p></section>`:""}
-  <div class="grid"><section class="panel"><h3>01 · Leitura gerencial</h3><h2>Resumo executivo</h2>${analysis?`<div class="report-ai-text">${safeMarkdownHtml(analysis.executiveSummary)}</div><p class="empty">Análise Kairos baseada nos registros autorizados. Os indicadores abaixo são apenas uma fotografia operacional.</p>`:`<p class="muted">Resumo baseado nos registros atuais do projeto.</p>`}<p>O Kanban registra ${total} atividades, sendo ${done} concluídas, ${doing} em execução e ${todo} a fazer. Há ${atRisk.length} riscos abertos ou em mitigação e ${undecided.length} decisões não concluídas. O grau de avanço de escopo e tendências de prazo não podem ser inferidos apenas dessas contagens.</p><p><strong>Para decisão:</strong> revisar os riscos e decisões pendentes abaixo antes de assumir compromissos com o próximo ciclo.</p></section>
-  <section class="panel"><h3>02 · Fluxo de trabalho</h3><h2>Situação dos cards do Kanban</h2><div class="bar"><span style="width:${total?done/total*100:0}%;background:#11a47f"></span><span style="width:${total?doing/total*100:0}%;background:#4689d9"></span><span style="width:${total?todo/total*100:0}%;background:#e5a23f"></span></div><div class="item">Cards concluídos <span>${done} de ${total} registros</span></div><div class="item">Em andamento <span>${doing}</span></div><div class="item">A fazer <span>${todo}</span></div><p class="empty">Métricas históricas como throughput, lead time e cycle time não são inferidas deste retrato.</p></section>
-  <section class="panel"><h3>03 · Atividades concluídas</h3><h2>Cards concluídos, incluindo reuniões e atividades administrativas</h2>${list(completed.map(x=>({title:x.title,note:"Concluída"})),"Nenhum card em DONE.")}</section>
-  <section class="panel"><h3>04 · Governança</h3><h2>Decisões necessárias</h2>${list(undecided.map(x=>({title:x.title,note:x.status})),"Nenhuma decisão pendente registrada.")}</section>
-  <section class="panel"><h3>05 · Perspectiva</h3><h2>Próximos passos</h2>${analysis?`<div class="report-ai-text">${safeMarkdownHtml(analysis.nextSteps)}</div>`:`<p class="muted">Próximas ações ainda não registradas.</p>`}<p>Sem linha de base histórica suficiente para uma previsão de custo, prazo ou tendência.</p></section></div>
-  ${riskReportHtml(scrum?.riskAssessments||[],"internal",{includeMitigationAnnex})}${scrumSection}${internalSection}
+  <div class="grid">${show("cards")||show("risks")||show("decisions")?`<section class="panel"><h3>01 · Leitura gerencial</h3><h2>Resumo executivo</h2>${analysis?`<div class="report-ai-text">${safeMarkdownHtml(analysis.executiveSummary)}</div><p class="empty">Análise Kairos baseada nos registros autorizados. Os indicadores abaixo são apenas uma fotografia operacional.</p>`:`<p class="muted">Resumo baseado nos registros atuais do projeto.</p>`}<p>O Kanban registra ${total} atividades, sendo ${done} concluídas, ${doing} em execução e ${todo} a fazer. Há ${atRisk.length} riscos abertos ou em mitigação e ${undecided.length} decisões não concluídas. O grau de avanço de escopo e tendências de prazo não podem ser inferidos apenas dessas contagens.</p><p><strong>Para decisão:</strong> revisar os riscos e decisões pendentes abaixo antes de assumir compromissos com o próximo ciclo.</p></section>`:""}
+  ${show("cards")?`<section class="panel"><h3>02 · Fluxo de trabalho</h3><h2>Situação dos cards do Kanban</h2><div class="bar"><span style="width:${total?done/total*100:0}%;background:#11a47f"></span><span style="width:${total?doing/total*100:0}%;background:#4689d9"></span><span style="width:${total?todo/total*100:0}%;background:#e5a23f"></span></div><div class="item">Cards concluídos <span>${done} de ${total} registros</span></div><div class="item">Em andamento <span>${doing}</span></div><div class="item">A fazer <span>${todo}</span></div><p class="empty">Métricas históricas como throughput, lead time e cycle time não são inferidas deste retrato.</p></section>`:""}
+  ${show("cards")?`<section class="panel"><h3>03 · Atividades selecionadas</h3><h2>Cards selecionados por status</h2>${list(cards.map(x=>({title:x.title,note:({"todo":"A fazer","to_do":"A fazer","aberta":"A fazer","doing":"Em andamento","em_andamento":"Em andamento","done":"Concluída","concluida":"Concluída"} as Record<string,string>)[x.columnKey]||({"aberta":"A fazer","em_andamento":"Em andamento","concluida":"Concluída"} as Record<string,string>)[x.status]||x.status||"Sem status"})),"Nenhum card selecionado.")}</section>`:""}
+  ${show("decisions")?`<section class="panel"><h3>04 · Governança</h3><h2>Decisões necessárias</h2>${list(undecided.map(x=>({title:x.title,note:x.status})),"Nenhuma decisão pendente registrada.")}</section>`:""}
+  ${Boolean(analysis?.nextSteps?.trim())?`<section class="panel"><h3>05 · Perspectiva</h3><h2>Próximos passos</h2>${analysis?.nextSteps?.trim()?`<div class="report-ai-text">${safeMarkdownHtml(analysis.nextSteps)}</div>`:`<p class="muted">Nenhum próximo passo selecionado. Informe as ações no campo de revisão da Equipe.</p>`}<p>Sem linha de base histórica suficiente para uma previsão de custo, prazo ou tendência.</p></section>`:""}</div>
+  ${show("meetings")&&isInternal&&scrum?.internal?.meetingLines?.length?`<section class="panel" style="margin:16px 0"><h3>Reuniões registradas</h3><h2>Compromissos e pendências</h2><p class="muted">Origem: atas do projeto. Compromissos não comprovam execução. ${scrum.internal.meetingSource==="local"?"DADOS DE HOMOLOGAÇÃO LOCAL, NÃO OFICIAIS.":""}</p>${scrum.internal.meetingLines.slice(0,75).map(item=>`<div class="item"><div><b>${htmlEscape(item.title)}</b><p style="font-size:12px">${htmlEscape(item.details||"Sem detalhamento")} · ${htmlEscape(item.meetingTitle)} · ${htmlEscape(new Date(item.heldAt).toLocaleDateString("pt-BR"))}</p></div><span>${item.category==="commitment"?"Compromisso":"Pendência"}</span></div>`).join("")}</section>`:""}
+  ${show("risks")&&scrum?.riskAssessments?.length?riskReportHtml(scrum.riskAssessments,"internal",{includeMitigationAnnex}):""}${scrumSection}${internalSection}
   <footer class="foot"><span>CONSULT SERVICES TECNOLOGIA · Commander / Relatório Equipe</span><span>Registro gerado em ${htmlEscape(issueDate)}</span></footer>
   <div class="actions"><button onclick="window.print()">Salvar como PDF / Imprimir</button></div>
   </main></body></html>`;
 }
 function historicalDocument(data:ReportData,audience:ReportAudience,narrative:AiAnalysis|null,issued:string){
+ if(audience==="internal"&&data.internalSelection&&Object.values(data.internalSelection).every(values=>values.length===0)){
+  const hasNext=Boolean(narrative?.nextSteps?.trim());
+  return '<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>Status Report Equipe arquivado</title><style>'+css+'</style></head><body><main class="wrap"><header class="hero"><h1>'+htmlEscape(data.project.name)+'</h1><p>Relatório Equipe · '+htmlEscape(issued)+'</p></header><section class="panel"><h2>'+(hasNext?'Próximos passos registrados':'Nenhum conteúdo selecionado')+'</h2><p>'+htmlEscape(hasNext?narrative?.nextSteps||'':'Nenhum registro foi incluído nesta emissão.')+'</p></section></main></body></html>';
+ }
  if(audience==="client"){
   const listPublic=(kind:string)=>{
     const values=(data.publicFacts||[]).filter(item=>item.kind===kind);
@@ -142,16 +153,54 @@ function historicalDocument(data:ReportData,audience:ReportAudience,narrative:Ai
   return '<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>Relatório Cliente arquivado · '+htmlEscape(data.project.name)+'</title><style>'+css+'</style></head><body><main class="wrap">'
    +'<header class="hero"><h3>COMMANDER · RELATÓRIO CLIENTE ARQUIVADO</h3><h1>'+htmlEscape(data.project.name)+'</h1><p>Emitido: '+htmlEscape(issued)+'</p></header>'
    +'<div class="note">Documento histórico imutável. Valores compartilhados são registros do sistema, não confirmação de aceite ou entrega contratual.</div>'
-   +'<section class="metrics"><div class="metric"><small>ENTREGAS AUTORIZADAS</small><strong>'+(data.publicFacts||[]).filter(item=>item.kind==="deliverable").length+'</strong></div><div class="metric"><small>BENEFÍCIOS AUTORIZADOS</small><strong>'+(data.publicFacts||[]).filter(item=>item.kind==="benefit").length+'</strong></div><div class="metric"><small>RISCOS AUTORIZADOS</small><strong>'+(data.riskAssessments||[]).length+'</strong></div><div class="metric"><small>MARCOS CONFIRMADOS</small><strong>'+(data.publicFacts||[]).filter(item=>item.kind==="milestone"&&item.classification==="confirmed").length+'</strong></div></section>'
-   +(data.riskAssessments?riskReportHtml(data.riskAssessments,"client"):'<section class="panel"><h2>Histórico de riscos</h2><p>Avaliações estruturadas não foram preservadas nesta emissão antiga.</p></section>')
-   +'<section class="panel"><h2>Decisões pendentes</h2>'+listPublic('next_step')+'</section>'
-   +'<section class="panel"><h2>Objetivos autorizados</h2>'+listPublic('objective')+'</section><section class="panel"><h2>Benefícios autorizados</h2>'+listPublic('benefit')+'</section><section class="panel"><h2>Entregas autorizadas</h2>'+listPublic('deliverable')+'</section><section class="panel"><h2>Marcos autorizados</h2>'+listPublic('milestone')+'</section><section class="panel"><h2>Próximos passos autorizados</h2>'+listPublic('next_step')+'</section>'
+   +(data.clientExecutiveComplement?.trim()?'<section class="panel"><h2>Acompanhamento executivo aprovado</h2><p style="white-space:pre-wrap">'+htmlEscape(data.clientExecutiveComplement)+'</p></section>':'')
+   +((data.publicFacts||[]).some(x=>x.kind==="deliverable")?'<section class="panel"><h2>Atividades selecionadas</h2>'+listPublic('deliverable')+'</section>':'')
+   +((data.publicFacts||[]).some(x=>x.kind==="next_step")?'<section class="panel"><h2>Decisões e encaminhamentos</h2>'+listPublic('next_step')+'</section>':'')
    +'<footer class="foot">Commander · Relatório Cliente arquivado</footer><div class="actions"><button onclick="window.print()">Salvar PDF / Imprimir</button></div></main></body></html>';
  }
 
+ if(audience==="internal"&&data.internalSelection){
+  const chosen=data.internalSelection;
+  const entries:string[]=[];
+  const item=(title:string,detail="")=>'<div class="item"><div>'+htmlEscape(title)+'</div><span>'+htmlEscape(detail)+'</span></div>';
+  if(chosen.cards.length){
+   entries.push('<section class="panel"><h2>Cards selecionados por status</h2>'+
+    (data.kanban.items||[]).map(card=>item(card.title,card.status)).join("")+
+    '<p class="muted">Cards selecionados: '+data.kanban.total+' · Concluídos: '+data.kanban.done+'</p></section>');
+  }
+  if(chosen.sprints.length){
+   entries.push('<section class="panel"><h2>Sprints selecionadas</h2>'+
+    data.scrum.sprints.map(sp=>item(sp.name,sp.status+" · "+sp.start_date+" a "+sp.end_date)).join("")+'</section>');
+  }
+  if(chosen.stories.length&&data.internal){
+   entries.push('<section class="panel"><h2>Histórias de Usuário selecionadas</h2>'+
+    data.internal.stories.map(st=>item(st.title,st.workflow_stage)).join("")+'</section>');
+  }
+  if(chosen.tasks.length&&data.internal){
+   entries.push('<section class="panel"><h2>Tasks selecionadas</h2>'+
+    data.internal.tasks.map(task=>item(task.title,task.state)).join("")+'</section>');
+  }
+  if(chosen.risks.length&&data.riskAssessments?.length)entries.push(riskReportHtml(data.riskAssessments,"internal"));
+  if(chosen.decisions.length)entries.push('<section class="panel"><h2>Decisões selecionadas</h2>'+
+   data.governance.client_decisions.map(d=>item(d.title,d.status)).join("")+'</section>');
+  if(chosen.meetings.length&&data.internal?.meetingLines?.length){
+   entries.push('<section class="panel"><h2>Encaminhamentos de reuniões selecionados</h2>'+
+    data.internal.meetingLines.map(m=>item(m.title,m.meetingTitle+" · "+m.category)).join("")+'</section>');
+  }
+  if(narrative?.nextSteps?.trim())entries.push('<section class="panel"><h2>Próximos passos</h2><p>'+
+    htmlEscape(narrative.nextSteps)+'</p></section>');
+  return '<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>Status Report Equipe arquivado</title><style>'+
+   css+'</style></head><body><main class="wrap"><header class="hero"><h1>'+htmlEscape(data.project.name)+
+   '</h1><p>Relatório Equipe · '+htmlEscape(issued)+'</p></header><p class="note">Emissão arquivada com seleção editorial preservada.</p>'+
+   entries.join("")+'<footer class="foot">Commander · Emissão registrada</footer></main></body></html>';
+ }
  const rows=data.scrum.sprints.map(sp=>'<div class="item"><div><b>'+htmlEscape(sp.name)+'</b><p>Período: '+htmlEscape(sp.start_date)+' a '+htmlEscape(sp.end_date)+'</p><p>US concluídas: '+sp.closed+'/'+sp.stories+' · Story points: '+sp.points_done+'/'+sp.points_planned+' · Atrasadas: '+sp.overdue+'</p></div><span>'+htmlEscape(sp.status)+'</span></div>').join("");
  const internal=audience==="internal"&&data.internal?'<section class="panel"><h2>Detalhamento interno</h2>'+data.internal.stories.map(st=>'<div class="item"><div>'+htmlEscape(st.title)+'</div><span>'+htmlEscape(st.workflow_stage)+' · '+htmlEscape(st.responsible||"Não atribuído")+'</span></div>').join("")+'</section>':"";
- return '<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>Emissão arquivada · '+htmlEscape(data.project.name)+'</title><style>'+css+'</style></head><body><main class="wrap"><header class="hero"><h3>COMMANDER · EMISSÃO ARQUIVADA</h3><h1>'+htmlEscape(data.project.name)+'</h1><p>'+htmlEscape(audience==="internal"?"Status Report Gerencial":"Status Report Executivo")+'</p><p>Emitido: '+htmlEscape(issued)+'</p></header><div class="note">Documento histórico. Os dados abaixo são aqueles preservados na emissão e não serão recalculados ao abrir este arquivo.</div><section class="metrics"><div class="metric"><small>ATIVIDADES</small><strong>'+data.kanban.total+'</strong></div><div class="metric"><small>CONCLUÍDAS</small><strong>'+data.kanban.done+'</strong></div><div class="metric"><small>RISCOS ATIVOS</small><strong>'+data.governance.risks_open+'</strong></div><div class="metric"><small>DECISÕES PENDENTES</small><strong>'+data.governance.decisions_pending+'</strong></div></section><section class="panel"><h2>Histórico das Sprints</h2>'+(rows||'<p>Projeto sem Sprints registradas.</p>')+'</section><section class="panel"><h2>Entregas operacionais</h2>'+data.kanban.completed_titles.map(t=>'<div class="item">'+htmlEscape(t)+'</div>').join("")+'</section><section class="panel"><h2>Decisões registradas</h2>'+data.governance.client_decisions.map(d=>'<div class="item">'+htmlEscape(d.title)+' · '+htmlEscape(d.status)+'</div>').join("")+'</section>'+(data.riskAssessments?riskReportHtml(data.riskAssessments,"internal"):'<section class="panel"><h2>Histórico de riscos</h2><p>Avaliações estruturadas não foram preservadas nesta emissão antiga.</p></section>')+(narrative?'<section class="panel"><h2>Leitura Kairos registrada</h2><p>'+htmlEscape(narrative.executiveSummary)+'</p><p>'+htmlEscape(narrative.riskAnalysis)+'</p><p>'+htmlEscape(narrative.nextSteps)+'</p></section>':"")+internal+'<footer class="foot">Commander · Emissão registrada</footer><div class="actions"><button onclick="window.print()">Imprimir ou salvar PDF</button></div></main></body></html>';
+ const meetingHistory=audience==="internal"&&data.internal?.meetingLines?.length
+  ?'<section class="panel"><h2>Compromissos e pendências das reuniões</h2><p class="muted">Registro preservado no momento da emissão. Não comprova entrega concluída. '+(data.internal.meetingSource==="local"?"DADOS DE HOMOLOGAÇÃO LOCAL.":"")+'</p>'
+  +data.internal.meetingLines.slice(0,75).map(item=>'<div class="item"><div>'+htmlEscape(item.title)+'<p>'+htmlEscape(item.details)+' · '+htmlEscape(item.meetingTitle)+'</p></div><span>'+(item.category==="commitment"?"Compromisso":"Pendência")+'</span></div>').join("")+'</section>':"";
+
+ return '<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>Emissão arquivada · '+htmlEscape(data.project.name)+'</title><style>'+css+'</style></head><body><main class="wrap"><header class="hero"><h3>COMMANDER · EMISSÃO ARQUIVADA</h3><h1>'+htmlEscape(data.project.name)+'</h1><p>'+htmlEscape(audience==="internal"?"Status Report Gerencial":"Status Report Executivo")+'</p><p>Emitido: '+htmlEscape(issued)+'</p></header><div class="note">Documento histórico. Os dados abaixo são aqueles preservados na emissão e não serão recalculados ao abrir este arquivo.</div><section class="metrics"><div class="metric"><small>ATIVIDADES</small><strong>'+data.kanban.total+'</strong></div><div class="metric"><small>CONCLUÍDAS</small><strong>'+data.kanban.done+'</strong></div><div class="metric"><small>RISCOS ATIVOS</small><strong>'+data.governance.risks_open+'</strong></div><div class="metric"><small>DECISÕES PENDENTES</small><strong>'+data.governance.decisions_pending+'</strong></div></section><section class="panel"><h2>Histórico das Sprints</h2>'+(rows||'<p>Projeto sem Sprints registradas.</p>')+'</section><section class="panel"><h2>Entregas operacionais</h2>'+data.kanban.completed_titles.map(t=>'<div class="item">'+htmlEscape(t)+'</div>').join("")+'</section><section class="panel"><h2>Decisões registradas</h2>'+data.governance.client_decisions.map(d=>'<div class="item">'+htmlEscape(d.title)+' · '+htmlEscape(d.status)+'</div>').join("")+'</section>'+(data.riskAssessments?riskReportHtml(data.riskAssessments,"internal"):'<section class="panel"><h2>Histórico de riscos</h2><p>Avaliações estruturadas não foram preservadas nesta emissão antiga.</p></section>')+(narrative?'<section class="panel"><h2>Leitura Kairos registrada</h2><p>'+htmlEscape(narrative.executiveSummary)+'</p><p>'+htmlEscape(narrative.riskAnalysis)+'</p><p>'+htmlEscape(narrative.nextSteps)+'</p></section>':"")+meetingHistory+internal+'<footer class="foot">Commander · Emissão registrada</footer><div class="actions"><button onclick="window.print()">Imprimir ou salvar PDF</button></div></main></body></html>';
 }
 export default function StatusReportPage() {
  const [projects,setProjects]=useState<Project[]>([]);
@@ -166,9 +215,22 @@ export default function StatusReportPage() {
  },[]);
 
  const [projectId,setProjectId]=useState("");
+ const [mobileReportPane,setMobileReportPane]=useState<"content"|"preview">("content");
  const [board,setBoard]=useState<Board|null>(null);
  const [audience,setAudience]=useState<ReportAudience>("client");
+ const [internalSelection,setInternalSelection]=useState<InternalReportSelection|null>(null);
+ const [clientFactIds,setClientFactIds]=useState<string[]|null>(null);
+ const [clientCandidates,setClientCandidates]=useState<ClientReportFact[]|null>(null);
+ const [clientCandidatesStatus,setClientCandidatesStatus]=useState("");
+ const [teamNextSteps,setTeamNextSteps]=useState("");
+ const [clientExecutiveComplement,setClientExecutiveComplement]=useState("");
+ const [clientExecutiveApproved,setClientExecutiveApproved]=useState(false);
+ const [clientExecutiveGenerating,setClientExecutiveGenerating]=useState(false);
+ const [clientExecutiveSource,setClientExecutiveSource]=useState("");
+ const [clientExecutiveError,setClientExecutiveError]=useState("");
  const [scrumReport,setScrumReport]=useState<ReportData|null>(null);
+ const [selectionCatalog,setSelectionCatalog]=useState<ReportData|null>(null);
+ const [retryRevision,setRetryRevision]=useState(0);
  const [factsRevision,setFactsRevision]=useState(0);
  const [scrumStatus,setScrumStatus]=useState("Consultando indicadores do projeto...");
  const [history,setHistory]=useState<Array<{id:string;audience:string;created_at:string;generated_by_email:string|null}>>([]);
@@ -200,7 +262,7 @@ export default function StatusReportPage() {
    .then(async r=>{const j=await r.json();if(!r.ok)throw Error(j.error||"Consulta indisponível");if(live){setScrumReport(j.data);setScrumStatus("Indicadores operacionais consultados.")}})
    .catch(e=>{if(live)setScrumStatus(e instanceof Error?e.message:"Falha ao consultar Scrum.")});
   return()=>{live=false};
- },[projectId,audience,factsRevision]);
+ },[projectId,audience,factsRevision,retryRevision]);
  useEffect(()=>{if(!projectId)return;let live=true;void measuredFetch("/api/status-report/history?projectId="+encodeURIComponent(projectId),{headers:getClientAuthHeaders(),cache:"no-store"})
   .then(r=>r.json()).then(j=>{if(live)setHistory(j.data||[])}).catch(()=>{});return()=>{live=false};},[projectId]);
  useEffect(()=>{let mounted=true;void (async()=>{try{
@@ -212,18 +274,129 @@ export default function StatusReportPage() {
    const responses=await Promise.all(endpoints);if(responses.some(x=>!x.ok))throw Error("Não foi possível consultar todos os registros do projeto. Relatório não gerado.");
    const payloads=await Promise.all(responses.map(x=>x.json()));if(cancelled)return;
    setBoard(payloads[0].data);setRisks(payloads[1].data??[]);setDecisions(payloads[2].data??[]);setStatus("Dados consultados; relatório pronto para exportação.");
-  }catch(e){if(!cancelled)setStatus(e instanceof Error?e.message:"Erro ao consolidar dados.");}finally{if(!cancelled)setBusy(false);}})();return()=>{cancelled=true}},[projectId]);
+  }catch(e){if(!cancelled)setStatus(e instanceof Error?e.message:"Erro ao consolidar dados.");}finally{if(!cancelled)setBusy(false);}})();return()=>{cancelled=true}},[projectId,retryRevision]);
  useEffect(()=>{if(!projectId||analysisRequest.key!==analysisKey){setAnalysisLoading(false);setAnalysis(null);setPeriodEvents(null);setPeriodMetrics(null);setAnalysisStatus(projectId?"Análise Kairos opcional. Os indicadores operacionais estão disponíveis.":"Selecione um projeto.");return;}if(periodMode==="period"&&(!start||!end||start>end)){setAnalysis(null);setAnalysisStatus("Corrija as datas do período.");return;}let cancelled=false;setAnalysis(null);setPeriodEvents(null);setPeriodMetrics(null);setAnalysisLoading(true);setAnalysisStatus("Kairos analisando os registros autorizados...");void(async()=>{try{const response=await measuredFetch("/api/status-report/analysis",{method:"POST",headers:getClientAuthHeaders({"Content-Type":"application/json"}),body:JSON.stringify({projectId,mode:periodMode,start,end,audience}),cache:"no-store"});const payload=await response.json();if(!response.ok)throw Error(payload.error||"Falha na análise.");if(!cancelled){setAnalysis(payload.data?.analysis??null);setPeriodEvents(payload.data?.periodEvents??null);setPeriodMetrics(payload.data?.periodMetrics??null);setAnalysisStatus(payload.data?.source==="ai"?"Análise Kairos gerada. Revise antes de enviar ao cliente.":payload.warning||"Análise de IA indisponível.");}}catch(e){if(!cancelled){setAnalysisStatus(e instanceof Error?e.message:"Falha na análise.");setAnalysis(null);}}finally{if(!cancelled)setAnalysisLoading(false);}})();return()=>{cancelled=true};},[projectId,periodMode,start,end,audience,analysisKey,analysisRequest.key,analysisRequest.revision]);
  const project=projects.find(x=>x.id===projectId);
+ useEffect(()=>{setInternalSelection(null);setClientFactIds(null);setClientCandidates(null);setSelectionCatalog(null);setTeamNextSteps("");setClientExecutiveComplement("");setClientExecutiveApproved(false);setClientExecutiveSource("");setClientExecutiveError("");},[projectId]);
+ // The selectable Scrum inventory is independent of the report audience.
+ // Only authorized editors can retrieve the internal catalogue; public rendering
+ // continues to use the server-generated, client-safe candidate projection.
+ useEffect(()=>{
+  if(!projectId)return;
+  let active=true;setSelectionCatalog(null);
+  void measuredFetch("/api/status-report/scrum?projectId="+encodeURIComponent(projectId)+"&audience=internal",
+   {headers:getClientAuthHeaders(),cache:"no-store"})
+   .then(async response=>{if(!response.ok)return null;const body=await response.json();return body.data as ReportData|null})
+   .then(data=>{if(active)setSelectionCatalog(data)})
+   .catch(()=>{if(active)setSelectionCatalog(null)});
+  return()=>{active=false};
+ },[projectId,retryRevision]);
+ useEffect(()=>{
+  if(!projectId)return;
+  let live=true;setClientCandidates(null);setClientCandidatesStatus("Consultando conteúdo do projeto...");
+  void measuredFetch("/api/status-report/client-candidates?projectId="+encodeURIComponent(projectId),
+   {headers:getClientAuthHeaders(),cache:"no-store"})
+   .then(async response=>{const payload=await response.json();if(!response.ok)throw Error(payload.error||"Conteúdo indisponível.");if(live){setClientCandidates(payload.data||[]);setClientCandidatesStatus("");}})
+   .catch(error=>{if(live){setClientCandidatesStatus(error instanceof Error?error.message:"Falha ao consultar conteúdo.");}});
+  return()=>{live=false};
+ },[projectId,retryRevision]);
  const cards=useMemo(()=>board?.columns.flatMap(x=>x.cards)||[],[board]);
+
+ const sourceCatalog=selectionCatalog??scrumReport;
+ const availableInternal:InternalReportSelection={
+  cards:cards.map(x=>x.id),risks:risks.map(x=>x.id),decisions:decisions.map(x=>x.id),
+  sprints:sourceCatalog?.scrum.sprints.map(x=>x.id)||[],
+  stories:sourceCatalog?.internal?.stories.map(x=>x.id)||[],
+  tasks:sourceCatalog?.internal?.tasks.map(x=>x.id)||[],
+  meetings:sourceCatalog?.internal?.meetingLines?.map(x=>x.sourceReference)||[],
+ };
+ const chosenInternal=internalSelection??availableInternal;
+ const clientItems=clientSelectableFacts(clientCandidates||[]);
+ // Single project-level selection is projected to each report audience.
+ const isClientFactSelected=(fact:ClientReportFact):boolean=>{
+  if(fact.kind==="deliverable"&&fact.id.startsWith("task:"))return chosenInternal.cards.includes(fact.id.slice(5));
+  if(fact.kind==="milestone"&&fact.id.startsWith("sprint:"))return chosenInternal.sprints.includes(fact.id.slice(7));
+  if(fact.kind==="next_step"&&fact.id.startsWith("decision:"))return chosenInternal.decisions.includes(fact.id.slice(9));
+  if(fact.kind==="risk"){
+   const ref=fact.id.startsWith("risk:")?fact.id:fact.source_reference;
+   if(ref?.startsWith("risk:"))return chosenInternal.risks.includes(ref.slice(5));
+  }
+  return (clientFactIds??clientItems.map(x=>x.id)).includes(fact.id);
+ };
+ const chosenClientFactIds=clientItems.filter(isClientFactSelected).map(item=>item.id);
+ const visibleClientReport=scrumReport&&audience==="client"?{
+  ...scrumReport,
+  publicFacts:selectClientReportFacts(clientCandidates||[],chosenClientFactIds),
+  clientExecutiveComplement:clientExecutiveApproved?clientExecutiveComplement.trim():"",
+  riskAssessments:[] // External risks are rendered exclusively as safe, selected client facts.
+ }:scrumReport;
+ const internalGroups:Array<{key:InternalReportSelectionKey;label:string;items:Array<{id:string;title:string}>}>=[
+  {key:"cards",label:"Cards e entregas do Kanban",items:cards.map(x=>({id:x.id,title:x.title}))},
+  {key:"risks",label:"Riscos",items:risks.map(x=>({id:x.id,title:x.title}))},
+  {key:"decisions",label:"Decisões",items:decisions.map(x=>({id:x.id,title:x.title}))},
+  {key:"sprints",label:"Sprints e suas US",items:(sourceCatalog?.scrum.sprints||[]).map(x=>({id:x.id,title:x.name+" · "+x.status+" · "+(sourceCatalog?.internal?.stories||[]).filter(st=>st.sprint_id===x.id).length+" US"}))},
+  {key:"stories",label:"Histórias de Usuário",items:(sourceCatalog?.internal?.stories||[]).map(x=>({id:x.id,title:x.title+" · "+x.workflow_stage}))},
+  {key:"tasks",label:"Tasks do Scrum",items:(sourceCatalog?.internal?.tasks||[]).map(x=>({id:x.id,title:x.title+" · "+x.state}))},
+  {key:"meetings",label:"Compromissos e pendências das reuniões (somente Equipe)",items:(sourceCatalog?.internal?.meetingLines||[]).map(x=>({id:x.sourceReference,title:x.meetingTitle+" · "+x.title}))}
+ ];
+ function toggleInternalItem(key:InternalReportSelectionKey,id:string,checked:boolean){
+  if(key==="sprints"||key==="stories"){
+   const linkedStoryIds=key==="sprints"
+    ?(sourceCatalog?.internal?.stories||[]).filter(st=>st.sprint_id===id).map(st=>st.id)
+    :[id];
+   const linked=new Set(linkedStoryIds);
+   const linkedTasks=new Set((sourceCatalog?.internal?.tasks||[]).filter(t=>t.story_id&&linked.has(t.story_id)).map(t=>t.id));
+   setInternalSelection(previous=>{
+    const base=previous??availableInternal;
+    return {...base,
+      ...(key==="sprints"?{sprints:checked?[...new Set([...base.sprints,id])]:base.sprints.filter(value=>value!==id)}:{}),
+      stories:checked?[...new Set([...base.stories,...linked])]:base.stories.filter(value=>!linked.has(value)),
+      tasks:checked?[...new Set([...base.tasks,...linkedTasks])]:base.tasks.filter(value=>!linkedTasks.has(value))
+    };
+   });
+   return;
+  }
+  setInternalSelection(previous=>{
+   const base=previous??availableInternal;
+   return {...base,[key]:checked?[...new Set([...base[key],id])]:base[key].filter(value=>value!==id)};
+  });
+ }
+ const visibleCards=audience==="internal"?cards.filter(x=>chosenInternal.cards.includes(x.id)):cards;
+ const visibleRisks=audience==="internal"?risks.filter(x=>chosenInternal.risks.includes(x.id)):risks;
+ const visibleDecisions=audience==="internal"?decisions.filter(x=>chosenInternal.decisions.includes(x.id)):decisions;
+ const selectedKanban={
+   total:visibleCards.length,
+   todo:visibleCards.filter(c=>["todo","to_do","aberta"].includes(c.columnKey)||c.status==="aberta").length,
+   doing:visibleCards.filter(c=>["doing","em_andamento"].includes(c.columnKey)||c.status==="em_andamento").length,
+   done:visibleCards.filter(c=>["done","concluida"].includes(c.columnKey)||c.status==="concluida").length,
+   overdue:visibleCards.filter(c=>c.dueDate&&c.dueDate<new Date().toISOString().slice(0,10)&&!["done","concluida"].includes(c.status)).length,
+   completed_titles:visibleCards.filter(c=>["done","concluida"].includes(c.columnKey)||c.status==="concluida").slice(0,12).map(c=>c.title)
+ };
+ const visibleScrum=audience==="internal"&&scrumReport?{
+  ...applyInternalReportSelection(scrumReport,chosenInternal),
+  kanban:selectedKanban,
+  governance:{...scrumReport.governance,
+   risks_open:visibleRisks.filter(r=>["aberto","em_mitigacao"].includes(r.status)).length,
+   decisions_pending:visibleDecisions.filter(d=>["aberta","em_andamento"].includes(d.status)).length,
+   client_decisions:scrumReport.governance.client_decisions.filter(d=>visibleDecisions.some(x=>x.title===d.title))
+  }
+ }:visibleClientReport;
+ const visibleNextSteps=audience==="internal"?teamNextSteps.trim():"";
+ const visibleAnalysis=audience==="internal"?
+  (visibleNextSteps||(!internalSelection&&analysis)?{
+    executiveSummary:internalSelection?"":analysis?.executiveSummary||"",
+    riskAnalysis:internalSelection?"":analysis?.riskAnalysis||"",
+    nextSteps:visibleNextSteps||(!internalSelection?analysis?.nextSteps||"":"")
+   }:null):analysis;
  const issueDate=new Date().toLocaleDateString("pt-BR");
- const reportHtml=project&&board&&scrumReport?renumberReportSections(reportDocument(project,cards,audience==="client"?risks.map(r=>({...r,owner:null,mitigation:null})):risks,decisions,period,issueDate,analysis,periodEvents,periodMetrics,audience,scrumReport)):"";
+ const reportHtml=project&&board&&scrumReport&&(audience!=="client"||clientCandidates!==null)?renumberReportSections(reportDocument(project,visibleCards,audience==="client"?risks.map(r=>({...r,owner:null,mitigation:null})):visibleRisks,visibleDecisions,period,issueDate,visibleAnalysis,audience==="internal"&&internalSelection?null:periodEvents,audience==="internal"&&internalSelection?null:periodMetrics,audience,visibleScrum,false,audience==="internal"?chosenInternal:undefined)):"";
  const documentHtml=reportHtml.replaceAll(BRAND_LOGO_URL,brandLogoData).replaceAll("CONSULT SERVICES TECNOLOGIA",htmlEscape(brandName)).replaceAll('alt="Consult Services Tecnologia"','alt="'+htmlEscape(brandName)+'"');
  async function issue():Promise<string|null>{
-  if(!projectId||!scrumReport||!documentHtml||issuing)return null;
+  if(!projectId||!scrumReport||!documentHtml||issuing||(audience==="client"&&clientCandidates===null))return null;
+  if(audience==="client"&&clientExecutiveComplement.trim()&&!clientExecutiveApproved){setStatus("Revise e aprove o Complemento Executivo antes de emitir.");return null;}
   setIssuing(true);setStatus("Registrando emissão...");
   try{
-   const r=await measuredFetch("/api/status-report/history",{method:"POST",headers:getClientAuthHeaders({"Content-Type":"application/json"}),body:JSON.stringify({projectId,audience,mode:periodMode,start,end,narrative:analysis}),cache:"no-store"});
+   const r=await measuredFetch("/api/status-report/history",{method:"POST",headers:getClientAuthHeaders({"Content-Type":"application/json"}),body:JSON.stringify({projectId,audience,mode:periodMode,start,end,narrative:visibleAnalysis,...(audience==="internal"?{internalSelection:chosenInternal}:{clientFactIds:chosenClientFactIds,clientExecutiveComplement:clientExecutiveComplement.trim(),clientExecutiveApproved})}),cache:"no-store"});
    const j=await r.json();if(!r.ok)throw Error(j.error||"Falha ao registrar emissão.");
    setStatus("Emissão registrada no histórico: "+j.data.id);
    setHistory(h=>[j.data,...h]);setHistoryId(j.data.id);
@@ -269,7 +442,7 @@ export default function StatusReportPage() {
   try{
    const filename="status-report-"+(audience==="client"?"cliente":"equipe")+"-"+project.id+"-"+new Date().toISOString().slice(0,10)+".pdf";
    const pdfHtml=audience==="internal"&&includeMitigationAnnex
-    ?renumberReportSections(reportDocument(project,cards,risks,decisions,period,issueDate,analysis,periodEvents,periodMetrics,audience,scrumReport,true)).replaceAll(BRAND_LOGO_URL,brandLogoData).replaceAll("CONSULT SERVICES TECNOLOGIA",htmlEscape(brandName))
+    ?renumberReportSections(reportDocument(project,visibleCards,visibleRisks,visibleDecisions,period,issueDate,visibleAnalysis,periodEvents,periodMetrics,audience,visibleScrum,true,chosenInternal)).replaceAll(BRAND_LOGO_URL,brandLogoData).replaceAll("CONSULT SERVICES TECNOLOGIA",htmlEscape(brandName))
     :documentHtml;
    await downloadReportDocumentPdf(pdfHtml,filename);
    setStatus("PDF gerado, registrando emissão...");
@@ -295,19 +468,166 @@ export default function StatusReportPage() {
  <div className="text-sm"><label className="block">Período de referência<select className="mt-1 block w-full rounded-lg border border-(--border) bg-(--bg-surface) px-3 py-2" value={periodMode} onChange={e=>setPeriodMode(e.target.value==="period"?"period":"current")}><option value="current">Situação atual</option><option value="period">Período personalizado</option></select></label>{periodMode==="period"&&<div className="mt-2 grid grid-cols-2 gap-2"><label>Início<input type="date" className="mt-1 block w-full rounded border p-2" value={start} max={end} onChange={e=>setStart(e.target.value)}/></label><label>Fim<input type="date" className="mt-1 block w-full rounded border p-2" value={end} min={start} onChange={e=>setEnd(e.target.value)}/></label></div>}</div>
  <div className="flex flex-wrap gap-2 self-end"><button type="button" onClick={()=>void download()} disabled={!documentHtml||busy||pdfBusy||issuing} className="workspace-button-secondary px-4 py-2 text-sm disabled:opacity-50">Baixar HTML</button><button type="button" onClick={()=>void downloadPdf()} disabled={!documentHtml||busy||pdfBusy||issuing} className="workspace-button-primary px-4 py-2 text-sm disabled:opacity-50">{pdfBusy?"Gerando PDF...":"Baixar PDF"}</button></div>
  </section>
- <section className="grid gap-3 rounded-xl border border-(--border) bg-(--bg-surface) p-4 md:grid-cols-[1fr_auto]">
- <label className="text-sm">Tipo de relatório<select className="mt-1 block w-full rounded-lg border border-(--border) bg-(--bg-surface) px-3 py-2" value={audience} onChange={e=>setAudience(e.target.value==="internal"?"internal":"client")}><option value="client">Executivo · Cliente</option><option value="internal">Gerencial · Equipe interna</option></select></label>
- <button type="button" className="self-end rounded-lg bg-(--accent) px-4 py-2 text-sm text-white disabled:opacity-50" disabled={!documentHtml||issuing} onClick={()=>void issue()}>{issuing?"Registrando...":"Registrar emissão no histórico"}</button>
+ <section className="workspace-card space-y-3 p-4" aria-label="Seleção de público do relatório">
+   <div><h2 className="text-base font-semibold">Público e conteúdo</h2>
+     <p className="mt-1 text-xs text-(--text-secondary)">Os relatórios utilizam os mesmos fatos de origem e aplicam regras de visibilidade distintas.</p>
+   </div>
+   <div className="grid gap-2 sm:grid-cols-2">
+     <button type="button" aria-pressed={audience==="client"} onClick={()=>setAudience("client")}
+       className={audience==="client"?"rounded-lg border-2 border-(--accent) bg-(--accent-soft) p-4 text-left":"rounded-lg border border-(--border) p-4 text-left"}>
+       <span className="block text-sm font-semibold">Cliente · Executivo</span>
+       <span className="mt-1 block text-xs text-(--text-secondary)">Objetivos, entregas autorizadas, riscos relevantes, marcos e próximos passos.</span>
+     </button>
+     <button type="button" aria-pressed={audience==="internal"} onClick={()=>setAudience("internal")}
+       className={audience==="internal"?"rounded-lg border-2 border-(--accent) bg-(--accent-soft) p-4 text-left":"rounded-lg border border-(--border) p-4 text-left"}>
+       <span className="block text-sm font-semibold">Equipe · Gerencial</span>
+       <span className="mt-1 block text-xs text-(--text-secondary)">Backlog, Sprints, US, Tasks, responsáveis, decisões e impedimentos.</span>
+     </button>
+   </div>
  </section>
- {audience==="internal"&&<label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={includeMitigationAnnex} onChange={e=>setIncludeMitigationAnnex(e.target.checked)}/> Incluir anexo de mitigação completa no PDF da Equipe (opcional)</label>}
- <p role="status" className="text-xs text-(--text-secondary)">{scrumStatus}</p>
- {projectId&&<PublicFactsEditor projectId={projectId} proposedNextSteps={analysis?.nextSteps} onChange={()=>setFactsRevision(n=>n+1)}/>}
- <section className="rounded-xl border border-(--border) bg-(--bg-surface) p-4"><h2 className="font-semibold">Histórico de emissões</h2><p className="mt-1 text-xs text-(--text-secondary)">Os indicadores são preservados no momento da emissão. A visualização histórica abaixo resume o snapshot armazenado.</p>
- <select aria-label="Consultar emissão" className="mt-2 w-full rounded border border-(--border) p-2 text-sm" value={historyId} onChange={e=>void openHistory(e.target.value)}><option value="">Selecione uma emissão anterior</option>{history.map(h=><option value={h.id} key={h.id}>{new Date(h.created_at).toLocaleString("pt-BR")} · {h.audience==="client"?"Cliente":"Interno"} · {h.generated_by_email||"Usuário"}</option>)}</select>
- {historyData&&<div className="mt-3 rounded-lg bg-(--bg-muted) p-3 text-sm"><p><b>Projeto:</b> {historyData.project.name} · <b>Emitido:</b> {new Date(historyData.generated_at).toLocaleString("pt-BR")}</p><p><b>Kanban:</b> {historyData.kanban.done} concluídas de {historyData.kanban.total} atividades</p>{historyAudience==="internal"&&<p><b>Sprints:</b> {historyData.scrum.sprints.length} · <b>US:</b> {historyData.scrum.stories_total} · <b>Tasks concluídas:</b> {historyData.scrum.tasks_done}/{historyData.scrum.tasks_total}</p>}<button type="button" onClick={()=>void exportHistory("html")} className="workspace-button-secondary mt-3 rounded-lg px-3 py-2 text-sm">Baixar HTML arquivado</button> <button type="button" disabled={pdfBusy} onClick={()=>void exportHistory("pdf")} className="workspace-button-primary mt-3 rounded-lg px-3 py-2 text-sm disabled:opacity-50">Baixar PDF arquivado</button></div>}
+ <section className="workspace-card flex flex-wrap items-center justify-between gap-3 p-4">
+  <div><p className="text-sm font-semibold">Relatório selecionado: {audience==="client"?"Executivo · Cliente":"Gerencial · Equipe"}</p>
+    <p className="mt-1 text-xs text-(--text-secondary)">Para alterar o público, utilize os dois cartões acima.</p>
+  </div>
+  <button type="button" className="workspace-button-primary px-4 py-2 text-sm disabled:opacity-50" disabled={!documentHtml||issuing} onClick={()=>void issue()}>{issuing?"Registrando...":"Registrar emissão no histórico"}</button>
  </section>
- <p role="status" className="text-sm text-(--text-secondary)">{busy?"Consolidando dados...":status}</p><div className="flex flex-wrap items-center gap-3"><button type="button" className="workspace-button-secondary rounded-lg px-4 py-2 text-sm" disabled={!projectId||analysisLoading} onClick={()=>setAnalysisRequest(prev=>({key:analysisKey,revision:prev.revision+1}))}>{analysisLoading?"Analisando...":"Gerar análise Kairos"}</button><p role="status" className="text-sm text-(--text-secondary)">{analysisStatus}</p></div>
- {documentHtml?<iframe title="Prévia do Status Report" srcDoc={documentHtml} sandbox="allow-scripts" className="h-[900px] w-full rounded-xl border border-(--border) bg-white"/>:<div className="rounded-xl border border-(--border) p-10 text-center text-sm">Nenhuma prévia disponível.</div>}
- <p className="text-xs text-(--text-secondary)">Os botões Baixar PDF e Baixar HTML utilizam o mesmo relatório e registram a emissão no histórico. O PDF possui texto selecionável, tabelas e paginação próprias de documento A4, sem capturar o HTML como imagem. Revise as informações autorizadas antes de enviar ao cliente.</p>
+ <p role="status" aria-live="polite" className="workspace-card border-l-4 border-(--accent) p-3 text-sm">{status}</p>
+ {!documentHtml&&projectId?<div role="alert" className="workspace-card flex flex-wrap items-center justify-between gap-3 p-3 text-sm text-(--warning)">
+   <span>Prévia não disponível. {busy?"Carregando registros do projeto.":!scrumReport?scrumStatus:!board?"Dados do Kanban indisponíveis.": "Confira a origem dos dados antes de emitir."}</span>
+   <button type="button" className="workspace-button-secondary px-3 py-2 text-xs" disabled={busy} onClick={()=>setRetryRevision(r=>r+1)}>Reconsultar dados</button>
+  </div>:null}
+ <section className="space-y-3" aria-label="Área de preparação e prévia do Status Report">
+  <nav className="grid grid-cols-2 gap-2 xl:hidden" aria-label="Visualização do Status Report">
+   <button type="button" aria-pressed={mobileReportPane==="content"} onClick={()=>setMobileReportPane("content")}
+    className={mobileReportPane==="content"?"workspace-button-primary px-3 py-2 text-sm":"workspace-button-secondary px-3 py-2 text-sm"}>Conteúdo e aprovação</button>
+   <button type="button" aria-pressed={mobileReportPane==="preview"} onClick={()=>setMobileReportPane("preview")}
+    className={mobileReportPane==="preview"?"workspace-button-primary px-3 py-2 text-sm":"workspace-button-secondary px-3 py-2 text-sm"}>Prévia do relatório</button>
+  </nav>
+  <div className="grid min-w-0 items-start gap-4 xl:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]">
+   <section aria-label="Seleção e aprovação do conteúdo"
+    className={(mobileReportPane==="preview"?"hidden ":"")+"min-w-0 space-y-3 xl:sticky xl:top-4 xl:block xl:max-h-[calc(100vh-2rem)] xl:overflow-y-auto xl:overscroll-contain xl:pr-1"}>
+    <div className="workspace-card p-4">
+     <h2 className="text-base font-semibold">1. Selecionar e revisar informações</h2>
+     <p className="mt-1 text-sm text-(--text-secondary)">Selecione os fatos autorizados e confira as regras de divulgação antes de emitir.</p>
+     <p className="mt-2 text-xs text-(--text-secondary)">Projeto: {project?.name||"Não selecionado"} · {audience==="client"?"Cliente":"Equipe"} · {periodMode==="current"?"Situação atual":"Período personalizado"}</p>
+    </div>
+    <section className="workspace-card space-y-3 p-4" aria-label="Seleção única de conteúdo do projeto">
+      <h3 className="font-semibold">Conteúdo do projeto | Seleção única</h3>
+      <p className="text-xs text-(--text-secondary)">Uma única escolha para Cliente e Equipe. Os mesmos registros ficam selecionados ao trocar o público. Cliente recebe somente a versão resumida e segura; detalhes reservados e reuniões internas aparecem exclusivamente no relatório Equipe. Não é necessário publicar ou despublicar.</p>
+      <div className="flex flex-wrap gap-2">
+       <button type="button" className="workspace-button-secondary px-3 py-2 text-xs" disabled={!board||!clientCandidates} onClick={()=>{setInternalSelection(availableInternal);setClientFactIds(clientItems.map(x=>x.id))}}>Selecionar todos</button>
+       <button type="button" className="workspace-button-secondary px-3 py-2 text-xs" onClick={()=>{setInternalSelection({cards:[],risks:[],decisions:[],sprints:[],stories:[],tasks:[],meetings:[]});setClientFactIds([])}}>Limpar seleção</button>
+      </div>
+      {(["objective","benefit"] as const).map(kind=>{
+       const choices=clientItems.filter(x=>x.kind===kind);
+       const labels={objective:"Objetivos",benefit:"Benefícios"};
+       return <details key={kind} className="rounded-lg border border-(--border) p-3">
+        <summary className="cursor-pointer text-sm font-medium">{labels[kind]} ({choices.filter(isClientFactSelected).length}/{choices.length})</summary>
+        <div className="mt-3 max-h-52 space-y-2 overflow-y-auto">
+         {!choices.length?<p className="text-xs text-(--text-secondary)">Nenhum registro cadastrado.</p>:choices.map(item=><label key={item.id} className="flex items-start gap-2 text-xs">
+          <input type="checkbox" checked={isClientFactSelected(item)} onChange={e=>setClientFactIds(prev=>{const base=prev??clientItems.map(x=>x.id);return e.target.checked?[...new Set([...base,item.id])]:base.filter(id=>id!==item.id)})}/>
+          <span>{item.title}</span>
+         </label>)}
+        </div>
+       </details>
+      })}
+      {internalGroups.map(group=><details key={group.key} className="rounded-lg border border-(--border) p-3">
+       <summary className="cursor-pointer text-sm font-medium">{group.label} ({chosenInternal[group.key].length}/{group.items.length})</summary>
+       <div className="mt-3 max-h-52 space-y-2 overflow-y-auto">
+        {!group.items.length?<p className="text-xs text-(--text-secondary)">Nenhum registro disponível nesta categoria.</p>:group.items.map(item=><label key={item.id} className="flex items-start gap-2 text-xs">
+         <input type="checkbox" checked={chosenInternal[group.key].includes(item.id)} onChange={event=>toggleInternalItem(group.key,item.id,event.target.checked)}/>
+         <span>{item.title}</span>
+        </label>)}
+       </div>
+      </details>)}
+      {clientCandidatesStatus&&<p role="status" className="text-xs text-(--text-secondary)">{clientCandidatesStatus}</p>}
+      <p className="text-xs text-(--text-secondary)">Os totais indicam selecionados/disponíveis. As escolhas controlam a prévia e a emissão do público selecionado.</p>
+     </section>
+    {audience==="client"&&<section className="workspace-card space-y-3 p-4" aria-label="Complemento Executivo do Cliente">
+      <h3 className="text-sm font-semibold">Complemento Executivo | Cliente</h3>
+      <p className="text-xs text-(--text-secondary)">Descreva avanços, alinhamentos e próximos compromissos. A sugestão do Kairos usa a última reunião oficial, mas exige revisão antes de entrar no relatório.</p>
+      <div className="flex flex-wrap gap-2">
+       <button type="button" className="workspace-button-secondary px-3 py-2 text-xs" disabled={!projectId||clientExecutiveGenerating}
+        onClick={async()=>{
+         setClientExecutiveGenerating(true);setClientExecutiveError("");setClientExecutiveApproved(false);
+         try{
+          const response=await measuredFetch("/api/status-report/client-executive-suggestion",{method:"POST",headers:getClientAuthHeaders({"Content-Type":"application/json"}),body:JSON.stringify({projectId}),cache:"no-store"});
+          const payload=await response.json();
+          if(!response.ok)throw Error(payload.error||"Não foi possível gerar o resumo.");
+          setClientExecutiveComplement(payload.data.suggestion||"");
+          setClientExecutiveSource("Baseado em: "+payload.data.meetingTitle+" · "+new Date(payload.data.meetingDate).toLocaleDateString("pt-BR"));
+         }catch(error){setClientExecutiveError(error instanceof Error?error.message:"Falha ao consultar o Kairos.");}
+         finally{setClientExecutiveGenerating(false);}
+        }}>{clientExecutiveGenerating?"Gerando sugestão...":"Kairos: resumir última reunião"}</button>
+       <button type="button" className="workspace-button-secondary px-3 py-2 text-xs" onClick={()=>{setClientExecutiveComplement("");setClientExecutiveApproved(false);setClientExecutiveSource("");setClientExecutiveError("");}}>Limpar complemento</button>
+      </div>
+      {clientExecutiveSource&&<p className="text-xs text-(--text-secondary)">{clientExecutiveSource}</p>}
+      {clientExecutiveError&&<p role="alert" className="text-xs text-red-700">{clientExecutiveError}</p>}
+      <textarea rows={6} maxLength={3000} className="workspace-input w-full" aria-label="Texto do Complemento Executivo"
+       placeholder="Principais avanços, alinhamentos com o cliente e próximos compromissos confirmados..."
+       value={clientExecutiveComplement} onChange={event=>{setClientExecutiveComplement(event.target.value);setClientExecutiveApproved(false);}}/>
+      <label className="flex items-start gap-2 text-xs"><input type="checkbox" checked={clientExecutiveApproved}
+       disabled={!clientExecutiveComplement.trim()} onChange={event=>setClientExecutiveApproved(event.target.checked)}/>
+       Revisei este texto e autorizo sua inclusão no Status Report Cliente.</label>
+      <p className="text-xs text-(--text-secondary)">{clientExecutiveApproved?"Complemento aprovado para esta emissão.":"Texto em revisão. Não será incluído na prévia ou exportação até a aprovação."}</p>
+    </section>}
+    {audience==="internal"&&<section className="workspace-card space-y-2 p-4" aria-label="Próximos passos da equipe">
+      <h3 className="text-sm font-semibold">Próximos passos da Equipe</h3>
+      <p className="text-xs text-(--text-secondary)">Preencha ações acordadas e pendentes de execução. Este campo é editorial, não cria Tasks e não deve afirmar entregas concluídas sem evidência. Se ficar vazio, a seção não deve inventar próximos passos.</p>
+      <textarea rows={4} className="workspace-input w-full" placeholder="Ex.: Confirmar com a área fiscal os critérios de homologação da C01 (responsável e prazo a definir)." value={teamNextSteps} onChange={e=>setTeamNextSteps(e.target.value)}/>
+      <button type="button" className="workspace-button-secondary px-3 py-2 text-xs" onClick={()=>setTeamNextSteps("")}>Limpar próximos passos</button>
+    </section>}
+    {audience==="internal"&&<label className="workspace-card flex items-center gap-2 p-3 text-sm">
+     <input type="checkbox" checked={includeMitigationAnnex} onChange={e=>setIncludeMitigationAnnex(e.target.checked)}/>
+     Incluir anexo de mitigação completa no PDF da Equipe (opcional)
+    </label>}
+    <p role="status" className="text-xs text-(--text-secondary)">{scrumStatus}</p>
+    <section className="workspace-card space-y-2 p-4" aria-label="Análise opcional do Kairos">
+     <h3 className="text-sm font-semibold">Análise Kairos</h3>
+     <p className="text-xs text-(--text-secondary)">A análise é opcional. Não publica informações nem registra emissão automaticamente.</p>
+     <button type="button" className="workspace-button-secondary rounded-lg px-4 py-2 text-sm"
+      disabled={!projectId||analysisLoading} onClick={()=>setAnalysisRequest(prev=>({key:analysisKey,revision:prev.revision+1}))}>
+      {analysisLoading?"Analisando...":"Gerar análise Kairos"}
+     </button>
+     <p role="status" className="text-xs text-(--text-secondary)">{analysisStatus}</p>
+    </section>
+    <section className="workspace-card p-4" aria-label="Histórico de emissões">
+     <h3 className="font-semibold">Histórico de emissões</h3>
+     <p className="mt-1 text-xs text-(--text-secondary)">Cada emissão preserva os dados daquele momento. Histórico não é recalculado ao abrir.</p>
+     <select aria-label="Consultar emissão" className="mt-2 w-full rounded border border-(--border) p-2 text-sm"
+      value={historyId} onChange={e=>void openHistory(e.target.value)}>
+      <option value="">Selecione uma emissão anterior</option>
+      {history.map(h=><option value={h.id} key={h.id}>{new Date(h.created_at).toLocaleString("pt-BR")} · {h.audience==="client"?"Cliente":"Interno"} · {h.generated_by_email||"Usuário"}</option>)}
+     </select>
+     {historyData&&<div className="mt-3 rounded-lg bg-(--bg-muted) p-3 text-sm">
+      <p><b>Projeto:</b> {historyData.project.name} · <b>Emitido:</b> {new Date(historyData.generated_at).toLocaleString("pt-BR")}</p>
+      <p><b>Kanban:</b> {historyData.kanban.done} concluídas de {historyData.kanban.total} atividades</p>
+      {historyAudience==="internal"&&<p><b>Sprints:</b> {historyData.scrum.sprints.length} · <b>US:</b> {historyData.scrum.stories_total} · <b>Tasks concluídas:</b> {historyData.scrum.tasks_done}/{historyData.scrum.tasks_total}</p>}
+      <button type="button" onClick={()=>void exportHistory("html")} className="workspace-button-secondary mt-3 rounded-lg px-3 py-2 text-sm">Baixar HTML arquivado</button>
+      {" "}
+      <button type="button" disabled={pdfBusy} onClick={()=>void exportHistory("pdf")} className="workspace-button-primary mt-3 rounded-lg px-3 py-2 text-sm disabled:opacity-50">Baixar PDF arquivado</button>
+     </div>}
+    </section>
+   </section>
+   <section aria-label="Prévia do Status Report"
+    className={(mobileReportPane==="content"?"hidden ":"")+"min-w-0 space-y-3 xl:sticky xl:top-4 xl:block"}>
+    <div className="workspace-card flex flex-wrap items-center justify-between gap-2 p-4">
+     <div>
+      <h2 className="text-base font-semibold">2. Prévia do relatório</h2>
+      <p className="mt-1 text-xs text-(--text-secondary)">Exibição do documento {audience==="client"?"Cliente · Executivo":"Equipe · Gerencial"}. Confira antes de emitir.</p>
+     </div>
+     <span className="rounded-lg border border-(--border) px-3 py-1.5 text-xs text-(--text-secondary)">Prévia, não emitida</span>
+    </div>
+    <p role="status" className="text-xs text-(--text-secondary)">{busy?"Consolidando dados...":status}</p>
+    <div className="min-w-0 rounded-xl border border-(--border) bg-(--bg-muted) p-2 sm:p-3">
+     {documentHtml?<iframe key={projectId+"|"+audience+"|"+periodMode+"|"+start+"|"+end}
+      title="Prévia do Status Report" srcDoc={documentHtml} sandbox="allow-scripts"
+      className="h-[min(950px,75vh)] min-h-[520px] w-full rounded-lg border border-(--border) bg-white xl:h-[calc(100vh-15rem)] xl:min-h-[580px]"/>:
+      <div className="flex min-h-[420px] items-center justify-center rounded-lg border border-(--border) bg-(--bg-surface) p-8 text-center text-sm">Nenhuma prévia disponível. Verifique as fontes e os dados autorizados.</div>}
+    </div>
+    <p className="text-xs text-(--text-secondary)">As exportações HTML e PDF utilizam as informações autorizadas para o público selecionado. O histórico é registrado quando uma emissão é solicitada.</p>
+   </section>
+  </div>
+ </section>
  </main>
 }

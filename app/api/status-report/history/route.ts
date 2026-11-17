@@ -1,6 +1,9 @@
 import {NextRequest,NextResponse} from "next/server";
 import {requireApiAuth} from "@/lib/api-auth";
 import {getReportScope,loadReportData,ReportAudience} from "@/lib/scrum/report-data";
+import {applyInternalReportSelection,parseInternalReportSelection} from "@/lib/reports/internal-report-selection";
+import {getClientReportCandidates} from "@/lib/reports/client-report-candidates";
+import {selectClientReportFacts} from "@/lib/reports/client-report-selection";
 export const dynamic="force-dynamic";
 const res=(data:unknown,status=200)=>NextResponse.json(data,{status,headers:{"Cache-Control":"private,no-store"}});
 const UUID=/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -52,11 +55,71 @@ export async function POST(req:NextRequest){
  const mode=body.mode==="period"?"period":"current";
  const start=String(body.start||""),end=String(body.end||"");
  if(mode==="period"&&(!/^\d{4}-\d{2}-\d{2}$/.test(start)||!/^\d{4}-\d{2}-\d{2}$/.test(end)||start>end))return res({error:"Período inválido."},400);
+ const selection=body.internalSelection===undefined?null:parseInternalReportSelection(body.internalSelection);
+ if(audience==="internal"&&body.internalSelection!==undefined&&!selection)return res({error:"Seleção de conteúdo inválida."},400);
+ if(audience==="client"&&body.internalSelection!==undefined)return res({error:"Seleção interna não permitida no relatório Cliente."},400);
+ const clientFactIds=body.clientFactIds;
+ if(audience==="client"&&clientFactIds!==undefined&&
+   (!Array.isArray(clientFactIds)||clientFactIds.length>1500||!clientFactIds.every((id:unknown)=>typeof id==="string"&&/^(project|epic|feature|story|sprint|task|risk|decision|fact):[0-9a-f-]{36}$/i.test(id))))
+   return res({error:"Seleção pública inválida."},400);
+ if(audience==="internal"&&clientFactIds!==undefined)return res({error:"Seleção de cliente inválida no relatório Equipe."},400);
  const context=await getReportScope(auth.context,projectId,true);
  if("error" in context)return res({error:context.error},context.status);
  // Recompute on the server. Never store user-supplied report content or unrestricted AI output.
  try{
-  const report=await loadReportData(context.db,context.organizationId,projectId,audience);
+  const rawReport=await loadReportData(context.db,context.organizationId,projectId,audience);
+  const report=audience==="internal"&&selection?applyInternalReportSelection(rawReport,selection):rawReport;
+  if(audience==="client"&&Array.isArray(clientFactIds)){
+   const options=await getClientReportCandidates(context.db,context.organizationId,projectId,auth.context);
+   const selected=new Set(clientFactIds as string[]);
+   // All options are rebuilt server-side from authorized project records.
+   // Client output excludes raw operational descriptions and internal narrative.
+   report.publicFacts=selectClientReportFacts(options,[...selected]);
+   report.riskAssessments=[];
+   report.governance.risks_open=report.publicFacts.filter(fact=>fact.kind==="risk").length;
+   report.governance.client_decisions=[];
+   report.governance.client_risks=[];
+  }
+  if(audience==="internal"&&selection){
+   // Resolve selected record IDs server-side. Titles are never trusted from the browser.
+   const [decisionRows,cardRows]=await Promise.all([
+    selection.decisions.length
+     ?context.db.from("decisions").select("id,titulo").eq("project_id",projectId).eq("organization_id",context.organizationId).in("id",selection.decisions)
+     :Promise.resolve({data:[],error:null}),
+    selection.cards.length
+     ?context.db.from("tasks").select("id,titulo").eq("project_id",projectId).eq("organization_id",context.organizationId).in("id",selection.cards)
+     :Promise.resolve({data:[],error:null}),
+   ]);
+   if(decisionRows.error||cardRows.error)return res({error:"Registros selecionados indisponíveis."},503);
+   const decisionNames=new Set((decisionRows.data||[]).map(row=>row.titulo));
+
+   report.governance.client_decisions=report.governance.client_decisions.filter(row=>decisionNames.has(row.title));
+   report.kanban.completed_titles=[]; // recomputed from selected, verified card IDs below
+   const rows=cardRows.data||[];
+   // The report is an editorial selection, so count only selected, verified cards.
+   const statusRows=rows.length?await context.db.from("tasks").select("id,status,due_date").eq("project_id",projectId)
+    .eq("organization_id",context.organizationId).in("id",rows.map(row=>row.id)):{data:[],error:null};
+   if(statusRows.error)return res({error:"Não foi possível calcular as atividades selecionadas."},503);
+   const cards=statusRows.data||[];
+   report.kanban.total=cards.length;
+   report.kanban.todo=cards.filter(card=>["aberta","todo","to_do"].includes(card.status)).length;
+   report.kanban.doing=cards.filter(card=>["em_andamento","doing"].includes(card.status)).length;
+   report.kanban.done=cards.filter(card=>["concluida","done"].includes(card.status)).length;
+   report.kanban.items=cards.map(card=>({
+     id:card.id,title:rows.find(row=>row.id===card.id)?.titulo||"Sem título",
+     status:card.status,dueDate:card.due_date||null
+   }));
+   report.kanban.completed_titles=report.kanban.items.filter(card=>["concluida","done"].includes(card.status)).slice(0,12).map(card=>card.title);
+   report.kanban.overdue=cards.filter(card=>card.due_date&&card.due_date<new Date().toISOString().slice(0,10)&&!["concluida","done"].includes(card.status)).length;
+   report.governance.decisions_pending=report.governance.client_decisions.filter(row=>["aberta","em_andamento"].includes(row.status)).length;
+  }
+  // Explicit editorial approval is mandatory before storing externally visible prose.
+  const complement=body.clientExecutiveComplement;
+  if(audience==="client"){
+   if(typeof complement!=="string"||complement.length>3000)return res({error:"Complemento Executivo inválido."},400);
+   if(complement.trim()&&body.clientExecutiveApproved!==true)return res({error:"Revise e aprove o Complemento Executivo antes da emissão."},400);
+   report.clientExecutiveComplement=complement.trim().slice(0,3000);
+  }
   const narrative=body.narrative&&typeof body.narrative==="object"&&!Array.isArray(body.narrative)?body.narrative as Record<string,unknown>:{};
   // A client snapshot must not accept an arbitrary narrative submitted by the
   // browser, since an editor could accidentally archive internal discussion
@@ -68,7 +131,7 @@ export async function POST(req:NextRequest){
   }:{
    executiveSummary:`O projeto possui ${report.kanban.total} registros de atividades, com ${report.kanban.done} marcados como concluídos no sistema. O aceite externo não foi comprovado por esses indicadores.`,
    riskAnalysis:`${report.governance.risks_open} riscos ativos constam nos registros autorizados. A ausência de registros não comprova ausência de riscos.`,
-   nextSteps:"Confirmar com a gestão do projeto os próximos marcos, responsáveis, prazos acordados e compromissos antes de comunicá-los como definitivos."
+   nextSteps:"Os próximos passos constam exclusivamente das informações selecionadas e aprovadas para este relatório."
   };
   const created=await context.db.from("project_report_snapshots").insert({
    organization_id:context.organizationId,project_id:projectId,audience,

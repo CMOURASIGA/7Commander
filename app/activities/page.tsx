@@ -1,11 +1,15 @@
 "use client";
+import {IconActionButton} from "@/components/ui/icon-action-button";
 
+import { AgileWorkspaceNav } from "@/components/scrum/agile-workspace-nav";
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { getClientAuthEmail, getClientAuthHeaders } from "@/lib/client-auth";
 import { PageIntro, SectionLabel, StatusPill, SurfaceCard } from "@/components/ui/workspace-primitives";
 import { useConfirm } from "@/components/ui/confirm-dialog";
+import { useCentralPilotReadOnly } from "@/lib/use-central-pilot-read-only";
 import { useKairosPanel } from "@/components/kairos/kairos-context";
+import {ActionIcon} from "@/components/ui/action-icon";
 
 type ProjectSummary = {
   id: string;
@@ -24,6 +28,8 @@ type TaskCard = {
   position: number;
   columnId: string;
   columnKey: "todo" | "doing" | "done";
+  createdSource?: "user"|"kairos"|"unknown";
+  creatorName?: string | null;
   labels: Array<{
     id: string;
     name: string;
@@ -81,6 +87,7 @@ function daysToDelivery(value: string): number | null {
 
 export default function ActivitiesPage() {
   const confirm = useConfirm();
+  const {readOnly:environmentReadOnly,checking:capabilitiesChecking}=useCentralPilotReadOnly();
   const { openPanel: openKairosPanel } = useKairosPanel();
   const [projects, setProjects] = useState<ProjectSummary[]>([]);
   const [activeProjectId, setActiveProjectId] = useState<string | null>(null);
@@ -99,6 +106,8 @@ export default function ActivitiesPage() {
   const [detailLoading, setDetailLoading] = useState(false);
   const [cardSaveState,setCardSaveState] = useState<"idle"|"saving"|"saved"|"error">("idle");
   const [cardSaveMessage,setCardSaveMessage] = useState("");
+  const [statusChanging,setStatusChanging]=useState(false);
+  const [statusChangeError,setStatusChangeError]=useState<string|null>(null);
   const [detailForm, setDetailForm] = useState({
     title: "",
     description: "",
@@ -115,14 +124,16 @@ export default function ActivitiesPage() {
   useEffect(()=>{let live=true;async function loadAssignees(){try{const r=await fetch("/api/team/assignees",{headers:getClientAuthHeaders(),cache:"no-store"});const j=await r.json();if(!r.ok)throw new Error(j.error||"Falha ao buscar usuários");if(live){setAssignees(j.data||[]);setAssigneeError(null)}}catch(e){if(live)setAssigneeError(e instanceof Error?e.message:"Falha ao buscar equipe")}}void loadAssignees();return()=>{live=false}},[]);
 
   const [commentText, setCommentText] = useState("");
+  const [commentPending,setCommentPending]=useState(false);
+  const [commentError,setCommentError]=useState<string|null>(null);
   const [editingCommentId, setEditingCommentId] = useState<string | null>(null);
   const [editingCommentText, setEditingCommentText] = useState("");
   const [attachmentName, setAttachmentName] = useState("");
   const [attachmentUrl, setAttachmentUrl] = useState("");
   const [checklistItemInput, setChecklistItemInput] = useState<Record<string, string>>({});
 
-  const canEdit = accessRole === "owner" || accessRole === "editor";
-  const canEditDetail = taskDetail?.accessRole === "owner" || taskDetail?.accessRole === "editor";
+  const canEdit = !environmentReadOnly&&!capabilitiesChecking&&(accessRole === "owner" || accessRole === "editor");
+  const canEditDetail = !environmentReadOnly&&!capabilitiesChecking&&(taskDetail?.accessRole === "owner" || taskDetail?.accessRole === "editor");
   const currentUserEmail = getClientAuthEmail()?.toLowerCase() ?? "";
   const reusableLabels = useMemo(() => {
     const catalog = new Map<string, TaskLabel>();
@@ -216,6 +227,27 @@ export default function ActivitiesPage() {
     }
   }
 
+  async function changeDetailCardStatus(columnKey:"todo"|"doing"|"done"){
+    if(!selectedTaskId||!activeProjectId||!taskDetail||!canEditDetail||statusChanging)return;
+    if(taskDetail.card.columnKey===columnKey)return;
+    setStatusChanging(true);setStatusChangeError(null);
+    try{
+      const response=await fetch("/api/tasks/"+encodeURIComponent(selectedTaskId)+"/status",{
+        method:"PATCH",headers:getClientAuthHeaders({"Content-Type":"application/json"}),
+        body:JSON.stringify({projectId:activeProjectId,columnKey})
+      });
+      const result=await response.json().catch(()=>({}));
+      if(!response.ok)throw Error(result.error||"Não foi possível atualizar o status.");
+      if(result.data?.columnKey!==columnKey||!result.data?.status)
+        throw Error("O servidor não confirmou a mudança de status.");
+      setTaskDetail(prev=>prev?{...prev,card:{...prev.card,columnKey,status:result.data.status}}:prev);
+      setCardSaveState("saved");
+      setCardSaveMessage("Status atualizado no Kanban. Os demais campos ainda precisam ser salvos separadamente.");
+      window.dispatchEvent(new Event("7commander:tasks-changed"));
+      void loadBoard(activeProjectId);
+    }catch(error){setStatusChangeError(error instanceof Error?error.message:"Falha ao mudar status do card.");}
+    finally{setStatusChanging(false);}
+  }
   async function saveCard() {
     if(cardSaveState==="saving")return;
     setCardSaveState("saving");setCardSaveMessage("Salvando alterações...");
@@ -223,6 +255,18 @@ export default function ActivitiesPage() {
       await applyDetailAction({action:"update_core",title:detailForm.title,description:detailForm.description,priority:detailForm.priority,dueDate:detailForm.dueDate||null,responsible:detailForm.responsible||null});
       setCardSaveState("saved");setCardSaveMessage("Alterações salvas com sucesso.");
     }catch(error){setCardSaveState("error");setCardSaveMessage(error instanceof Error?error.message:"Falha ao salvar card.");}
+  }
+  async function submitComment(){
+    if(commentPending||!canEditDetail)return;
+    const value=commentText.trim();
+    if(!value||value.length>4000){setCommentError("Informe um comentário de 1 a 4.000 caracteres.");return;}
+    setCommentPending(true);setCommentError(null);
+    try{
+      await applyDetailAction({action:"add_comment",content:value});
+      setCommentText("");
+    }catch(error){
+      setCommentError(error instanceof Error?error.message:"Não foi possível registrar o comentário.");
+    }finally{setCommentPending(false);}
   }
   async function applyDetailAction(payload: Record<string, unknown>) {
     if (!selectedTaskId) return;
@@ -379,12 +423,14 @@ export default function ActivitiesPage() {
 
   return (
     <section className="space-y-4">
+      <AgileWorkspaceNav/>
       <PageIntro
         eyebrow="7Commander"
         title="Atividades operacionais"
         description="Quadro Kanban por projeto com cards operacionais, responsáveis, checklists, anexos e histórico completo."
         aside={
           <>
+            <Link href={activeProjectId?"/projects?projectId="+encodeURIComponent(activeProjectId):"/projects"} className="workspace-button-secondary inline-flex items-center gap-2"><ActionIcon name="arrow-left"/> Voltar ao projeto</Link>
             <StatusPill tone="accent">{projects.length} projetos</StatusPill>
             <StatusPill tone="success">{board?.columns.reduce((total, column) => total + column.cards.length, 0) ?? 0} cards</StatusPill>
             <button
@@ -398,9 +444,24 @@ export default function ActivitiesPage() {
         }
       />
 
-      <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-(--border) bg-(--bg-surface) px-4 py-3">
-        <p className="text-sm text-(--text-secondary)">Novo fluxo multicontexto em preparação com dados sintéticos.</p>
-        <Link href="/activities/overview" className="rounded-lg border border-(--border) px-3 py-2 text-sm font-medium">Visualizar protótipo operacional</Link>
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4" aria-label="Indicadores das atividades do projeto">
+        {(()=>{
+          const cards=board?.columns.flatMap(column=>column.cards)??[];
+          const open=cards.filter(card=>card.columnKey!=="done"&&card.status!=="concluida");
+          const late=open.filter(card=>card.dueDate?((daysToDelivery(card.dueDate)??0)<0):false);
+          const unassigned=open.filter(card=>!card.responsible?.trim());
+          const doing=open.filter(card=>card.columnKey==="doing"||card.status==="em_andamento");
+          return [
+            {label:"Atividades",value:cards.length,detail:"Cards do projeto selecionado"},
+            {label:"Em andamento",value:doing.length,detail:"Execução em curso"},
+            {label:"Atrasadas",value:late.length,detail:"Com vencimento anterior a hoje"},
+            {label:"Sem responsável",value:unassigned.length,detail:"Cards abertos sem atribuição"},
+          ].map(metric=><article key={metric.label} className="workspace-card p-4">
+            <p className="text-xs text-(--text-secondary)">{metric.label}</p>
+            <p className="mt-2 text-2xl font-semibold">{loading?"...":metric.value}</p>
+            <p className="mt-1 text-xs text-(--text-secondary)">{metric.detail}</p>
+          </article>);
+        })()}
       </div>
 
       <SurfaceCard>
@@ -457,7 +518,7 @@ export default function ActivitiesPage() {
       ) : null}
 
       {status ? (
-        <p className="workspace-card px-3 py-2 text-sm text-(--text-primary)">
+        <p role="status" className={/falha|erro|exclus[aã]o bloqueada|indispon[ií]vel|n[aã]o foi poss[ií]vel|sem permiss[aã]o|n[aã]o est[aá] dispon[ií]vel/i.test(status)?"rounded-xl border border-(--danger) bg-(--danger-soft) px-3 py-2 text-sm font-semibold text-(--danger)":"workspace-card px-3 py-2 text-sm text-(--text-primary)"}>
           {status}
         </p>
       ) : null}
@@ -537,21 +598,25 @@ export default function ActivitiesPage() {
                         <p className="mt-2 text-[13px] uppercase tracking-wide text-(--text-secondary)">
                           {card.priority} | {card.status}
                         </p>
+                        <p className="mt-1 text-[11px] text-(--text-secondary)" title="Origem verificada no histórico de criação">Criado por: {card.createdSource==="kairos"?"Kairos":card.createdSource==="user"?(card.creatorName||"Usuário não identificado"):card.creatorName||"Origem anterior não informada"}</p>
                       </button>
-                      <div className="px-3 pb-3 flex items-center justify-between gap-2">
-                        <button
-                          type="button"
-                          onClick={() =>
-                            openKairosPanel({
-                              projectId: activeProjectId,
-                              seedMessage: `Analise riscos e proximos passos para o card "${card.title}".`,
-                            })
-                          }
-                          className="kanban-kairos-chip"
-                        >
-                          ✨ Kairos
-                        </button>
-                        {canEdit&&<button type="button" aria-label={"Excluir atividade "+card.title} title="Excluir atividade" className="workspace-button-danger px-3 py-2 text-xs" disabled={deletingTaskId===card.id} onClick={()=>void deleteTask(card.id,card.title)}>Excluir</button>}
+                      <div className="flex flex-wrap items-center justify-end gap-2 px-3 pb-3">
+                        <div className="cs-record-actions" role="group" aria-label={"Ações da atividade "+card.title}>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              openKairosPanel({
+                                projectId: activeProjectId,
+                                seedMessage: `Analise riscos e proximos passos para o card "${card.title}".`,
+                              })
+                            }
+                            className="kanban-kairos-chip"
+                          >
+                            Analisar com Kairos
+                          </button>
+                          <IconActionButton icon="eye" tone="neutral" label={"Visualizar atividade "+card.title} onClick={()=>{setSelectedTaskId(card.id);void loadTaskDetail(card.id);}}/>
+                          {canEdit&&<IconActionButton icon="trash" tone="danger" label={"Excluir atividade "+card.title} disabled={deletingTaskId===card.id} onClick={()=>void deleteTask(card.id,card.title)}/>}
+                        </div>
                       </div>
                     </div>
                   ))
@@ -585,7 +650,7 @@ export default function ActivitiesPage() {
                     <span className="workspace-pill">
                       {taskDetail.accessRole}
                     </span>
-                    {canEditDetail&&<button type="button" className="workspace-button-danger px-3 py-2 text-xs" disabled={deletingTaskId===selectedTaskId} onClick={()=>void deleteTask(taskDetail.card.id,taskDetail.card.title)}>Excluir atividade</button>}
+                    {canEditDetail&&<IconActionButton icon="trash" tone="danger" label={"Excluir "+taskDetail.card.title} disabled={deletingTaskId===selectedTaskId} onClick={()=>void deleteTask(taskDetail.card.id,taskDetail.card.title)}/>}
                     <button
                       type="button"
                       onClick={closeTaskDrawer}
@@ -631,6 +696,20 @@ export default function ActivitiesPage() {
                     <option value="alta">alta</option>
                     <option value="critica">critica</option>
                   </select>
+                  <div>
+                    <label htmlFor="task-detail-status" className="mb-1 block text-xs font-medium">Status do card</label>
+                    <select id="task-detail-status" aria-label="Status do card"
+                      value={taskDetail.card.columnKey}
+                      disabled={!canEditDetail||statusChanging}
+                      onChange={event=>void changeDetailCardStatus(event.target.value as "todo"|"doing"|"done")}
+                      className="w-full rounded-lg border border-(--border) bg-white px-3 py-2 text-sm outline-none focus:border-(--accent)">
+                      <option value="todo">TO DO · A fazer</option>
+                      <option value="doing">DOING · Em andamento</option>
+                      <option value="done">DONE · Concluída</option>
+                    </select>
+                    <p className="mt-1 text-xs text-(--text-secondary)">{statusChanging?"Atualizando status...":"A mudança de status é salva imediatamente e registrada no histórico."}</p>
+                    {statusChangeError?<p role="alert" className="mt-1 text-xs font-semibold text-(--danger)">{statusChangeError}</p>:null}
+                  </div>
                   <input
                     type="date"
                     value={detailForm.dueDate}
@@ -680,13 +759,7 @@ export default function ActivitiesPage() {
                         >
                           {label.name}
                           {canEditDetail ? (
-                            <button
-                              type="button"
-                              onClick={() => void applyDetailAction({ action: "remove_label", labelId: label.id })}
-                              className="text-[13px]"
-                            >
-                              x
-                            </button>
+                            <IconActionButton icon="x" tone="danger" label={"Remover etiqueta "+label.name} onClick={()=>void applyDetailAction({action:"remove_label",labelId:label.id})}/>
                           ) : null}
                         </span>
                       ))}
@@ -754,13 +827,7 @@ export default function ActivitiesPage() {
                       <div key={member.id} className="flex min-w-0 items-center justify-between gap-2 rounded border border-(--border) bg-white px-2 py-1 text-xs">
                         <span className="min-w-0 truncate">{member.memberEmail}</span>
                         {canEditDetail ? (
-                          <button
-                            type="button"
-                            onClick={() => void applyDetailAction({ action: "remove_member", memberId: member.id })}
-                            className="text-(--text-secondary)"
-                          >
-                            remover
-                          </button>
+                          <IconActionButton icon="user-minus" tone="danger" label={"Remover membro "+member.memberEmail} onClick={()=>void applyDetailAction({action:"remove_member",memberId:member.id})}/>
                         ) : null}
                       </div>
                     ))}
@@ -881,10 +948,8 @@ export default function ActivitiesPage() {
                             <p className="mt-1 text-(--text-primary)">{comment.content}</p>
                             {canEditDetail && currentUserEmail === comment.authorEmail.toLowerCase() ? (
                               <div className="mt-2 flex gap-2">
-                                <button type="button" onClick={() => { setEditingCommentId(comment.id); setEditingCommentText(comment.content); }} className="text-xs font-medium text-(--accent)">Editar</button>
-                                <button
-                                  type="button"
-                                  onClick={() =>
+                                <IconActionButton icon="pencil" tone="edit" label={"Editar comentário de "+comment.authorEmail} onClick={()=>{setEditingCommentId(comment.id);setEditingCommentText(comment.content);}}/>
+                                <IconActionButton icon="trash" tone="danger" label={"Excluir comentário de "+comment.authorEmail} onClick={() =>
                                     void (async () => {
                                       const confirmed = await confirm({
                                         title: "Excluir comentario?",
@@ -894,11 +959,7 @@ export default function ActivitiesPage() {
                                       });
                                       if (confirmed) await applyDetailAction({ action: "delete_comment", commentId: comment.id });
                                     })()
-                                  }
-                                  className="text-xs font-medium text-(--danger)"
-                                >
-                                  Excluir
-                                </button>
+                                  }/>
                               </div>
                             ) : null}
                           </>
@@ -915,15 +976,13 @@ export default function ActivitiesPage() {
                         />
                         <button
                           type="button"
-                          onClick={() =>
-                            void applyDetailAction({ action: "add_comment", content: commentText }).then(() =>
-                              setCommentText(""),
-                            )
-                          }
-                          className="rounded-lg bg-(--accent) px-3 py-2 text-xs font-medium text-white"
+                          onClick={()=>void submitComment()}
+                          disabled={commentPending||!commentText.trim()}
+                          className="workspace-button-primary px-3 py-2 text-xs"
                         >
-                          Comentar
+                          {commentPending?"Registrando...":"Comentar"}
                         </button>
+                        {commentError?<p role="alert" className="text-xs font-semibold text-(--danger)">{commentError}</p>:null}
                       </>
                     ) : null}
                   </div>

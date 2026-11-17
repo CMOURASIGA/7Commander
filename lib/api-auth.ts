@@ -8,6 +8,8 @@ import { shouldEnforceCustomerPilot } from "@/lib/customer-pilot";
 import { authorizeCentralPilot } from "@/lib/central-runtime";
 import { recordCentralDecision } from "@/lib/central-decision-audit";
 import { TENANT_SCHEMA_READY, getEffectiveTenantForUser } from "@/lib/tenant-runtime";
+import { localAuthEnabled, localWriteGuardEnabled } from "@/lib/local-write-guard";
+import { beginLocalIdentity, verifyLocalIdentity } from "@/lib/local-request-identity";
 
 const USER_ID_HEADER = "x-kairos-user-id";
 const API_KEY_HEADER = "x-kairos-api-key";
@@ -66,6 +68,9 @@ export async function requireApiAuth(request: NextRequest): Promise<{
   const requestApiKey = extractApiKeyFromRequest(request);
   const bearerToken = extractBearerToken(request);
   const authRequired = isAuthRequired();
+  // Establish request-local async context synchronously, BEFORE the first
+  // await. It remains unusable until Supabase Auth verifies this JWT.
+  if (localAuthEnabled() || localWriteGuardEnabled()) beginLocalIdentity(bearerToken);
 
   if (bearerToken && seemsJwtToken(bearerToken) && bearerToken !== configuredApiKey) {
     const { NEXT_PUBLIC_SUPABASE_URL, NEXT_PUBLIC_SUPABASE_ANON_KEY } = getPublicEnv();
@@ -80,6 +85,29 @@ export async function requireApiAuth(request: NextRequest): Promise<{
       const userResult = await authClient.auth.getUser(bearerToken);
 
       if (userResult.data.user && !userResult.error) {
+        if (localAuthEnabled() || localWriteGuardEnabled()) {
+          const userId = userResult.data.user.id;
+          if (!verifyLocalIdentity(bearerToken,userId)) return {
+            ok:false,response:NextResponse.json({error:"Contexto de autenticação inválido."},{status:401})
+          };
+          const db = getSupabaseServerClient();
+          if (!db) return {ok:false,response:NextResponse.json({error:"Acesso local não configurado."},{status:503})};
+          // This path is intentionally internal-only. Centrally provisioned
+          // customer accounts must continue to use the 7Service broker.
+          const access = await db.from("platform_admins").select("active")
+            .eq("user_id",userId).eq("active",true).maybeSingle();
+          if (access.error || !access.data) return {
+            ok:false,response:NextResponse.json({error:"Leitura local restrita a administrador interno autorizado."},{status:403})
+          };
+          const member = await db.from("organization_members").select("organization_id")
+            .eq("user_id",userId).eq("status","active").limit(1);
+          if (member.error || !member.data?.length) return {
+            ok:false,response:NextResponse.json({error:"Sem empresa ativa autorizada."},{status:403})
+          };
+          return {ok:true,context:{
+            userId,userEmail:userResult.data.user.email??null,authMode:"supabase",
+          }};
+        }
         const db = getSupabaseServerClient();
         if (!db) return { ok: false, response: NextResponse.json({ error: "Banco indisponivel" }, { status: 503 }) };
         const userId = userResult.data.user.id;
@@ -210,6 +238,14 @@ export async function requireApiAuth(request: NextRequest): Promise<{
       }
     }
   }
+
+  // Local read-only never falls back to legacy keys or caller-supplied IDs.
+  // A missing, malformed or unverified Supabase JWT must fail closed.
+  if (localAuthEnabled() || localWriteGuardEnabled()) return {
+    ok:false,
+    response:NextResponse.json({error:"Login Supabase obrigatório no modo leitura."},
+      {status:401,headers:{"Cache-Control":"no-store"}}),
+  };
 
   // Public Preview may expose only the UI, never operational data through
   // legacy API keys or caller supplied identities. Supabase JWT remains required.

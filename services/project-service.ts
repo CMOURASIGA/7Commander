@@ -1,4 +1,5 @@
 import { getSupabaseServerClient } from "@/lib/supabase/server";
+import { localWriteGuardEnabled } from "@/lib/local-write-guard";
 import { getConsultMemberIds, consultMemberRole, CONSULT_ORG_ID } from "@/lib/consult-workspace";
 import { TENANT_SCHEMA_READY, getTenantMemberIds, getTenantRole, requireEffectiveTenant } from "@/lib/tenant-runtime";
 import { CreateProjectInput, ProjectRecord, ProjectStatus } from "@/types/project";
@@ -189,7 +190,10 @@ async function listProjectsWithAccessFilter(params: {
   // Consult Services. Explicit sharing cannot bypass organization boundaries.
   query = query.eq("organization_id", await projectTenantId(params.userId));
   const result = await query;
-  if (result.error || !result.data) return null;
+  if (result.error || !result.data) {
+    if (localWriteGuardEnabled()) throw new Error("LOCAL_PROJECT_QUERY_FAILED:"+(result.error?.code??"UNKNOWN"));
+    return null;
+  }
   return (result.data as unknown as ProjectRowExtended[]).map(mapProjectRow);
 }
 
@@ -266,7 +270,10 @@ async function canEditProject(params: {
 }
 
 export async function listProjects(userId: string, userEmail?: string | null): Promise<ProjectRecord[]> {
-  if(TENANT_SCHEMA_READY && !(await getTenantRole(userId))) return [];
+  if(TENANT_SCHEMA_READY && !(await getTenantRole(userId))) {
+    if (localWriteGuardEnabled()) throw new Error("LOCAL_TENANT_UNAVAILABLE");
+    return [];
+  }
   const supabase = getSupabaseServerClient();
   if (supabase) {
     try {
@@ -276,7 +283,8 @@ export async function listProjects(userId: string, userEmail?: string | null): P
         extended: true,
       });
       if (extended) return extended;
-    } catch {
+    } catch (error) {
+      if (localWriteGuardEnabled()) throw error;
       // fallback legacy below
     }
 
@@ -287,7 +295,8 @@ export async function listProjects(userId: string, userEmail?: string | null): P
         extended: false,
       });
       if (legacy) return legacy;
-    } catch {
+    } catch (error) {
+      if (localWriteGuardEnabled()) throw error;
       // fallback local below
     }
   }

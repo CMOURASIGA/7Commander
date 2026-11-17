@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { localWriteGuardEnabled } from "@/lib/local-write-guard";
 import { appendMessage } from "@/services/chat-store";
 import { generateKairosResponse } from "@/services/kairos-core";
 import { requireApiAuth } from "@/lib/api-auth";
@@ -57,7 +58,7 @@ export async function POST(request: NextRequest) {
     const ownership = await db.from("projects").select("organization_id").eq("id", project.id).eq("organization_id", effectiveTenant).maybeSingle();
     if (ownership.error || !ownership.data) return NextResponse.json({ error: "Projeto fora da organização autorizada." }, { status: 403 });
 
-    await appendMessage({
+    if (!localWriteGuardEnabled()) await appendMessage({
       userId,
       conversationId: body.conversationId,
       role: "user",
@@ -78,7 +79,14 @@ export async function POST(request: NextRequest) {
     });
 
     const generationDurationMs = Date.now() - generationStartedAt;
-    const assistantMessage = await appendMessage({
+    const assistantMessage = localWriteGuardEnabled() ? {
+      id: crypto.randomUUID(),
+      conversationId: body.conversationId,
+      role: "assistant" as const,
+      content: result.answer,
+      specialist: result.specialist,
+      createdAt: new Date().toISOString(),
+    } : await appendMessage({
       userId,
       conversationId: body.conversationId,
       role: "assistant",
@@ -99,6 +107,12 @@ export async function POST(request: NextRequest) {
     });
   } catch (error) {
     console.error("[/api/chat] error", error);
+    if(error instanceof Error && error.message.includes("Esta conversa pertence a outro projeto")){
+      return NextResponse.json({error:"Esta conversa pertence a outro projeto. Inicie uma nova conversa para continuar com o projeto escolhido.",code:"CONVERSATION_PROJECT_MISMATCH"},{status:409});
+    }
+    if(error instanceof Error && error.message.includes("Esta conversa antiga nao possui projeto")){
+      return NextResponse.json({error:error.message,code:"CONVERSATION_PROJECT_MISMATCH"},{status:409});
+    }
     return NextResponse.json({ error: "Erro interno ao processar chat." }, { status: 500 });
   }
 }

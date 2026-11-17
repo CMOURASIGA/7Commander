@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import {validStakeholderPayload} from "@/lib/projects/stakeholders";
 import { requireApiAuth } from "@/lib/api-auth";
 import { createProject, listProjects } from "@/services/project-service";
 import { ensureProjectOwnerMembership } from "@/services/project-sharing-service";
@@ -48,6 +49,8 @@ export async function POST(request: NextRequest) {
     if (!auth.ok) return auth.response;
 
     const body = (await request.json()) as CreateProjectPayload;
+    if(typeof body.stakeholders==="string"&&!validStakeholderPayload(body.stakeholders))
+      return NextResponse.json({error:"Cadastro de stakeholders inválido ou acima do limite."},{status:400});
     if (!body.name?.trim()) {
       return NextResponse.json({ error: "Campo 'name' obrigatorio." }, { status: 400 });
     }

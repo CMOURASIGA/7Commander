@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import {validStakeholderPayload} from "@/lib/projects/stakeholders";
 import { requireApiAuth } from "@/lib/api-auth";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
 import { getClientById } from "@/services/client-service";
@@ -57,6 +58,8 @@ export async function PATCH(
     if (!auth.ok) return auth.response;
 
     const body = (await request.json()) as UpdateProjectPayload;
+    if(typeof body.stakeholders==="string"&&!validStakeholderPayload(body.stakeholders))
+      return NextResponse.json({error:"Cadastro de stakeholders inválido ou acima do limite."},{status:400});
     if (!isValidStatus(body.status)) {
       return NextResponse.json({ error: "Status de projeto invalido." }, { status: 400 });
     }

@@ -99,6 +99,8 @@ export type TaskCard = {
   }>;
   createdAt: string;
   updatedAt: string;
+  createdSource?: "user"|"kairos"|"unknown";
+  creatorName?: string | null;
 };
 
 export type TaskBoardColumn = {
@@ -117,10 +119,16 @@ export type TaskBoard = {
 };
 
 export type ProjectTaskOperationalSnapshot = {
+  totalAvailable: number | null;
+  loadedCount: number;
+  truncated: boolean;
+  openCardsTotal: number;
   todo: number;
   doing: number;
   done: number;
+  cards: Array<{ id: string; title: string; priority: TaskPriority; status: TaskStatus }>;
   openCards: Array<{
+    id: string;
     title: string;
     priority: TaskPriority;
     status: TaskStatus;
@@ -185,6 +193,7 @@ function mapTaskRowToCard(row: TaskRow, columnKey: ColumnKey): TaskCard {
     labels: [],
     createdAt: row.created_at,
     updatedAt: row.updated_at,
+    createdSource: "unknown",
   };
 }
 
@@ -205,6 +214,7 @@ function mapLegacyTaskRowToCard(row: LegacyTaskRow, columnKey: ColumnKey, positi
     labels: [],
     createdAt: row.created_at,
     updatedAt: row.updated_at ?? row.created_at,
+    createdSource: "unknown",
   };
 }
 
@@ -365,6 +375,44 @@ export async function listTaskBoard(params: {
     }
   }
 
+  // Resolve author names only for members of the currently authorized company.
+  const creatorIds=Array.from(new Set((tasksResult.data as TaskRow[]).map(row=>row.user_id).filter(Boolean)));
+  if(creatorIds.length&&tenantId){
+    const orgMembers=await supabase.from("organization_members").select("user_id")
+      .eq("organization_id",tenantId).eq("status","active").in("user_id",creatorIds);
+    if(!orgMembers.error&&orgMembers.data?.length){
+      const memberIds=orgMembers.data.map(row=>row.user_id);
+      const people=await supabase.from("internal_user_access").select("user_id,nome")
+        .in("user_id",memberIds).eq("active",true);
+      if(!people.error&&people.data){
+        const names=new Map(people.data.map(person=>[person.user_id,person.nome?.trim()]));
+        for(const row of tasksResult.data as TaskRow[]){
+          const name=names.get(row.user_id);
+          if(name&&cardByTaskId.has(row.id))cardByTaskId.get(row.id)!.creatorName=name;
+        }
+      }
+    }
+  }
+
+  // The creator is the real audit metadata, never inferred from current user.
+  // Missing or legacy rows remain "unknown" rather than falsely claiming Kairos.
+  if(taskIds.length){
+    let auditQuery=supabase.from("task_activity_log")
+      .select("task_id,metadata,actor_email,created_at")
+      .in("task_id",taskIds).eq("action_type","task_created")
+      .order("created_at",{ascending:true}).limit(Math.max(taskIds.length*3,100));
+    if(tenantId)auditQuery=auditQuery.eq("organization_id",tenantId);
+    const audit=await auditQuery;
+    if(!audit.error&&audit.data){
+      for(const event of audit.data){
+        const card=cardByTaskId.get(event.task_id);
+        if(!card||card.createdSource!=="unknown")continue;
+        const source=(event.metadata as {source?:string}|null)?.source;
+        if(source==="kairos"||source==="user")card.createdSource=source;
+        if(source==="user"&&!card.creatorName&&event.actor_email)card.creatorName=event.actor_email;
+      }
+    }
+  }
   for (const column of columns) {
     column.cards.sort((a, b) => a.position - b.position);
   }
@@ -506,6 +554,7 @@ export async function createTaskCard(params: {
     return null;
   }
   const card = mapTaskRowToCard(inserted.data as TaskRow, targetColumnKey);
+  card.createdSource=params.actionSource??"user";
   await registerTaskActivity({
     taskId: card.id,
     actorUserId: params.userId,
@@ -854,7 +903,7 @@ export async function getProjectTaskOperationalSnapshot(params: {
 
   let query = supabase
     .from("tasks")
-    .select("titulo, prioridade, status")
+    .select("id, titulo, prioridade, status", {count:"exact"})
     .eq("project_id", params.projectId);
   if (TENANT_SCHEMA_READY) query = query.eq("organization_id", await requireEffectiveTenant(params.userId));
   const result = await query.order("updated_at", { ascending: false })
@@ -866,8 +915,9 @@ export async function getProjectTaskOperationalSnapshot(params: {
   let doing = 0;
   let done = 0;
   const openCards: ProjectTaskOperationalSnapshot["openCards"] = [];
+  const cards: ProjectTaskOperationalSnapshot["cards"] = [];
 
-  for (const row of result.data as Array<{ titulo: string; prioridade: string; status: string }>) {
+  for (const row of result.data as Array<{ id: string; titulo: string; prioridade: string; status: string }>) {
     const status = row.status === "concluida" ? "concluida" : row.status === "em_andamento" ? "em_andamento" : "aberta";
     const priority = normalizePriority(row.prioridade);
     if (status === "concluida") {
@@ -878,8 +928,10 @@ export async function getProjectTaskOperationalSnapshot(params: {
       todo += 1;
     }
 
-    if (status !== "concluida" && openCards.length < 5) {
+    cards.push({id:row.id,title:row.titulo,priority,status});
+    if (status !== "concluida" && openCards.length < 25) {
       openCards.push({
+        id: row.id,
         title: row.titulo,
         priority,
         status,
@@ -887,7 +939,9 @@ export async function getProjectTaskOperationalSnapshot(params: {
     }
   }
 
-  return { todo, doing, done, openCards };
+  const loadedCount=result.data.length;
+  const totalAvailable=result.count ?? null;
+  return { totalAvailable, loadedCount, truncated: totalAvailable === null || totalAvailable > loadedCount, openCardsTotal:todo+doing, todo, doing, done, cards, openCards };
 }
 
 export async function getUserTaskOperationalSnapshot(userId: string): Promise<{
@@ -926,6 +980,12 @@ export async function getUserTaskOperationalSnapshot(userId: string): Promise<{
   return { todo, doing, done, openTitles };
 }
 
+/**
+ * Delete a project Kanban task only with editor/owner permission and a retained audit.
+ * Refuse deletion of formal risk-linked tasks or Sprint-linked records.
+ * Comments, checklists, memberships and attachments are removed by DB cascades
+ * only after the caller confirms the loss in the interface.
+ */
 export async function deleteTaskCard(params:{userId:string;userEmail?:string|null;taskId:string}):Promise<{deleted:boolean;reason:string}>{
  const supabase=getSupabaseServerClient();
  if(!supabase)return {deleted:false,reason:"Banco indisponível."};
@@ -938,10 +998,13 @@ export async function deleteTaskCard(params:{userId:string;userEmail?:string|nul
  if(access!=="owner"&&access!=="editor")return {deleted:false,reason:"Sem permissão para excluir esta atividade."};
  const [riskLink,sprintLink]=await Promise.all([
   supabase.from("risks").select("id").eq("task_id",params.taskId).eq("project_id",row.project_id).eq("organization_id",organizationId).limit(1),
-  // scrum_sprint_tasks uses (sprint_id, task_id), not a standalone id column.
+  // Verified schema: sprint association has tenant and project fields.
   supabase.from("scrum_sprint_tasks").select("task_id").eq("task_id",params.taskId).eq("project_id",row.project_id).eq("organization_id",organizationId).limit(1)
  ]);
- if(riskLink.error||sprintLink.error)return {deleted:false,reason:"Não foi possível verificar os vínculos. Exclusão bloqueada."};
+ if(riskLink.error||sprintLink.error){
+  console.error("[deleteTaskCard] dependency check unavailable",{riskCode:riskLink.error?.code,sprintCode:sprintLink.error?.code});
+  return {deleted:false,reason:riskLink.error?"Consulta de vínculos com riscos indisponível. Exclusão bloqueada.":"Consulta de vínculos com Sprints indisponível. Exclusão bloqueada."};
+ }
  if(riskLink.data?.length||sprintLink.data?.length)
   return {deleted:false,reason:"Atividade vinculada a risco oficial ou Sprint. Desvincule-a antes de excluir para preservar a rastreabilidade."};
  const audit=await supabase.from("project_task_deletion_audit").insert({

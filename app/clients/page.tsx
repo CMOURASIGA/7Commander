@@ -4,6 +4,8 @@ import { useEffect, useState } from "react";
 import { getClientAuthHeaders } from "@/lib/client-auth";
 import { useCentralPilotReadOnly } from "@/lib/use-central-pilot-read-only";
 import { PageIntro, SectionLabel, StatusPill, SurfaceCard } from "@/components/ui/workspace-primitives";
+import {IconActionButton} from "@/components/ui/icon-action-button";
+import {useConfirm} from "@/components/ui/confirm-dialog";
 
 type ClientItem = {
   id: string;
@@ -16,7 +18,12 @@ type ClientItem = {
 
 export default function ClientsPage() {
   const { readOnly, checking } = useCentralPilotReadOnly();
+  const confirm=useConfirm();
   const [clients, setClients] = useState<ClientItem[]>([]);
+  const [search,setSearch]=useState("");
+  const [statusFilter,setStatusFilter]=useState<"todos"|"ativo"|"inativo">("todos");
+  const [drawerOpen,setDrawerOpen]=useState(false);
+  const [viewClient,setViewClient]=useState<ClientItem|null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
@@ -74,6 +81,7 @@ export default function ClientsPage() {
         status: "ativo",
       });
       setEditingId(null);
+      setDrawerOpen(false);
       setStatusMessage(editingId ? "Cliente atualizado." : "Cliente criado.");
       await loadClients();
     } catch (error) {
@@ -86,6 +94,7 @@ export default function ClientsPage() {
   function handleEdit(client: ClientItem) {
     if (readOnly || checking) return;
     setEditingId(client.id);
+    setDrawerOpen(true);
     setStatusMessage(null);
     setForm({
       name: client.name,
@@ -97,6 +106,8 @@ export default function ClientsPage() {
 
   async function handleDelete(clientId: string) {
     if (readOnly || checking) return;
+    const client=clients.find(item=>item.id===clientId);
+    if(!client || !await confirm({title:`Excluir cliente "${client.name}"?`,description:"Esta ação remove o cadastro e pode ser bloqueada caso existam vínculos. Confirme apenas se realmente deseja excluí-lo.",confirmLabel:"Excluir cliente",tone:"danger"}))return;
     setStatusMessage(null);
     try {
       const response = await fetch(`/api/clients/${clientId}`, {
@@ -121,6 +132,14 @@ export default function ClientsPage() {
     }
   }
 
+  const filteredClients=clients.filter(client=>(statusFilter==="todos"||client.status===statusFilter)&&
+    [client.name,client.contact,client.description].join(" ").toLowerCase().includes(search.trim().toLowerCase()));
+  function openCreate(){
+    setEditingId(null);
+    setForm({name:"",description:"",contact:"",status:"ativo"});
+    setStatusMessage(null);
+    setDrawerOpen(true);
+  }
   return (
     <section className="space-y-3">
       <PageIntro
@@ -137,8 +156,25 @@ export default function ClientsPage() {
         }
       />
 
+      <div className="workspace-card flex flex-wrap items-center gap-3 p-4">
+        <label className="flex-1 text-sm">Buscar cliente
+          <input className="workspace-input mt-1 w-full" value={search} onChange={e=>setSearch(e.target.value)}
+            placeholder="Nome, contato ou descrição"/>
+        </label>
+        <label className="text-sm">Situação
+          <select className="workspace-select mt-1 w-full" value={statusFilter}
+            onChange={e=>setStatusFilter(e.target.value as "todos"|"ativo"|"inativo")}>
+            <option value="todos">Todos</option><option value="ativo">Ativos</option><option value="inativo">Inativos</option>
+          </select>
+        </label>
+        {!readOnly&&!checking?<button type="button" className="workspace-button-primary mt-5" onClick={openCreate}>Adicionar cliente</button>:null}
+      </div>
       {!checking && readOnly ? <p className="rounded-lg border border-(--border) p-3 text-sm" role="status">Acesso somente leitura: cadastro e manutenção de clientes indisponíveis para este perfil.</p> : null}
-      {!readOnly && !checking ? <SurfaceCard>
+      {!readOnly && !checking && drawerOpen ? <div className="fixed inset-0 z-50">
+        <button type="button" aria-label="Fechar editor de cliente" className="absolute inset-0 bg-black/35" onClick={()=>setDrawerOpen(false)}/>
+        <aside className="relative ml-auto h-dvh w-full max-w-xl overflow-y-auto bg-(--bg-surface) p-5 shadow-2xl" role="dialog" aria-modal="true" aria-label={editingId?"Editar cliente":"Criar cliente"}>
+        <div className="mb-4 flex items-center justify-between"><h2 className="text-lg font-semibold">{editingId?"Editar cliente":"Adicionar cliente"}</h2><button className="workspace-button-secondary" onClick={()=>setDrawerOpen(false)}>Fechar</button></div>
+        <SurfaceCard>
         <SectionLabel>
           {editingId ? "Editar cliente" : "Novo cliente"}
         </SectionLabel>
@@ -185,6 +221,7 @@ export default function ClientsPage() {
               type="button"
               onClick={() => {
                 setEditingId(null);
+                setDrawerOpen(false);
                 setForm({ name: "", description: "", contact: "", status: "ativo" });
               }}
               className="workspace-button-secondary"
@@ -194,47 +231,63 @@ export default function ClientsPage() {
           ) : null}
         </div>
         {statusMessage ? <p className="mt-2 text-xs text-(--text-primary)">{statusMessage}</p> : null}
-      </SurfaceCard> : null}
+        </SurfaceCard>
+        </aside>
+      </div> : null}
       {readOnly && statusMessage ? <p role="alert" className="text-sm">{statusMessage}</p> : null}
 
+      {statusMessage&&!drawerOpen?<p role="status" className="workspace-card p-3 text-sm">{statusMessage}</p>:null}
+      {viewClient ? <div className="fixed inset-0 z-50">
+        <button type="button" aria-label="Fechar detalhes do cliente" className="absolute inset-0 bg-black/35"
+          onClick={()=>setViewClient(null)}/>
+        <aside role="dialog" aria-modal="true" aria-labelledby="client-readonly-heading"
+          className="relative ml-auto h-dvh w-full max-w-xl overflow-y-auto border-l border-(--border) bg-(--bg-surface) p-5 shadow-2xl">
+          <div className="flex items-start justify-between gap-3">
+            <div><p className="text-xs font-semibold text-(--text-secondary)">Detalhes do cliente</p>
+              <h2 id="client-readonly-heading" className="mt-1 text-lg font-semibold">{viewClient.name}</h2></div>
+            <button type="button" className="workspace-button-secondary" onClick={()=>setViewClient(null)}>Fechar</button>
+          </div>
+          <dl className="mt-5 space-y-4 text-sm">
+            <div><dt className="font-semibold">Contato</dt><dd>{viewClient.contact||"Não informado"}</dd></div>
+            <div><dt className="font-semibold">Situação</dt><dd>{viewClient.status==="ativo"?"Ativo":"Inativo"}</dd></div>
+            <div><dt className="font-semibold">Descrição</dt><dd className="mt-1 whitespace-pre-wrap leading-relaxed">{viewClient.description||"Sem descrição cadastrada."}</dd></div>
+          </dl>
+          {!readOnly && !checking ? <button type="button" className="workspace-button-primary mt-5"
+             onClick={()=>{setViewClient(null);handleEdit(viewClient);}}>Editar cliente</button>:null}
+        </aside>
+      </div>:null}
       <SurfaceCard>
-        <SectionLabel>Lista operacional</SectionLabel>
+        <SectionLabel>Carteira de clientes</SectionLabel>
         <h3 className="mt-2 text-base font-semibold text-(--text-primary)">Clientes registrados</h3>
         {loading ? (
           <p className="mt-2 text-sm text-(--text-secondary)">Carregando...</p>
-        ) : clients.length === 0 ? (
-          <p className="workspace-empty-state mt-3 text-sm">Nenhum cliente cadastrado.</p>
+        ) : filteredClients.length === 0 ? (
+          <p className="workspace-empty-state mt-3 text-sm">Nenhum cliente encontrado para os filtros selecionados.</p>
         ) : (
           <div className="mt-3 space-y-2">
-            {clients.map((client) => (
+            {filteredClients.map((client) => (
               <div
                 key={client.id}
-                className="workspace-card-muted flex flex-wrap items-start justify-between gap-3 p-3"
+                className="workspace-card-muted grid grid-cols-[minmax(0,1fr)_auto] items-start gap-3 p-3"
               >
-                <div>
+                <div className="min-w-0">
                   <p className="text-sm font-semibold text-(--text-primary)">{client.name}</p>
                   <p className="text-xs text-(--text-secondary)">Contato: {client.contact || "Nao informado"}</p>
                   <p className="text-xs text-(--text-secondary)">Status: {client.status}</p>
-                  <p className="mt-1 text-xs text-(--text-secondary)">
-                    {client.description || "Sem descricao."}
+                  <p className="mt-1 line-clamp-3 text-xs text-(--text-secondary)" title={client.description||undefined}>
+                    {client.description || "Sem descrição."}
                   </p>
                 </div>
-                {!readOnly && !checking ? <div className="flex gap-2">
-                  <button
-                    type="button"
-                    onClick={() => handleEdit(client)}
-                    className="workspace-button-secondary px-3 py-2 text-[13px]"
-                  >
-                    Editar
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => void handleDelete(client.id)}
-                    className="workspace-button-secondary px-3 py-2 text-[13px]"
-                  >
-                    Remover
-                  </button>
-                </div> : null}
+                <div className="cs-record-actions" role="group" aria-label={"Ações do cliente "+client.name}>
+                  <IconActionButton icon="eye" tone="neutral" label={"Visualizar "+client.name}
+                    onClick={()=>setViewClient(client)}/>
+                  {!readOnly && !checking ? <>
+                  <IconActionButton icon="pencil" tone="edit" label={"Editar "+client.name}
+                    onClick={()=>handleEdit(client)}/>
+                  <IconActionButton icon="trash" tone="danger" label={"Excluir "+client.name}
+                    onClick={()=>void handleDelete(client.id)}/>
+                  </> : null}
+                </div>
               </div>
             ))}
           </div>

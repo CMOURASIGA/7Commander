@@ -2,19 +2,21 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
+import {ActionIcon} from "@/components/ui/action-icon";
 import { useKairosAuth } from "@/components/auth/kairos-auth-provider";
 import { TaskAlerts } from "@/components/notifications/task-alerts";
 import { getClientAuthHeaders } from "@/lib/client-auth";
 
 const PAGE_TITLES: Record<string, string> = {
-  "/": "Inicio", "/scrum": "Scrum e Sprints", "/scrum/backlog": "Backlog de US", "/scrum/kanban": "Kanban de US", "/voice": "Voice Room", "/chat": "Dashboard Kairos", "/daily": "Daily", "/clients": "Clientes", "/projects": "Projetos", "/activities": "Atividades", "/memory": "Memoria", "/help": "Ajuda", "/settings": "Configuracoes", "/login": "Acesso",
+  "/": "Inicio", "/planning": "Prospect", "/decisions": "Decisões dos projetos", "/operational-decisions": "Avaliações operacionais", "/status-report": "Status Report", "/organizations": "Empresas", "/scrum": "Scrum e Sprints", "/scrum/backlog": "Backlog de US", "/scrum/kanban": "Kanban de US", "/voice": "Voice Room", "/chat": "Dashboard Kairos", "/daily": "Daily", "/clients": "Clientes", "/projects": "Projetos", "/activities": "Atividades", "/memory": "Memoria", "/help": "Ajuda", "/settings": "Configuracoes", "/login": "Acesso",
 };
 type HeaderProps = { onToggleMobileNav: () => void; mobileNavOpen: boolean };
 
 export function Header({ onToggleMobileNav, mobileNavOpen }: HeaderProps) {
   const auth = useKairosAuth();
   const pathname = usePathname();
+  const router=useRouter();
   const email = auth.user?.email ?? null;
   const authenticated = Boolean(auth.user);
   const pageTitle = PAGE_TITLES[pathname] ?? "Workspace";
@@ -35,11 +37,9 @@ export function Header({ onToggleMobileNav, mobileNavOpen }: HeaderProps) {
     }
     void refreshActiveCompany();
     const onStorage=(event:StorageEvent)=>{if(event.key==="7commander:company-changed")void refreshActiveCompany()};
-    const onFocus=()=>void refreshActiveCompany();
     window.addEventListener("7commander:organization-selected", refreshActiveCompany);
     window.addEventListener("storage",onStorage);
-    window.addEventListener("focus",onFocus);
-    return () => {alive=false;window.removeEventListener("7commander:organization-selected", refreshActiveCompany);window.removeEventListener("storage",onStorage);window.removeEventListener("focus",onFocus);};
+    return () => {alive=false;window.removeEventListener("7commander:organization-selected", refreshActiveCompany);window.removeEventListener("storage",onStorage);};
   }, [authenticated]);
   const menuRef = useRef<HTMLDivElement>(null);
   const avatarLabel = (email ?? "7c").split("@")[0].split(/[.\s_-]+/).filter(Boolean).slice(0, 2).map((part) => part[0]?.toUpperCase() ?? "").join("") || "7C";
@@ -49,6 +49,7 @@ export function Header({ onToggleMobileNav, mobileNavOpen }: HeaderProps) {
   return (
     <header className="sticky top-0 z-20 flex min-h-16 items-center justify-between gap-4 border-b border-(--border) bg-white/95 px-4 py-2 backdrop-blur md:px-6">
       <div className="flex min-w-0 items-center gap-3">
+        {pathname!=="/"&&pathname!=="/login"&&<button type="button" aria-label="Voltar para tela anterior" title="Voltar" onClick={()=>{if(window.history.length>1)router.back();else router.push("/");}} className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-(--border) text-(--text-primary) hover:bg-(--bg-muted)"><ActionIcon name="arrow-left" width={18} height={18}/></button>}
         <button type="button" onClick={onToggleMobileNav} aria-label={mobileNavOpen ? "Fechar menu" : "Abrir menu"} aria-expanded={mobileNavOpen} className="mobile-nav-toggle"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" className="h-5 w-5" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16" /></svg></button>
         <div className="min-w-0"><p className="truncate text-[10px] font-black uppercase tracking-[0.2em] text-(--accent)">Workspace ativo</p><h1 className="truncate text-base font-semibold text-(--text-primary)">{pageTitle}</h1></div>
       </div>

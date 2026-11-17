@@ -50,6 +50,25 @@ export async function POST(req:NextRequest){
    const inserted=await db.from("scrum_sprints").insert({organization_id:org,project_id:projectId,name,goal:typeof body.goal==="string"?body.goal.slice(0,2000):"",start_date:body.startDate,end_date:body.endDate}).select("id").single();
    return inserted.error?fail("Não foi possível criar Sprint: "+inserted.error.code,409):response({data:inserted.data},201);
  }
+ if(body.action==="edit_sprint"){
+   const id=String(body.sprintId||"");
+   const name=typeof body.name==="string"?body.name.trim():"";
+   const goal=typeof body.goal==="string"?body.goal:"";
+   if(!uuid.test(id)||name.length<2||name.length>140||goal.length>2000||
+     !validDate(body.startDate)||!validDate(body.endDate)||body.endDate<body.startDate)
+     return fail("Dados e período da Sprint inválidos.");
+   const existing=await db.from("scrum_sprints").select("id,status").eq("id",id)
+    .eq("project_id",projectId).eq("organization_id",org).maybeSingle();
+   if(existing.error||!existing.data)return fail("Sprint não encontrada.",404);
+   if(existing.data.status==="closed")return fail("Sprint encerrada: histórico imutável.",409);
+   const changed=await db.from("scrum_sprints").update({
+     name,goal,start_date:body.startDate,end_date:body.endDate,updated_at:new Date().toISOString()
+   }).eq("id",id).eq("project_id",projectId).eq("organization_id",org)
+    .neq("status","closed").select("id").maybeSingle();
+   if(changed.error)return fail("Não foi possível editar Sprint: "+changed.error.code,409);
+   if(!changed.data)return fail("Sprint não pode ser editada neste estado.",409);
+   return response({data:changed.data});
+ }
  if(body.action==="update_sprint"){
    const id=String(body.sprintId||""),status=String(body.status||"");
    if(!uuid.test(id)||!["planned","active","closed"].includes(status))return fail("Sprint ou estado inválido.");

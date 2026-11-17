@@ -11,6 +11,8 @@
 .env.development.local
 .env.test.local
 .env.production.local
+.env.*.local
+.env*.backup*
 
 # logs
 npm-debug.log*
@@ -30,3 +32,6 @@ playwright-report/
 test-results/
 .n8nac/
 v2-foundation/
+
+# Local-only meeting rehearsal records. Never commit to Git.
+/.local-meetings/

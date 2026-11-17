@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { LOCAL_ACCESS_COOKIE } from './lib/local-ssr-cookie';
+import { localAuthEnabled, localWriteGuardEnabled, shouldBlockLocalApiMutation, localMeetingSandboxAllowed } from './lib/local-write-guard';
+import { readOnlySupabaseFetch } from './lib/local-supabase-fetch';
 
 const PUBLIC_PAGES = new Set(['/login','/central-access']);
 const UUID=/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -19,9 +21,57 @@ function secureNext() {
   return response;
 }
 export async function middleware(request:NextRequest) {
+  // Keep API mutations disabled on localhost until a separate QA database
+  // or a truly read-only database credential is available.
+  const isolatedMeetingSave=localMeetingSandboxAllowed({
+    pathname:request.nextUrl.pathname,hostname:request.nextUrl.hostname,
+    method:request.method,env:process.env
+  });
+  if (!isolatedMeetingSave && shouldBlockLocalApiMutation({
+    pathname:request.nextUrl.pathname,
+    method:request.method,
+    enabled:localWriteGuardEnabled(),
+  })) {
+    return NextResponse.json({
+      error:'Ambiente local somente leitura. Operação de gravação bloqueada.',
+      code:'COMMANDER_LOCAL_READ_ONLY',
+    },{status:403,headers:{'Cache-Control':'no-store'}});
+  }
+  // Local development uses the Commander's existing internal Auth identity.
+  // Never bypass this gate for API routes: their auth + RLS checks remain mandatory.
+  if ((localAuthEnabled() || localWriteGuardEnabled()) && ["localhost","127.0.0.1"].includes(request.nextUrl.hostname)) {
+    if (publicPage(request.nextUrl.pathname) || request.nextUrl.pathname.startsWith("/api/"))
+      return NextResponse.next();
+    const token=request.cookies.get(LOCAL_ACCESS_COOKIE)?.value??"";
+    const url=process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const key=process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+    if(!token||!url||!key)return redirect(request,"/login");
+    const auth=createClient(url,key,{auth:{persistSession:false,autoRefreshToken:false,detectSessionInUrl:false}});
+    const session=await auth.auth.getUser(token);
+    const userId=session.data.user?.id;
+    if(session.error||!userId)return redirect(request,"/login");
+    const db=createClient(url,key,{
+      auth:{persistSession:false,autoRefreshToken:false,detectSessionInUrl:false},
+      global:{headers:{Authorization:"Bearer "+token}, ...(localWriteGuardEnabled()?{fetch:readOnlySupabaseFetch(fetch)}:{})},
+    });
+    const [internal,member]=await Promise.all([
+      db.from("platform_admins").select("active")
+        .eq("user_id",userId).eq("active",true).maybeSingle(),
+      db.from("organization_members").select("organization_id")
+        .eq("user_id",userId).eq("status","active").limit(1),
+    ]);
+    if(internal.error||!internal.data||member.error||!member.data?.length)
+      return redirect(request,"/central-access?reason=denied");
+    return secureNext();
+  }
+  // Sign-in bootstrap routes must be reachable before the SSR cookie exists.
+  // These handlers independently enforce same-origin, verified credentials/JWT,
+  // central entitlements, and session integrity. Never redirect their POST to /login.
+  const authBootstrapRoute = request.nextUrl.pathname==="/api/auth/central-exchange" ||
+    request.nextUrl.pathname==="/api/auth/local-session";
   if(process.env.COMMANDER_CENTRAL_AUTH_ENABLED!=='true'||
      process.env.SERVICE_7SERVICE_ENFORCE_USER_ACCESS!=='true'||
-     publicPage(request.nextUrl.pathname)) return NextResponse.next();
+     publicPage(request.nextUrl.pathname)||authBootstrapRoute) return NextResponse.next();
 
   const localToken=request.cookies.get(LOCAL_ACCESS_COOKIE)?.value??'';
   const dbUrl=process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -36,7 +86,10 @@ export async function middleware(request:NextRequest) {
     const localId=localResult.data.user?.id;
     if(localResult.error||!localId) return redirect(request,'/login');
 
-    const db=createClient(dbUrl,serviceKey,{auth:{persistSession:false,autoRefreshToken:false,detectSessionInUrl:false}});
+    const db=createClient(dbUrl,serviceKey,{
+      auth:{persistSession:false,autoRefreshToken:false,detectSessionInUrl:false},
+      global:localWriteGuardEnabled()?{fetch:readOnlySupabaseFetch(fetch)}:undefined,
+    });
     const admin=await db.from('platform_admins').select('user_id')
       .eq('user_id',localId).eq('active',true).maybeSingle();
     if(admin.error)return redirect(request,'/central-access?reason=unavailable');
@@ -139,4 +192,4 @@ export async function middleware(request:NextRequest) {
     return redirect(request,'/central-access?reason=unavailable');
   }
 }
-export const config={matcher:['/((?!api/|_next/|.*\\.(?:png|jpg|jpeg|gif|svg|ico|webp|css|js|woff|woff2)$).*)']};
+export const config={matcher:['/((?!_next/|.*\\.(?:png|jpg|jpeg|gif|svg|ico|webp|css|js|woff|woff2)$).*)']};

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireApiAuth } from "@/lib/api-auth";
-import { updateTaskCard, deleteTaskCard } from "@/services/task-board-service";
+import {localWriteGuardEnabled} from "@/lib/local-write-guard";
+import { updateTaskCard,deleteTaskCard } from "@/services/task-board-service";
 
 type UpdateTaskPayload = {
   title?: string;
@@ -51,6 +52,7 @@ export async function PATCH(
 }
 
 export async function DELETE(request:NextRequest,context:{params:Promise<{taskId:string}>}){
+ if(localWriteGuardEnabled())return NextResponse.json({error:"Ambiente local somente leitura: exclusão disponível apenas em homologação autorizada."},{status:403});
  const auth=await requireApiAuth(request);
  if(!auth.ok)return auth.response;
  const {taskId}=await context.params;

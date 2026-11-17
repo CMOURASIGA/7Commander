@@ -1,7 +1,11 @@
 "use client";
 
 import type { KairosCore, KairosMessage } from "@/components/kairos/use-kairos-core";
+import {useState} from "react";
+import {parseStructuredBacklog} from "@/lib/kairos-structured-backlog";
+import {KairosBacklogPreview} from "@/components/kairos/kairos-backlog-preview";
 import { hasSaveSuggestion } from "@/components/kairos/use-kairos-core";
+import {ActionIcon} from "@/components/ui/action-icon";
 
 /**
  * Linha de acoes abaixo de uma resposta do Kairos: ouvir em audio,
@@ -10,6 +14,8 @@ import { hasSaveSuggestion } from "@/components/kairos/use-kairos-core";
  * entre /chat, /voice e o painel — a mesma capacidade em qualquer lugar.
  */
 export function KairosMessageActions({ core, message, compact = false }: { core: KairosCore; message: KairosMessage; compact?: boolean }) {
+  const [preview,setPreview]=useState(false);
+  const structured=parseStructuredBacklog(message.content);
   const sizeClass = compact ? "px-2.5 py-1.5 text-[12px]" : "px-3 py-2 text-[13px]";
 
   return (
@@ -30,6 +36,7 @@ export function KairosMessageActions({ core, message, compact = false }: { core:
               ? "Parar audio"
               : "Ouvir resposta"}
         </button>
+        {structured&&<button type="button" className={`workspace-button-secondary ${sizeClass}`} onClick={()=>setPreview(true)}>Estruturar backlog ({structured.stories.length} US)</button>}
         <button
           type="button"
           onClick={() => core.openDirectionPicker(message)}
@@ -44,6 +51,7 @@ export function KairosMessageActions({ core, message, compact = false }: { core:
             disabled={core.decisionLoadingId === message.id || core.decisionSavedIds[message.id]}
             className={`workspace-button-secondary ${sizeClass}`}
           >
+            <ActionIcon name={core.decisionSavedIds[message.id]?"check-circle":"plus"} width={18} height={18}/>
             {core.decisionSavedIds[message.id] ? "Decisao salva" : "Registrar decisao sugerida"}
           </button>
         ) : null}
@@ -54,10 +62,12 @@ export function KairosMessageActions({ core, message, compact = false }: { core:
             disabled={core.riskLoadingId === message.id || core.riskSavedIds[message.id]}
             className={`workspace-button-secondary ${sizeClass}`}
           >
+            <ActionIcon name={core.riskSavedIds[message.id]?"check-circle":"plus"} width={18} height={18}/>
             {core.riskSavedIds[message.id] ? "Risco salvo" : "Registrar risco identificado"}
           </button>
         ) : null}
       </div>
+      {preview&&core.activeProjectId&&<KairosBacklogPreview content={message.content} projectId={core.activeProjectId} onClose={()=>setPreview(false)}/>}
     </div>
   );
 }

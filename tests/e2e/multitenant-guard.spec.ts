@@ -5,6 +5,7 @@ const FOREIGN = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 
 test.describe("Multiempresa — UX com dados sintéticos, sem banco de produção", () => {
  test("não ativa empresa diferente antes de isolamento completo", async ({page}) => {
+  await page.route("**/api/auth/ui-capabilities", route => route.fulfill({json:{readOnly:false,canSwitchCompany:true}}));
   await page.route("**/api/organizations/mine", route => route.fulfill({json:{data:[
    {id:CONSULT,role:"owner",organization:{id:CONSULT,name:"Consult Services",slug:"consult-services",status:"active"}},
    {id:FOREIGN,role:"member",organization:{id:FOREIGN,name:"Empresa QA Sintética",slug:"qa",status:"active"}},
@@ -19,8 +20,10 @@ test.describe("Multiempresa — UX com dados sintéticos, sem banco de produçã
   expect(selected).toBeNull();
  });
  test("nega seleção não autorizada sem atualizar sessão", async ({page}) => {
+  await page.route("**/api/auth/ui-capabilities", route => route.fulfill({json:{readOnly:false,canSwitchCompany:true}}));
   await page.route("**/api/organizations/mine", route => route.fulfill({json:{data:[
    {id:CONSULT,role:"owner",organization:{id:CONSULT,name:"Consult Services",slug:"consult-services",status:"active"}},
+   {id:FOREIGN,role:"member",organization:{id:FOREIGN,name:"Empresa QA Sintética",slug:"qa",status:"active"}},
   ]}}));
   await page.route("**/api/organizations/select", route => route.fulfill({status:403,json:{error:"Sem acesso à organização."}}));
   await page.goto("/organizations");
