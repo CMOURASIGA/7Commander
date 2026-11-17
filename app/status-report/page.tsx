@@ -93,7 +93,6 @@ function reportDocument(project:Project, cards:Card[], risks:Risk[], decisions:D
     const publicItems=(kind:string)=>shareable.filter(x=>x.kind===kind).slice(0,100).map(x=>({
       title:x.title,note:classify(x.classification)+(x.due_date?" · Prazo informado: "+x.due_date:"")+(x.description&&!/validar contexto|antes da divulga[cç][aã]o|informação interna/i.test(x.description)?" · "+x.description:"")
     }));
-    const selectedSprints=shareable.filter(x=>x.id.startsWith("sprint:"));
     const publicObjective=shareable.find(x=>x.kind==="objective");
     const publicObjectiveText=publicObjective?.description||publicObjective?.title||"";
     const published=Boolean(scrum?.publicFactsAvailable);
@@ -102,11 +101,10 @@ function reportDocument(project:Project, cards:Card[], risks:Risk[], decisions:D
     <header class="hero"><div class="top"><img class="logo" src="${logo}" alt="Consult Services Tecnologia"><div class="topright">RELATÓRIO PARA CLIENTE<br><small>Visão de objetivos, entregas e compromissos</small></div></div><p class="eyebrow">COMMANDER · ACOMPANHAMENTO DO PROJETO</p><h1>${htmlEscape(project.name)}</h1>${publicObjectiveText?`<p class="desc">${htmlEscape(publicObjectiveText)}</p>`:""}<div class="chips"><span class="chip">Referência: ${htmlEscape(period)}</span><span class="chip">Emissão: ${htmlEscape(issueDate)}</span><span class="chip">Público: Cliente</span></div></header>
     <div class="note">Informações autorizadas para acompanhamento. As contagens não indicam aceite contratual nem percentual físico de conclusão.</div>
     ${publicItems("benefit").length?`<section class="panel"><h3>01 · Benefícios</h3><h2>Benefícios documentados</h2>${list(publicItems("benefit"),approvalNotice)}</section>`:""}
-    <section class="metrics"><div class="metric"><small>ENTREGAS SELECIONADAS</small><strong>${shareable.filter(x=>x.kind==="deliverable").length}</strong></div><div class="metric green"><small>BENEFÍCIOS SELECIONADOS</small><strong>${shareable.filter(x=>x.kind==="benefit").length}</strong></div><div class="metric amber"><small>RISCOS SELECIONADOS</small><strong>${shareable.filter(x=>x.kind==="risk").length}</strong></div><div class="metric"><small>MARCOS SELECIONADOS</small><strong>${selectedSprints.length}</strong></div></section>
+    ${shareable.some(x=>x.kind==="deliverable")?`<section class="metrics"><div class="metric"><small>ATIVIDADES SELECIONADAS</small><strong>${shareable.filter(x=>x.kind==="deliverable").length}</strong></div><div class="metric green"><small>CONCLUÍDAS</small><strong>${shareable.filter(x=>x.kind==="deliverable"&&x.classification==="confirmed").length}</strong></div><div class="metric"><small>EM ANDAMENTO</small><strong>${shareable.filter(x=>x.kind==="deliverable"&&x.classification==="in_progress").length}</strong></div></section>`:""}
+    ${scrum?.clientExecutiveComplement?.trim()?`<section class="panel"><h3>01 · Acompanhamento executivo</h3><h2>Evolução e principais alinhamentos</h2><p style="white-space:pre-wrap;line-height:1.65">${htmlEscape(scrum.clientExecutiveComplement)}</p></section>`:""}
     ${publicItems("deliverable").length?`<section class="panel"><h3>02 · Entregas registradas</h3><h2>Entregas e evolução</h2>${list(publicItems("deliverable"),approvalNotice)}</section>`:""}
-    ${selectedSprints.length?`<section class="panel"><h3>03 · Sprints e histórias</h3><h2>Sprints selecionadas e respectivas US</h2>${selectedSprints.map(sp=>`<div class="item"><div><strong>${htmlEscape(sp.title)}</strong><p>${htmlEscape(sp.description||classify(sp.classification))}</p>${shareable.filter(st=>st.id.startsWith("story:")&&st.source_reference===sp.id).map(st=>`<p style="font-size:12px;margin:6px 0 6px 14px">• ${htmlEscape(st.title)} · ${htmlEscape(st.description||classify(st.classification))}</p>`).join("")}</div></div>`).join("")}</section>`:""}
-    ${publicItems("risk").length?`<section class="panel"><h3>04 · Riscos</h3><h2>Pontos de atenção selecionados</h2>${list(publicItems("risk"),approvalNotice)}</section>`:""}
-    ${publicItems("next_step").length?`<section class="panel"><h3>05 · Decisões e próximos passos</h3><h2>Próximos passos</h2>${list(publicItems("next_step"),approvalNotice)}</section>`:""}
+    ${publicItems("next_step").length?`<section class="panel"><h3>03 · Decisões e encaminhamentos</h3><h2>Decisões registradas</h2>${list(publicItems("next_step"),approvalNotice)}</section>`:""}
     <footer class="foot"><span>CONSULT SERVICES TECNOLOGIA · Commander / Relatório Cliente</span><span>Emitido em ${htmlEscape(issueDate)}</span></footer><div class="actions"><button onclick="window.print()">Imprimir / Salvar em PDF</button></div></main></body></html>`;
   }
   const scrumSection=show("sprints")&&scrum?.scrum.enabled&&scrum.scrum.sprints.length?`
@@ -155,10 +153,9 @@ function historicalDocument(data:ReportData,audience:ReportAudience,narrative:Ai
   return '<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>Relatório Cliente arquivado · '+htmlEscape(data.project.name)+'</title><style>'+css+'</style></head><body><main class="wrap">'
    +'<header class="hero"><h3>COMMANDER · RELATÓRIO CLIENTE ARQUIVADO</h3><h1>'+htmlEscape(data.project.name)+'</h1><p>Emitido: '+htmlEscape(issued)+'</p></header>'
    +'<div class="note">Documento histórico imutável. Valores compartilhados são registros do sistema, não confirmação de aceite ou entrega contratual.</div>'
-   +'<section class="metrics"><div class="metric"><small>ENTREGAS SELECIONADAS</small><strong>'+(data.publicFacts||[]).filter(item=>item.kind==="deliverable").length+'</strong></div><div class="metric"><small>BENEFÍCIOS SELECIONADOS</small><strong>'+(data.publicFacts||[]).filter(item=>item.kind==="benefit").length+'</strong></div><div class="metric"><small>RISCOS SELECIONADOS</small><strong>'+(data.publicFacts||[]).filter(item=>item.kind==="risk").length+'</strong></div><div class="metric"><small>MARCOS SELECIONADOS</small><strong>'+(data.publicFacts||[]).filter(item=>item.kind==="milestone").length+'</strong></div></section>'
-   +((data.publicFacts||[]).some(x=>x.kind==="risk")?'<section class="panel"><h2>Riscos selecionados</h2>'+listPublic('risk')+'</section>':(data.riskAssessments?.length?riskReportHtml(data.riskAssessments,"client"):''))
-   +'<section class="panel"><h2>Decisões pendentes</h2>'+listPublic('next_step')+'</section>'
-   +'<section class="panel"><h2>Objetivos autorizados</h2>'+listPublic('objective')+'</section><section class="panel"><h2>Benefícios autorizados</h2>'+listPublic('benefit')+'</section><section class="panel"><h2>Entregas autorizadas</h2>'+listPublic('deliverable')+'</section><section class="panel"><h2>Marcos autorizados</h2>'+listPublic('milestone')+'</section><section class="panel"><h2>Próximos passos autorizados</h2>'+listPublic('next_step')+'</section>'
+   +(data.clientExecutiveComplement?.trim()?'<section class="panel"><h2>Acompanhamento executivo aprovado</h2><p style="white-space:pre-wrap">'+htmlEscape(data.clientExecutiveComplement)+'</p></section>':'')
+   +((data.publicFacts||[]).some(x=>x.kind==="deliverable")?'<section class="panel"><h2>Atividades selecionadas</h2>'+listPublic('deliverable')+'</section>':'')
+   +((data.publicFacts||[]).some(x=>x.kind==="next_step")?'<section class="panel"><h2>Decisões e encaminhamentos</h2>'+listPublic('next_step')+'</section>':'')
    +'<footer class="foot">Commander · Relatório Cliente arquivado</footer><div class="actions"><button onclick="window.print()">Salvar PDF / Imprimir</button></div></main></body></html>';
  }
 
@@ -226,6 +223,11 @@ export default function StatusReportPage() {
  const [clientCandidates,setClientCandidates]=useState<ClientReportFact[]|null>(null);
  const [clientCandidatesStatus,setClientCandidatesStatus]=useState("");
  const [teamNextSteps,setTeamNextSteps]=useState("");
+ const [clientExecutiveComplement,setClientExecutiveComplement]=useState("");
+ const [clientExecutiveApproved,setClientExecutiveApproved]=useState(false);
+ const [clientExecutiveGenerating,setClientExecutiveGenerating]=useState(false);
+ const [clientExecutiveSource,setClientExecutiveSource]=useState("");
+ const [clientExecutiveError,setClientExecutiveError]=useState("");
  const [scrumReport,setScrumReport]=useState<ReportData|null>(null);
  const [selectionCatalog,setSelectionCatalog]=useState<ReportData|null>(null);
  const [retryRevision,setRetryRevision]=useState(0);
@@ -275,7 +277,7 @@ export default function StatusReportPage() {
   }catch(e){if(!cancelled)setStatus(e instanceof Error?e.message:"Erro ao consolidar dados.");}finally{if(!cancelled)setBusy(false);}})();return()=>{cancelled=true}},[projectId,retryRevision]);
  useEffect(()=>{if(!projectId||analysisRequest.key!==analysisKey){setAnalysisLoading(false);setAnalysis(null);setPeriodEvents(null);setPeriodMetrics(null);setAnalysisStatus(projectId?"Análise Kairos opcional. Os indicadores operacionais estão disponíveis.":"Selecione um projeto.");return;}if(periodMode==="period"&&(!start||!end||start>end)){setAnalysis(null);setAnalysisStatus("Corrija as datas do período.");return;}let cancelled=false;setAnalysis(null);setPeriodEvents(null);setPeriodMetrics(null);setAnalysisLoading(true);setAnalysisStatus("Kairos analisando os registros autorizados...");void(async()=>{try{const response=await measuredFetch("/api/status-report/analysis",{method:"POST",headers:getClientAuthHeaders({"Content-Type":"application/json"}),body:JSON.stringify({projectId,mode:periodMode,start,end,audience}),cache:"no-store"});const payload=await response.json();if(!response.ok)throw Error(payload.error||"Falha na análise.");if(!cancelled){setAnalysis(payload.data?.analysis??null);setPeriodEvents(payload.data?.periodEvents??null);setPeriodMetrics(payload.data?.periodMetrics??null);setAnalysisStatus(payload.data?.source==="ai"?"Análise Kairos gerada. Revise antes de enviar ao cliente.":payload.warning||"Análise de IA indisponível.");}}catch(e){if(!cancelled){setAnalysisStatus(e instanceof Error?e.message:"Falha na análise.");setAnalysis(null);}}finally{if(!cancelled)setAnalysisLoading(false);}})();return()=>{cancelled=true};},[projectId,periodMode,start,end,audience,analysisKey,analysisRequest.key,analysisRequest.revision]);
  const project=projects.find(x=>x.id===projectId);
- useEffect(()=>{setInternalSelection(null);setClientFactIds(null);setClientCandidates(null);setSelectionCatalog(null);setTeamNextSteps("");},[projectId]);
+ useEffect(()=>{setInternalSelection(null);setClientFactIds(null);setClientCandidates(null);setSelectionCatalog(null);setTeamNextSteps("");setClientExecutiveComplement("");setClientExecutiveApproved(false);setClientExecutiveSource("");setClientExecutiveError("");},[projectId]);
  // The selectable Scrum inventory is independent of the report audience.
  // Only authorized editors can retrieve the internal catalogue; public rendering
  // continues to use the server-generated, client-safe candidate projection.
@@ -325,6 +327,7 @@ export default function StatusReportPage() {
  const visibleClientReport=scrumReport&&audience==="client"?{
   ...scrumReport,
   publicFacts:selectClientReportFacts(clientCandidates||[],chosenClientFactIds),
+  clientExecutiveComplement:clientExecutiveApproved?clientExecutiveComplement.trim():"",
   riskAssessments:[] // External risks are rendered exclusively as safe, selected client facts.
  }:scrumReport;
  const internalGroups:Array<{key:InternalReportSelectionKey;label:string;items:Array<{id:string;title:string}>}>=[
@@ -390,9 +393,10 @@ export default function StatusReportPage() {
  const documentHtml=reportHtml.replaceAll(BRAND_LOGO_URL,brandLogoData).replaceAll("CONSULT SERVICES TECNOLOGIA",htmlEscape(brandName)).replaceAll('alt="Consult Services Tecnologia"','alt="'+htmlEscape(brandName)+'"');
  async function issue():Promise<string|null>{
   if(!projectId||!scrumReport||!documentHtml||issuing||(audience==="client"&&clientCandidates===null))return null;
+  if(audience==="client"&&clientExecutiveComplement.trim()&&!clientExecutiveApproved){setStatus("Revise e aprove o Complemento Executivo antes de emitir.");return null;}
   setIssuing(true);setStatus("Registrando emissão...");
   try{
-   const r=await measuredFetch("/api/status-report/history",{method:"POST",headers:getClientAuthHeaders({"Content-Type":"application/json"}),body:JSON.stringify({projectId,audience,mode:periodMode,start,end,narrative:visibleAnalysis,...(audience==="internal"?{internalSelection:chosenInternal}:{clientFactIds:chosenClientFactIds})}),cache:"no-store"});
+   const r=await measuredFetch("/api/status-report/history",{method:"POST",headers:getClientAuthHeaders({"Content-Type":"application/json"}),body:JSON.stringify({projectId,audience,mode:periodMode,start,end,narrative:visibleAnalysis,...(audience==="internal"?{internalSelection:chosenInternal}:{clientFactIds:chosenClientFactIds,clientExecutiveComplement:clientExecutiveComplement.trim(),clientExecutiveApproved})}),cache:"no-store"});
    const j=await r.json();if(!r.ok)throw Error(j.error||"Falha ao registrar emissão.");
    setStatus("Emissão registrada no histórico: "+j.data.id);
    setHistory(h=>[j.data,...h]);setHistoryId(j.data.id);
@@ -539,6 +543,34 @@ export default function StatusReportPage() {
       {clientCandidatesStatus&&<p role="status" className="text-xs text-(--text-secondary)">{clientCandidatesStatus}</p>}
       <p className="text-xs text-(--text-secondary)">Os totais indicam selecionados/disponíveis. As escolhas controlam a prévia e a emissão do público selecionado.</p>
      </section>
+    {audience==="client"&&<section className="workspace-card space-y-3 p-4" aria-label="Complemento Executivo do Cliente">
+      <h3 className="text-sm font-semibold">Complemento Executivo | Cliente</h3>
+      <p className="text-xs text-(--text-secondary)">Descreva avanços, alinhamentos e próximos compromissos. A sugestão do Kairos usa a última reunião oficial, mas exige revisão antes de entrar no relatório.</p>
+      <div className="flex flex-wrap gap-2">
+       <button type="button" className="workspace-button-secondary px-3 py-2 text-xs" disabled={!projectId||clientExecutiveGenerating}
+        onClick={async()=>{
+         setClientExecutiveGenerating(true);setClientExecutiveError("");setClientExecutiveApproved(false);
+         try{
+          const response=await measuredFetch("/api/status-report/client-executive-suggestion",{method:"POST",headers:getClientAuthHeaders({"Content-Type":"application/json"}),body:JSON.stringify({projectId}),cache:"no-store"});
+          const payload=await response.json();
+          if(!response.ok)throw Error(payload.error||"Não foi possível gerar o resumo.");
+          setClientExecutiveComplement(payload.data.suggestion||"");
+          setClientExecutiveSource("Baseado em: "+payload.data.meetingTitle+" · "+new Date(payload.data.meetingDate).toLocaleDateString("pt-BR"));
+         }catch(error){setClientExecutiveError(error instanceof Error?error.message:"Falha ao consultar o Kairos.");}
+         finally{setClientExecutiveGenerating(false);}
+        }}>{clientExecutiveGenerating?"Gerando sugestão...":"Kairos: resumir última reunião"}</button>
+       <button type="button" className="workspace-button-secondary px-3 py-2 text-xs" onClick={()=>{setClientExecutiveComplement("");setClientExecutiveApproved(false);setClientExecutiveSource("");setClientExecutiveError("");}}>Limpar complemento</button>
+      </div>
+      {clientExecutiveSource&&<p className="text-xs text-(--text-secondary)">{clientExecutiveSource}</p>}
+      {clientExecutiveError&&<p role="alert" className="text-xs text-red-700">{clientExecutiveError}</p>}
+      <textarea rows={6} maxLength={3000} className="workspace-input w-full" aria-label="Texto do Complemento Executivo"
+       placeholder="Principais avanços, alinhamentos com o cliente e próximos compromissos confirmados..."
+       value={clientExecutiveComplement} onChange={event=>{setClientExecutiveComplement(event.target.value);setClientExecutiveApproved(false);}}/>
+      <label className="flex items-start gap-2 text-xs"><input type="checkbox" checked={clientExecutiveApproved}
+       disabled={!clientExecutiveComplement.trim()} onChange={event=>setClientExecutiveApproved(event.target.checked)}/>
+       Revisei este texto e autorizo sua inclusão no Status Report Cliente.</label>
+      <p className="text-xs text-(--text-secondary)">{clientExecutiveApproved?"Complemento aprovado para esta emissão.":"Texto em revisão. Não será incluído na prévia ou exportação até a aprovação."}</p>
+    </section>}
     {audience==="internal"&&<section className="workspace-card space-y-2 p-4" aria-label="Próximos passos da equipe">
       <h3 className="text-sm font-semibold">Próximos passos da Equipe</h3>
       <p className="text-xs text-(--text-secondary)">Preencha ações acordadas e pendentes de execução. Este campo é editorial, não cria Tasks e não deve afirmar entregas concluídas sem evidência. Se ficar vazio, a seção não deve inventar próximos passos.</p>
