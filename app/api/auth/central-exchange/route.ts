@@ -84,12 +84,40 @@ export async function POST(request: NextRequest) {
         .eq("central_identity_id",identityId).eq("status","ACTIVE").limit(2);
       if (linked.error || (linked.data?.length ?? 0) > 1) return deny();
       localUserId = linked.data?.[0]?.commander_user_id ?? "";
-      if (!localUserId) localUserId = await provisionCentralViewerOnLogin({
-        db,origin:centralOrigin,accessToken:session.access_token,
-        identityId,email:session.user.email??"",
-        emailVerified:Boolean(session.user.email_confirmed_at),
-        companyId:process.env.SERVICE_7SERVICE_PILOT_ORG_ID??"",
-      }) ?? "";
+      if (!localUserId) {
+        // Central membership is the source of authorized customer companies.
+        // A fresh viewer must never be assigned to the default/pilot company.
+        const response = await fetch(new URL("/api/v1/authorization/memberships", verifiedOrigin), {
+          headers: { Authorization: "Bearer " + session.access_token, Accept: "application/json" },
+          cache: "no-store", redirect: "error", signal: AbortSignal.timeout(8000),
+        });
+        if (!response.ok || !response.headers.get("content-type")?.includes("application/json"))
+          return deny('central-company-memberships');
+        const payload = await response.json().catch(() => null) as
+          | { version?: string; memberships?: Array<{ clientId?: string }> } | null;
+        if (payload?.version !== "1" || !Array.isArray(payload.memberships) ||
+            payload.memberships.length < 1 || payload.memberships.length > 50) return deny('central-companies-invalid');
+        const clientIds = [...new Set(payload.memberships
+          .map(m => m.clientId).filter((id):id is string => typeof id==="string" && uuid.test(id)))];
+        if (!clientIds.length) return deny('central-company-ids');
+        const companyLinks = await db.from("central_client_company_links")
+          .select("commander_company_id,central_client_id,status")
+          .in("central_client_id",clientIds).eq("status","ACTIVE").limit(51);
+        if (companyLinks.error || !companyLinks.data?.length || companyLinks.data.length > 50)
+          return deny('linked-companies-required');
+        // Deterministic order and independently verified product entitlement
+        // for the chosen company. Provisioner is fail-closed for non-VIEWER.
+        for (const company of [...companyLinks.data].sort((a,b) =>
+          a.commander_company_id.localeCompare(b.commander_company_id))) {
+          localUserId = await provisionCentralViewerOnLogin({
+            db,origin:centralOrigin,accessToken:session.access_token,
+            identityId,email:session.user.email??"",
+            emailVerified:Boolean(session.user.email_confirmed_at),
+            companyId:company.commander_company_id,
+          }) ?? "";
+          if (localUserId) break;
+        }
+      }
       if (!uuid.test(localUserId)) return deny('jit-user-not-provisioned');
       const [memberships, profile] = await Promise.all([
         db.from("organization_members").select("organization_id,status")
