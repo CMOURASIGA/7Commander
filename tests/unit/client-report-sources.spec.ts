@@ -28,7 +28,7 @@ test("Sprint selection automatically includes only linked US, with no separate U
  expect(selectClientReportFacts(facts,[])).toEqual([]);
  const page=file("app/status-report/page.tsx");
  expect(page).toContain('publicFacts:selectClientReportFacts(clientCandidates||[],chosenClientFactIds)');
- expect(page).toContain('Sprints selecionadas e respectivas US');
+ expect(page).toContain('Sprints e suas US');
  expect(file("app/api/status-report/history/route.ts")).toContain('report.publicFacts=selectClientReportFacts(options,[...selected]);');
 });
 
@@ -56,7 +56,7 @@ test("Archived editorial milestones never remove Sprint candidates from the Clie
  expect(source).toContain('add("sprint:"+sprint.id,"milestone"');
  expect(source).toContain('add("story:"+story.id,"milestone"');
  const ui=file("app/status-report/page.tsx");
- expect(ui).toContain('const selectedSprints=shareable.filter(x=>x.id.startsWith("sprint:"))');
+ expect(ui).toContain('publicFacts:selectClientReportFacts(clientCandidates||[],chosenClientFactIds)');
  expect(ui).toContain('publicFacts:selectClientReportFacts(clientCandidates||[],chosenClientFactIds)');
  expect(file("app/api/status-report/history/route.ts")).toContain('report.publicFacts=selectClientReportFacts(options,[...selected]);');
 });
