@@ -15,7 +15,8 @@ test("INT-01 client mutations are hidden for read-only pilot", () => {
   const text = source("app/clients/page.tsx");
   assert.match(text, /useCentralPilotReadOnly/);
   assert.match(text, /readOnly \|\| checking \|\| !form\.name\.trim/);
-  assert.match(text, /!readOnly && !checking \? <SurfaceCard>/);
+  assert.match(text, /!readOnly && !checking && drawerOpen \? <div/);
+  assert.match(text, /!readOnly&&!checking\?<button/);
   assert.match(text, /!readOnly && !checking \? <>/);
   assert.match(text, /<IconActionButton icon="pencil"/);
   assert.match(text, /<IconActionButton icon="trash"/);
