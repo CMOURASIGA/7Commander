@@ -59,7 +59,7 @@ export function Sidebar({ isMobileOpen, onCloseMobile, expanded, onToggleExpande
         <div className="commander-sidebar-logo-frame" title={clientBrand?.clientName || BRAND_NAME}>
           {clientBrand?.logoUrl
             ? <img src={clientBrand.logoUrl} alt={clientBrand.clientName} className="commander-sidebar-logo" />
-            : <span className="commander-sidebar-logo-fallback">{(clientBrand?.clientName || "7C").slice(0,2).toUpperCase()}</span>}
+            : <span className="commander-sidebar-logo-fallback">{(clientBrand?.clientName || BRAND_NAME).slice(0,2).toUpperCase()}</span>}
         </div>
         <div className="commander-sidebar-brand-copy">
           <p className="sidebar-product-name">{BRAND_NAME}</p>
