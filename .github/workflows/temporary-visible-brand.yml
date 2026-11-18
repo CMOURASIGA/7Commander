@@ -1,0 +1,47 @@
+name: Temporary visible product rebrand
+on:
+  push:
+    branches:
+      - chore/brand-commander-20261118
+    paths:
+      - .github/workflows/temporary-visible-brand.yml
+permissions:
+  contents: write
+jobs:
+  rewrite:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: chore/brand-commander-20261118
+      - name: Update displayed product names, not integration identifiers
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import re, subprocess
+          files=subprocess.check_output(['git','ls-files'],text=True).splitlines()
+          roots=('src/','app/','components/','lib/','features/','emails/','services/','public/')
+          pattern=re.compile(r'(?<![A-Za-z0-9_])(?:7Service|7Commander)(?![A-Za-z0-9_])')
+          replacements={'7Service':'Access Management Service','7Commander':'Commander'}
+          changed=[]
+          for name in files:
+            p=Path(name)
+            if not name.startswith(roots):continue
+            if p.suffix not in ('.ts','.tsx','.js','.jsx','.html','.svg','.md'):continue
+            if re.search(r'(^|/)(tests?|__tests__)/|\.test\.|\.spec\.',name):continue
+            if p.is_symlink() or not p.is_file():continue
+            try:old=p.read_text(encoding='utf-8')
+            except UnicodeError:continue
+            new=pattern.sub(lambda m:replacements[m.group()],old)
+            if old!=new:
+              p.write_text(new,encoding='utf-8')
+              changed.append(name)
+          print('SOURCE_FILES_UPDATED',len(changed))
+          for name in changed:print('UPDATED',name)
+          PY
+      - name: Commit product labels
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -u
+          git diff --cached --quiet || { git commit -m "style(brand): standardize product display names"; git push; }
