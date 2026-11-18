@@ -1,0 +1,24 @@
+name: Temporary revocation middleware gates
+on:
+  push:
+    branches:
+      - fix/7service-revocation-middleware-20261118
+permissions:
+  contents: read
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - run: node --test tests/revocation-middleware-gate.test.mjs tests/int01-revocation-sync-contract.test.mjs
+      - run: npm run typecheck
+      - run: npm run lint
+      - run: npm run build
+        env:
+          NEXT_TELEMETRY_DISABLED: '1'
