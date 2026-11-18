@@ -1,4 +1,4 @@
-/** INT-01 CP-01. Server-only adapter for the existing 7Commander integration.
+/** INT-01 CP-01. Server-only adapter for the existing Commander integration.
  * This module does not provide a central session or bypass Commander RLS.
  * Call it only after verifying the central session and resolving clientId from
  * an explicit, active organization mapping on the server.

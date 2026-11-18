@@ -57,7 +57,7 @@ export function TaskAlerts({center=false}:{center?:boolean}){
     <aside id="commander-notification-drawer" role="dialog" aria-modal="true"
       aria-label="Central de notificações" className="absolute right-0 top-0 flex h-dvh w-full max-w-[520px] flex-col overflow-hidden border-l border-(--border) bg-(--bg-surface) shadow-2xl">
       <header className="flex shrink-0 items-start justify-between gap-3 border-b border-(--border) px-5 py-5">
-        <div><p className="text-xs font-semibold uppercase tracking-wide text-(--text-secondary)">7Commander</p>
+        <div><p className="text-xs font-semibold uppercase tracking-wide text-(--text-secondary)">Commander</p>
          <h2 className="mt-1 text-xl font-semibold text-(--text-primary)">Central de notificações</h2>
          <p className="mt-1 text-sm text-(--text-secondary)">{total} pendência(s) · Atividades e Scrum</p></div>
         <button type="button" onClick={()=>setOpen(false)} aria-label="Fechar notificações"

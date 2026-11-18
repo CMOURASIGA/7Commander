@@ -42,7 +42,7 @@ export default function PortalFinalizePage() {
   }, []);
   return (
     <main className="mx-auto mt-12 max-w-lg rounded-xl border p-8">
-      <h1 className="text-xl font-semibold">Acesso pelo 7Service</h1>
+      <h1 className="text-xl font-semibold">Acesso pelo Access Management Service</h1>
       <p role="status" className="mt-4 text-sm">{message}</p>
       <p className="mt-5 text-xs">Não envie senhas ou códigos de autenticação ao suporte.</p>
     </main>
