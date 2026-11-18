@@ -4,7 +4,7 @@ import { LOCAL_ACCESS_COOKIE } from './lib/local-ssr-cookie';
 import { localAuthEnabled, localWriteGuardEnabled, shouldBlockLocalApiMutation, localMeetingSandboxAllowed } from './lib/local-write-guard';
 import { readOnlySupabaseFetch } from './lib/local-supabase-fetch';
 
-const PUBLIC_PAGES = new Set(['/login','/central-access']);
+const PUBLIC_PAGES = new Set(['/login','/central-access','/portal-finalize']);
 const UUID=/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 function publicPage(path:string) {
   return PUBLIC_PAGES.has(path)||path.startsWith('/auth/')||
@@ -68,6 +68,8 @@ export async function middleware(request:NextRequest) {
   // These handlers independently enforce same-origin, verified credentials/JWT,
   // central entitlements, and session integrity. Never redirect their POST to /login.
   const authBootstrapRoute = request.nextUrl.pathname==="/api/auth/central-exchange" ||
+    request.nextUrl.pathname==="/api/auth/portal-entry" ||
+    request.nextUrl.pathname==="/api/auth/portal-finalize" ||
     request.nextUrl.pathname==="/api/auth/local-session";
   if(process.env.COMMANDER_CENTRAL_AUTH_ENABLED!=='true'||
      process.env.SERVICE_7SERVICE_ENFORCE_USER_ACCESS!=='true'||
