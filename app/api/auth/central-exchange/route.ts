@@ -105,7 +105,7 @@ export async function POST(request: NextRequest) {
       if (linked.error || (linked.data?.length ?? 0) > 1) return deny();
       localUserId = linked.data?.[0]?.commander_user_id ?? "";
       if (!localUserId) {
-        // The 7Service per-company authorization decision is the authority
+        // The Access Management Service per-company authorization decision is the authority
         // for both membership and product access. Do not depend on a
         // separate membership-list API: it is not needed to provision access.
         // Only explicitly linked ACTIVE Commander companies are considered.
@@ -264,7 +264,7 @@ export async function POST(request: NextRequest) {
     }, { headers:noStore });
     if (tokenLogin) {
       // Never fabricate a central refresh token. This short-lived exchange
-      // requires a fresh launch from the 7Service portal when it expires.
+      // requires a fresh launch from the Access Management Service portal when it expires.
       response.cookies.set('__Host-commander_caccess',session.access_token,{
         httpOnly:true,secure:true,sameSite:'strict',path:'/',maxAge:900,
       });

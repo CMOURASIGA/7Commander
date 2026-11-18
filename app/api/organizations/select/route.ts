@@ -46,7 +46,7 @@ export async function POST(request: NextRequest) {
       if (!logged && decision.allowed)
         return NextResponse.json({error:"Auditoria central indisponível."},{status:503});
       if (!decision.allowed)
-        return NextResponse.json({error:"Empresa não autorizada pelo 7Service."},
+        return NextResponse.json({error:"Empresa não autorizada pelo Access Management Service."},
           {status:decision.status});
     }
   }

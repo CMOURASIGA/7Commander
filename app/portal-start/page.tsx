@@ -10,12 +10,12 @@ import { setClientAuthToken } from "@/lib/client-auth";
  * session through an origin-checked window message, never via URL or storage.
  */
 export default function PortalStartPage() {
-  const [message, setMessage] = useState("Conectando ao Meu Portal do 7Service...");
+  const [message, setMessage] = useState("Conectando ao Meu Portal do Access Management Service...");
   useEffect(() => {
     const origin = process.env.NEXT_PUBLIC_7SERVICE_PORTAL_ORIGIN;
     const opener = window.opener;
     if (!origin || !opener || !/^https:\/\/[^/]+$/.test(origin)) {
-      setMessage("Abra o Commander diretamente pelo Meu Portal do 7Service.");
+      setMessage("Abra o Commander diretamente pelo Meu Portal do Access Management Service.");
       return;
     }
     let active = true;
@@ -30,7 +30,7 @@ export default function PortalStartPage() {
         return;
       }
       try {
-        setMessage("Validando autorização no 7Service...");
+        setMessage("Validando autorização no Access Management Service...");
         const response = await fetch("/api/auth/central-exchange", {
           method: "POST", credentials: "same-origin", cache: "no-store",
           headers: { "Content-Type": "application/json" },
@@ -73,7 +73,7 @@ export default function PortalStartPage() {
 
   return (
     <main className="mx-auto mt-12 max-w-lg rounded-xl border p-8">
-      <h1 className="text-xl font-semibold">Acesso ao Commander pelo 7Service</h1>
+      <h1 className="text-xl font-semibold">Acesso ao Commander pelo Access Management Service</h1>
       <p role="status" className="mt-4 text-sm">{message}</p>
       <p className="mt-4 text-xs">O acesso depende de identidade, licença e empresa autorizadas.</p>
     </main>

@@ -184,7 +184,7 @@ export default function HomePage() {
 
   if (denied) return <section role="alert" className="rounded-xl border border-(--border) bg-(--bg-surface) p-6">
     <h2 className="text-xl font-semibold">Acesso operacional ainda não confirmado</h2>
-    <p className="mt-3 text-sm">Sua identidade foi autenticada, mas a autorização para acessar os dados da empresa não foi confirmada. Consulte os vínculos locais e o 7Service.</p>
+    <p className="mt-3 text-sm">Sua identidade foi autenticada, mas a autorização para acessar os dados da empresa não foi confirmada. Consulte os vínculos locais e o Access Management Service.</p>
   </section>;
 
   return <section className="space-y-4">

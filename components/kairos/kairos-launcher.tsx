@@ -6,7 +6,7 @@ import { useKairosPanel } from "@/components/kairos/kairos-context";
 /**
  * Botao persistente do Kairos, visivel em qualquer tela do workspace.
  * Substitui os antigos itens de menu "Voice Room" e "Dashboard Kairos":
- * o Kairos e o "plus" de IA do 7Commander, nao um modulo de gestao —
+ * o Kairos e o "plus" de IA do Commander, nao um modulo de gestao —
  * por isso ele aparece como uma camada sempre disponivel, nao como um
  * item de navegacao competindo com Projetos/Atividades.
  */

@@ -23,7 +23,7 @@ export async function GET(request: NextRequest) {
    ]);
    if(admin.error||internal.error)return NextResponse.json({error:"Autorização indisponível"},{status:503});
    if(!admin.data&&!internal.data?.active) {
-     // Bounded batch prevents 50-company accounts from overwhelming 7Service.
+     // Bounded batch prevents 50-company accounts from overwhelming Access Management Service.
      if(visible.length>50)return NextResponse.json({error:"Muitas empresas vinculadas"},{status:409});
      const result:typeof visible=[];
      for(let offset=0;offset<visible.length;offset+=5) {

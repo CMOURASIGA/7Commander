@@ -7,7 +7,7 @@ export async function query7ServiceLicense(organizationId: string): Promise<{
 }> {
   const origin = process.env.SERVICE_7SERVICE_ORIGIN;
   const token = process.env.SERVICE_7SERVICE_TOKEN;
-  if (!origin || !token || token.length < 32) throw new Error('7Service not configured');
+  if (!origin || !token || token.length < 32) throw new Error('Access Management Service not configured');
   if (!organizationId || organizationId.length > 200) throw new Error('Invalid organization');
   const url = new URL('/api/integrations/7commander/entitlements/' +
     encodeURIComponent(organizationId), origin);
@@ -18,7 +18,7 @@ export async function query7ServiceLicense(organizationId: string): Promise<{
     cache: 'no-store',
     signal: AbortSignal.timeout(5000),
   });
-  if (!response.ok) throw new Error('7Service licensing unavailable');
+  if (!response.ok) throw new Error('Access Management Service licensing unavailable');
   const result: unknown = await response.json();
   if (!result || typeof result !== 'object' ||
       !('status' in result) || !('licenseLimit' in result)) throw new Error('Bad licensing response');
