@@ -21,7 +21,7 @@ export function AppShell({ children }: AppShellProps) {
   const [sidebarExpanded, setSidebarExpanded] = useState(false);
   const [companyContextChanged,setCompanyContextChanged]=useState(false);
   const canBypassAuth =
-    pathname === "/login" || pathname.startsWith("/auth/callback");
+    pathname === "/login" || pathname === "/portal-start" || pathname === "/portal-finalize" || pathname.startsWith("/auth/callback");
   const mustWaitForAuth = auth.required && auth.loading && !canBypassAuth;
   const mustBlock = auth.required && !auth.loading && !auth.user && !canBypassAuth;
 
