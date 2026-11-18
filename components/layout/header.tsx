@@ -42,7 +42,7 @@ export function Header({ onToggleMobileNav, mobileNavOpen }: HeaderProps) {
     return () => {alive=false;window.removeEventListener("7commander:organization-selected", refreshActiveCompany);window.removeEventListener("storage",onStorage);};
   }, [authenticated]);
   const menuRef = useRef<HTMLDivElement>(null);
-  const avatarLabel = (email ?? "7c").split("@")[0].split(/[.\s_-]+/).filter(Boolean).slice(0, 2).map((part) => part[0]?.toUpperCase() ?? "").join("") || "7C";
+  const avatarLabel = (email ?? "commander").split("@")[0].split(/[.\s_-]+/).filter(Boolean).slice(0, 2).map((part) => part[0]?.toUpperCase() ?? "").join("") || "C";
 
   useEffect(() => { const close = (event: MouseEvent) => { if (menuRef.current && !menuRef.current.contains(event.target as Node)) setUserMenuOpen(false); }; document.addEventListener("mousedown", close); return () => document.removeEventListener("mousedown", close); }, []);
 
