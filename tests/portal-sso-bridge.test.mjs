@@ -33,3 +33,15 @@ test("single-use OTP lives in short-lived HTTP-only cookie, then consumed locall
  const middleware=read("middleware.ts");
  assert.match(middleware,/portal-finalize/);
 });
+
+test("protected preview starts SSO on GET before same-origin central exchange",()=>{
+ const app=read("app/portal-start/page.tsx");
+ const middleware=read("middleware.ts");
+ assert.match(app,/COMMANDER_PORTAL_READY/);
+ assert.match(app,/SEVENSERVICE_CENTRAL_SESSION/);
+ assert.match(app,/event\.origin !== origin/);
+ assert.match(app,/event\.source !== opener/);
+ assert.match(app,/\/api\/auth\/central-exchange/);
+ assert.match(app,/verifyOtp/);
+ assert.match(middleware,/portal-start/);
+});

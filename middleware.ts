@@ -4,7 +4,7 @@ import { LOCAL_ACCESS_COOKIE } from './lib/local-ssr-cookie';
 import { localAuthEnabled, localWriteGuardEnabled, shouldBlockLocalApiMutation, localMeetingSandboxAllowed } from './lib/local-write-guard';
 import { readOnlySupabaseFetch } from './lib/local-supabase-fetch';
 
-const PUBLIC_PAGES = new Set(['/login','/central-access','/portal-finalize']);
+const PUBLIC_PAGES = new Set(['/login','/central-access','/portal-finalize','/portal-start']);
 const UUID=/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 function publicPage(path:string) {
   return PUBLIC_PAGES.has(path)||path.startsWith('/auth/')||
