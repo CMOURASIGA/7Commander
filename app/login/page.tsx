@@ -45,7 +45,7 @@ export default function LoginPage() {
           return;
         } catch {
           if (response.status === 403)
-            throw new Error("Acesso central validado parcialmente, mas o provisionamento do Commander não foi concluído. Contate o administrador. Não crie outro cadastro.");
+            throw new Error("Acesso ao Commander não autorizado. Sua licença pode estar revogada ou suspensa. Consulte o administrador da empresa para verificar suas permissões.");
           throw new Error("Não foi possível autenticar sua conta. Confirme o endereço e tente novamente.");
         }
       }
