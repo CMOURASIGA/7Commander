@@ -1,0 +1,35 @@
+name: Temporary brand occurrence inventory
+on:
+  push:
+    branches:
+      - chore/brand-commander-20261118
+permissions:
+  contents: read
+jobs:
+  inventory:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: List product labels in source files
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+          roots=['src','app','components','lib','features','emails','services','public']
+          pattern=re.compile(r'7Service|7Commander|7SERVICE|7COMMANDER',re.I)
+          total=0
+          for root in roots:
+            folder=Path(root)
+            if not folder.exists():continue
+            for p in sorted(folder.rglob('*')):
+              if not p.is_file() or p.suffix not in ('.tsx','.ts','.jsx','.js','.json','.md','.html','.svg'):continue
+              try:s=p.read_text('utf-8')
+              except:continue
+              matches=[(i,line.strip()[:230]) for i,line in enumerate(s.splitlines(),1) if pattern.search(line)]
+              if not matches:continue
+              total+=len(matches)
+              if len(matches)>30:matches=matches[:30]+[('...',f'(+{len(matches)-30} more)')]
+              print('FILE',p,'LINES',len(matches))
+              for line,snippet in matches:print(' ',line,snippet)
+          print('TOTAL_OCCURRENCE_LINES',total)
+          PY
