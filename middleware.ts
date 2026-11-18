@@ -67,13 +67,18 @@ export async function middleware(request:NextRequest) {
   // Sign-in bootstrap routes must be reachable before the SSR cookie exists.
   // These handlers independently enforce same-origin, verified credentials/JWT,
   // central entitlements, and session integrity. Never redirect their POST to /login.
+  // The 7Service revocation webhook authenticates using a short-lived HMAC,
+  // not a browser session. Let this exact path reach its independent handler.
+  // No other integration route is exempt from the central session guard.
+  const signedRevocationRoute = request.nextUrl.pathname==="/api/integrations/7service/revocation" &&
+    request.method==="POST";
   const authBootstrapRoute = request.nextUrl.pathname==="/api/auth/central-exchange" ||
     request.nextUrl.pathname==="/api/auth/portal-entry" ||
     request.nextUrl.pathname==="/api/auth/portal-finalize" ||
     request.nextUrl.pathname==="/api/auth/local-session";
   if(process.env.COMMANDER_CENTRAL_AUTH_ENABLED!=='true'||
      process.env.SERVICE_7SERVICE_ENFORCE_USER_ACCESS!=='true'||
-     publicPage(request.nextUrl.pathname)||authBootstrapRoute) return NextResponse.next();
+     publicPage(request.nextUrl.pathname)||authBootstrapRoute||signedRevocationRoute) return NextResponse.next();
 
   const localToken=request.cookies.get(LOCAL_ACCESS_COOKIE)?.value??'';
   const dbUrl=process.env.NEXT_PUBLIC_SUPABASE_URL;
