@@ -38,7 +38,12 @@ export async function POST(request: NextRequest) {
   try { body = await request.json(); } catch { return deny(); }
   if (!body || typeof body !== "object" || Array.isArray(body)) return deny();
   const input = body as Record<string, unknown>;
-  if (typeof input.email !== "string" || typeof input.password !== "string" ||
+  const tokenLogin = typeof input.centralAccessToken === "string";
+  if (tokenLogin) {
+    if (!/^[-A-Za-z0-9_.~]{50,10000}$/.test(input.centralAccessToken as string) ||
+        input.email !== undefined || input.password !== undefined)
+      return deny();
+  } else if (typeof input.email !== "string" || typeof input.password !== "string" ||
       !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(input.email.trim()) ||
       input.email.length > 320 || input.password.length < 1 || input.password.length > 2048)
     return deny();
@@ -55,9 +60,24 @@ export async function POST(request: NextRequest) {
     const auth = createClient(centralUrl, centralKey, {
       auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
     });
-    const result = await auth.auth.signInWithPassword({ email: input.email.trim(), password: input.password });
-    const session = result.data.session;
-    if (result.error || !session?.access_token || !session.user) return deny('central-login');
+    let session: {
+      access_token: string; refresh_token: string; expires_in: number;
+      user: import("@supabase/supabase-js").User;
+    } | null = null;
+    if (tokenLogin) {
+      const verified = await auth.auth.getUser(input.centralAccessToken as string);
+      if (!verified.error && verified.data.user)
+        session = {
+          access_token: input.centralAccessToken as string,
+          refresh_token: "", expires_in: 900, user: verified.data.user,
+        };
+    } else {
+      const result = await auth.auth.signInWithPassword({
+        email: (input.email as string).trim(), password: input.password as string,
+      });
+      if (!result.error) session = result.data.session;
+    }
+    if (!session?.access_token || !session.user) return deny('central-login');
 
     const db = getSupabaseServerClient();
     if (!db) return deny('local-db-unavailable');
@@ -245,7 +265,16 @@ export async function POST(request: NextRequest) {
     const response = NextResponse.json({
       ok:true, tokenHash: link.data.properties.hashed_token, localUserId,
     }, { headers:noStore });
-    setCentralCookies(response, session);
+    if (tokenLogin) {
+      // Never fabricate a central refresh token. This short-lived exchange
+      // requires a fresh launch from the 7Service portal when it expires.
+      response.cookies.set('__Host-commander_caccess',session.access_token,{
+        httpOnly:true,secure:true,sameSite:'strict',path:'/',maxAge:900,
+      });
+      response.cookies.set('__Host-commander_crefresh','',{
+        httpOnly:true,secure:true,sameSite:'strict',path:'/',maxAge:0,
+      });
+    } else setCentralCookies(response, session);
     return response;
   } catch {
     return deny('unexpected'); // no raw provider errors or identity details
