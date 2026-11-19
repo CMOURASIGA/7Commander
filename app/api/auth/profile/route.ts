@@ -97,8 +97,21 @@ export async function GET(request: NextRequest) {
     .maybeSingle();
   if (result.error) return NextResponse.json({ error: "Perfil indisponível." }, { status: 503 });
 
+  let displayName = result.data?.nome?.trim() || null;
+  // Some historic centrally provisioned accounts have a profile row keyed to a
+  // different local UID. Lookup by the verified JWT email only for a read-only
+  // display name: never reassign identities or use this result to grant access.
+  if (!displayName && auth.context.authMode === "supabase" && auth.context.userEmail) {
+    const matchingEmail = await supabase.from("profiles")
+      .select("nome")
+      .eq("email", auth.context.userEmail.trim().toLowerCase())
+      .maybeSingle();
+    if (matchingEmail.error) return NextResponse.json({ error: "Perfil indisponível." }, { status: 503 });
+    displayName = matchingEmail.data?.nome?.trim() || null;
+  }
+
   return NextResponse.json(
-    { data: { displayName: result.data?.nome?.trim() || null } },
+    { data: { displayName } },
     { headers: { "Cache-Control": "private, no-store, max-age=0" } },
   );
 }
