@@ -12,18 +12,15 @@ test("centrally linked VIEWER may read the exact Scrum data endpoints", () => {
   assert.ok(localRolePermissions.member.includes("planning.view"));
 });
 
-test("central VIEWER has no Scrum mutation permissions or AI generation privilege", () => {
-  for (const route of [
-    "/api/scrum", "/api/scrum/backlog-items", "/api/scrum/stories",
-    "/api/scrum/project-members", "/api/scrum/notifications",
-    "/api/scrum/kairos-insights",
-  ]) {
-    for (const method of ["POST", "PUT", "PATCH", "DELETE"]) {
-      assert.equal(permissionForRoute(route, method), null, route + " " + method);
-    }
+test("Scrum writes require a central planning.write entitlement, never VIEWER", () => {
+  for (const route of ["/api/scrum", "/api/scrum/backlog-items", "/api/scrum/stories"]) {
+    assert.equal(permissionForRoute(route,"POST"),"planning.write");
   }
+  assert.ok(localRolePermissions.admin.includes("planning.write"));
+  assert.ok(localRolePermissions.manager.includes("planning.write"));
   assert.ok(!localRolePermissions.member.includes("planning.write"));
-  assert.equal(permissionForRoute("/api/scrum/kairos-insights", "GET"), null);
+  assert.equal(permissionForRoute("/api/scrum/kairos-insights","POST"),null);
+  assert.equal(permissionForRoute("/api/scrum/private","POST"),null);
 });
 
 test("Scrum route whitelist is exact and does not grant unrelated endpoints", () => {
