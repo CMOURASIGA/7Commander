@@ -108,6 +108,24 @@ REVOKE ALL ON FUNCTION public.provision_central_customer_atomic(uuid,uuid,uuid,u
 GRANT EXECUTE ON FUNCTION public.provision_central_customer_atomic(uuid,uuid,uuid,uuid,text,text)
   TO service_role;
 
+-- The INT01 validation trigger requires an auditable active platform actor.
+-- Reuse the active, recorded OWNER role approver; never disable the trigger.
+DO $audit$
+DECLARE v_actor uuid;
+BEGIN
+  SELECT owner_map.approved_by INTO v_actor
+  FROM public.central_product_role_links owner_map
+  JOIN public.platform_admins admin ON admin.user_id=owner_map.approved_by AND admin.active=true
+  WHERE owner_map.central_product_code='COMMANDER7'
+    AND owner_map.central_role_code='OWNER' AND owner_map.status='ACTIVE'
+  LIMIT 1;
+  IF v_actor IS NULL THEN
+    RAISE EXCEPTION 'An active INT01 role approver is required' USING ERRCODE='42501';
+  END IF;
+  PERFORM set_config('app.int01_actor_id', v_actor::text, true);
+END;
+$audit$;
+
 -- Never grant OWNER through automatic provisioning.
 -- Derive admin/manager permission ceilings from the existing central OWNER
 -- map but exclude delete-only permissions. ADMIN remains below OWNER.
