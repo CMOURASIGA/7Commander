@@ -134,7 +134,7 @@ function reportDocument(project:Project, cards:Card[], risks:Risk[], decisions:D
     </div>`: "";
    const internalStoryLines=internalStories.slice(0,100).map(st=>{
      const sp=st.sprint_id?sprintById.get(st.sprint_id):null;
-     const continuation=st.description?.match(/Planejamento entre sprints:\\s*([^\\n]+)/)?.[1]?.split(". Esta US")[0]||"";
+     const continuation=st.description?.match(/Planejamento entre sprints:\s*([^\n]+)/)?.[1]?.split(". Esta US")[0]||"";
      const points=st.story_points===null||st.story_points===undefined?"Não estimada":st.story_points+" pts";
      const dateNote=st.due_date&&!sp?"Prazo da US: "+st.due_date:st.due_date&&sp&&st.due_date>=sp.start_date&&st.due_date<=sp.end_date?"Prazo da US: "+st.due_date:st.due_date&&sp?"Prazo da US "+st.due_date+" fora da janela da sprint; revisar":"Prazo individual não definido";
      return {title:st.title,note:(sp?"Sprint: "+sp.name+" ("+sp.start_date+" a "+sp.end_date+")":"Sem sprint vinculada")+" · Complexidade: "+points+(continuation?" · Continuidade: "+continuation:"")+" · "+st.workflow_stage.toUpperCase()+" · "+(st.responsible||"Sem responsável")+" · "+dateNote+(st.blocked?" · IMPEDIDA: "+st.blocker_reason:"")};
