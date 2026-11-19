@@ -219,7 +219,7 @@ export async function requireApiAuth(request: NextRequest): Promise<{
         const write = !["GET", "HEAD", "OPTIONS"].includes(method);
         // Until customer product roles are mapped to the local write RBAC,
         // centrally admitted users without a local role are read-only.
-        if (!isPrivileged && !access.data?.active && write && path !== "/api/auth/profile" && !authorizedLinkedSwitch) {
+        if (!isPrivileged && !access.data?.active && !customerCentral && write && path !== "/api/auth/profile" && !authorizedLinkedSwitch) {
           return { ok: false, response: NextResponse.json({ error: "Perfil local necessário para esta operação." }, { status: 403 }) };
         }
         if (!isPrivileged && write && path !== "/api/auth/profile" && !authorizedLinkedSwitch) {
