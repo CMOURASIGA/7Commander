@@ -42,6 +42,7 @@ const css = `
 
 .report-table-wrap{width:100%;overflow-x:auto;margin:10px 0}
 .report-table,.risk-matrix{border-collapse:collapse;width:100%;table-layout:fixed;font-size:11px}
+.sprint-summary-table{table-layout:fixed}.sprint-summary-table th:nth-child(1){width:28%}.sprint-summary-table th:nth-child(2){width:24%}.sprint-summary-table th:nth-child(3){width:15%}.sprint-summary-table th:nth-child(4){width:15%}.sprint-summary-table th:nth-child(5){width:9%}.sprint-summary-table th:nth-child(6){width:9%}
 .team-stories-table{table-layout:fixed}.team-stories-table th:nth-child(1){width:29%}.team-stories-table th:nth-child(2){width:17%}.team-stories-table th:nth-child(3){width:10%}.team-stories-table th:nth-child(4){width:10%}.team-stories-table th:nth-child(5){width:13%}.team-stories-table th:nth-child(6){width:21%}
 .report-table th,.report-table td,.risk-matrix th,.risk-matrix td{border:1px solid #dce5ef;padding:7px 8px;vertical-align:top;text-align:left;overflow-wrap:anywhere}
 .report-table th,.risk-matrix th{background:#eaf1f8;color:#173a59;font-weight:700}
@@ -147,7 +148,7 @@ function reportDocument(project:Project, cards:Card[], risks:Risk[], decisions:D
    <div class="metric"><small>US SELECIONADAS</small><strong>${scrum.scrum.stories_total}</strong></div>
    <div class="metric"><small>TASKS SELECIONADAS</small><strong>${scrum.scrum.tasks_total}</strong><em>${scrum.scrum.tasks_done} concluídas</em></div></div></div>
    ${pointsChart}
-    ${scrum.scrum.sprints.map(sp=>`<div class="item"><div><b>${htmlEscape(sp.name)}</b><p style="font-size:12px;margin:5px 0">Meta: ${htmlEscape(sp.goal||"Não definida")} · ${htmlEscape(sp.start_date)} a ${htmlEscape(sp.end_date)}</p><p style="font-size:12px;margin:5px 0">US: ${sp.closed}/${sp.stories} concluídas · Pontos: ${sp.points_done}/${sp.points_planned} · Atrasadas: ${sp.overdue} · Bloqueadas: ${sp.blocked}</p>${sp.status==="planned"&&(sp.active>0||sp.resolved>0||sp.closed>0)?`<p class="note">Inconsistência a revisar: Sprint planejada com US em execução ou concluídas.</p>`:""}<p style="font-size:12px;margin:5px 0">Entregas realizadas: ${sp.delivery_actual}/${sp.delivery_planned} previstas · No prazo: ${sp.delivery_on_time} · Fora do prazo: ${sp.delivery_late}</p></div><span>${htmlEscape(sp.status)}</span></div>`).join("")}
+    <div class="report-table-wrap"><table class="report-table sprint-summary-table"><thead><tr><th>Sprint</th><th>Período</th><th>US concluídas</th><th>Pontos concluídos</th><th>Atrasadas</th><th>Bloqueadas</th></tr></thead><tbody>${scrum.scrum.sprints.map(sp=>`<tr><td>${htmlEscape(sp.name)}<small>${sp.status==="planned"&&(sp.active>0||sp.resolved>0||sp.closed>0)?" · Revisar status da sprint":""}</small></td><td>${htmlEscape(sp.start_date)} a ${htmlEscape(sp.end_date)}</td><td>${sp.closed} / ${sp.stories}</td><td>${sp.points_done} / ${sp.points_planned}</td><td>${sp.overdue}</td><td>${sp.blocked}</td></tr>`).join("")}</tbody></table></div>
    </section>`: "";
   const internalSection=isInternal&&scrum?.internal&&(show("stories")||show("tasks"))?`
    <section class="panel" style="margin:16px 0"><h3>08 · Operação interna</h3><h2>US, Tasks e impedimentos</h2>
