@@ -124,7 +124,7 @@ export async function POST(req:NextRequest){
   if(transitionComment.length>4000)return fail("Comentário excede 4000 caracteres.");
   if(stage==="review"&&stage!==current?.workflow_stage&&!transitionComment)return fail("Informe o motivo da solicitação de REVIEW.",400);
   if(requestedSprint!==null&&!uuid.test(String(requestedSprint)))return fail("Identificador da Sprint inválido.");
-  if(current?.sprint_id&&requestedSprint!==null&&requestedSprint!==current.sprint_id)return fail("Uma US já vinculada deve retornar ao backlog antes de mudar de Sprint.",409);
+  // A origem encerrada já é bloqueada acima; sprints abertas admitem transferência direta.
   const target=await sprintState(db,org,projectId,requestedSprint?String(requestedSprint):null);
   if(target.error||target.status==="closed")return fail("A Sprint selecionada está encerrada ou indisponível.",409);
   const sortOrder=body.sortOrder===undefined?Number(current?.sort_order||0):Number(body.sortOrder);
