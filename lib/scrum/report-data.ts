@@ -6,7 +6,7 @@ import {getApprovedRiskFields} from "@/lib/reports/risk-report-html";
 import {loadProjectMeetingReport,meetingReportLines,type MeetingReportLine} from "@/services/meeting-report-context";
 
 export type ReportAudience="client"|"internal";
-export type ScrumReportStory={id:string;sprint_id:string|null;title:string;workflow_stage:string;story_points:number|null;due_date:string|null;actual_end_date:string|null;blocked:boolean;blocker_reason:string;responsible:string|null};
+export type ScrumReportStory={id:string;sprint_id:string|null;title:string;description?:string;workflow_stage:string;story_points:number|null;due_date:string|null;actual_end_date:string|null;blocked:boolean;blocker_reason:string;responsible:string|null};
 export type ScrumReportTask={id:string;story_id:string|null;title:string;state:string;responsible:string|null};
 export type ScrumReportSprint={id:string;name:string;goal:string;status:string;start_date:string;end_date:string;stories:number;closed:number;resolved:number;active:number;blocked:number;overdue:number;points_planned:number;points_done:number;delivery_planned:number;delivery_actual:number;delivery_on_time:number;delivery_late:number};
 export type ClientReportFact={id:string;kind:"objective"|"benefit"|"deliverable"|"milestone"|"risk"|"next_step";title:string;description:string;classification:"confirmed"|"in_progress"|"hypothesis"|"ai_recommendation";due_date:string|null;source_reference?:string|null};
@@ -28,7 +28,7 @@ export async function loadReportData(db:DB,org:string,projectId:string,audience:
  const [project,sprints,stories,tasks,kanban,risks,decisions,approvedFacts]=await Promise.all([
   db.from("projects").select("id,nome").eq("id",projectId).eq("organization_id",org).single(),
   db.from("scrum_sprints").select("id,name,goal,status,start_date,end_date").eq("project_id",projectId).eq("organization_id",org).order("start_date",{ascending:false}).limit(100),
-  db.from("scrum_user_stories").select("id,sprint_id,title,workflow_stage,story_points,due_date,actual_end_date,blocked,blocker_reason,responsible").eq("project_id",projectId).eq("organization_id",org).limit(1000),
+  db.from("scrum_user_stories").select("id,sprint_id,title,description,workflow_stage,story_points,due_date,actual_end_date,blocked,blocker_reason,responsible").eq("project_id",projectId).eq("organization_id",org).limit(1000),
   db.from("scrum_backlog_items").select("id,story_id,title,state,responsible").eq("project_id",projectId).eq("organization_id",org).eq("item_type","task").limit(2000),
   db.from("tasks").select("id,titulo,status,due_date").eq("project_id",projectId).eq("organization_id",org).limit(2000),
   db.from("risks").select("id,titulo,status,probabilidade,impacto,mitigacao,responsavel,decision_id,task_id,updated_at").eq("project_id",projectId).eq("organization_id",org).limit(500),

@@ -28,7 +28,7 @@ export default function AdminUsers() {
     const r=await fetch("/api/admin/users",{method:"PATCH",headers:getClientAuthHeaders({"Content-Type":"application/json"}),body:JSON.stringify({userId,...patch})});
     const j=await r.json();setMessage(r.ok?"Acesso atualizado":j.error||"Falha");if(r.ok)await load();
   }
-  return <main className="mx-auto max-w-4xl space-y-6 p-6"><h1 className="text-2xl font-bold">Administração de usuários</h1><p>Somente administradores podem criar usuários e conceder perfis. Senhas são armazenadas pelo Supabase Auth, nunca pelo 7Commander.</p>
+  return <main className="mx-auto max-w-4xl space-y-6 p-6"><h1 className="text-2xl font-bold">Administração de usuários</h1><p>Somente administradores podem criar usuários e conceder perfis. Senhas são armazenadas pelo Supabase Auth, nunca pelo Commander.</p>
     <form onSubmit={create} className="grid gap-3 rounded-xl border p-5">
       <h2 className="font-semibold">Novo acesso</h2>
       <input className="rounded border p-3" placeholder="Nome completo" value={nome} onChange={e=>setNome(e.target.value)} required/>

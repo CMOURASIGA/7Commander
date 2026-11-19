@@ -425,7 +425,7 @@ export default function ActivitiesPage() {
     <section className="space-y-4">
       <AgileWorkspaceNav/>
       <PageIntro
-        eyebrow="7Commander"
+        eyebrow="Commander"
         title="Atividades operacionais"
         description="Quadro Kanban por projeto com cards operacionais, responsáveis, checklists, anexos e histórico completo."
         aside={

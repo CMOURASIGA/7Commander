@@ -31,7 +31,7 @@ export async function measuredFetch(input:RequestInfo|URL,init?:RequestInit):Pro
   const sample:Sample={route,method,status:response?.status||0,elapsedMs,at:Date.now(),...(serverTiming?{serverTiming}:{})};
   samples.push(sample);
   if(samples.length>120)samples.shift();
-  performance.measure("7Commander "+method+" "+route,{start,end:performance.now()});
+  performance.measure("Commander "+method+" "+route,{start,end:performance.now()});
   if(new URLSearchParams(window.location.search).get("perf")==="1"){
    console.info("[PERF-05]",sample,"p95",getClientPerformanceSummary().find(x=>x.route===method+" "+route)?.p95Ms);
   }

@@ -23,7 +23,7 @@ const rotinas = [
 export default function HelpPage() {
   return (
     <main className="space-y-6">
-      <PageIntro eyebrow="CENTRAL DE AJUDA" title="Como usar o 7Commander" description="Um guia simples para organizar clientes, planejar projetos e acompanhar o trabalho da sua equipe." />
+      <PageIntro eyebrow="CENTRAL DE AJUDA" title="Como usar o Commander" description="Um guia simples para organizar clientes, planejar projetos e acompanhar o trabalho da sua equipe." />
       <SurfaceCard className="p-5">
         <h2 className="text-xl font-semibold text-(--text-primary)">Está começando? Siga este caminho</h2>
         <p className="mt-2 text-sm text-(--text-secondary)">Você não precisa aprender tudo de uma vez. Comece com estas quatro ações.</p>

@@ -1,4 +1,4 @@
-﻿# 7Commander
+﻿# Commander
 
 Workspace operacional com memória contextual compartilhada.
 

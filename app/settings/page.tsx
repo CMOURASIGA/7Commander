@@ -14,7 +14,7 @@ export default function SettingsPage() {
   return (
     <section className="space-y-4">
       <PageIntro
-        eyebrow="Consult Services · 7Commander"
+        eyebrow="Consult Services · Commander"
         title="Configurações operacionais"
         description="Acompanhe a disponibilidade dos serviços essenciais do workspace e as preferências de acesso do operador."
         aside={

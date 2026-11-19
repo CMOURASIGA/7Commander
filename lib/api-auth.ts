@@ -93,7 +93,7 @@ export async function requireApiAuth(request: NextRequest): Promise<{
           const db = getSupabaseServerClient();
           if (!db) return {ok:false,response:NextResponse.json({error:"Acesso local não configurado."},{status:503})};
           // This path is intentionally internal-only. Centrally provisioned
-          // customer accounts must continue to use the 7Service broker.
+          // customer accounts must continue to use the Access Management Service broker.
           const access = await db.from("platform_admins").select("active")
             .eq("user_id",userId).eq("active",true).maybeSingle();
           if (access.error || !access.data) return {
@@ -190,7 +190,7 @@ export async function requireApiAuth(request: NextRequest): Promise<{
           if(membership.error)return {ok:false,response:NextResponse.json({error:"Verificação empresarial indisponível"},{status:503})};
           if(!membership.data)return {ok:false,response:NextResponse.json({error:"Empresa não autorizada"},{status:403})};
           // Disabled by default. Activate on the controlled develop pilot only
-          // after 7Service M2M access endpoint, tenant mapping and local Auth
+          // after Access Management Service M2M access endpoint, tenant mapping and local Auth
           // identity are verified. Platform admins remain internally authorized.
           if (customerCentral && !authorizedLinkedSwitch) {
             // The old email-based authorization endpoint is forbidden in INT-01.

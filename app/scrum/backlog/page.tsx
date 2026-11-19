@@ -121,9 +121,16 @@ export default function BacklogPage(){
  });
  function open(row:Row|null,type:Row["type"],view=false,defaults?:Partial<Form>){
   setOpened(row);setDrawerOpen(true);setReadOnly(view);setComment("");setTransitionComment("");setError("");
-  if(row?.story)setForm(fromStory(row.story));
+  if(row?.story){
+   const sprint=data.sprints.find(item=>item.id===row.story?.sprint_id);
+   setForm({...fromStory(row.story),...(sprint?{startDate:dateOnly(sprint.start_date),dueDate:dateOnly(sprint.end_date),durationDays:String(daysBetween(sprint.start_date,sprint.end_date))}:{})});
+  }
   else if(row?.item)setForm({...initial(),title:row.title,description:row.item.description,responsible:row.item.responsible||"",actualEndDate:dateOnly(row.item.actual_end_date),stage:row.state,parentId:row.item.parent_id||"",storyId:row.item.story_id||"",sortOrder:String(row.item.sort_order)});
-  else setForm({...initial(),stage:type==="task"?"todo":"new",...defaults});
+  else {
+   const seed={...initial(),stage:type==="task"?"todo":"new",...defaults};
+   const sprint=data.sprints.find(item=>item.id===seed.sprintId);
+   setForm({...seed,...(sprint?{startDate:dateOnly(sprint.start_date),dueDate:dateOnly(sprint.end_date),durationDays:String(daysBetween(sprint.start_date,sprint.end_date))}:{})});
+  }
   setMode(type);
  }
  const [mode,setMode]=useState<Row["type"]>("story");
@@ -202,12 +209,20 @@ export default function BacklogPage(){
        <label className="text-xs">Prioridade<select className="workspace-select mt-1 w-full" value={form.priority} onChange={e=>setForm(f=>({...f,priority:e.target.value}))}>{["baixa","media","alta","critica"].map(p=><option key={p} value={p}>{p}</option>)}</select></label>
        <label className="text-xs">Status<select className="workspace-select mt-1 w-full" value={form.stage} onChange={e=>setForm(f=>({...f,stage:e.target.value}))}>{stages.map(([v,label])=><option key={v} value={v} disabled={Boolean(opened?.story&&v!==opened.story.workflow_stage&&!transitions[opened.story.workflow_stage]?.includes(v))}>{label}</option>)}</select></label>
        <label className="text-xs col-span-2">Responsável<select className="workspace-select mt-1 w-full" value={form.responsible} onChange={e=>setForm(f=>({...f,responsible:e.target.value}))}><option value="">Não atribuído</option>{members.map(m=><option key={m.email} value={m.email}>{m.name}</option>)}</select></label>
-       <label className="text-xs">Início<input type="date" className="workspace-input mt-1 w-full" value={form.startDate} onChange={e=>setForm(f=>({...f,startDate:e.target.value,dueDate:e.target.value&&Number(f.durationDays)>0?addDays(e.target.value,Number(f.durationDays)):f.dueDate}))}/></label>
-       <label className="text-xs">Prazo (dias corridos)<input type="number" min="1" className="workspace-input mt-1 w-full" value={form.durationDays} onChange={e=>setForm(f=>({...f,durationDays:e.target.value,dueDate:f.startDate&&Number(e.target.value)>0?addDays(f.startDate,Number(e.target.value)):f.dueDate}))}/></label>
-       <label className="text-xs">Entrega<input type="date" className="workspace-input mt-1 w-full" value={form.dueDate} onChange={e=>setForm(f=>({...f,dueDate:e.target.value,durationDays:f.startDate&&e.target.value?String(daysBetween(f.startDate,e.target.value)):f.durationDays}))}/></label>
+       <label className="text-xs">Início<input type="date" disabled={Boolean(form.sprintId)} className="workspace-input mt-1 w-full" value={form.startDate} onChange={e=>setForm(f=>({...f,startDate:e.target.value,dueDate:e.target.value&&Number(f.durationDays)>0?addDays(e.target.value,Number(f.durationDays)):f.dueDate}))}/></label>
+       <label className="text-xs">Prazo (dias corridos)<input type="number" disabled={Boolean(form.sprintId)} min="1" className="workspace-input mt-1 w-full" value={form.durationDays} onChange={e=>setForm(f=>({...f,durationDays:e.target.value,dueDate:f.startDate&&Number(e.target.value)>0?addDays(f.startDate,Number(e.target.value)):f.dueDate}))}/></label>
+       <label className="text-xs">Entrega<input type="date" disabled={Boolean(form.sprintId)} className="workspace-input mt-1 w-full" value={form.dueDate} onChange={e=>setForm(f=>({...f,dueDate:e.target.value,durationDays:f.startDate&&e.target.value?String(daysBetween(f.startDate,e.target.value)):f.durationDays}))}/></label>
        <label className="text-xs">Story points<select className="workspace-select mt-1 w-full" value={form.storyPoints} onChange={e=>setForm(f=>({...f,storyPoints:e.target.value}))}><option value="">Não estimado</option>{[1,2,3,4].map(n=><option key={n} value={n}>{n} {n===1?"(baixa)":n===2?"(moderada)":n===3?"(alta)":"(muito alta)"}</option>)}</select></label>
        <label className="text-xs">Data real de conclusão<input type="date" className="workspace-input mt-1 w-full" value={form.actualEndDate} onChange={e=>setForm(f=>({...f,actualEndDate:e.target.value}))}/></label>
-       <label className="text-xs col-span-2">Sprint (opcional)<select className="workspace-select mt-1 w-full" value={form.sprintId} disabled={Boolean(opened?.story?.sprint_id)} onChange={e=>setForm(f=>({...f,sprintId:e.target.value}))}><option value="">Sem Sprint</option>{data.sprints.filter(s=>s.status!=="closed"||s.id===form.sprintId).map(s=><option key={s.id} value={s.id}>{s.name}</option>)}</select></label>
+       {form.sprintId&&<p className="col-span-2 text-xs text-(--text-secondary)">Datas automáticas: início, entrega e duração seguem o período da sprint. Para editar manualmente, selecione &quot;Sem Sprint&quot;.</p>}
+       <label className="text-xs col-span-2">Sprint (opcional)<select className="workspace-select mt-1 w-full" value={form.sprintId} disabled={isLocked} onChange={e=>{
+        const sprint=data.sprints.find(item=>item.id===e.target.value);
+        setForm(f=>({...f,sprintId:e.target.value,
+          startDate:sprint?dateOnly(sprint.start_date):"",
+          dueDate:sprint?dateOnly(sprint.end_date):"",
+          durationDays:sprint?String(daysBetween(sprint.start_date,sprint.end_date)):"",
+        }));
+       }}><option value="">Sem Sprint</option>{data.sprints.filter(s=>s.status!=="closed"||s.id===form.sprintId).map(s=><option key={s.id} value={s.id}>{s.name}</option>)}</select></label>
        <label className="text-xs flex items-center gap-2"><input type="checkbox" checked={form.blocked} onChange={e=>setForm(f=>({...f,blocked:e.target.checked}))}/> Impedimento</label>
        <label className="text-xs">Motivo<input className="workspace-input mt-1 w-full" value={form.blockerReason} onChange={e=>setForm(f=>({...f,blockerReason:e.target.value}))}/></label>
       </div>

@@ -788,7 +788,7 @@ export default function ProjectsPage() {
   return (
     <section className="space-y-3">
       <PageIntro
-        eyebrow="7Commander"
+        eyebrow="Commander"
         title="Projetos e decisões"
         description="Projetos concentram contexto, documentos, riscos, membros e decisões do command center operacional."
         aside={

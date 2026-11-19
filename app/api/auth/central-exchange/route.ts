@@ -38,7 +38,12 @@ export async function POST(request: NextRequest) {
   try { body = await request.json(); } catch { return deny(); }
   if (!body || typeof body !== "object" || Array.isArray(body)) return deny();
   const input = body as Record<string, unknown>;
-  if (typeof input.email !== "string" || typeof input.password !== "string" ||
+  const tokenLogin = typeof input.centralAccessToken === "string";
+  if (tokenLogin) {
+    if (!/^[-A-Za-z0-9_.~]{50,10000}$/.test(input.centralAccessToken as string) ||
+        input.email !== undefined || input.password !== undefined)
+      return deny();
+  } else if (typeof input.email !== "string" || typeof input.password !== "string" ||
       !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(input.email.trim()) ||
       input.email.length > 320 || input.password.length < 1 || input.password.length > 2048)
     return deny();
@@ -55,9 +60,24 @@ export async function POST(request: NextRequest) {
     const auth = createClient(centralUrl, centralKey, {
       auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
     });
-    const result = await auth.auth.signInWithPassword({ email: input.email.trim(), password: input.password });
-    const session = result.data.session;
-    if (result.error || !session?.access_token || !session.user) return deny('central-login');
+    let session: {
+      access_token: string; refresh_token: string; expires_in: number;
+      user: import("@supabase/supabase-js").User;
+    } | null = null;
+    if (tokenLogin) {
+      const verified = await auth.auth.getUser(input.centralAccessToken as string);
+      if (!verified.error && verified.data.user)
+        session = {
+          access_token: input.centralAccessToken as string,
+          refresh_token: "", expires_in: 900, user: verified.data.user,
+        };
+    } else {
+      const result = await auth.auth.signInWithPassword({
+        email: (input.email as string).trim(), password: input.password as string,
+      });
+      if (!result.error) session = result.data.session;
+    }
+    if (!session?.access_token || !session.user) return deny('central-login');
 
     const db = getSupabaseServerClient();
     if (!db) return deny('local-db-unavailable');
@@ -84,12 +104,37 @@ export async function POST(request: NextRequest) {
         .eq("central_identity_id",identityId).eq("status","ACTIVE").limit(2);
       if (linked.error || (linked.data?.length ?? 0) > 1) return deny();
       localUserId = linked.data?.[0]?.commander_user_id ?? "";
-      if (!localUserId) localUserId = await provisionCentralViewerOnLogin({
-        db,origin:centralOrigin,accessToken:session.access_token,
-        identityId,email:session.user.email??"",
-        emailVerified:Boolean(session.user.email_confirmed_at),
-        companyId:process.env.SERVICE_7SERVICE_PILOT_ORG_ID??"",
-      }) ?? "";
+      if (!localUserId) {
+        // The Access Management Service per-company authorization decision is the authority
+        // for both membership and product access. Do not depend on a
+        // separate membership-list API: it is not needed to provision access.
+        // Only explicitly linked ACTIVE Commander companies are considered.
+        const companyLinks = await db.from("central_client_company_links")
+          .select("commander_company_id,central_client_id,status")
+          .eq("status","ACTIVE").limit(51);
+        if (companyLinks.error || !companyLinks.data?.length || companyLinks.data.length > 50)
+          return deny('linked-companies-required');
+        // Deterministic order and independently verified product entitlement
+        // for the chosen company. Provisioner is fail-closed for non-VIEWER.
+        for (const company of [...companyLinks.data].sort((a,b) =>
+          a.commander_company_id.localeCompare(b.commander_company_id))) {
+          // A central decision must explicitly authorize THIS identity for
+          // THIS client, not merely claim a valid global identity.
+          const entitlement = await checkCentralProductAccess({
+            centralUrl:centralOrigin,centralAccessToken:session.access_token,
+            clientId:company.central_client_id,productCode:"COMMANDER7",
+          });
+          if (!entitlement.allowed || entitlement.identityId !== identityId ||
+              entitlement.roleCodes.length !== 1 || entitlement.roleCodes[0] !== "VIEWER") continue;
+          localUserId = await provisionCentralViewerOnLogin({
+            db,origin:centralOrigin,accessToken:session.access_token,
+            identityId,email:session.user.email??"",
+            emailVerified:Boolean(session.user.email_confirmed_at),
+            companyId:company.commander_company_id,
+          }) ?? "";
+          if (localUserId) break;
+        }
+      }
       if (!uuid.test(localUserId)) return deny('jit-user-not-provisioned');
       const [memberships, profile] = await Promise.all([
         db.from("organization_members").select("organization_id,status")
@@ -217,7 +262,16 @@ export async function POST(request: NextRequest) {
     const response = NextResponse.json({
       ok:true, tokenHash: link.data.properties.hashed_token, localUserId,
     }, { headers:noStore });
-    setCentralCookies(response, session);
+    if (tokenLogin) {
+      // Never fabricate a central refresh token. This short-lived exchange
+      // requires a fresh launch from the Access Management Service portal when it expires.
+      response.cookies.set('__Host-commander_caccess',session.access_token,{
+        httpOnly:true,secure:true,sameSite:'strict',path:'/',maxAge:900,
+      });
+      response.cookies.set('__Host-commander_crefresh','',{
+        httpOnly:true,secure:true,sameSite:'strict',path:'/',maxAge:0,
+      });
+    } else setCentralCookies(response, session);
     return response;
   } catch {
     return deny('unexpected'); // no raw provider errors or identity details

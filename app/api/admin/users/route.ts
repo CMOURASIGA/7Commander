@@ -49,7 +49,7 @@ export async function POST(request: NextRequest) {
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || password.length < 12 || !ROLES.includes(role) || !nome)
     return NextResponse.json({ error: "Informe nome, email valido, senha com pelo menos 12 caracteres e perfil." }, { status: 400 });
   const { data: alreadyManaged } = await db.from("internal_user_access").select("user_id").eq("email",email).maybeSingle();
-  if (alreadyManaged) return NextResponse.json({ error: "Este e-mail ja possui cadastro no 7Commander." }, { status: 409 });
+  if (alreadyManaged) return NextResponse.json({ error: "Este e-mail ja possui cadastro no Commander." }, { status: 409 });
   const created = await db.auth.admin.createUser({ email, password, email_confirm: true, user_metadata: { full_name: nome } });
   if (created.error || !created.data.user) {
     const duplicate = /already|registered|exists|duplicate/i.test(created.error?.message ?? "");

@@ -4,6 +4,7 @@ import {getProjectAccessRole,getProjectById} from "@/services/project-service";
 import {getSupabaseServerClient} from "@/lib/supabase/server";
 import {TENANT_SCHEMA_READY,requireEffectiveTenant} from "@/lib/tenant-runtime";
 import {CONSULT_ORG_ID} from "@/lib/consult-workspace";
+import {isEligibleProjectAssignee} from "@/lib/tenant-assignee-authorization";
 
 export const dynamic="force-dynamic";
 const uuid=/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -95,13 +96,25 @@ export async function POST(req:NextRequest){
   const stage=body.stage===undefined?current?.workflow_stage||"new":String(body.stage);
   if(!stages.includes(stage))return fail("Etapa inválida.");
   if(current&&stage!==current.workflow_stage&&!transitions[current.workflow_stage]?.includes(stage))return fail("Transição não permitida: "+current.workflow_stage+" para "+stage,409);
-  const start=body.startDate===undefined?current?.start_date||null:body.startDate||null;
-  const due=body.dueDate===undefined?current?.due_date||null:body.dueDate||null;
+  // A sprint é a fonte oficial do cronograma da US. Nunca confiar em datas do cliente
+  // quando existir sprint vinculada; isso inclui criação e transferência de sprint.
+  const requestedSprint=body.sprintId===undefined?current?.sprint_id||null:body.sprintId||null;
+  if(requestedSprint!==null&&!uuid.test(String(requestedSprint)))return fail("Identificador da Sprint inválido.");
+  const targetSprint=requestedSprint?await db.from("scrum_sprints")
+    .select("id,status,start_date,end_date")
+    .eq("id",String(requestedSprint)).eq("organization_id",org).eq("project_id",projectId).maybeSingle():null;
+  if(targetSprint?.error||requestedSprint&&!targetSprint?.data||targetSprint?.data?.status==="closed")
+    return fail("A Sprint selecionada está encerrada ou indisponível.",409);
+  const sprintDates=targetSprint?.data||null;
+  const start=sprintDates?sprintDates.start_date:body.startDate===undefined?current?.start_date||null:body.startDate||null;
+  const due=sprintDates?sprintDates.end_date:body.dueDate===undefined?current?.due_date||null:body.dueDate||null;
   if(start!==null&&!validDate(start)||due!==null&&!validDate(due)||start&&due&&String(due)<String(start))return fail("Datas inválidas.");
-  const days=body.durationDays===undefined?current?.duration_days??null:body.durationDays===""||body.durationDays===null?null:Number(body.durationDays);
+  const days=sprintDates?
+    Math.round((Date.parse(sprintDates.end_date+"T12:00:00Z")-Date.parse(sprintDates.start_date+"T12:00:00Z"))/86400000)+1:
+    body.durationDays===undefined?current?.duration_days??null:body.durationDays===""||body.durationDays===null?null:Number(body.durationDays);
   const points=body.storyPoints===undefined?current?.story_points??null:body.storyPoints===""||body.storyPoints===null?null:Number(body.storyPoints);
   if(days!==null&&(!Number.isInteger(days)||days<1||days>3650))return fail("Duração inválida.");
-  if(start&&due&&days!==null&&(action==="create"||body.startDate!==undefined||body.dueDate!==undefined||body.durationDays!==undefined)){
+  if(start&&due&&days!==null&&(Boolean(sprintDates)||action==="create"||body.startDate!==undefined||body.dueDate!==undefined||body.durationDays!==undefined)){
     const calculated=new Date(String(start)+"T12:00:00Z");
     calculated.setUTCDate(calculated.getUTCDate()+days-1);
     if(calculated.toISOString().slice(0,10)!==due)return fail("Início, prazo em dias corridos e data de entrega são inconsistentes.",400);
@@ -110,11 +123,8 @@ export async function POST(req:NextRequest){
   const actualEnd=body.actualEndDate===undefined?current?.actual_end_date||null:body.actualEndDate||null;
   if(actualEnd!==null&&!validDate(actualEnd))return fail("Data real inválida.");
   const responsible=String(body.responsible===undefined?current?.responsible||"":body.responsible||"").trim().toLowerCase();
-  if(responsible){
-    const members=await db.from("project_members").select("id").eq("project_id",projectId).eq("organization_id",org).ilike("member_email",responsible).limit(1);
-    if(members.error||!members.data?.length)return fail("Responsável não tem acesso ao projeto.",400);
-  }
-  const requestedSprint=body.sprintId===undefined?current?.sprint_id||null:body.sprintId||null;
+  if(responsible && !(await isEligibleProjectAssignee({organizationId:org,projectId,email:responsible})))
+    return fail("Responsável sem vínculo ativo com esta empresa e projeto.",403);
   const featureId=body.featureId===undefined?current?.feature_id||null:body.featureId||null;
   if(featureId!==null){
     if(!uuid.test(String(featureId)))return fail("Feature inválida.");
@@ -124,10 +134,7 @@ export async function POST(req:NextRequest){
   const transitionComment=typeof body.transitionComment==="string"?body.transitionComment.trim():"";
   if(transitionComment.length>4000)return fail("Comentário excede 4000 caracteres.");
   if(stage==="review"&&stage!==current?.workflow_stage&&!transitionComment)return fail("Informe o motivo da solicitação de REVIEW.",400);
-  if(requestedSprint!==null&&!uuid.test(String(requestedSprint)))return fail("Identificador da Sprint inválido.");
-  if(current?.sprint_id&&requestedSprint!==null&&requestedSprint!==current.sprint_id)return fail("Uma US já vinculada deve retornar ao backlog antes de mudar de Sprint.",409);
-  const target=await sprintState(db,org,projectId,requestedSprint?String(requestedSprint):null);
-  if(target.error||target.status==="closed")return fail("A Sprint selecionada está encerrada ou indisponível.",409);
+  // A origem encerrada é protegida acima; o destino e suas datas já foram validados.
   const sortOrder=body.sortOrder===undefined?Number(current?.sort_order||0):Number(body.sortOrder);
   if(!Number.isInteger(sortOrder)||sortOrder<0||sortOrder>1000000)return fail("Ordem inválida.");
   const perfValidation=performance.now();
