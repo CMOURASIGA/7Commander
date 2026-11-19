@@ -42,6 +42,7 @@ const css = `
 
 .report-table-wrap{width:100%;overflow-x:auto;margin:10px 0}
 .report-table,.risk-matrix{border-collapse:collapse;width:100%;table-layout:fixed;font-size:11px}
+.team-stories-table{table-layout:fixed}.team-stories-table th:nth-child(1){width:29%}.team-stories-table th:nth-child(2){width:17%}.team-stories-table th:nth-child(3){width:10%}.team-stories-table th:nth-child(4){width:10%}.team-stories-table th:nth-child(5){width:13%}.team-stories-table th:nth-child(6){width:21%}
 .report-table th,.report-table td,.risk-matrix th,.risk-matrix td{border:1px solid #dce5ef;padding:7px 8px;vertical-align:top;text-align:left;overflow-wrap:anywhere}
 .report-table th,.risk-matrix th{background:#eaf1f8;color:#173a59;font-weight:700}
 .risk-baixo{background:#eff8f5}.risk-moderado{background:#fff9e8}.risk-alto,.risk-critico{background:#fff0e7}
@@ -137,7 +138,7 @@ function reportDocument(project:Project, cards:Card[], risks:Risk[], decisions:D
      const continuation=st.description?.match(/Planejamento entre sprints:\s*([^\n]+)/)?.[1]?.split(". Esta US")[0]||"";
      const points=st.story_points===null||st.story_points===undefined?"Não estimada":st.story_points+" pts";
      const dateNote=st.due_date&&!sp?"Prazo da US: "+st.due_date:st.due_date&&sp&&st.due_date>=sp.start_date&&st.due_date<=sp.end_date?"Prazo da US: "+st.due_date:st.due_date&&sp?"Prazo da US "+st.due_date+" fora da janela da sprint; revisar":"Prazo individual não definido";
-     return {title:st.title,note:(sp?"Sprint: "+sp.name+" ("+sp.start_date+" a "+sp.end_date+")":"Sem sprint vinculada")+" · Complexidade: "+points+(continuation?" · Continuidade: "+continuation:"")+" · "+st.workflow_stage.toUpperCase()+" · "+(st.responsible||"Sem responsável")+" · "+dateNote+(st.blocked?" · IMPEDIDA: "+st.blocker_reason:"")};
+     return {title:st.title,sprint:sp?.name||"Sem Sprint",points,status:st.workflow_stage.toUpperCase(),responsible:st.responsible||"Sem responsável",details:(continuation?"Continuidade: "+continuation+" · ":"")+dateNote+(st.blocked?" · IMPEDIDA: "+st.blocker_reason:"")};
    });
    const scrumSection=show("sprints")&&scrum?.scrum.enabled&&scrum.scrum.sprints.length?`
    <section class="panel" style="margin:16px 0"><div class="scrum-overview"><h3>07 · Scrum</h3><h2>Panorama de Sprints</h2>
@@ -150,7 +151,7 @@ function reportDocument(project:Project, cards:Card[], risks:Risk[], decisions:D
    </section>`: "";
   const internalSection=isInternal&&scrum?.internal&&(show("stories")||show("tasks"))?`
    <section class="panel" style="margin:16px 0"><h3>08 · Operação interna</h3><h2>US, Tasks e impedimentos</h2>
-   ${list(internalStoryLines,"Nenhuma US selecionada nas sprints do relatório.")}
+   ${internalStoryLines.length?`<div class="report-table-wrap"><table class="report-table team-stories-table"><thead><tr><th>User Story</th><th>Sprint principal</th><th>Complexidade</th><th>Estado</th><th>Responsável</th><th>Prazo e continuidade</th></tr></thead><tbody>${internalStoryLines.map(st=>`<tr><td>${htmlEscape(st.title)}</td><td>${htmlEscape(st.sprint)}</td><td>${htmlEscape(st.points)}</td><td>${htmlEscape(st.status)}</td><td>${htmlEscape(st.responsible)}</td><td>${htmlEscape(st.details)}</td></tr>`).join("")}</tbody></table></div>`:`<p class="empty">Nenhuma US selecionada nas sprints do relatório.</p>`}
    <h2 style="margin-top:18px">Tasks de desenvolvimento</h2>
    ${list(scrum.internal.tasks.slice(0,35).map(t=>({title:t.title,note:t.state.toUpperCase()+" · "+(t.responsible||"Sem responsável")})),"Nenhuma Task de desenvolvimento cadastrada nesta extração. Isso não confirma ausência de trabalho em andamento.")}
    </section>`: "";
