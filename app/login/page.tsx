@@ -81,6 +81,10 @@ export default function LoginPage() {
   }
   return <section className="mx-auto max-w-xl rounded-[1.8rem] border border-(--border) bg-(--bg-surface) p-8 shadow-[var(--shadow-card)]">
     <div className="flex justify-center"><BrandLockup align="center" size="lg"/></div>
+    <div className="mt-4 flex justify-center">
+      {/* eslint-disable-next-line @next/next/no-img-element -- imagem oficial local do produto */}
+      <img src="/product-icons/commander-approved.svg" alt="Ícone do Commander" width={64} height={64} className="rounded-xl" />
+    </div>
     <div className="mt-6 text-center"><h1 className="text-2xl font-semibold">Entrar no Commander</h1><p className="mt-3 text-sm">Use suas credenciais autorizadas. A empresa será selecionada dentro do sistema.</p></div>
     <form onSubmit={submit} className="mt-6 grid gap-4 rounded-xl border p-5">
       <label className="grid gap-1 text-sm">E-mail<input type="email" autoComplete="username" required className="rounded border p-3" value={email} onChange={e=>setEmail(e.target.value)}/></label>
