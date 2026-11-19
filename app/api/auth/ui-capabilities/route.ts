@@ -50,8 +50,11 @@ export async function GET(request: NextRequest) {
     access.data?.active===true &&
     !["leitor","colaborador"].includes(access.data?.role??"")
   );
-  let canWrite=locallyWritable;
-  if (central && locallyWritable) {
+  // A centrally provisioned ADMIN/MEMBER has a verified tenant membership
+  // but intentionally does not receive internal_user_access. The central
+  // entitlement and explicit operation mapping are the authority for writes.
+  let canWrite=central ? false : locallyWritable;
+  if (central) {
     const [clients,projects]=await Promise.all([
       authorizeCentralPilot(request,auth.context.userId,orgId,"clients.write"),
       authorizeCentralPilot(request,auth.context.userId,orgId,"projects.write"),
