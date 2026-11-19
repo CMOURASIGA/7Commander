@@ -58,8 +58,10 @@ function greeting() {
   const hour = new Date().getHours();
   return hour < 12 ? "Bom dia" : hour < 18 ? "Boa tarde" : "Boa noite";
 }
-function displayName(email?: string | null) {
-  return (email?.split("@")[0] || "operador").split(/[.\s_-]+/).filter(Boolean).map(p => p[0].toUpperCase() + p.slice(1)).join(" ");
+function firstName(value?: string | null) {
+  const name = value?.trim() ?? "";
+  if (!name || name.includes("@")) return "";
+  return name.split(/\s+/)[0];
 }
 
 function Metric({ label, value, detail, warning = false }: { label: string; value: number | string; detail: string; warning?: boolean }) {
@@ -79,7 +81,28 @@ export default function HomePage() {
   const [error, setError] = useState<string | null>(null);
   const [denied, setDenied] = useState(false);
   const [canCreate, setCanCreate] = useState(false);
+  const [profileName, setProfileName] = useState<string | null>(null);
   const [referenceDate, setReferenceDate] = useState(() => dateKey(new Date()));
+
+  useEffect(() => {
+    if (!canLoad || !auth.user) return;
+    let live = true;
+    void (async () => {
+      try {
+        const response = await fetch("/api/auth/profile", {
+          headers: getClientAuthHeaders(),
+          credentials: "same-origin",
+          cache: "no-store",
+        });
+        if (!response.ok) return;
+        const payload = await response.json();
+        if (live) setProfileName(typeof payload?.data?.displayName === "string" ? payload.data.displayName : null);
+      } catch {
+        // A missing profile must not expose an email prefix as a display name.
+      }
+    })();
+    return () => { live = false; };
+  }, [canLoad, auth.user?.id]);
 
   useEffect(() => {
     if (!canLoad) { setCanCreate(false); return; }
@@ -190,7 +213,7 @@ export default function HomePage() {
   return <section className="space-y-4">
     <header className="rounded-xl border border-(--border) bg-(--bg-surface) p-5">
       <p className="text-xs font-semibold uppercase tracking-widest text-(--accent)">Visão geral da empresa</p>
-      <h2 className="mt-2 text-2xl font-semibold text-(--text-primary)">{greeting()}, {displayName(auth.user?.email)}</h2>
+      <h2 className="mt-2 text-2xl font-semibold text-(--text-primary)">{greeting()}{firstName(profileName || auth.user?.user_metadata?.full_name || auth.user?.user_metadata?.name) ? ", " + firstName(profileName || auth.user?.user_metadata?.full_name || auth.user?.user_metadata?.name) : ""}</h2>
       <p className="mt-2 text-[13px] text-(--text-secondary)">{loading ? "Carregando indicadores dos projetos..." : error ? "Indicadores indisponíveis." : active.length + " " + plural(active.length, "projeto ativo", "projetos ativos") + " em acompanhamento."}</p>
       <div className="mt-4 flex flex-wrap gap-2">
         {canCreate && <Link className="workspace-button-primary rounded-lg px-3 py-2 text-[13px]" href="/projects">Criar projeto</Link>}
