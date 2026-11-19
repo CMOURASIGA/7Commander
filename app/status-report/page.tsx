@@ -116,17 +116,41 @@ function reportDocument(project:Project, cards:Card[], risks:Risk[], decisions:D
     ${publicItems("next_step").length?`<section class="panel"><h3>03 · Decisões e encaminhamentos</h3><h2>Decisões registradas</h2>${list(publicItems("next_step"),approvalNotice)}</section>`:""}
     <footer class="foot"><span>CONSULT SERVICES TECNOLOGIA · Commander / Relatório Cliente</span><span>Emitido em ${htmlEscape(issueDate)}</span></footer><div class="actions"><button onclick="window.print()">Imprimir / Salvar em PDF</button></div></main></body></html>`;
   }
-  const scrumSection=show("sprints")&&scrum?.scrum.enabled&&scrum.scrum.sprints.length?`
+  const sprintById=new Map((scrum?.scrum.sprints||[]).map(sp=>[sp.id,sp]));
+   const selectedSprintIds=new Set(sprintById.keys());
+   const internalStories=(scrum?.internal?.stories||[]).filter(st=>!show("sprints")||!st.sprint_id||selectedSprintIds.has(st.sprint_id));
+   const sprintPointsMax=Math.max(1,...(scrum?.scrum.sprints||[]).map(sp=>sp.points_planned));
+   const pointsChart=isInternal&&show("sprints")&&scrum?.scrum.sprints.length?`
+    <div class="sprint-points-chart" aria-label="Story points planejados e concluídos por sprint">
+      <h2>Complexidade x concluído por sprint</h2>
+      <p class="muted">Azul: planejado · Verde: concluído (US CLOSED). Não equivale ao percentual físico do trabalho.</p>
+      ${scrum.scrum.sprints.slice().sort((a,b)=>a.name.localeCompare(b.name,"pt-BR")).map(sp=>`
+      <div class="sprint-points-row" data-sprint-name="${htmlEscape(sp.name)}" data-planned="${sp.points_planned}" data-done="${sp.points_done}">
+        <span>${htmlEscape(sp.name.split("|")[0].trim())}</span>
+        <div class="sprint-points-bars" aria-hidden="true"><span class="sprint-points-planned" style="width:${100*sp.points_planned/sprintPointsMax}%"></span><span class="sprint-points-done" style="width:${100*sp.points_done/sprintPointsMax}%"></span></div>
+        <strong>${sp.points_done} / ${sp.points_planned} pts</strong>
+      </div>`).join("")}
+      <p class="muted">Estimativas desconhecidas não são tratadas como zero de esforço. Histórias que continuam em outra sprint são pontuadas apenas uma vez.</p>
+    </div>`: "";
+   const internalStoryLines=internalStories.slice(0,100).map(st=>{
+     const sp=st.sprint_id?sprintById.get(st.sprint_id):null;
+     const continuation=st.description?.match(/Planejamento entre sprints:\\s*([^\\n]+)/)?.[1]?.split(". Esta US")[0]||"";
+     const points=st.story_points===null||st.story_points===undefined?"Não estimada":st.story_points+" pts";
+     const dateNote=st.due_date&&!sp?"Prazo da US: "+st.due_date:st.due_date&&sp&&st.due_date>=sp.start_date&&st.due_date<=sp.end_date?"Prazo da US: "+st.due_date:st.due_date&&sp?"Prazo da US "+st.due_date+" fora da janela da sprint; revisar":"Prazo individual não definido";
+     return {title:st.title,note:(sp?"Sprint: "+sp.name+" ("+sp.start_date+" a "+sp.end_date+")":"Sem sprint vinculada")+" · Complexidade: "+points+(continuation?" · Continuidade: "+continuation:"")+" · "+st.workflow_stage.toUpperCase()+" · "+(st.responsible||"Sem responsável")+" · "+dateNote+(st.blocked?" · IMPEDIDA: "+st.blocker_reason:"")};
+   });
+   const scrumSection=show("sprints")&&scrum?.scrum.enabled&&scrum.scrum.sprints.length?`
    <section class="panel" style="margin:16px 0"><div class="scrum-overview"><h3>07 · Scrum</h3><h2>Panorama de Sprints</h2>
    <p class="empty">Indicadores calculados a partir do estado atual das US. Não representam a situação histórica do período escolhido.</p>
    <div class="metrics" style="margin:12px 0"><div class="metric"><small>SPRINTS</small><strong>${scrum.scrum.sprints.length}</strong></div>
    <div class="metric"><small>US SELECIONADAS</small><strong>${scrum.scrum.stories_total}</strong></div>
    <div class="metric"><small>TASKS SELECIONADAS</small><strong>${scrum.scrum.tasks_total}</strong><em>${scrum.scrum.tasks_done} concluídas</em></div></div></div>
-   ${scrum.scrum.sprints.map(sp=>`<div class="item"><div><b>${htmlEscape(sp.name)}</b><p style="font-size:12px;margin:5px 0">Meta: ${htmlEscape(sp.goal||"Não definida")} · ${htmlEscape(sp.start_date)} a ${htmlEscape(sp.end_date)}</p><p style="font-size:12px;margin:5px 0">US: ${sp.closed}/${sp.stories} concluídas · Pontos: ${sp.points_done}/${sp.points_planned} · Atrasadas: ${sp.overdue} · Bloqueadas: ${sp.blocked}</p>${sp.status==="planned"&&(sp.active>0||sp.resolved>0||sp.closed>0)?`<p class="note">Inconsistência a revisar: Sprint planejada com US em execução ou concluídas.</p>`:""}<p style="font-size:12px;margin:5px 0">Entregas realizadas: ${sp.delivery_actual}/${sp.delivery_planned} previstas · No prazo: ${sp.delivery_on_time} · Fora do prazo: ${sp.delivery_late}</p></div><span>${htmlEscape(sp.status)}</span></div>`).join("")}
+   ${pointsChart}
+    ${scrum.scrum.sprints.map(sp=>`<div class="item"><div><b>${htmlEscape(sp.name)}</b><p style="font-size:12px;margin:5px 0">Meta: ${htmlEscape(sp.goal||"Não definida")} · ${htmlEscape(sp.start_date)} a ${htmlEscape(sp.end_date)}</p><p style="font-size:12px;margin:5px 0">US: ${sp.closed}/${sp.stories} concluídas · Pontos: ${sp.points_done}/${sp.points_planned} · Atrasadas: ${sp.overdue} · Bloqueadas: ${sp.blocked}</p>${sp.status==="planned"&&(sp.active>0||sp.resolved>0||sp.closed>0)?`<p class="note">Inconsistência a revisar: Sprint planejada com US em execução ou concluídas.</p>`:""}<p style="font-size:12px;margin:5px 0">Entregas realizadas: ${sp.delivery_actual}/${sp.delivery_planned} previstas · No prazo: ${sp.delivery_on_time} · Fora do prazo: ${sp.delivery_late}</p></div><span>${htmlEscape(sp.status)}</span></div>`).join("")}
    </section>`: "";
   const internalSection=isInternal&&scrum?.internal&&(show("stories")||show("tasks"))?`
    <section class="panel" style="margin:16px 0"><h3>08 · Operação interna</h3><h2>US, Tasks e impedimentos</h2>
-   ${list(scrum.internal.stories.slice(0,35).map(st=>({title:st.title,note:st.workflow_stage.toUpperCase()+" · "+(st.responsible||"Sem responsável")+" · Prazo: "+(st.due_date||"Não definido")+(st.blocked?" · IMPEDIDA: "+st.blocker_reason:"")})),"Sem US cadastradas.")}
+   ${list(internalStoryLines,"Nenhuma US selecionada nas sprints do relatório.")}
    <h2 style="margin-top:18px">Tasks de desenvolvimento</h2>
    ${list(scrum.internal.tasks.slice(0,35).map(t=>({title:t.title,note:t.state.toUpperCase()+" · "+(t.responsible||"Sem responsável")})),"Nenhuma Task de desenvolvimento cadastrada nesta extração. Isso não confirma ausência de trabalho em andamento.")}
    </section>`: "";
