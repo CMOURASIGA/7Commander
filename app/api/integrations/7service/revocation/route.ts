@@ -1,6 +1,7 @@
 import { createHmac, timingSafeEqual } from 'node:crypto';
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { query7ServiceUserAccess } from '@/lib/7service-user-access';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -30,7 +31,7 @@ export async function POST(request: NextRequest) {
   try { payload = JSON.parse(raw); } catch { return json({ error: 'Invalid payload' }, 400); }
   if (!payload || typeof payload !== 'object') return json({ error: 'Invalid payload' }, 400);
   const data = payload as Record<string, unknown>;
-  if (data.operation !== 'SUSPEND' || data.productCode !== 'COMMANDER7' ||
+  if (!['SUSPEND','RESTORE'].includes(String(data.operation)) || data.productCode !== 'COMMANDER7' ||
       typeof data.eventId !== 'string' || !uuid.test(data.eventId) ||
       typeof data.identityId !== 'string' || !uuid.test(data.identityId) ||
       typeof data.clientId !== 'string' || !uuid.test(data.clientId))
@@ -53,28 +54,54 @@ export async function POST(request: NextRequest) {
 
   const userId = identity.data.commander_user_id;
   const organizationId = company.data.commander_company_id;
-  const current = await db.from('organization_members').select('id,status')
+  const current = await db.from('organization_members').select('id,status,role')
     .eq('user_id', userId).eq('organization_id', organizationId).maybeSingle();
   if (current.error) return json({ error: 'Membership unavailable' }, 503);
   if (!current.data) return json({ error: 'Membership not found' }, 409);
-  if (current.data.status === 'active') {
-    const changed = await db.from('organization_members')
-      .update({ status: 'suspended' })
-      .eq('id', current.data.id).eq('status', 'active').select('id');
-    if (changed.error) return json({ error: 'Suspension not confirmed' }, 503);
+  if (data.operation === 'RESTORE') {
+    // HMAC proves the sender, not the user's entitlement. Before lifting a
+    // suspension, independently verify central ACTIVE product + membership +
+    // license and check that its exact role matches the persisted local role.
+    const user = await db.auth.admin.getUserById(userId);
+    if (user.error || !user.data.user?.email || !user.data.user.email_confirmed_at)
+      return json({ error: 'Verified local identity required' }, 403);
+    let entitlement: { allowed:boolean; roleCodes:string[] };
+    try {
+      entitlement = await query7ServiceUserAccess(organizationId,user.data.user.email);
+    } catch { return json({ error: 'Central confirmation unavailable' }, 503); }
+    const expected = { VIEWER:'member', MEMBER:'manager', ADMIN:'admin', OWNER:'owner' } as const;
+    const code = entitlement.roleCodes.length === 1 ? entitlement.roleCodes[0] as keyof typeof expected : null;
+    if (!entitlement.allowed || !code || expected[code] !== current.data.role)
+      return json({ error: 'Central grant and local role must match' }, 403);
+    if (current.data.status === 'suspended') {
+      const updated = await db.from('organization_members').update({status:'active'})
+        .eq('id',current.data.id).eq('status','suspended').select('id');
+      if (updated.error || updated.data?.length !== 1)
+        return json({ error:'Restoration not confirmed' },503);
+    } else if (current.data.status !== 'active') {
+      return json({ error: 'Membership state not restorable' }, 409);
+    }
+  } else {
+    if (current.data.status === 'active') {
+      const changed = await db.from('organization_members')
+        .update({ status: 'suspended' })
+        .eq('id', current.data.id).eq('status', 'active').select('id');
+      if (changed.error) return json({ error: 'Suspension not confirmed' }, 503);
+    }
   }
+  const expectedStatus=data.operation === 'RESTORE' ? 'active' : 'suspended';
   const confirmed = await db.from('organization_members').select('status')
     .eq('user_id', userId).eq('organization_id', organizationId).maybeSingle();
-  if (confirmed.error || confirmed.data?.status !== 'suspended')
-    return json({ error: 'Suspension not confirmed' }, 503);
+  if (confirmed.error || confirmed.data?.status !== expectedStatus)
+    return json({ error: 'Membership status not confirmed' }, 503);
   const audit = await db.from('central_access_decision_audit').insert({
     commander_user_id: userId,
     commander_company_id: organizationId,
     route: '/api/integrations/7service/revocation',
     method: 'POST',
-    allowed: false,
-    reason_code: 'CENTRAL_REVOCATION_SYNC',
+    allowed: data.operation === 'RESTORE',
+    reason_code: data.operation === 'RESTORE' ? 'CENTRAL_REGRANT_SYNC' : 'CENTRAL_REVOCATION_SYNC',
   });
-  if (audit.error) return json({ error: 'Suspended, audit confirmation pending' }, 503);
+  if (audit.error) return json({ error: 'Updated, audit confirmation pending' }, 503);
   return json({ confirmed: true }, 200);
 }
