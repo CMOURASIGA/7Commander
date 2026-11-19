@@ -61,6 +61,10 @@ export function Sidebar({ isMobileOpen, onCloseMobile, expanded, onToggleExpande
             ? <img src={clientBrand.logoUrl} alt={clientBrand.clientName} className="commander-sidebar-logo" />
             : <span className="commander-sidebar-logo-fallback">{(clientBrand?.clientName || BRAND_NAME).slice(0,2).toUpperCase()}</span>}
         </div>
+        <div className="commander-sidebar-product-mark" title="Commander">
+          {/* eslint-disable-next-line @next/next/no-img-element -- ícone oficial local do produto */}
+          <img src="/product-icons/commander-approved.svg" width="40" height="40" alt="Ícone Commander" className="rounded-lg" />
+        </div>
         <div className="commander-sidebar-brand-copy">
           <p className="sidebar-product-name">{BRAND_NAME}</p>
           <p className="sidebar-product-subtitle">{BRAND_SUBTITLE}</p>
