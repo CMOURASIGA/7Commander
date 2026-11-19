@@ -1,7 +1,7 @@
 import { createHmac, timingSafeEqual } from 'node:crypto';
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
-import { query7ServiceUserAccess } from '@/lib/7service-user-access';
+
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -67,7 +67,22 @@ export async function POST(request: NextRequest) {
       return json({ error: 'Verified local identity required' }, 403);
     let entitlement: { allowed:boolean; roleCodes:string[] };
     try {
-      entitlement = await query7ServiceUserAccess(organizationId,user.data.user.email);
+      const origin = new URL(process.env.SERVICE_7SERVICE_ORIGIN ?? '');
+      const token=process.env.SERVICE_7SERVICE_TOKEN ?? '';
+      if(origin.protocol!=='https:' || origin.pathname!=='/' || origin.username ||
+         origin.password || origin.search || origin.hash || token.length<32)
+        return json({error:'Central configuration unavailable'},503);
+      const result=await fetch(new URL('/api/integrations/7commander/regrant-decision',origin),{
+        method:'POST',cache:'no-store',redirect:'error',
+        headers:{'Authorization':'Bearer '+token,'Content-Type':'application/json'},
+        body:JSON.stringify({identityId:data.identityId,clientId:data.clientId}),
+        signal:AbortSignal.timeout(5000),
+      });
+      if(!result.ok || !result.headers.get('content-type')?.includes('application/json'))
+        return json({error:'Central confirmation unavailable'},503);
+      entitlement=await result.json();
+      if(typeof entitlement?.allowed!=='boolean'||!Array.isArray(entitlement.roleCodes))
+        return json({error:'Central decision invalid'},503);
     } catch { return json({ error: 'Central confirmation unavailable' }, 503); }
     const expected = { VIEWER:'member', MEMBER:'manager', ADMIN:'admin', OWNER:'owner' } as const;
     const code = entitlement.roleCodes.length === 1 ? entitlement.roleCodes[0] as keyof typeof expected : null;
