@@ -18,6 +18,10 @@ export async function provisionCentralCustomerOnLogin(input: {
   const fail = (reason: string) => { console.warn('[INT01 JIT CUSTOMER] denied:', reason); return null; };
   if (process.env.COMMANDER_CENTRAL_JIT_VIEWER_ENABLED !== 'true' ||
     !uuid.test(input.identityId) || !uuid.test(input.companyId) || !input.emailVerified || !['VIEWER','MEMBER','ADMIN'].includes(input.roleCode)) return fail('identity-or-flag');
+  // Separate opt-in for elevated customer roles. Viewer rollout remains unchanged.
+  if (input.roleCode !== 'VIEWER' &&
+      process.env.COMMANDER_CENTRAL_JIT_CUSTOMER_ROLES_ENABLED !== 'true')
+    return fail('customer-roles-flag');
   const pilotId = process.env.SERVICE_7SERVICE_PILOT_ORG_ID ?? '';
   const actorId = process.env.COMMANDER_CENTRAL_PROVISION_ACTOR_ID ?? '';
   const linkedMode = process.env.COMMANDER_CENTRAL_BROKER_MULTITENANT_ENABLED === 'true'
