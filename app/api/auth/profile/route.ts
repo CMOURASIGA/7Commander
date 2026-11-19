@@ -30,7 +30,7 @@ export async function POST(request: NextRequest) {
     // A central/JIT user can have the same e-mail with a distinct local UID.
     // Profile sync is optional metadata, never a permission grant.
     const existing = await supabase.from("profiles")
-      .select("user_id").eq("email",email).maybeSingle();
+      .select("user_id,nome").eq("email",email).maybeSingle();
     if (existing.error) {
       console.error("[/api/auth/profile] lookup failed", existing.error.code);
       return NextResponse.json({data:{synced:false,reason:"profile_lookup_failed"}});
@@ -45,7 +45,7 @@ export async function POST(request: NextRequest) {
         {
           user_id: auth.context.userId,
           email,
-          nome: nome || null,
+          nome: nome || existing.data?.nome || null,
           avatar_url: avatarUrl || null,
           provider: provider || "google",
         },
@@ -79,4 +79,26 @@ export async function POST(request: NextRequest) {
       },
     });
   }
+}
+
+
+// Read-only profile projection for the currently authenticated user.
+// Never derive identity from a caller-provided email or user id.
+export async function GET(request: NextRequest) {
+  const auth = await requireApiAuth(request);
+  if (!auth.ok) return auth.response;
+
+  const supabase = getSupabaseServerClient();
+  if (!supabase) return NextResponse.json({ error: "Perfil indisponível." }, { status: 503 });
+
+  const result = await supabase.from("profiles")
+    .select("nome")
+    .eq("user_id", auth.context.userId)
+    .maybeSingle();
+  if (result.error) return NextResponse.json({ error: "Perfil indisponível." }, { status: 503 });
+
+  return NextResponse.json(
+    { data: { displayName: result.data?.nome?.trim() || null } },
+    { headers: { "Cache-Control": "private, no-store, max-age=0" } },
+  );
 }
