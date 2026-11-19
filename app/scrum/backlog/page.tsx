@@ -214,7 +214,7 @@ export default function BacklogPage(){
        <label className="text-xs">Entrega<input type="date" disabled={Boolean(form.sprintId)} className="workspace-input mt-1 w-full" value={form.dueDate} onChange={e=>setForm(f=>({...f,dueDate:e.target.value,durationDays:f.startDate&&e.target.value?String(daysBetween(f.startDate,e.target.value)):f.durationDays}))}/></label>
        <label className="text-xs">Story points<select className="workspace-select mt-1 w-full" value={form.storyPoints} onChange={e=>setForm(f=>({...f,storyPoints:e.target.value}))}><option value="">Não estimado</option>{[1,2,3,4].map(n=><option key={n} value={n}>{n} {n===1?"(baixa)":n===2?"(moderada)":n===3?"(alta)":"(muito alta)"}</option>)}</select></label>
        <label className="text-xs">Data real de conclusão<input type="date" className="workspace-input mt-1 w-full" value={form.actualEndDate} onChange={e=>setForm(f=>({...f,actualEndDate:e.target.value}))}/></label>
-       {form.sprintId&&<p className="col-span-2 text-xs text-(--text-secondary)">Datas automáticas: início, entrega e duração seguem o período da sprint. Para editar manualmente, selecione "Sem Sprint".</p>}
+       {form.sprintId&&<p className="col-span-2 text-xs text-(--text-secondary)">Datas automáticas: início, entrega e duração seguem o período da sprint. Para editar manualmente, selecione &quot;Sem Sprint&quot;.</p>}
        <label className="text-xs col-span-2">Sprint (opcional)<select className="workspace-select mt-1 w-full" value={form.sprintId} disabled={isLocked} onChange={e=>{
         const sprint=data.sprints.find(item=>item.id===e.target.value);
         setForm(f=>({...f,sprintId:e.target.value,
