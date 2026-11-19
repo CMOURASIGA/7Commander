@@ -120,7 +120,7 @@ class DocumentComposer{
   const headers=Array.from(rawRows[0].querySelectorAll("th,td")).map(cell=>cell.textContent?.trim()||"");
   if(!headers.length)return;
   const columns=headers.length;
-  const widths=table.classList.contains("team-stories-table")?[.29,.17,.10,.10,.13,.21]:columns===6?[.12,.25,.12,.15,.11,.25]:columns===4?[.19,.27,.28,.26]:Array(columns).fill(1/columns);
+  const widths=table.classList.contains("sprint-summary-table")?[.28,.24,.15,.15,.09,.09]:table.classList.contains("team-stories-table")?[.29,.17,.10,.10,.13,.21]:columns===6?[.12,.25,.12,.15,.11,.25]:columns===4?[.19,.27,.28,.26]:Array(columns).fill(1/columns);
   const isMatrix=table.classList.contains("risk-matrix");
   const drawRow=(values:string[],header=false,rowIndex=0)=>{
    const size=header?7.7:8.2,pad=6,lineHeight=size*1.4;
