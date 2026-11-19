@@ -74,6 +74,15 @@ export async function POST(request: NextRequest) {
     if (!entitlement.allowed || !code || expected[code] !== current.data.role)
       return json({ error: 'Central grant and local role must match' }, 403);
     if (current.data.status === 'suspended') {
+      // A customer regrant must not override an unrelated manual suspension.
+      // Only reverse a block previously confirmed by the signed central sync.
+      const suspendedByCentral = await db.from('central_access_decision_audit')
+        .select('id').eq('commander_user_id',userId)
+        .eq('commander_company_id',organizationId)
+        .eq('reason_code','CENTRAL_REVOCATION_SYNC').order('created_at',{ascending:false}).limit(1);
+      if (suspendedByCentral.error) return json({error:'Suspension provenance unavailable'},503);
+      if (!suspendedByCentral.data?.length)
+        return json({error:'No recorded central suspension to restore'},403);
       const updated = await db.from('organization_members').update({status:'active'})
         .eq('id',current.data.id).eq('status','suspended').select('id');
       if (updated.error || updated.data?.length !== 1)
