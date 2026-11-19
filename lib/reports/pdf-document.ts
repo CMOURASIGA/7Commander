@@ -150,6 +150,30 @@ class DocumentComposer{
   }
   this.y+=10;
  }
+ sprintChart(root:Element){
+  const rows=Array.from(root.querySelectorAll(".sprint-points-row"));
+  if(!rows.length)return;
+  this.reserve(88);
+  this.heading("Complexidade x concluído por sprint",2);
+  this.paragraph("Azul: planejado. Verde: concluído (US CLOSED). Pontos não representam percentual físico.",{size:8.5,space:10});
+  const parsed=rows.map(row=>({
+   name:(row.querySelector("span")?.textContent||"Sprint").trim(),
+   planned:Math.max(0,Number(row.getAttribute("data-planned"))||0),
+   done:Math.max(0,Number(row.getAttribute("data-done"))||0)
+  }));
+  const max=Math.max(1,...parsed.map(row=>row.planned));
+  for(const row of parsed){
+   this.reserve(35);
+   this.text(LEFT+3,this.y+5,row.name,9,true,"173a59");
+   const barX=LEFT+116,barW=WIDTH-225;
+   this.rect(barX,this.y+3,barW,17,"edf2f7");
+   if(row.planned>0)this.rect(barX,this.y+3,barW*row.planned/max,17,"adcbe5");
+   if(row.done>0)this.rect(barX,this.y+8,barW*Math.min(row.done,row.planned)/max,7,"178c72");
+   this.text(LEFT+WIDTH-101,this.y+5,row.done+" / "+row.planned+" pts",9,true,"173a59");
+   this.y+=29;
+  }
+  this.paragraph("Estimativas ausentes não são pontuadas. Uma US que atravessa sprints é contada apenas na sprint principal.",{size:8,space:8});
+ }
  imageFirstPage(){if(!this.logo)return;
   const h=54,w=Math.min(86,h*this.logo.width/this.logo.height);
   this.emit("q "+w.toFixed(2)+" 0 0 "+h.toFixed(2)+" "+LEFT+" "+(PAGE_H-this.y-h).toFixed(2)+" cm /Logo Do Q\n");
@@ -159,6 +183,7 @@ class DocumentComposer{
   if(element.matches(".actions,.pdf-hide,.foot,script,style,noscript"))return;
   const tag=element.tagName.toLowerCase();
   if(tag==="img")return;
+  if(element.classList.contains("sprint-points-chart")){this.sprintChart(element);return;}
   if(tag==="table"){this.table(element as HTMLTableElement);return;}
   if(element.classList.contains("metrics")){this.metrics(element);return;}
   if(element.classList.contains("client-risk-item")){
