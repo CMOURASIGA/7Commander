@@ -23,7 +23,7 @@ BEGIN
     RAISE EXCEPTION 'Service role required' USING ERRCODE = '42501';
   END IF;
   IF p_identity IS NULL OR p_user IS NULL OR p_company IS NULL OR p_actor IS NULL
-     OR p_email IS NULL OR p_role NOT IN ('member','manager','admin') OR length(p_email) > 254
+     OR p_email IS NULL OR p_role IS NULL OR p_role NOT IN ('member','manager','admin') OR length(p_email) > 254
      OR p_email !~* '^[^[:space:]@]+@[^[:space:]@]+[.][^[:space:]@]+$'
   THEN RAISE EXCEPTION 'Invalid provisioning input' USING ERRCODE = '22023'; END IF;
   IF NOT EXISTS (
@@ -103,9 +103,9 @@ BEGIN
 END;
 $$;
 
-REVOKE ALL ON FUNCTION public.provision_central_viewer_atomic(uuid,uuid,uuid,uuid,text,text)
+REVOKE ALL ON FUNCTION public.provision_central_customer_atomic(uuid,uuid,uuid,uuid,text,text)
   FROM PUBLIC, anon, authenticated;
-GRANT EXECUTE ON FUNCTION public.provision_central_viewer_atomic(uuid,uuid,uuid,uuid,text,text)
+GRANT EXECUTE ON FUNCTION public.provision_central_customer_atomic(uuid,uuid,uuid,uuid,text,text)
   TO service_role;
 
 -- Never grant OWNER through automatic provisioning.
