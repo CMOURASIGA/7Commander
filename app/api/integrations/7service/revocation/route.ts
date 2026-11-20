@@ -68,26 +68,42 @@ export async function POST(request: NextRequest) {
     let entitlement: { allowed:boolean; roleCodes:string[] };
     try {
       const origin = new URL(process.env.SERVICE_7SERVICE_ORIGIN ?? '');
-      const token=process.env.SERVICE_7SERVICE_TOKEN ?? '';
+      // Reuse the HMAC trust relationship already established for suspension.
+      // This is a separate read-only query; a signed request is never itself
+      // evidence that an ACTIVE grant exists in the central database.
       if(origin.protocol!=='https:' || origin.pathname!=='/' || origin.username ||
-         origin.password || origin.search || origin.hash || token.length<32)
+         origin.password || origin.port || origin.search || origin.hash)
         return json({error:'Central configuration unavailable'},503);
+      const verificationBody=JSON.stringify({
+        identityId:data.identityId,clientId:data.clientId,
+        productCode:'COMMANDER7',operation:'CHECK_REGRANT',
+      });
+      const verificationStamp=String(Date.now());
+      const verificationSignature=createHmac('sha256',secret)
+        .update(verificationStamp+'.'+verificationBody).digest('hex');
       const result=await fetch(new URL('/api/integrations/7commander/regrant-decision',origin),{
         method:'POST',cache:'no-store',redirect:'error',
-        headers:{'Authorization':'Bearer '+token,'Content-Type':'application/json'},
-        body:JSON.stringify({identityId:data.identityId,clientId:data.clientId}),
-        signal:AbortSignal.timeout(5000),
+        headers:{
+          'Content-Type':'application/json',
+          'x-7service-timestamp':verificationStamp,
+          'x-7service-signature':verificationSignature,
+        },
+        body:verificationBody,signal:AbortSignal.timeout(5000),
       });
-      if(!result.ok || !result.headers.get('content-type')?.includes('application/json'))
+      if(!result.ok || !result.headers.get('content-type')?.includes('application/json')) {
+        console.warn('[INT01 RESTORE] central verification rejected',{status:result.status});
         return json({error:'Central confirmation unavailable'},503);
+      }
       entitlement=await result.json();
       if(typeof entitlement?.allowed!=='boolean'||!Array.isArray(entitlement.roleCodes))
         return json({error:'Central decision invalid'},503);
     } catch { return json({ error: 'Central confirmation unavailable' }, 503); }
     const expected = { VIEWER:'member', MEMBER:'manager', ADMIN:'admin', OWNER:'owner' } as const;
     const code = entitlement.roleCodes.length === 1 ? entitlement.roleCodes[0] as keyof typeof expected : null;
-    if (!entitlement.allowed || !code || expected[code] !== current.data.role)
+    if (!entitlement.allowed || !code || expected[code] !== current.data.role) {
+      console.warn('[INT01 RESTORE] central grant or local role mismatch');
       return json({ error: 'Central grant and local role must match' }, 403);
+    }
     if (current.data.status === 'suspended') {
       // A customer regrant must not override an unrelated manual suspension.
       // Only reverse a block previously confirmed by the signed central sync.
