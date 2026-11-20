@@ -7,7 +7,7 @@ import { evaluateCommanderCentralAccess } from "@/lib/commander-central-policy.m
 import { localRolePermissions } from "@/lib/central-route-policy.mjs";
 import { resolveTenantMembership } from "@/lib/tenant-context";
 import { setCentralCookies } from "@/lib/central-session";
-import { provisionCentralViewerOnLogin } from "@/lib/central-viewer-provision";
+import { provisionCentralCustomerOnLogin } from "@/lib/central-customer-provision";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -125,12 +125,13 @@ export async function POST(request: NextRequest) {
             clientId:company.central_client_id,productCode:"COMMANDER7",
           });
           if (!entitlement.allowed || entitlement.identityId !== identityId ||
-              entitlement.roleCodes.length !== 1 || entitlement.roleCodes[0] !== "VIEWER") continue;
-          localUserId = await provisionCentralViewerOnLogin({
+              entitlement.roleCodes.length !== 1 || !["VIEWER","MEMBER","ADMIN"].includes(entitlement.roleCodes[0])) continue;
+          localUserId = await provisionCentralCustomerOnLogin({
             db,origin:centralOrigin,accessToken:session.access_token,
             identityId,email:session.user.email??"",
             emailVerified:Boolean(session.user.email_confirmed_at),
             companyId:company.commander_company_id,
+            roleCode:entitlement.roleCodes[0] as 'VIEWER'|'MEMBER'|'ADMIN',
           }) ?? "";
           if (localUserId) break;
         }
@@ -178,11 +179,12 @@ export async function POST(request: NextRequest) {
         if (!links || links.error || (links.data?.length??0)>1) continue;
         identityId = currentDecision.identityId;
         localUserId = links.data?.[0]?.commander_user_id ?? "";
-        if (!localUserId) localUserId = await provisionCentralViewerOnLogin({
+        if (!localUserId) localUserId = await provisionCentralCustomerOnLogin({
           db,origin:centralOrigin,accessToken:session.access_token,
           identityId,email:session.user.email??"",
           emailVerified:Boolean(session.user.email_confirmed_at),
           companyId:orgId,
+          roleCode: currentDecision.roleCodes[0] as 'VIEWER'|'MEMBER'|'ADMIN',
         }) ?? "";
       }
       if (!uuid.test(localUserId)) continue;
@@ -192,7 +194,7 @@ export async function POST(request: NextRequest) {
         .eq("user_id",localUserId).eq("organization_id",orgId).maybeSingle();
       if (suspended.error || !suspended.data) continue;
       if (suspended.data.status === "suspended") {
-        if (!currentDecision.roleCodes.includes("VIEWER")) continue;
+        if (!currentDecision.roleCodes.some(r => ["VIEWER","MEMBER","ADMIN"].includes(r))) continue;
         const reactivated=await db.rpc("int01_sync_central_membership",{
           p_user:localUserId,p_company:orgId,p_authorized:true,
         });
