@@ -13,7 +13,7 @@ test('account readback is HMAC signed, read-only, tenant scoped and fail closed'
   assert.match(code,/organization_members/);
   assert.match(code,/getUserById/);
   assert.match(code,/member\.role !== roleMap\[check\.roleCode\]/);
-  assert.doesNotMatch(code,/createUser|\.update\(|\.insert\(|\.delete\(/);
+  assert.doesNotMatch(code,/createUser|db\.from\([^)]*\)\.update\(|db\.from\([^)]*\)\.insert\(|db\.from\([^)]*\)\.delete\(/);
 });
 test('the shared timestamp/body signing contract is tamper evident',()=>{
  const secret='test-example-secret-very-long-not-a-production-key';
