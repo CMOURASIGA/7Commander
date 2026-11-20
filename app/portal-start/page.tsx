@@ -12,16 +12,19 @@ import { setClientAuthToken } from "@/lib/client-auth";
 export default function PortalStartPage() {
   const [message, setMessage] = useState("Conectando ao Meu Portal do Access Management Service...");
   useEffect(() => {
-    const origin = process.env.NEXT_PUBLIC_7SERVICE_PORTAL_ORIGIN;
+    // Only explicit HTTPS portal origins can send a customer session.
+    const origins = (process.env.NEXT_PUBLIC_7SERVICE_PORTAL_ORIGIN ?? '')
+      .split(',').map(value => value.trim())
+      .filter(value => /^https:\/\/[^/]+$/.test(value));
     const opener = window.opener;
-    if (!origin || !opener || !/^https:\/\/[^/]+$/.test(origin)) {
+    if (!origins.length || !opener) {
       setMessage("Abra o Commander diretamente pelo Meu Portal do Access Management Service.");
       return;
     }
     let active = true;
     let started = false;
     async function receive(event: MessageEvent) {
-      if (!active || started || event.origin !== origin ||
+      if (!active || started || !origins.includes(event.origin) ||
           event.source !== opener || event.data?.type !== "SEVENSERVICE_CENTRAL_SESSION") return;
       started = true;
       const token = event.data.accessToken;
@@ -64,7 +67,7 @@ export default function PortalStartPage() {
       }
     }
     window.addEventListener("message", receive);
-    opener.postMessage({ type: "COMMANDER_PORTAL_READY" }, origin);
+    for (const origin of origins) opener.postMessage({ type: "COMMANDER_PORTAL_READY" }, origin);
     return () => {
       active = false;
       window.removeEventListener("message", receive);

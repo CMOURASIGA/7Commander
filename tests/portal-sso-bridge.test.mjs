@@ -39,9 +39,16 @@ test("protected preview starts SSO on GET before same-origin central exchange",(
  const middleware=read("middleware.ts");
  assert.match(app,/COMMANDER_PORTAL_READY/);
  assert.match(app,/SEVENSERVICE_CENTRAL_SESSION/);
- assert.match(app,/event\.origin !== origin/);
+ assert.match(app,/origins\.includes\(event\.origin\)/);
  assert.match(app,/event\.source !== opener/);
  assert.match(app,/\/api\/auth\/central-exchange/);
  assert.match(app,/verifyOtp/);
  assert.match(middleware,/portal-start/);
+});
+
+test("portal-start handles canonical and legacy origins using an allowlist",()=>{
+ const app=read("app/portal-start/page.tsx");
+ assert.match(app,/NEXT_PUBLIC_7SERVICE_PORTAL_ORIGIN/);
+ assert.match(app,/for \(const origin of origins\) opener\.postMessage/);
+ assert.doesNotMatch(app,/postMessage\([^)]*, '\*'\)/);
 });
