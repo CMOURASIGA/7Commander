@@ -22,3 +22,10 @@ test('the shared timestamp/body signing contract is tamper evident',()=>{
  const sign=(v)=>createHmac('sha256',secret).update(stamp+'.'+v).digest('hex');
  assert.notEqual(sign(body),sign(body.replace('ADMIN','OWNER')));
 });
+
+test('middleware allows only signed POST readback without browser cookie',()=>{
+ const middleware=readFileSync(new URL('../middleware.ts',import.meta.url),'utf8');
+ assert.match(middleware,/request\.nextUrl\.pathname==="\/api\/integrations\/7service\/account-status"/);
+ assert.match(middleware,/request\.method==="POST"/);
+ assert.match(middleware,/signedRevocationRoute\) return NextResponse\.next\(\)/);
+});
