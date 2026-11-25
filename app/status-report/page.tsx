@@ -22,6 +22,21 @@ type Risk = {id:string;title:string;status:string;impact?:string|null;probabilit
 type Decision = {id:string;title:string;status:string;impact?:string|null};
 
 const htmlEscape = (value:unknown) => String(value ?? "").replace(/[&<>"']/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]||c));
+type ReportMeetingLine=NonNullable<NonNullable<ReportData["internal"]>["meetingLines"]>[number];
+function groupReportMeetings(lines:ReportMeetingLine[]){
+ const groups=new Map<string,{id:string;title:string;heldAt:string;localOnly:boolean;items:ReportMeetingLine[]}>();
+ for(const line of lines){
+  const group=groups.get(line.meetingId)||{id:line.meetingId,title:line.meetingTitle,heldAt:line.heldAt,localOnly:line.localOnly,items:[]};
+  group.items.push(line);groups.set(line.meetingId,group);
+ }
+ return [...groups.values()].sort((a,b)=>b.heldAt.localeCompare(a.heldAt)||a.title.localeCompare(b.title,"pt-BR"));
+}
+const meetingDate=(value:string)=>/^\d{4}-\d{2}-\d{2}/.test(value)?value.slice(0,10).split("-").reverse().join("/"):"Data não informada";
+function meetingReportSection(lines:ReportMeetingLine[]){
+ const meetings=groupReportMeetings(lines);
+ if(!meetings.length)return "";
+ return `<section class="panel"><h2>Reuniões, alinhamentos e compromissos</h2><p class="muted">${meetings.length} reuniões selecionadas · ${lines.length} pontos incluídos. Fonte: registros das atas. A inclusão de um compromisso não comprova execução.</p>${meetings.map(m=>`<article style="border-top:1px solid #dce5ef;padding:14px 0"><h2 style="break-after:avoid">${htmlEscape(m.title)}</h2><p class="muted">${htmlEscape(meetingDate(m.heldAt))} · ${m.items.length} pontos selecionados${m.localOnly?" · DADOS DE HOMOLOGAÇÃO LOCAL, NÃO OFICIAIS":""}</p>${(["commitment","pending"] as const).map(category=>{const items=m.items.filter(x=>x.category===category);return items.length?`<h4 style="break-after:avoid">${category==="commitment"?"Compromissos registrados":"Pendências registradas"}</h4><ul>${items.map(item=>`<li style="margin:7px 0;overflow-wrap:anywhere"><b>${htmlEscape(item.title)}</b>${item.details?`<div>${htmlEscape(item.details)}</div>`:""}<small style="color:#657d91">Referência: ${htmlEscape(item.sourceReference)}</small></li>`).join("")}</ul>`:"";}).join("")}</article>`).join("")}</section>`;
+}
 const css = `
 .report-ai-text{font-size:13px;line-height:1.7;overflow-wrap:anywhere}
 .report-ai-text p{margin:8px 0}
@@ -188,7 +203,7 @@ function reportDocument(project:Project, cards:Card[], risks:Risk[], decisions:D
   ${show("cards")?`<section class="panel"><h3>03 · Atividades selecionadas</h3><h2>Cards selecionados por status</h2>${list(cards.map(x=>({title:x.title,note:({"todo":"A fazer","to_do":"A fazer","aberta":"A fazer","doing":"Em andamento","em_andamento":"Em andamento","done":"Concluída","concluida":"Concluída"} as Record<string,string>)[x.columnKey]||({"aberta":"A fazer","em_andamento":"Em andamento","concluida":"Concluída"} as Record<string,string>)[x.status]||x.status||"Sem status"})),"Nenhum card selecionado.")}</section>`:""}
   ${show("decisions")?`<section class="panel"><h3>04 · Governança</h3><h2>Decisões necessárias</h2>${list(undecided.map(x=>({title:x.title,note:x.status})),"Nenhuma decisão pendente registrada.")}</section>`:""}
   ${Boolean(analysis?.nextSteps?.trim())?`<section class="panel"><h3>05 · Perspectiva</h3><h2>Próximos passos</h2>${analysis?.nextSteps?.trim()?`<div class="report-ai-text">${safeMarkdownHtml(analysis.nextSteps)}</div>`:`<p class="muted">Nenhum próximo passo selecionado. Informe as ações no campo de revisão da Equipe.</p>`}<p>Sem linha de base histórica suficiente para uma previsão de custo, prazo ou tendência.</p></section>`:""}</div>
-  ${show("meetings")&&isInternal&&scrum?.internal?.meetingLines?.length?`<section class="panel" style="margin:16px 0"><h3>Reuniões registradas</h3><h2>Compromissos e pendências</h2><p class="muted">Origem: atas do projeto. Compromissos não comprovam execução. ${scrum.internal.meetingSource==="local"?"DADOS DE HOMOLOGAÇÃO LOCAL, NÃO OFICIAIS.":""}</p>${scrum.internal.meetingLines.slice(0,75).map(item=>`<div class="item"><div><b>${htmlEscape(item.title)}</b><p style="font-size:12px">${htmlEscape(item.details||"Sem detalhamento")} · ${htmlEscape(item.meetingTitle)} · ${htmlEscape(new Date(item.heldAt).toLocaleDateString("pt-BR"))}</p></div><span>${item.category==="commitment"?"Compromisso":"Pendência"}</span></div>`).join("")}</section>`:""}
+  ${show("meetings")&&isInternal?meetingReportSection(scrum?.internal?.meetingLines||[]):""}
   ${show("risks")&&scrum?.riskAssessments?.length?riskReportHtml(scrum.riskAssessments,"internal",{includeMitigationAnnex}):""}${scrumSection}${internalSection}${qualitySection}
   <footer class="foot"><span>CONSULT SERVICES TECNOLOGIA · Commander / Relatório Equipe</span><span>Registro gerado em ${htmlEscape(issueDate)}</span></footer>
   <div class="actions"><button onclick="window.print()">Salvar como PDF / Imprimir</button></div>
@@ -238,8 +253,7 @@ function historicalDocument(data:ReportData,audience:ReportAudience,narrative:Ai
   if(chosen.decisions.length)entries.push('<section class="panel"><h2>Decisões selecionadas</h2>'+
    data.governance.client_decisions.map(d=>item(d.title,d.status)).join("")+'</section>');
   if(chosen.meetings.length&&data.internal?.meetingLines?.length){
-   entries.push('<section class="panel"><h2>Encaminhamentos de reuniões selecionados</h2>'+
-    data.internal.meetingLines.map(m=>item(m.title,m.meetingTitle+" · "+m.category)).join("")+'</section>');
+    entries.push(meetingReportSection(data.internal.meetingLines.filter(m=>chosen.meetings.includes(m.sourceReference))));
   }
   if(narrative?.nextSteps?.trim())entries.push('<section class="panel"><h2>Próximos passos</h2><p>'+
     htmlEscape(narrative.nextSteps)+'</p></section>');
@@ -250,9 +264,7 @@ function historicalDocument(data:ReportData,audience:ReportAudience,narrative:Ai
  }
  const rows=data.scrum.sprints.map(sp=>'<div class="item"><div><b>'+htmlEscape(sp.name)+'</b><p>Período: '+htmlEscape(sp.start_date)+' a '+htmlEscape(sp.end_date)+'</p><p>US concluídas: '+sp.closed+'/'+sp.stories+' · Story points: '+sp.points_done+'/'+sp.points_planned+' · Atrasadas: '+sp.overdue+'</p></div><span>'+htmlEscape(sp.status)+'</span></div>').join("");
  const internal=audience==="internal"&&data.internal?'<section class="panel"><h2>Detalhamento interno</h2>'+data.internal.stories.map(st=>'<div class="item"><div>'+htmlEscape(st.title)+'</div><span>'+htmlEscape(st.workflow_stage)+' · '+htmlEscape(st.responsible||"Não atribuído")+'</span></div>').join("")+'</section>':"";
- const meetingHistory=audience==="internal"&&data.internal?.meetingLines?.length
-  ?'<section class="panel"><h2>Compromissos e pendências das reuniões</h2><p class="muted">Registro preservado no momento da emissão. Não comprova entrega concluída. '+(data.internal.meetingSource==="local"?"DADOS DE HOMOLOGAÇÃO LOCAL.":"")+'</p>'
-  +data.internal.meetingLines.slice(0,75).map(item=>'<div class="item"><div>'+htmlEscape(item.title)+'<p>'+htmlEscape(item.details)+' · '+htmlEscape(item.meetingTitle)+'</p></div><span>'+(item.category==="commitment"?"Compromisso":"Pendência")+'</span></div>').join("")+'</section>':"";
+ const meetingHistory=audience==="internal"?meetingReportSection(data.internal?.meetingLines||[]):"";
 
  return '<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>Emissão arquivada · '+htmlEscape(data.project.name)+'</title><style>'+css+'</style></head><body><main class="wrap"><header class="hero"><h3>COMMANDER · EMISSÃO ARQUIVADA</h3><h1>'+htmlEscape(data.project.name)+'</h1><p>'+htmlEscape(audience==="internal"?"Status Report Gerencial":"Status Report Executivo")+'</p><p>Emitido: '+htmlEscape(issued)+'</p></header><div class="note">Documento histórico. Os dados abaixo são aqueles preservados na emissão e não serão recalculados ao abrir este arquivo.</div><section class="metrics"><div class="metric"><small>ATIVIDADES</small><strong>'+data.kanban.total+'</strong></div><div class="metric"><small>CONCLUÍDAS</small><strong>'+data.kanban.done+'</strong></div><div class="metric"><small>RISCOS ATIVOS</small><strong>'+data.governance.risks_open+'</strong></div><div class="metric"><small>DECISÕES PENDENTES</small><strong>'+data.governance.decisions_pending+'</strong></div></section><section class="panel"><h2>Histórico das Sprints</h2>'+(rows||'<p>Projeto sem Sprints registradas.</p>')+'</section><section class="panel"><h2>Entregas operacionais</h2>'+data.kanban.completed_titles.map(t=>'<div class="item">'+htmlEscape(t)+'</div>').join("")+'</section><section class="panel"><h2>Decisões registradas</h2>'+data.governance.client_decisions.map(d=>'<div class="item">'+htmlEscape(d.title)+' · '+htmlEscape(d.status)+'</div>').join("")+'</section>'+(data.riskAssessments?riskReportHtml(data.riskAssessments,"internal"):'<section class="panel"><h2>Histórico de riscos</h2><p>Avaliações estruturadas não foram preservadas nesta emissão antiga.</p></section>')+(narrative?'<section class="panel"><h2>Leitura Kairos registrada</h2><p>'+htmlEscape(narrative.executiveSummary)+'</p><p>'+htmlEscape(narrative.riskAnalysis)+'</p><p>'+htmlEscape(narrative.nextSteps)+'</p></section>':"")+meetingHistory+internal+'<footer class="foot">Commander · Emissão registrada</footer><div class="actions"><button onclick="window.print()">Imprimir ou salvar PDF</button></div></main></body></html>';
 }
@@ -384,6 +396,10 @@ export default function StatusReportPage() {
   clientExecutiveComplement:clientExecutiveApproved?clientExecutiveComplement.trim():"",
   riskAssessments:[] // External risks are rendered exclusively as safe, selected client facts.
  }:scrumReport;
+ const meetingGroups=groupReportMeetings(sourceCatalog?.internal?.meetingLines||[]);
+ function toggleMeetingPoints(ids:string[],checked:boolean){
+  const set=new Set(ids);setInternalSelection(previous=>{const base=previous??availableInternal;return {...base,meetings:checked?[...new Set([...base.meetings,...ids])]:base.meetings.filter(id=>!set.has(id))};});
+ }
  const internalGroups:Array<{key:InternalReportSelectionKey;label:string;items:Array<{id:string;title:string}>}>=[
   {key:"cards",label:"Cards e entregas do Kanban",items:cards.map(x=>({id:x.id,title:x.title}))},
   {key:"risks",label:"Riscos",items:risks.map(x=>({id:x.id,title:x.title}))},
@@ -585,7 +601,7 @@ export default function StatusReportPage() {
         </div>
        </details>
       })}
-      {internalGroups.map(group=><details key={group.key} className="rounded-lg border border-(--border) p-3">
+      {internalGroups.filter(group=>group.key!=="meetings"||audience!=="internal").map(group=><details key={group.key} className="rounded-lg border border-(--border) p-3">
        <summary className="cursor-pointer text-sm font-medium">{group.label} ({chosenInternal[group.key].length}/{group.items.length})</summary>
        <div className="mt-3 max-h-52 space-y-2 overflow-y-auto">
         {!group.items.length?<p className="text-xs text-(--text-secondary)">Nenhum registro disponível nesta categoria.</p>:group.items.map(item=><label key={item.id} className="flex items-start gap-2 text-xs">
@@ -594,7 +610,14 @@ export default function StatusReportPage() {
         </label>)}
        </div>
       </details>)}
-      {clientCandidatesStatus&&<p role="status" className="text-xs text-(--text-secondary)">{clientCandidatesStatus}</p>}
+      {audience==="internal"&&<details className="rounded-lg border border-(--border) p-3">
+        <summary className="cursor-pointer text-sm font-medium">Reuniões realizadas ({meetingGroups.filter(m=>m.items.some(item=>chosenInternal.meetings.includes(item.sourceReference))).length}/{meetingGroups.length})</summary>
+        <p className="mt-2 text-xs text-(--text-secondary)">{chosenInternal.meetings.length} pontos selecionados. Selecione a reunião inteira ou apenas os compromissos e pendências relevantes.</p>
+        <div className="my-2 flex flex-wrap gap-2"><button type="button" className="workspace-button-secondary px-3 py-2 text-xs" onClick={()=>toggleMeetingPoints(availableInternal.meetings,true)}>Selecionar todas as reuniões</button><button type="button" className="workspace-button-secondary px-3 py-2 text-xs" onClick={()=>toggleMeetingPoints(availableInternal.meetings,false)}>Limpar reuniões</button></div>
+        {!meetingGroups.length&&<p className="text-xs text-(--text-secondary)">Nenhuma reunião com compromissos ou pendências registrados.</p>}
+        <div className="space-y-2">{meetingGroups.map(m=>{const ids=m.items.map(item=>item.sourceReference);const count=ids.filter(id=>chosenInternal.meetings.includes(id)).length;return <div key={m.id} className="rounded-lg border border-(--border) p-3"><label className="flex items-start gap-2 text-sm"><input type="checkbox" checked={count===ids.length} ref={node=>{if(node)node.indeterminate=count>0&&count<ids.length}} onChange={e=>toggleMeetingPoints(ids,e.target.checked)}/><span className="font-medium">{m.title}<span className="block text-xs font-normal text-(--text-secondary)">{meetingDate(m.heldAt)} · {count}/{ids.length} pontos selecionados{m.localOnly?" · Homologação local":""}</span></span></label><details className="ml-5 mt-2"><summary className="cursor-pointer text-xs">Ver pontos da reunião</summary><div className="mt-2 space-y-2">{m.items.map(item=><label key={item.sourceReference} className="flex items-start gap-2 text-xs"><input type="checkbox" checked={chosenInternal.meetings.includes(item.sourceReference)} onChange={e=>toggleMeetingPoints([item.sourceReference],e.target.checked)}/><span><b>{item.category==="commitment"?"Compromisso":"Pendência"}</b> · {item.title}{item.details&&<span className="block text-(--text-secondary)">{item.details}</span>}</span></label>)}</div></details></div>})}</div>
+       </details>}
+       {clientCandidatesStatus&&<p role="status" className="text-xs text-(--text-secondary)">{clientCandidatesStatus}</p>}
       <p className="text-xs text-(--text-secondary)">Os totais indicam selecionados/disponíveis. As escolhas controlam a prévia e a emissão do público selecionado.</p>
      </section>
     {audience==="client"&&<section className="workspace-card space-y-3 p-4" aria-label="Complemento Executivo do Cliente">
