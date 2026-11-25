@@ -88,6 +88,7 @@ class DocumentComposer{
   const {size=9.4,bold=false,color="344a61",indent=0,space=7}=options;
   const lines=this.wrap(value,WIDTH-indent,size,bold);const lineH=size*1.52;
   if(lines.length===1&&lines[0]==="")return;
+  if(this.team&&lines.length*lineH+space< PAGE_H-TOP-BOTTOM-55)this.reserve(lines.length*lineH+space);
   for(const line of lines){this.reserve(lineH+3);this.text(LEFT+indent,this.y,line,size,bold,color);this.y+=lineH;}
   this.y+=space;
  }
@@ -121,7 +122,7 @@ class DocumentComposer{
   const headers=Array.from(rawRows[0].querySelectorAll("th,td")).map(cellText);
   if(!headers.length)return;
   const columns=headers.length;
-  const widths=table.classList.contains("sprint-summary-table")?(this.team?[.27,.22,.15,.15,.10,.11]:[.28,.24,.15,.15,.09,.09]):table.classList.contains("team-stories-table")?[.31,.17,.08,.11,.13,.20]:columns===6?[.12,.25,.12,.15,.11,.25]:columns===4?[.19,.27,.28,.26]:Array(columns).fill(1/columns);
+  const widths=this.team&&(table.classList.contains("meeting-action-table")||table.classList.contains("team-action-table"))?[.55,.26,.19]:table.classList.contains("sprint-summary-table")?(this.team?[.27,.22,.15,.15,.10,.11]:[.28,.24,.15,.15,.09,.09]):table.classList.contains("team-stories-table")?[.29,.17,.10,.11,.14,.19]:columns===6?[.12,.25,.12,.15,.11,.25]:columns===4?[.19,.27,.28,.26]:Array(columns).fill(1/columns);
   const isMatrix=table.classList.contains("risk-matrix");
   const drawRow=(values:string[],header=false,rowIndex=0)=>{
    const size=header?7.7:8.2,pad=6,lineHeight=size*1.4;
@@ -155,7 +156,7 @@ class DocumentComposer{
  sprintChart(root:Element){
   const rows=Array.from(root.querySelectorAll(".sprint-points-row"));
   if(!rows.length)return;
-  this.reserve(88);
+  this.reserve(this.team&&rows.length<=20?Math.min(690,100+rows.length*29):88);
   this.heading("Complexidade x concluído por sprint",2);
   this.paragraph("Azul: planejado. Verde: concluído (US CLOSED). Pontos não representam percentual físico.",{size:8.5,space:10});
   const parsed=rows.map(row=>({
@@ -186,6 +187,9 @@ class DocumentComposer{
   const tag=element.tagName.toLowerCase();
   if(this.team&&element.classList.contains("quality-row")){const pct=Math.max(0,Math.min(100,Number(element.getAttribute("data-percent"))||0));this.reserve(35);this.paragraph(element.querySelector(".quality-label")?.textContent||"",{size:9,bold:true,space:3});this.rect(LEFT,this.y,WIDTH,6,"edf2f7");if(pct)this.rect(LEFT,this.y,WIDTH*pct/100,6,pct===100?"16876d":pct<50?"b94a48":"ce861a");this.y+=13;return;}
   if(this.team&&element.classList.contains("item")){const title=element.querySelector(":scope > div")?.textContent?.trim()||Array.from(element.childNodes).filter(n=>n.nodeType===3).map(n=>n.textContent).join(" ").trim();const note=element.querySelector(":scope > span")?.textContent?.trim()||"";if(title||note){this.paragraph([title,note].filter(Boolean).join(" · "),{space:5});return;}}
+  if(this.team&&element.classList.contains("team-meeting"))this.reserve(180);
+  if(this.team&&element.classList.contains("risk-plan")){this.reserve(120);this.rule(this.y);this.y+=8;}
+  if(this.team&&element.classList.contains("risk-annex")&&this.y>TOP+100)this.newPage();
   if(tag==="img")return;
   if(element.classList.contains("sprint-points-chart")){this.sprintChart(element);return;}
   if(tag==="table"){this.table(element as HTMLTableElement);return;}
@@ -203,7 +207,7 @@ class DocumentComposer{
    this.y+=9;
    return;
   }
-  if(tag==="h1"||tag==="h2"||tag==="h3"||(this.team&&tag==="h4")){if(this.team){const next=element.nextElementSibling;this.reserve(next?.classList.contains("metrics")?105:next?.matches("ul,ol")?65:75);}this.heading(element.textContent?.trim()||"",tag==="h1"?1:tag==="h2"?2:3);return;}
+  if(tag==="h1"||tag==="h2"||tag==="h3"||(this.team&&tag==="h4")){if(this.team){const next=element.nextElementSibling;this.reserve(next?.classList.contains("metrics")?105:next?.matches("ul,ol")?105:85);}this.heading(element.textContent?.trim()||"",tag==="h1"?1:tag==="h2"?2:3);return;}
   if(tag==="p"||tag==="small"||tag==="li"||tag==="blockquote"||tag==="summary"){
    this.paragraph((this.team&&tag==="li"?"• ":"")+(element.textContent?.trim()||""),{size:tag==="small"?8:9.4,space:this.team?5:7});return;
   }

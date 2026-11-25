@@ -8,7 +8,7 @@ import { getClientAuthHeaders } from "@/lib/client-auth";
 import { BRAND_LOGO_URL } from "@/lib/brand";
 import type {ReportData,ReportAudience,ClientReportFact} from "@/lib/scrum/report-data";
 import {clientSelectableFacts,selectClientReportFacts} from "@/lib/reports/client-report-selection";
-import {riskReportHtml} from "@/lib/reports/risk-report-html";
+import {riskReportHtml,riskMitigationAnnexHtml} from "@/lib/reports/risk-report-html";
 import {isVagueNextStep} from "@/lib/reports/editorial-rules";
 import {safeMarkdownHtml} from "@/lib/safe-markdown-html";
 
@@ -45,12 +45,54 @@ function formatMeetingSummary(value:string){
  }
  return groups.sort((a,b)=>["Contexto e objetivo","Assuntos discutidos","Direcionamentos registrados no resumo","Pontos de acompanhamento"].indexOf(a.label)-["Contexto e objetivo","Assuntos discutidos","Direcionamentos registrados no resumo","Pontos de acompanhamento"].indexOf(b.label)).map(group=>`<div style="margin:12px 0"><h4 style="color:#103c65;font-size:13px;margin:0 0 6px;break-after:avoid">${htmlEscape(group.label)}</h4><ul style="padding-left:20px;margin:0;color:#53687b;font-size:13px;line-height:1.65">${group.items.map(item=>`<li style="margin:5px 0;overflow-wrap:anywhere;white-space:pre-wrap;break-inside:avoid">${htmlEscape(item)}</li>`).join("")}</ul></div>`).join("");
 }
+function meetingActionTable(items:ReportMeetingLine[]){
+ const rows=items.map(item=>{
+  const parts=item.details.split(/\s*·\s*/).filter(Boolean);
+  const get=(pattern:RegExp)=>parts.find(p=>pattern.test(p))?.replace(/^[^:]+:\s*/,"").trim()||"";
+  const owner=get(/^responsável(?: citado\/sugerido)?\s*:/i)||"Não informado";
+  const status=get(/^situação na fonte\s*:/i)||"Não informada";
+  const time=get(/^referência temporal\s*:/i);
+  const rest=parts.filter(p=>! /^(?:responsável(?: citado\/sugerido)?|situação na fonte|referência temporal|categoria)\s*:/i.test(p));
+  const code=item.title.match(/^(B\d+-A\d+)\s*/i)?.[1];
+  const title=(code?item.title.slice(code.length).replace(/^[\s:–-]+/,""):item.title).trim();
+  return `<tr><td>${htmlEscape([code,title,...rest].filter(Boolean).join(" · "))}${time?` <small>Registro: ${htmlEscape(time)}</small>`:""}</td><td>${htmlEscape(owner)}</td><td>${htmlEscape(status)}</td></tr>`;
+ }).join("");
+ return `<div class="report-table-wrap"><table class="report-table meeting-action-table"><thead><tr><th>Encaminhamento</th><th>Responsável citado</th><th>Situação na fonte</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+}
+function teamNextStepsHtml(value:string,stories:NonNullable<ReportData["internal"]>["stories"]=[]){
+ const normalize=(v:string)=>v.normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase().replace(/[^a-z0-9]+/g," ").trim();
+ const actions:{title:string;owner:string;due:string}[]=[];
+ const add=(title:string)=>{
+  title=title.trim().replace(/^[-*•#\s]+/,"").replace(/\*\*/g,"").trim();
+  if(!title||/^[-–—\s]+$/.test(title)||/^sem linha de base histórica/i.test(title)||/^demais atividades\s*:?$/i.test(title))return;
+  const key=normalize(title);
+  const story=stories.find(st=>normalize(st.title)===key);
+  if(actions.some(a=>normalize(a.title)===key))return;
+  actions.push({title,owner:story?.responsible||"A definir",due:story?.due_date?meetingDate(story.due_date):"A definir"});
+ };
+ let inStory=false,heading="",hasTitle=false;
+ const flush=()=>{if(inStory&&!hasTitle&&heading)add(heading);};
+ for(const raw of value.split(/\r?\n/)){
+  const line=raw.trim().replace(/^[-*•#\s]+/,"").replace(/\*\*/g,"").trim();
+  if(!line)continue;
+  const start=line.match(/^(?:nova\s+)?(?:user story|história de usuário)\s*\d*\s*[:–-]\s*(.+)$/i);
+  if(start){flush();inStory=true;heading=start[1];hasTitle=false;continue;}
+  if(/^demais atividades\s*:?$/i.test(line)||/^(?:próximos passos|outras ações)\s*:?$/i.test(line)){flush();inStory=false;continue;}
+  if(/^[-–—]{3,}$/.test(raw.trim())){flush();inStory=false;continue;}
+  const title=line.match(/^título\s*:\s*(.+)$/i);
+  if(inStory){if(title){add(title[1]);hasTitle=true;}continue;}
+  add(line);
+ }
+ flush();
+ return actions.length?`<div class="report-table-wrap"><table class="report-table team-action-table"><thead><tr><th>Próxima ação registrada</th><th>Responsável</th><th>Prazo</th></tr></thead><tbody>${actions.map(a=>`<tr><td>${htmlEscape(a.title)}</td><td>${htmlEscape(a.owner)}</td><td>${htmlEscape(a.due)}</td></tr>`).join("")}</tbody></table></div><p class="muted">Responsável e prazo são recuperados de US com título correspondente, quando disponíveis. Ações sem vínculo explícito permanecem a definir.</p>`:'<p class="muted">Nenhuma ação objetiva identificada no texto selecionado.</p>';
+}
 function meetingReportSection(lines:ReportMeetingLine[]){
  const meetings=groupReportMeetings(lines);
  if(!meetings.length)return "";
- return `<section class="panel"><h2>Reuniões, alinhamentos e compromissos</h2><p class="muted">${meetings.length} ${meetings.length===1?"reunião selecionada":"reuniões selecionadas"} · ${lines.filter(x=>x.category!=="summary").length} encaminhamentos formais incluídos. Fonte: registros das atas. A inclusão de um compromisso não comprova execução.</p>${meetings.map(m=>`<article style="border-top:1px solid #dce5ef;padding:14px 0"><h2 style="break-after:avoid">${htmlEscape(m.title)}</h2><p class="muted">${htmlEscape(meetingDate(m.heldAt))} · ${m.items.some(x=>x.category!=="summary")?m.items.filter(x=>x.category!=="summary").length+" encaminhamentos selecionados":"Nenhum encaminhamento formal selecionado"}${m.localOnly?" · DADOS DE HOMOLOGAÇÃO LOCAL, NÃO OFICIAIS":""}</p>${m.items.filter(x=>x.category==="summary").map(item=>`<div style="background:#f8fbfe;border:1px solid #dce5ef;border-radius:8px;padding:12px 14px;margin:12px 0"><h4 style="margin:0 0 8px;color:#173a59">Resumo da reunião</h4>${formatMeetingSummary(item.details)}</div>`).join("")}${(["commitment","pending"] as const).map(category=>{const items=m.items.filter(x=>x.category===category);return items.length?`<h4 style="break-after:avoid">${category==="commitment"?"Compromissos registrados":"Pendências registradas"}</h4><ul>${items.map(item=>`<li style="margin:7px 0;overflow-wrap:anywhere"><b>${htmlEscape(item.title)}</b>${item.details?`<div>${htmlEscape(item.details)}</div>`:""}<small style="color:#657d91">Referência: ${htmlEscape(item.sourceReference)}</small></li>`).join("")}</ul>`:"";}).join("")}</article>`).join("")}</section>`;
+ return `<section class="panel"><h2>Reuniões, alinhamentos e compromissos</h2><p class="muted">${meetings.length} ${meetings.length===1?"reunião selecionada":"reuniões selecionadas"} · ${lines.filter(x=>x.category!=="summary").length} encaminhamentos formais incluídos. Fonte: registros das atas. A inclusão de um compromisso não comprova execução.</p>${meetings.map(m=>`<article class="team-meeting" style="border-top:1px solid #dce5ef;padding:14px 0"><h2 style="break-after:avoid">${htmlEscape(m.title)}</h2><p class="muted">${htmlEscape(meetingDate(m.heldAt))} · ${m.items.some(x=>x.category!=="summary")?m.items.filter(x=>x.category!=="summary").length+" encaminhamentos selecionados":"Nenhum encaminhamento formal selecionado"}${m.localOnly?" · DADOS DE HOMOLOGAÇÃO LOCAL, NÃO OFICIAIS":""}</p>${m.items.filter(x=>x.category==="summary").map(item=>`<div style="background:#f8fbfe;border:1px solid #dce5ef;border-radius:8px;padding:12px 14px;margin:12px 0"><h4 style="margin:0 0 8px;color:#173a59">Resumo da reunião</h4>${formatMeetingSummary(item.details)}</div>`).join("")}${(["commitment","pending"] as const).map(category=>{const items=m.items.filter(x=>x.category===category);return items.length?`<h4 style="break-after:avoid">${category==="commitment"?"Compromissos registrados":"Pendências registradas"}</h4>${meetingActionTable(items)}`:"";}).join("")}</article>`).join("")}</section>`;
 }
 const css = `
+.team-report .meeting-action-table th:first-child,.team-report .team-action-table th:first-child{width:55%}.team-report .meeting-action-table th:nth-child(2),.team-report .team-action-table th:nth-child(2){width:26%}.team-report .risk-plan{padding:12px 0;border-bottom:1px solid #dce5ef}.team-report .risk-plan h4{margin:0 0 5px;color:#173a59}.team-report .risk-plan p{margin:6px 0}.team-report .risk-plan .muted{font-size:11px}
 .report-ai-text{font-size:13px;line-height:1.7;overflow-wrap:anywhere}
 .report-ai-text p{margin:8px 0}
 .report-ai-text h4{color:#103c65;font-weight:700;font-size:14px;margin:14px 0 6px;padding-left:9px;border-left:3px solid #027bbb}
@@ -180,7 +222,7 @@ function reportDocument(project:Project, cards:Card[], risks:Risk[], decisions:D
    const internalStoryLines=internalStories.slice().sort((a,b)=>(sprintById.get(a.sprint_id||"")?.start_date||"9999").localeCompare(sprintById.get(b.sprint_id||"")?.start_date||"9999")||a.title.localeCompare(b.title,"pt-BR")).slice(0,100).map(st=>{
      const sp=st.sprint_id?sprintById.get(st.sprint_id):null;
      const continuation=st.description?.match(/Planejamento entre sprints:\s*([^\n]+)/)?.[1]?.split(". Esta US")[0]||"";
-     const points=st.story_points===null||st.story_points===undefined?"Não estimada":st.story_points+" pts";
+     const points=st.story_points===null||st.story_points===undefined?"Sem valor":st.story_points+" pts";
      const dateNote=st.due_date&&!sp?"Prazo da US: "+dateBR(st.due_date):st.due_date&&sp&&st.due_date>=sp.start_date&&st.due_date<=sp.end_date?"Prazo da US: "+dateBR(st.due_date):st.due_date&&sp?"Prazo da US "+dateBR(st.due_date)+" fora da janela da sprint; revisar":"Prazo individual não definido";
      return {id:st.id,title:st.title,sprint:sp?.name||"Sem Sprint",points,status:({new:"Nova",ready:"Pronta",active:"Em execução",resolved:"Resolvida",closed:"Concluída",review:"Em revisão",rework:"Retrabalho",rejected:"Rejeitada"} as Record<string,string>)[st.workflow_stage]||st.workflow_stage,responsible:st.responsible?(st.responsible.includes("@")?"Nome não cadastrado · "+st.responsible:st.responsible):"Sem responsável",details:(continuation?"Continuidade: "+continuation+" · ":"")+dateNote+(st.blocked?" · IMPEDIDA: "+st.blocker_reason:"")};
    });
@@ -203,7 +245,7 @@ function reportDocument(project:Project, cards:Card[], risks:Risk[], decisions:D
     return '<!doctype html><html lang="pt-BR"><head><meta charset="UTF-8"><title>Status Report Equipe</title><style>'+css+'</style></head><body><main class="wrap"><header class="hero"><h1>'+htmlEscape(project.name)+'</h1><p>Relatório Equipe · '+htmlEscape(period)+' · '+htmlEscape(issueDate)+'</p></header><section class="panel"><h2>'+(analysis?.nextSteps?.trim()?"Próximos passos registrados":"Nenhum conteúdo selecionado")+'</h2><p>'+htmlEscape(analysis?.nextSteps?.trim()||"Selecione registros antes da emissão.")+'</p></section></main></body></html>';
   }
   return `<!doctype html><html lang="pt-BR"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Status Report — ${htmlEscape(project.name)}</title><style>${css}</style></head><body><main class="wrap team-report">
-  <header class="hero"><div class="top"><img class="logo" src="${logo}" alt="Consult Services Tecnologia"><div class="topright">RELATÓRIO ${isInternal?"GERENCIAL":"EXECUTIVO"}<br><small style="font-weight:400">MODELO INSTITUCIONAL · V1.2</small></div></div><p class="eyebrow" style="margin-top:24px">GESTÃO DE PROJETOS</p><div class="rule"></div><span class="eyebrow">COMMANDER · STATUS REPORT</span><h1>${htmlEscape(project.name)}</h1><p class="desc">${htmlEscape(project.objective||"Objetivo do projeto não registrado.")}</p><div class="chips"><span class="chip">Período: ${htmlEscape(period)}</span><span class="chip">Emitido: ${htmlEscape(issueDate)}</span><span class="chip">Público: ${isInternal?"Equipe interna":"Cliente"}</span><span class="chip warning">Riscos ativos: ${atRisk.length}</span></div></header>
+  <header class="hero"><div class="top"><img class="logo" src="${logo}" alt="Consult Services Tecnologia"><div class="topright">RELATÓRIO ${isInternal?"GERENCIAL":"EXECUTIVO"}<br><small style="font-weight:400">MODELO INSTITUCIONAL · V1.3</small></div></div><p class="eyebrow" style="margin-top:24px">GESTÃO DE PROJETOS</p><div class="rule"></div><span class="eyebrow">COMMANDER · STATUS REPORT</span><h1>${htmlEscape(project.name)}</h1><p class="desc">${htmlEscape(project.objective||"Objetivo do projeto não registrado.")}</p><div class="chips"><span class="chip">Período: ${htmlEscape(period)}</span><span class="chip">Emitido: ${htmlEscape(issueDate)}</span><span class="chip">Público: ${isInternal?"Equipe interna":"Cliente"}</span><span class="chip warning">Riscos ativos: ${atRisk.length}</span></div></header>
   <div class="note">RELATÓRIO EXTRAÍDO DE DADOS CADASTRADOS. Contagens representam registros Kanban disponíveis no momento da geração, não o percentual físico de conclusão do projeto. Ausência de registros não comprova ausência de riscos ou impedimentos. O Kanban e a lista de riscos representam o estado atual, não um retrato retrospectivo. ${periodEvents===null?"Não há recorte temporal de eventos.":`Eventos registrados no período selecionado: ${periodEvents}. Esses eventos não equivalem a entregas concluídas.`}</div>
   ${show("stories")&&scrum?.internal?`<section class="panel"><h2>Execução Scrum · registros selecionados</h2><div class="metrics">${metric("User Stories",internalStories.length)}${metric("Concluídas",closedStories.length)}${metric("Em execução",activeStories.length)}${metric("Sem responsável",missingOwner)}${metric("Pontos estimados",internalStories.reduce((n,st)=>n+Number(st.story_points||0),0))}${metric("Pontos entregues",closedStories.reduce((n,st)=>n+Number(st.story_points||0),0))}${metric("Sem estimativa",missingPoints)}${metric("Impedidas",internalStories.filter(st=>st.blocked).length)}</div></section>`:""}
   ${show("risks")||show("decisions")?`<section class="panel"><h2>Governança · registros selecionados</h2><div class="metrics">${show("risks")?metric("Riscos ativos",atRisk.length):""}${show("decisions")?metric("Decisões pendentes",undecided.length):""}</div></section>`:""}
@@ -212,13 +254,13 @@ function reportDocument(project:Project, cards:Card[], risks:Risk[], decisions:D
   ${currentSection}
   ${qualitySection}
   ${periodMetrics?`<section class="panel" style="margin-bottom:14px"><h3>Registros do período</h3><h2>Movimentação documentada</h2><div class="item">Atividades criadas <span>${periodMetrics.tasksCreated}</span></div><div class="item">Riscos registrados <span>${periodMetrics.risksRegistered}</span></div><div class="item">Decisões registradas <span>${periodMetrics.decisionsRegistered}</span></div><div class="item">Eventos de tarefas no histórico <span>${periodMetrics.activityEvents}</span></div><p class="empty">Datas filtram a criação de registros e os eventos registrados; situação de cartões, riscos e decisões é atual, não reconstrução histórica.</p></section>`:""}
-  <div class="grid">${show("cards")||show("risks")||show("decisions")?`<section class="panel"><h3>01 · Leitura gerencial</h3><h2>Resumo executivo</h2>${analysis?`<div class="report-ai-text">${safeMarkdownHtml(analysis.executiveSummary)}</div><p class="empty">Análise Kairos baseada nos registros autorizados. Os indicadores abaixo são apenas uma fotografia operacional.</p>`:`<p class="muted">Resumo baseado nos registros atuais do projeto.</p>`}<p>Os indicadores de Scrum, Kanban e governança acima representam registros selecionados, não avanço físico do escopo.</p><p><strong>Para decisão:</strong> revisar os riscos e decisões pendentes abaixo antes de assumir compromissos com o próximo ciclo.</p></section>`:""}
+  <div class="grid">${show("cards")||show("risks")||show("decisions")?`<section class="panel"><h3>01 · Leitura gerencial</h3><h2>Resumo executivo</h2>${analysis?.executiveSummary?.trim()?`<div class="report-ai-text">${safeMarkdownHtml(analysis.executiveSummary)}</div><p class="muted">Análise Kairos baseada nos registros autorizados.</p>`:`<p class="muted">Não há análise executiva do Kairos disponível para esta seleção. Consulte os alertas objetivos e os registros apresentados.</p>`}<p>Os indicadores de Scrum, Kanban e governança acima representam registros selecionados, não avanço físico do escopo.</p><p><strong>Para decisão:</strong> revisar os riscos e decisões pendentes abaixo antes de assumir compromissos com o próximo ciclo.</p></section>`:""}
   ${show("cards")?`<section class="panel"><h3>02 · Fluxo de trabalho</h3><h2>Situação dos cards do Kanban</h2><div class="bar"><span style="width:${total?done/total*100:0}%;background:#11a47f"></span><span style="width:${total?doing/total*100:0}%;background:#4689d9"></span><span style="width:${total?todo/total*100:0}%;background:#e5a23f"></span></div><div class="item">Cards concluídos <span>${done} de ${total} registros</span></div><p class="empty">Métricas históricas como throughput, lead time e cycle time não são inferidas deste retrato.</p></section>`:""}
   ${show("cards")?`<section class="panel"><h3>03 · Atividades selecionadas</h3><h2>Cards selecionados por status</h2>${list(cards.map(x=>({title:x.title,note:({"todo":"A fazer","to_do":"A fazer","aberta":"A fazer","doing":"Em andamento","em_andamento":"Em andamento","done":"Concluída","concluida":"Concluída"} as Record<string,string>)[x.columnKey]||({"aberta":"A fazer","em_andamento":"Em andamento","concluida":"Concluída"} as Record<string,string>)[x.status]||x.status||"Sem status"})),"Nenhum card selecionado.")}</section>`:""}
   ${show("decisions")?`<section class="panel"><h3>04 · Governança</h3><h2>Decisões necessárias</h2>${list(undecided.map(x=>({title:x.title,note:x.status})),"Nenhuma decisão pendente registrada.")}</section>`:""}
-  ${Boolean(analysis?.nextSteps?.trim())?`<section class="panel"><h3>05 · Perspectiva</h3><h2>Próximos passos</h2>${analysis?.nextSteps?.trim()?`<div class="report-ai-text">${safeMarkdownHtml(analysis.nextSteps)}</div>`:`<p class="muted">Nenhum próximo passo selecionado. Informe as ações no campo de revisão da Equipe.</p>`}<p>Sem linha de base histórica suficiente para uma previsão de custo, prazo ou tendência.</p></section>`:""}</div>
+  ${Boolean(analysis?.nextSteps?.trim())?`<section class="panel"><h3>05 · Perspectiva</h3><h2>Próximos passos</h2>${teamNextStepsHtml(analysis?.nextSteps||"",internalStories)}</section>`:""}</div>
   ${show("meetings")&&isInternal?meetingReportSection(scrum?.internal?.meetingLines||[]):""}
-  ${show("risks")&&scrum?.riskAssessments?.length?riskReportHtml(scrum.riskAssessments,"internal",{includeMitigationAnnex}):""}${scrumSection}${internalSection}
+  ${show("risks")&&scrum?.riskAssessments?.length?riskReportHtml(scrum.riskAssessments,"internal"):""}${scrumSection}${internalSection}${show("risks")&&includeMitigationAnnex?riskMitigationAnnexHtml(scrum?.riskAssessments||[]):""}
   <footer class="foot"><span>CONSULT SERVICES TECNOLOGIA · Commander / Relatório Equipe</span><span>Registro gerado em ${htmlEscape(issueDate)}</span></footer>
   <div class="actions"><button onclick="window.print()">Salvar como PDF / Imprimir</button></div>
   </main></body></html>`;
@@ -263,14 +305,14 @@ function historicalDocument(data:ReportData,audience:ReportAudience,narrative:Ai
    entries.push('<section class="panel"><h2>Tasks selecionadas</h2>'+
     data.internal.tasks.map(task=>item(task.title,task.state)).join("")+'</section>');
   }
-  if(chosen.risks.length&&data.riskAssessments?.length)entries.push(riskReportHtml(data.riskAssessments,"internal",{includeMitigationAnnex:true}));
+  if(chosen.risks.length&&data.riskAssessments?.length)entries.push(riskReportHtml(data.riskAssessments,"internal"));
   if(chosen.decisions.length)entries.push('<section class="panel"><h2>Decisões selecionadas</h2>'+
    data.governance.client_decisions.map(d=>item(d.title,d.status)).join("")+'</section>');
   if(chosen.meetings.length&&data.internal?.meetingLines?.length){
     entries.push(meetingReportSection(data.internal.meetingLines.filter(m=>chosen.meetings.includes(m.sourceReference))));
   }
-  if(narrative?.nextSteps?.trim())entries.push('<section class="panel"><h2>Próximos passos</h2><p>'+
-    htmlEscape(narrative.nextSteps)+'</p></section>');
+  if(narrative?.nextSteps?.trim())entries.push('<section class="panel"><h2>Próximos passos</h2>'+teamNextStepsHtml(narrative.nextSteps,data.internal?.stories||[])+'</section>');
+   if(chosen.risks.length&&data.riskAssessments?.length)entries.push(riskMitigationAnnexHtml(data.riskAssessments));
   return '<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>Status Report Equipe arquivado</title><style>'+
    css+'</style></head><body><main class="wrap"><header class="hero"><h1>'+htmlEscape(data.project.name)+
    '</h1><p>Relatório Equipe · '+htmlEscape(issued)+'</p></header><p class="note">Emissão arquivada com seleção editorial preservada.</p>'+
@@ -525,9 +567,7 @@ export default function StatusReportPage() {
   setPdfBusy(true);
   try{
    const filename="status-report-"+(audience==="client"?"cliente":"equipe")+"-"+project.id+"-"+new Date().toISOString().slice(0,10)+".pdf";
-   const pdfHtml=audience==="internal"&&includeMitigationAnnex
-    ?renumberReportSections(reportDocument(project,visibleCards,visibleRisks,visibleDecisions,period,issueDate,visibleAnalysis,periodEvents,periodMetrics,audience,visibleScrum,true,chosenInternal)).replaceAll(BRAND_LOGO_URL,brandLogoData).replaceAll("CONSULT SERVICES TECNOLOGIA",htmlEscape(brandName))
-    :documentHtml;
+   const pdfHtml=documentHtml;
    await downloadReportDocumentPdf(pdfHtml,filename);
    setStatus("PDF gerado, registrando emissão...");
    await issue();
@@ -670,7 +710,7 @@ export default function StatusReportPage() {
     </section>}
     {audience==="internal"&&<label className="workspace-card flex items-center gap-2 p-3 text-sm">
      <input type="checkbox" checked={includeMitigationAnnex} onChange={e=>setIncludeMitigationAnnex(e.target.checked)}/>
-     Incluir anexo de mitigação completa no PDF da Equipe (opcional)
+     Incluir anexo de mitigação completa no relatório da Equipe (HTML e PDF)
     </label>}
     <p role="status" className="text-xs text-(--text-secondary)">{scrumStatus}</p>
     <section className="workspace-card space-y-2 p-4" aria-label="Análise opcional do Kairos">
