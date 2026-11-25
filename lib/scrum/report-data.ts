@@ -45,9 +45,9 @@ export async function loadReportData(db:DB,org:string,projectId:string,audience:
  const profileQuery=memberIds.length?await db.from("profiles").select("user_id,email,nome").in("user_id",memberIds):null;
  const emailNames=new Map<string,string>();
  for(const person of (profileQuery?.data||[])){
-  if(person.email&&person.nome?.trim())emailNames.set(person.email.trim().toLowerCase(),person.nome.trim());
+  if(person.nome?.trim()){if(person.email)emailNames.set(person.email.trim().toLowerCase(),person.nome.trim());if(person.user_id)emailNames.set(person.user_id.toLowerCase(),person.nome.trim());}
  }
- const displayOwner=(value:string|null)=>value&&emailNames.has(value.toLowerCase())?emailNames.get(value.toLowerCase())!:value;
+ const displayOwner=(value:string|null)=>value&&emailNames.has(value.trim().toLowerCase())?emailNames.get(value.trim().toLowerCase())!:value;
  const codeRows=await db.from("project_risk_display_codes").select("risk_id,code_number")
   .eq("project_id",projectId).eq("organization_id",org).limit(1000);
  if(codeRows.error)throw Error(`Códigos permanentes dos riscos indisponíveis (${codeRows.error.code||"DB_ERROR"}). Verifique permissões de leitura da tabela.`);

@@ -43,7 +43,7 @@ class DocumentComposer{
  sheets:Sheet[]=[{commands:[]}];y=TOP;
  private canvas=document.createElement("canvas").getContext("2d");
  private logo:Logo|null;
- constructor(logo:Logo|null){this.logo=logo;}
+ constructor(logo:Logo|null,private team=false){this.logo=logo;}
  private get sheet(){return this.sheets[this.sheets.length-1];}
  private emit(value:string){this.sheet.commands.push(value);}
  private newPage(){
@@ -100,7 +100,7 @@ class DocumentComposer{
  metrics(root:Element){
   const items=Array.from(root.querySelectorAll(":scope > .metric"));
   if(!items.length){this.paragraph(root.textContent||"");return;}
-  const cols=Math.min(items.length,4),gap=7,w=(WIDTH-gap*(cols-1))/cols,h=65;
+  const cols=Math.min(items.length,4),gap=7,w=(WIDTH-gap*(cols-1))/cols,h=this.team?51:65;
   for(let start=0;start<items.length;start+=cols){
    this.reserve(h+16);
    for(const [offset,item] of items.slice(start,start+cols).entries()){
@@ -109,18 +109,19 @@ class DocumentComposer{
     const label=item.querySelector("small")?.textContent?.trim()||"";
     const val=item.querySelector("strong")?.textContent?.trim()||"";
     for(const [lineNumber,line] of this.wrap(label,w-14,7,true).slice(0,2).entries())this.text(x+8,this.y+8+lineNumber*9,line,7,true,"617a91");
-    this.text(x+8,this.y+37,val,18,true,"173a59");
+    this.text(x+8,this.y+(this.team?27:37),val,18,true,"173a59");
    }
-   this.y+=h+12;
+   this.y+=h+(this.team?7:12);
   }
  }
  table(table:HTMLTableElement){
   const rawRows=Array.from(table.querySelectorAll("tr")).filter(tr=>!tr.classList.contains("pdf-hide")&&!tr.closest(".pdf-hide"));
   if(!rawRows.length)return;
-  const headers=Array.from(rawRows[0].querySelectorAll("th,td")).map(cell=>cell.textContent?.trim()||"");
+  const cellText=(cell:Element)=>this.team?(cell.textContent||"").replace(/\s+/g," ").trim():cell.textContent?.trim()||"";
+  const headers=Array.from(rawRows[0].querySelectorAll("th,td")).map(cellText);
   if(!headers.length)return;
   const columns=headers.length;
-  const widths=table.classList.contains("sprint-summary-table")?[.28,.24,.15,.15,.09,.09]:table.classList.contains("team-stories-table")?[.29,.17,.10,.10,.13,.21]:columns===6?[.12,.25,.12,.15,.11,.25]:columns===4?[.19,.27,.28,.26]:Array(columns).fill(1/columns);
+  const widths=table.classList.contains("sprint-summary-table")?(this.team?[.27,.22,.15,.15,.10,.11]:[.28,.24,.15,.15,.09,.09]):table.classList.contains("team-stories-table")?[.31,.17,.08,.11,.13,.20]:columns===6?[.12,.25,.12,.15,.11,.25]:columns===4?[.19,.27,.28,.26]:Array(columns).fill(1/columns);
   const isMatrix=table.classList.contains("risk-matrix");
   const drawRow=(values:string[],header=false,rowIndex=0)=>{
    const size=header?7.7:8.2,pad=6,lineHeight=size*1.4;
@@ -139,9 +140,10 @@ class DocumentComposer{
    this.y+=height;
   };
   const rowElements=rawRows.slice(1);
+  if(this.team&&rowElements.length){const first=Array.from(rowElements[0].querySelectorAll(":scope > th,:scope > td")).map(cellText);this.reserve(38+Math.max(26,...first.map((v,i)=>this.wrap(v,WIDTH*widths[i]-12,8.2).length*11.5+12)));}
   drawRow(headers,true);
   for(const [rowIndex,row] of rowElements.entries()){
-   const values=Array.from(row.querySelectorAll(":scope > th,:scope > td")).map(cell=>cell.textContent?.trim()||"");
+   const values=Array.from(row.querySelectorAll(":scope > th,:scope > td")).map(cell=>this.team&&isMatrix?Array.from(cell.children).map(x=>x.textContent?.trim()||"").filter(Boolean).join(" | ")||cellText(cell):cellText(cell));
    if(!values.length)continue;
    // Page breaks repeat the table heading, never split a compact risk row.
    const est=Math.max(26,...values.map((v,i)=>this.wrap(v,(WIDTH*widths[i])-12,8.2).length*11.5+12));
@@ -182,6 +184,8 @@ class DocumentComposer{
  node(element:Element){
   if(element.matches(".actions,.pdf-hide,.foot,script,style,noscript"))return;
   const tag=element.tagName.toLowerCase();
+  if(this.team&&element.classList.contains("quality-row")){const pct=Math.max(0,Math.min(100,Number(element.getAttribute("data-percent"))||0));this.reserve(35);this.paragraph(element.querySelector(".quality-label")?.textContent||"",{size:9,bold:true,space:3});this.rect(LEFT,this.y,WIDTH,6,"edf2f7");if(pct)this.rect(LEFT,this.y,WIDTH*pct/100,6,pct===100?"16876d":pct<50?"b94a48":"ce861a");this.y+=13;return;}
+  if(this.team&&element.classList.contains("item")){const title=element.querySelector(":scope > div")?.textContent?.trim()||Array.from(element.childNodes).filter(n=>n.nodeType===3).map(n=>n.textContent).join(" ").trim();const note=element.querySelector(":scope > span")?.textContent?.trim()||"";if(title||note){this.paragraph([title,note].filter(Boolean).join(" · "),{space:5});return;}}
   if(tag==="img")return;
   if(element.classList.contains("sprint-points-chart")){this.sprintChart(element);return;}
   if(tag==="table"){this.table(element as HTMLTableElement);return;}
@@ -199,12 +203,12 @@ class DocumentComposer{
    this.y+=9;
    return;
   }
-  if(tag==="h1"||tag==="h2"||tag==="h3"){this.heading(element.textContent?.trim()||"",tag==="h1"?1:tag==="h2"?2:3);return;}
+  if(tag==="h1"||tag==="h2"||tag==="h3"||(this.team&&tag==="h4")){if(this.team){const next=element.nextElementSibling;this.reserve(next?.classList.contains("metrics")?105:next?.matches("ul,ol")?65:75);}this.heading(element.textContent?.trim()||"",tag==="h1"?1:tag==="h2"?2:3);return;}
   if(tag==="p"||tag==="small"||tag==="li"||tag==="blockquote"||tag==="summary"){
-   this.paragraph(element.textContent?.trim()||"",{size:tag==="small"?8:9.4});return;
+   this.paragraph((this.team&&tag==="li"?"• ":"")+(element.textContent?.trim()||""),{size:tag==="small"?8:9.4,space:this.team?5:7});return;
   }
   if(tag==="header"&&element.classList.contains("hero")){this.reserve(105);this.imageFirstPage();}
-  if(element.classList.contains("panel")){this.reserve(64);this.y+=7;}
+  if(element.classList.contains("panel")){this.reserve(this.team?(element.querySelector(":scope > .metrics")?115:100):64);this.y+=this.team?4:7;}
   if(element.classList.contains("risk-legend")){
    this.reserve(85);this.rect(LEFT,this.y,WIDTH,3,"d8e8f6");this.y+=9;
   }
@@ -217,7 +221,7 @@ class DocumentComposer{
    if(val)this.paragraph(val,{size:8.5});return;
   }
   for(const child of children)this.node(child);
-  if(element.classList.contains("panel"))this.y+=12;
+  if(element.classList.contains("panel"))this.y+=this.team?6:12;
  }
  finish(){
   for(const [index,sheet] of this.sheets.entries()){
@@ -263,7 +267,7 @@ export async function downloadReportDocumentPdf(html:string,filename:string):Pro
  const doc=new DOMParser().parseFromString(html,"text/html");
  const root=doc.querySelector("main.wrap");
  if(!root)throw new Error("Relatório não encontrado para gerar o documento.");
- const composer=new DocumentComposer(await loadLogo(doc));
+ const composer=new DocumentComposer(await loadLogo(doc),root.classList.contains("team-report")||doc.title.includes("Equipe"));
  for(const child of Array.from(root.children))composer.node(child);
  const pdf=composer.toPdf(),url=URL.createObjectURL(pdf);
  try{
