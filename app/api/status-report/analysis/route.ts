@@ -63,7 +63,7 @@ export async function POST(request: NextRequest) {
     decisoesAtuais:audience==="internal"?decisions.map(x=>({titulo:x.titulo,status:x.status,impacto:x.impacto,contexto:x.contexto})):undefined,
     fatosAprovadosCliente:audience==="client"?(scrum.publicFacts||[]):undefined,
     reunioesEEncaminhamentos:audience==="internal"?(scrum.internal?.meetingLines||[]).slice(0,40).map(item=>({
-      reuniao:item.meetingTitle,data:item.heldAt,tipo:item.category==="commitment"?"compromisso":"pendencia",
+      reuniao:item.meetingTitle,data:item.heldAt,tipo:item.category==="summary"?"resumo":item.category==="commitment"?"compromisso":"pendencia",
       encaminhamento:item.title,detalhes:item.details,origem:item.sourceReference,
       registroDeTeste:item.localOnly
     })):undefined,

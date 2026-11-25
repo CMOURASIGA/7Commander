@@ -3,7 +3,7 @@ import { getProjectAccessRole, getProjectById } from "@/services/project-service
 import { requireEffectiveTenant, TENANT_SCHEMA_READY } from "@/lib/tenant-runtime";
 import { CONSULT_ORG_ID } from "@/lib/consult-workspace";
 import {getApprovedRiskFields} from "@/lib/reports/risk-report-html";
-import {loadProjectMeetingReport,meetingReportLines,type MeetingReportLine} from "@/services/meeting-report-context";
+import {loadProjectMeetingReport,meetingReportLines,meetingSummaryLine,type MeetingReportLine} from "@/services/meeting-report-context";
 
 export type ReportAudience="client"|"internal";
 export type ScrumReportStory={id:string;sprint_id:string|null;title:string;description?:string;workflow_stage:string;story_points:number|null;due_date:string|null;actual_end_date:string|null;blocked:boolean;blocker_reason:string;responsible:string|null};
@@ -125,6 +125,6 @@ export async function loadReportData(db:DB,org:string,projectId:string,audience:
    client_decisions:audience==="internal"?(decisions.data||[]).filter(d=>["aberta","em_andamento"].includes(d.status)).slice(0,15).map(d=>({title:d.titulo,status:d.status})):[]
   },
   scrum:{enabled:metrics.length>0,sprints:audience==="internal"?metrics:[],backlog_stories:allStories.filter(st=>!st.sprint_id).length,stories_total:allStories.length,tasks_total:allTasks.length,tasks_done:allTasks.filter(t=>t.state==="done").length},
-  ...(audience==="internal"?{internal:{stories:allStories,tasks:allTasks,meetingLines:meetings?.records.flatMap(meetingReportLines).slice(0,140)||[],meetingSource:meetings?.source}}:{})
+  ...(audience==="internal"?{internal:{stories:allStories,tasks:allTasks,meetingLines:meetings?[...meetings.records.map(meetingSummaryLine),...meetings.records.flatMap(meetingReportLines).slice(0,140)]:[],meetingSource:meetings?.source}}:{})
  };
 }
