@@ -1,3 +1,4 @@
+import {teamOwnerLabel} from "./team-owner-label";
 import type {ReportAudience,ReportRiskAssessment} from "@/lib/scrum/report-data";
 
 function escapeHtml(value:unknown):string{
@@ -25,6 +26,12 @@ export function getApprovedRiskFields(text:string){
  const status=blocks.find(x=>/^(?:situação da medida|status da mitigação)\s*:/i.test(x));
  const trimLabel=(x?:string)=>x?.replace(/^[^:]+:\s*/,"").trim()||"";
  return {point:trimLabel(point),consequence:trimLabel(consequence),measure:trimLabel(measure),measureStatus:trimLabel(status)};
+}
+export function riskMitigationAnnexHtml(risks:ReportRiskAssessment[]){
+ const esc=escapeHtml;
+ const plans=sortedRisks(risks).filter(r=>clean(r.mitigation));
+ if(!plans.length)return "";
+ return '<section class="panel risk-annex"><h3>Anexo opcional</h3><h2>Planos de mitigação completos</h2>'+plans.map(r=>'<article class="risk-plan"><h4>'+esc(r.code)+' · '+esc(r.title)+'</h4><p class="muted">Criticidade: '+esc(r.severity)+' · Responsável: '+esc(teamOwnerLabel(r.owner,"Não definido"))+' · Status: '+esc(r.status.replaceAll("_"," "))+'</p><p style="white-space:pre-wrap">'+esc(r.mitigation)+'</p></article>').join("")+'</section>';
 }
 export function riskReportHtml(risks:ReportRiskAssessment[],audience:ReportAudience,options:{includeMitigationAnnex?:boolean}={}){
  const esc=escapeHtml;
@@ -56,15 +63,15 @@ export function riskReportHtml(risks:ReportRiskAssessment[],audience:ReportAudie
   const action=shortAction(r.mitigation);
   const label=r.code;
   const detail=clean(r.mitigation);
-  return '<tr id="risk-'+esc(r.id)+'"><td>'+esc(label)+'</td><td>'+esc(compact(r.title,110))+'</td><td><strong>'+esc(r.severity)+'</strong></td><td>'+esc(r.owner||"Não definido")+'</td><td>'+esc(r.status.replaceAll("_"," "))+'</td><td>'+esc(action||"Sem ação registrada")+'</td></tr>'+
+  return '<tr id="risk-'+esc(r.id)+'"><td>'+esc(label)+'</td><td>'+esc(compact(r.title,110))+'</td><td><strong>'+esc(r.severity)+'</strong></td><td>'+esc(teamOwnerLabel(r.owner,"Não definido"))+'</td><td>'+esc(r.status.replaceAll("_"," "))+'</td><td>'+esc(action||"Sem ação registrada")+'</td></tr>'+
    (detail?'<tr class="risk-detail-row pdf-hide"><td colspan="6"><details><summary>Ver plano completo · '+esc(label)+'</summary><p>'+esc(detail)+'</p></details></td></tr>':"");
  }).join("");
  const cells=[3,2,1].map(p=>'<tr><th scope="row">P '+p+'</th>'+[1,2,3].map(i=>{
   const score=p*i,severity=score===9?"Crítico":score===6?"Alto":score>=3?"Moderado":"Baixo";
   const matches=rated.filter(r=>r.probability===p&&r.impact===i);
-  return '<td class="risk-cell risk-'+severity.toLowerCase().replace("í","i")+'"><b>'+esc(severity)+' · '+score+'</b><div>'+matches.map(r=>'<a class="risk-code" href="#risk-'+esc(r.id)+'" title="'+esc(r.title)+'">'+esc(r.code)+'</a>').join("")+'</div></td>';
+  return '<td class="risk-cell risk-'+severity.toLowerCase().replace("í","i")+'"><b>'+esc(severity)+' · '+score+'</b><div>'+matches.map(r=>'<a class="risk-code" href="#risk-'+esc(r.id)+'" title="'+esc(r.title)+'">' +esc(r.code)+'</a>').join(' · ')+'</div></td>';
  }).join("")+'</tr>').join("");
- const annex=options.includeMitigationAnnex&&sorted.some(r=>clean(r.mitigation))?'<section class="panel risk-annex"><h3>Anexo opcional</h3><h2>Planos de mitigação completos</h2>'+sorted.filter(r=>clean(r.mitigation)).map(r=>'<div class="item"><div><b>'+esc(r.code)+' · '+esc(r.title)+'</b><p>'+esc(r.mitigation)+'</p></div></div>').join("")+'</section>':"";
+ const annex=options.includeMitigationAnnex?riskMitigationAnnexHtml(sorted):"";
  return '<section class="panel risk-panel"><h3>04 · Gestão de riscos</h3><h2>Riscos e Planos de Mitigação</h2>'+summary+
  (rated.length?'<div class="report-table-wrap"><table class="risk-matrix" aria-label="Matriz de probabilidade por impacto"><thead><tr><th>P / I</th><th>Impacto 1</th><th>Impacto 2</th><th>Impacto 3</th></tr></thead><tbody>'+cells+'</tbody></table></div>':'<p class="empty">Matriz não disponível: não há avaliações suficientes de probabilidade e impacto.</p>')+
  '<div class="risk-legend" role="note"><b>Como ler a matriz</b><p><b>P</b> = Probabilidade: 1 baixa, 2 média, 3 alta. <b>I</b> = Impacto: 1 baixo, 2 médio, 3 alto. <b>P × I</b>: Baixo 1–2, Moderado 3–4, Alto 6, Crítico 9.</p><p>Exemplo: P 3 e I 3 = 9, risco crítico que exige priorização. A classificação é gerencial e não corresponde a percentual estatístico de ocorrência.</p></div>'+

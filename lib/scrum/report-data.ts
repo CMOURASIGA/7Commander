@@ -3,7 +3,7 @@ import { getProjectAccessRole, getProjectById } from "@/services/project-service
 import { requireEffectiveTenant, TENANT_SCHEMA_READY } from "@/lib/tenant-runtime";
 import { CONSULT_ORG_ID } from "@/lib/consult-workspace";
 import {getApprovedRiskFields} from "@/lib/reports/risk-report-html";
-import {loadProjectMeetingReport,meetingReportLines,type MeetingReportLine} from "@/services/meeting-report-context";
+import {loadProjectMeetingReport,meetingReportLines,meetingSummaryLine,type MeetingReportLine} from "@/services/meeting-report-context";
 
 export type ReportAudience="client"|"internal";
 export type ScrumReportStory={id:string;sprint_id:string|null;title:string;description?:string;workflow_stage:string;story_points:number|null;due_date:string|null;actual_end_date:string|null;blocked:boolean;blocker_reason:string;responsible:string|null};
@@ -45,9 +45,14 @@ export async function loadReportData(db:DB,org:string,projectId:string,audience:
  const profileQuery=memberIds.length?await db.from("profiles").select("user_id,email,nome").in("user_id",memberIds):null;
  const emailNames=new Map<string,string>();
  for(const person of (profileQuery?.data||[])){
-  if(person.email&&person.nome?.trim())emailNames.set(person.email.trim().toLowerCase(),person.nome.trim());
+  if(person.nome?.trim()){if(person.email)emailNames.set(person.email.trim().toLowerCase(),person.nome.trim());if(person.user_id)emailNames.set(person.user_id.toLowerCase(),person.nome.trim());}
  }
- const displayOwner=(value:string|null)=>value&&emailNames.has(value.toLowerCase())?emailNames.get(value.toLowerCase())!:value;
+ if(audience==="internal"){
+  const projectMembers=await db.from("project_members").select("member_email,status").eq("project_id",projectId).eq("organization_id",org);
+  const emails=[...new Set((projectMembers.data||[]).filter(m=>["active","accepted","ativo"].includes(String(m.status||"").toLowerCase())).map(m=>String(m.member_email||"").trim().toLowerCase()).filter(v=>v.includes("@")))];
+  if(emails.length){const [profiles,internal]=await Promise.all([db.from("profiles").select("email,nome").in("email",emails),db.from("internal_user_access").select("email,nome").in("email",emails)]);for(const p of [...(internal.data||[]),...(profiles.data||[])]){const key=String(p.email||"").trim().toLowerCase(),name=String(p.nome||"").trim();if(key&&name&&emails.includes(key))emailNames.set(key,name);}}
+ }
+ const displayOwner=(value:string|null)=>value&&emailNames.has(value.trim().toLowerCase())?emailNames.get(value.trim().toLowerCase())!:value;
  const codeRows=await db.from("project_risk_display_codes").select("risk_id,code_number")
   .eq("project_id",projectId).eq("organization_id",org).limit(1000);
  if(codeRows.error)throw Error(`Códigos permanentes dos riscos indisponíveis (${codeRows.error.code||"DB_ERROR"}). Verifique permissões de leitura da tabela.`);
@@ -125,6 +130,6 @@ export async function loadReportData(db:DB,org:string,projectId:string,audience:
    client_decisions:audience==="internal"?(decisions.data||[]).filter(d=>["aberta","em_andamento"].includes(d.status)).slice(0,15).map(d=>({title:d.titulo,status:d.status})):[]
   },
   scrum:{enabled:metrics.length>0,sprints:audience==="internal"?metrics:[],backlog_stories:allStories.filter(st=>!st.sprint_id).length,stories_total:allStories.length,tasks_total:allTasks.length,tasks_done:allTasks.filter(t=>t.state==="done").length},
-  ...(audience==="internal"?{internal:{stories:allStories,tasks:allTasks,meetingLines:meetings?.records.flatMap(meetingReportLines).slice(0,140)||[],meetingSource:meetings?.source}}:{})
+  ...(audience==="internal"?{internal:{stories:allStories,tasks:allTasks,meetingLines:meetings?[...meetings.records.map(meetingSummaryLine),...meetings.records.flatMap(meetingReportLines).slice(0,140)]:[],meetingSource:meetings?.source}}:{})
  };
 }
