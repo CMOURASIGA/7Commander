@@ -4,6 +4,7 @@ import {IconActionButton} from "@/components/ui/icon-action-button";
 import {measuredFetch} from "@/lib/client-performance";
 import Link from "next/link";
 import { useEffect,useState } from "react";
+import { createPortal } from "react-dom";
 import { useKairosAuth } from "@/components/auth/kairos-auth-provider";
 import { getClientAuthHeaders } from "@/lib/client-auth";
 import {useCentralPilotReadOnly} from "@/lib/use-central-pilot-read-only";
@@ -51,7 +52,7 @@ export function TaskAlerts({center=false}:{center?:boolean}){
     className="rounded-xl border border-(--border) bg-(--bg-surface) px-3 py-2 text-sm font-semibold hover:bg-(--bg-muted)">
     <span aria-hidden="true">🔔</span>{total>0?" "+total:""}
   </button>
-  {open&&<div className="fixed inset-0 z-[90]">
+  {open&&createPortal(<div className="fixed inset-0 z-[90]">
     <button type="button" aria-label="Fechar central de notificações" className="absolute inset-0 bg-slate-950/45"
       onClick={()=>setOpen(false)}/>
     <aside id="commander-notification-drawer" role="dialog" aria-modal="true"
@@ -122,6 +123,6 @@ export function TaskAlerts({center=false}:{center?:boolean}){
         Atividades continuam pendentes até a atualização de seu estado. Notificações Scrum podem ser marcadas como lidas.
       </footer>
     </aside>
-   </div>}
+   </div>,document.body)}
  </>;
 }
