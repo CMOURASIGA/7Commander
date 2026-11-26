@@ -15,7 +15,19 @@ const json = (body: unknown, status = 200) => new Response(JSON.stringify(body),
 
 function load(): Store {
   const raw = localStorage.getItem(DEMO_STORAGE_KEY);
-  if (raw) try { return JSON.parse(raw) as Store; } catch {}
+  if (raw) try {
+    const current=JSON.parse(raw) as Store;
+    const defaults=(seed as unknown as Store).organizations;
+    let changed=false;
+    current.organizations=current.organizations.map(organization=>{
+      const fallback=defaults.find(item=>item.id===organization.id);
+      const branding=organization.branding as Row|undefined;
+      if(branding?.logoUrl||!fallback?.branding)return organization;
+      changed=true;return {...organization,branding:copy(fallback.branding)};
+    });
+    if(changed)localStorage.setItem(DEMO_STORAGE_KEY,JSON.stringify(current));
+    return current;
+  } catch {}
   const initial = copy(seed) as unknown as Store;
   localStorage.setItem(DEMO_STORAGE_KEY, JSON.stringify(initial));
   return initial;
@@ -152,6 +164,14 @@ async function handle(input: RequestInfo | URL, init?: RequestInit): Promise<Res
   if(url.pathname==="/api/platform/companies")return json({data:store.organizations});
   if(url.pathname==="/api/platform/companies/members")return json({data:scoped("organization_members")});
   if(url.pathname==="/api/status-report/history")return json({data:[]});
+  if(url.pathname==="/api/status-report/logo"){
+    const organization=store.organizations.find(item=>item.id===org);
+    const branding=(organization?.branding||{}) as Row;
+    const logoUrl=typeof branding.logoUrl==="string"?branding.logoUrl:"";
+    const companyName=String(branding.displayName||organization?.name||"Empresa demonstrativa");
+    if(!logoUrl.startsWith("data:image/png;base64,"))return json({error:"Empresa demonstrativa sem logo configurada."},404);
+    return json({companyName,dataUri:logoUrl,simulated:true});
+  }
   if(url.pathname==="/api/status-report/scrum"){
     const audience=url.searchParams.get("audience")==="client"?"client":"internal";
     return json({data:demoReport(store,org,projectId,audience).report,simulated:true});
