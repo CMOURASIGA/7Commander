@@ -244,7 +244,7 @@ function reportDocument(project:Project, cards:Card[], risks:Risk[], decisions:D
    ${list(scrum.internal.tasks.slice(0,35).map(t=>({title:t.title,note:t.state.toUpperCase()+" · "+(t.responsible||"Sem responsável")})),"Nenhuma Task de desenvolvimento cadastrada nesta extração. Isso não confirma ausência de trabalho em andamento.")}
    </section>`: "";
   if(noneSelected){
-    return '<!doctype html><html lang="pt-BR"><head><meta charset="UTF-8"><title>Status Report Equipe</title><style>'+css+'</style></head><body><main class="wrap"><header class="hero"><h1>'+htmlEscape(project.name)+'</h1><p>Relatório Equipe · '+htmlEscape(period)+' · '+htmlEscape(issueDate)+'</p></header><section class="panel"><h2>'+(analysis?.nextSteps?.trim()?"Próximos passos registrados":"Nenhum conteúdo selecionado")+'</h2><p>'+htmlEscape(analysis?.nextSteps?.trim()||"Selecione registros antes da emissão.")+'</p></section></main></body></html>';
+    return '<!doctype html><html lang="pt-BR"><head><meta charset="UTF-8"><title>Status Report Equipe</title><style>'+css+'</style></head><body><main class="wrap team-report"><header class="hero"><div class="top"><img class="logo" src="'+logo+'" alt="Consult Services Tecnologia"><div class="topright">RELATÓRIO GERENCIAL<br><small style="font-weight:400">MODELO INSTITUCIONAL · V1.4</small></div></div><div class="rule"></div><h1>'+htmlEscape(project.name)+'</h1><p>Relatório Equipe · '+htmlEscape(period)+' · '+htmlEscape(issueDate)+'</p></header><section class="panel"><h2>'+(analysis?.nextSteps?.trim()?"Próximos passos registrados":"Nenhum conteúdo selecionado")+'</h2><p>'+htmlEscape(analysis?.nextSteps?.trim()||"Selecione registros antes da emissão.")+'</p></section><footer class="foot"><span>CONSULT SERVICES TECNOLOGIA · Commander / Relatório Equipe</span><span>Registro gerado em '+htmlEscape(issueDate)+'</span></footer></main></body></html>';
   }
   return `<!doctype html><html lang="pt-BR"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Status Report — ${htmlEscape(project.name)}</title><style>${css}</style></head><body><main class="wrap team-report">
   <header class="hero"><div class="top"><img class="logo" src="${logo}" alt="Consult Services Tecnologia"><div class="topright">RELATÓRIO ${isInternal?"GERENCIAL":"EXECUTIVO"}<br><small style="font-weight:400">MODELO INSTITUCIONAL · V1.4</small></div></div><p class="eyebrow" style="margin-top:24px">GESTÃO DE PROJETOS</p><div class="rule"></div><span class="eyebrow">COMMANDER · STATUS REPORT</span><h1>${htmlEscape(project.name)}</h1><p class="desc">${htmlEscape(project.objective||"Objetivo do projeto não registrado.")}</p><div class="chips"><span class="chip">Período: ${htmlEscape(period)}</span><span class="chip">Emitido: ${htmlEscape(issueDate)}</span><span class="chip">Público: ${isInternal?"Equipe interna":"Cliente"}</span><span class="chip warning">Riscos ativos: ${atRisk.length}</span></div></header>
@@ -584,7 +584,7 @@ export default function StatusReportPage() {
   const url=URL.createObjectURL(blob);
   const link=document.createElement("a");
   link.href=url;link.download=`status-report-${project.id}-${new Date().toISOString().slice(0,10)}.html`;
-  link.click();URL.revokeObjectURL(url);
+  link.click();window.setTimeout(()=>URL.revokeObjectURL(url),3000);
  }
 
  return <main className="space-y-4">

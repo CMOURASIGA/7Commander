@@ -60,6 +60,7 @@ function demoReport(store: Store, org: string, projectId: string, audience: "cli
   const cards = scoped("tasks").filter(t => t.project_id === projectId).map(taskView);
   const risks = scoped("risks").filter(r => r.project_id === projectId);
   const decisions = scoped("decisions").filter(d => d.project_id === projectId);
+  const meetings = scoped("project_meetings").filter(m => m.project_id === projectId);
   const today = new Date().toISOString().slice(0, 10);
   const sprintMetrics = sprints.map(sprint => {
     const assigned = stories.filter(story => story.sprint_id === sprint.id);
@@ -80,15 +81,49 @@ function demoReport(store: Store, org: string, projectId: string, audience: "cli
       delivery_late:delivered.filter(story => story.due_date && String(story.actual_end_date) > String(story.due_date)).length,
     };
   });
+  const riskLevel=(value:unknown):number|null=>{
+    const normalized=String(value||"").normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase();
+    if(["1","baixo","baixa"].includes(normalized))return 1;
+    if(["2","medio","media"].includes(normalized))return 2;
+    if(["3","alto","alta"].includes(normalized))return 3;
+    return null;
+  };
+  const riskAssessments=risks.map((risk,index)=>{
+    const probability=riskLevel(risk.probability),impact=riskLevel(risk.impact)??(String(risk.impact||"").trim()?3:null);
+    const score=probability&&impact?probability*impact:null;
+    return {id:String(risk.id),code:`R${String(index+1).padStart(2,"0")}`,title:String(risk.title),description:String(risk.impact||""),status:String(risk.status||"aberto"),probability,impact,score,severity:score===9?"Crítico":score===6?"Alto":score&&score>=3?"Moderado":score?"Baixo":"Não avaliado",mitigation:String(risk.mitigation||"")||null,owner:String(risk.owner||"")||null,decisionId:null,taskId:null,lastUpdated:String(risk.updatedAt||risk.createdAt||"")||null};
+  });
+  const meetingLines=meetings.flatMap(meeting=>{
+    const base={meetingId:String(meeting.id),meetingTitle:String(meeting.title||"Reunião"),heldAt:String(meeting.held_at||meeting.created_at||now()),localOnly:true};
+    const values:Array<{category:"summary"|"commitment"|"pending";title:string;details:string}>=[
+      {category:"summary",title:"Resumo da reunião",details:String(meeting.summary||meeting.objective||"")},
+      {category:"commitment",title:"Compromisso registrado",details:String(meeting.commitments||"")},
+      {category:"pending",title:"Pendência registrada",details:String(meeting.pending_items||"")},
+    ];
+    return values.filter(item=>item.details.trim()).map((item,index)=>({...base,...item,sourceReference:`meeting:${meeting.id}:${item.category}:${index}`}));
+  });
   const report = {
     project:{id:projectId,name:String(project?.name || "Projeto demonstrativo")}, generated_at:now(), scope:"current_snapshot" as const,
-    publicFacts:[], publicFactsAvailable:true, riskAssessments:[],
+    publicFacts:[], publicFactsAvailable:true, riskAssessments:audience==="internal"?riskAssessments:[],
     kanban:{total:cards.length,todo:cards.filter(t=>t.status==="aberta").length,doing:cards.filter(t=>t.status==="em_andamento").length,done:cards.filter(t=>t.status==="concluida").length,overdue:cards.filter(t=>t.dueDate&&String(t.dueDate)<today&&t.status!=="concluida").length,completed_titles:cards.filter(t=>t.status==="concluida").map(t=>String(t.title)).slice(0,12),...(audience==="internal"?{items:cards.map(t=>({id:String(t.id),title:String(t.title),status:String(t.status),dueDate:t.dueDate?String(t.dueDate):null}))}:{})},
     governance:{risks_open:risks.filter(r=>["aberto","em_mitigacao"].includes(String(r.status))).length,decisions_pending:decisions.filter(d=>["aberta","em_andamento"].includes(String(d.status))).length,client_risks:audience==="internal"?risks.map(r=>({title:String(r.title),status:String(r.status)})):[],client_decisions:audience==="internal"?decisions.map(d=>({title:String(d.title),status:String(d.status)})):[]},
     scrum:{enabled:sprintMetrics.length>0,sprints:audience==="internal"?sprintMetrics:[],backlog_stories:stories.filter(story=>!story.sprint_id).length,stories_total:stories.length,tasks_total:scrumTasks.length,tasks_done:scrumTasks.filter(task=>task.state==="done").length},
-    ...(audience==="internal"?{internal:{stories:stories.map(story=>({id:String(story.id),sprint_id:story.sprint_id?String(story.sprint_id):null,title:String(story.title),description:String(story.description||""),workflow_stage:String(story.workflow_stage||"new"),story_points:story.story_points==null?null:Number(story.story_points),due_date:story.due_date?String(story.due_date):null,actual_end_date:story.actual_end_date?String(story.actual_end_date):null,blocked:Boolean(story.blocked),blocker_reason:String(story.blocker_reason||""),responsible:story.responsible?String(story.responsible):null})),tasks:scrumTasks.map(task=>({id:String(task.id),story_id:task.story_id?String(task.story_id):null,title:String(task.title),state:String(task.state||"todo"),responsible:task.responsible?String(task.responsible):null})),meetingLines:[],meetingSource:"local" as const}}:{})
+    ...(audience==="internal"?{internal:{stories:stories.map(story=>({id:String(story.id),sprint_id:story.sprint_id?String(story.sprint_id):null,title:String(story.title),description:String(story.description||""),workflow_stage:String(story.workflow_stage||"new"),story_points:story.story_points==null?null:Number(story.story_points),due_date:story.due_date?String(story.due_date):null,actual_end_date:story.actual_end_date?String(story.actual_end_date):null,blocked:Boolean(story.blocked),blocker_reason:String(story.blocker_reason||""),responsible:story.responsible?String(story.responsible):null})),tasks:scrumTasks.map(task=>({id:String(task.id),story_id:task.story_id?String(task.story_id):null,title:String(task.title),state:String(task.state||"todo"),responsible:task.responsible?String(task.responsible):null})),meetingLines,meetingSource:"local" as const}}:{})
   };
   return {report,project,sprints:sprintMetrics,stories,cards,risks,decisions};
+}
+
+function selectDemoClientFacts(store:Store,org:string,projectId:string,selected:unknown):Row[]{
+  const data=demoReport(store,org,projectId,"internal");
+  const classify=(value:unknown)=>["closed","done","concluida","resolved"].includes(String(value))?"confirmed":["active","doing","em_andamento"].includes(String(value))?"in_progress":"hypothesis";
+  const facts:Row[]=[];
+  if(data.project?.objective)facts.push({id:"project:"+projectId,kind:"objective",title:String(data.project.objective),description:"Objetivo cadastrado no projeto demonstrativo.",classification:"in_progress",due_date:null,source_reference:"project:"+projectId});
+  for(const card of data.cards)facts.push({id:"task:"+card.id,kind:"deliverable",title:String(card.title),description:"Atividade do Kanban do Projeto.",classification:classify(card.status),due_date:card.dueDate||null,source_reference:"task:"+card.id});
+  for(const sprint of data.sprints)facts.push({id:"sprint:"+sprint.id,kind:"milestone",title:sprint.name,description:`Sprint · ${sprint.status} · ${sprint.start_date} a ${sprint.end_date}`,classification:classify(sprint.status),due_date:sprint.end_date,source_reference:"sprint:"+sprint.id});
+  for(const risk of data.risks)facts.push({id:"risk:"+risk.id,kind:"risk",title:String(risk.title),description:"Ponto de atenção cadastrado no projeto demonstrativo.",classification:classify(risk.status),due_date:null,source_reference:"risk:"+risk.id});
+  for(const decision of data.decisions)facts.push({id:"decision:"+decision.id,kind:"next_step",title:String(decision.title),description:"Decisão registrada no projeto demonstrativo.",classification:classify(decision.status),due_date:null,source_reference:"decision:"+decision.id});
+  const ids=Array.isArray(selected)?new Set(selected.map(String)):null;
+  return ids?facts.filter(fact=>ids.has(String(fact.id))):facts;
 }
 
 async function handle(input: RequestInfo | URL, init?: RequestInit): Promise<Response | null> {
@@ -163,7 +198,21 @@ async function handle(input: RequestInfo | URL, init?: RequestInit): Promise<Res
   if(url.pathname==="/api/admin/users")return json({data:scoped("organization_members").map(m=>({...m,user:store.users.find(u=>u.id===m.user_id)}))});
   if(url.pathname==="/api/platform/companies")return json({data:store.organizations});
   if(url.pathname==="/api/platform/companies/members")return json({data:scoped("organization_members")});
-  if(url.pathname==="/api/status-report/history")return json({data:[]});
+  if(url.pathname==="/api/status-report/history"){
+    const history=rows(store,"status_report_history");
+    if(method==="GET"){
+      const reportId=url.searchParams.get("id");
+      if(reportId){const item=history.find(entry=>entry.id===reportId&&entry.organization_id===org&&entry.project_id===projectId);return item?json({data:item}):json({error:"Emissão não encontrada."},404);}
+      return json({data:history.filter(entry=>entry.organization_id===org&&entry.project_id===projectId).map(entry=>({id:entry.id,audience:entry.audience,created_at:entry.created_at,generated_by_email:entry.generated_by_email,mode:entry.mode,simulated:true}))});
+    }
+    if(method==="POST"){
+      const audience=body.audience==="internal"?"internal":"client";
+      const report=demoReport(store,org,String(body.projectId||projectId),audience).report as Row;
+      const savedReport={...report,...(audience==="internal"?{internalSelection:body.internalSelection}:{publicFacts:selectDemoClientFacts(store,org,String(body.projectId||projectId),body.clientFactIds),clientExecutiveComplement:String(body.clientExecutiveComplement||"")})};
+      const entry={id:id(),organization_id:org,project_id:String(body.projectId||projectId),audience,mode:String(body.mode||"current"),created_at:now(),generated_by_email:"apresentacao@example.invalid",report_data:savedReport,narrative:body.narrative||null,simulated:true};
+      history.unshift(entry);store.status_report_history=history;save(store);return json({data:entry},201);
+    }
+  }
   if(url.pathname==="/api/status-report/logo"){
     const organization=store.organizations.find(item=>item.id===org);
     const branding=(organization?.branding||{}) as Row;
@@ -177,15 +226,7 @@ async function handle(input: RequestInfo | URL, init?: RequestInit): Promise<Res
     return json({data:demoReport(store,org,projectId,audience).report,simulated:true});
   }
   if(url.pathname==="/api/status-report/client-candidates"){
-    const data=demoReport(store,org,projectId,"internal");
-    const classify=(value:unknown)=>["closed","done","concluida","resolved"].includes(String(value))?"confirmed":["active","doing","em_andamento"].includes(String(value))?"in_progress":"hypothesis";
-    const candidates:Row[]=[];
-    if(data.project?.objective)candidates.push({id:"project:"+projectId,kind:"objective",title:String(data.project.objective),description:"Objetivo cadastrado no projeto demonstrativo.",classification:"in_progress",due_date:null,source_reference:"project:"+projectId});
-    for(const card of data.cards)candidates.push({id:"task:"+card.id,kind:"deliverable",title:String(card.title),description:"Atividade do Kanban do Projeto.",classification:classify(card.status),due_date:card.dueDate||null,source_reference:"task:"+card.id});
-    for(const sprint of data.sprints)candidates.push({id:"sprint:"+sprint.id,kind:"milestone",title:sprint.name,description:`Sprint · ${sprint.status} · ${sprint.start_date} a ${sprint.end_date}`,classification:classify(sprint.status),due_date:sprint.end_date,source_reference:"sprint:"+sprint.id});
-    for(const risk of data.risks)candidates.push({id:"risk:"+risk.id,kind:"risk",title:String(risk.title),description:"Ponto de atenção cadastrado no projeto demonstrativo.",classification:classify(risk.status),due_date:null,source_reference:"risk:"+risk.id});
-    for(const decision of data.decisions)candidates.push({id:"decision:"+decision.id,kind:"next_step",title:String(decision.title),description:"Decisão registrada no projeto demonstrativo.",classification:classify(decision.status),due_date:null,source_reference:"decision:"+decision.id});
-    return json({data:candidates,simulated:true});
+    return json({data:selectDemoClientFacts(store,org,projectId,null),simulated:true});
   }
   if(url.pathname==="/api/status-report/analysis")return json({data:{analysis:null,periodEvents:null,periodMetrics:null,source:"rules"},warning:"Análise simulada localmente com os dados fictícios da demonstração.",simulated:true});
   if(url.pathname.startsWith("/api/status-report/"))return json({data:null,simulated:true});
