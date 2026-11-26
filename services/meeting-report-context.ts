@@ -4,10 +4,10 @@ import {listSandboxMeetings} from "@/services/local-meeting-sandbox";
 
 type DB=NonNullable<ReturnType<typeof getSupabaseServerClient>>;
 export type MeetingReportRecord={
- id:string;title:string;held_at:string;commitments:string;pending_items:string;
+ id:string;title:string;held_at:string;summary?:string;commitments:string;pending_items:string;
  next_follow_up:string|null;source_artifact_id:string|null;local_only:boolean;
 };
-export type MeetingReportLine={meetingId:string;meetingTitle:string;heldAt:string;category:"commitment"|"pending";position:number;title:string;details:string;sourceReference:string;localOnly:boolean};
+export type MeetingReportLine={meetingId:string;meetingTitle:string;heldAt:string;category:"commitment"|"pending"|"summary";position:number;title:string;details:string;sourceReference:string;localOnly:boolean};
 export function meetingReportLines(meeting:MeetingReportRecord):MeetingReportLine[]{
  const values:[MeetingReportLine["category"],string][]=[["commitment",meeting.commitments],["pending",meeting.pending_items]];
  return values.flatMap(([category,source])=>source.split(/\r?\n/).map(x=>x.trim()).filter(Boolean)
@@ -22,6 +22,10 @@ export function meetingReportLines(meeting:MeetingReportRecord):MeetingReportLin
    };
   }).filter(x=>x.title.length>=3));
 }
+// The report catalog must represent every meeting, regardless of generated action items.
+export function meetingSummaryLine(meeting:MeetingReportRecord):MeetingReportLine{
+ return {meetingId:meeting.id,meetingTitle:meeting.title,heldAt:meeting.held_at,category:"summary",position:0,title:"Resumo registrado da reunião",details:meeting.summary?.trim()||"",sourceReference:"meeting:"+meeting.id+":summary:0",localOnly:meeting.local_only};
+}
 export function localMeetingReportEnabled():boolean{
  return process.env.NODE_ENV==="development"&&localWriteGuardEnabled();
 }
@@ -32,13 +36,13 @@ export async function loadProjectMeetingReport(
   const rows=await listSandboxMeetings(org,projectId);
   return {source:"local",records:rows.slice(0,limit).map(row=>({
    id:row.id,title:row.title,held_at:row.held_at,
-   commitments:row.commitments,pending_items:row.pending_items,
+   summary:row.summary||"",commitments:row.commitments,pending_items:row.pending_items,
    next_follow_up:row.next_follow_up,source_artifact_id:row.source_artifact_id,
    local_only:true
   }))};
  }
  const result=await db.from("project_meetings")
-  .select("id,title,held_at,commitments,pending_items,next_follow_up,source_artifact_id")
+  .select("id,title,held_at,summary,commitments,pending_items,next_follow_up,source_artifact_id")
   .eq("organization_id",org).eq("project_id",projectId)
   .order("held_at",{ascending:false}).limit(limit);
  if(result.error){
@@ -47,7 +51,7 @@ export async function loadProjectMeetingReport(
  }
  return {source:"official",records:(result.data||[]).map(row=>({
   id:row.id,title:row.title,held_at:row.held_at,
-  commitments:row.commitments||"",pending_items:row.pending_items||"",
+  summary:row.summary||"",commitments:row.commitments||"",pending_items:row.pending_items||"",
   next_follow_up:row.next_follow_up||null,
   source_artifact_id:row.source_artifact_id||null,local_only:false
  }))};
