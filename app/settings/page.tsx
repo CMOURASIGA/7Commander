@@ -3,6 +3,7 @@ import { AuthClientConfig } from "@/components/settings/auth-client-config";
 import { ClientBrandConfig } from "@/components/settings/client-brand-config";
 import { KairosProfileConfig } from "@/components/settings/kairos-profile-config";
 import { PageIntro, SectionLabel, SurfaceCard, StatusPill } from "@/components/ui/workspace-primitives";
+import { DemoResetCard } from "@/components/demo/demo-reset-card";
 
 export default function SettingsPage() {
   const missingPublic = validatePublicEnv();
@@ -97,6 +98,7 @@ export default function SettingsPage() {
       </SurfaceCard></div>
 
       <div id="auth-settings" className="scroll-mt-24"><AuthClientConfig /></div>
+      <DemoResetCard />
     </section>
   );
 }

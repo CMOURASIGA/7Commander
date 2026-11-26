@@ -21,6 +21,9 @@ function secureNext() {
   return response;
 }
 export async function middleware(request:NextRequest) {
+  // The demonstration is an isolated browser-only application. Its API calls
+  // are served by the LocalStorage adapter before reaching this middleware.
+  if (process.env.NEXT_PUBLIC_COMMANDER_DEMO_MODE === 'true') return NextResponse.next();
   // Keep API mutations disabled on localhost until a separate QA database
   // or a truly read-only database credential is available.
   const isolatedMeetingSave=localMeetingSandboxAllowed({

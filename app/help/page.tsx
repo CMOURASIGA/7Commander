@@ -24,6 +24,10 @@ export default function HelpPage() {
   return (
     <main className="space-y-6">
       <PageIntro eyebrow="CENTRAL DE AJUDA" title="Como usar o Commander" description="Um guia simples para organizar clientes, planejar projetos e acompanhar o trabalho da sua equipe." />
+      {process.env.NEXT_PUBLIC_COMMANDER_DEMO_MODE === "true" ? <SurfaceCard className="border-blue-200 bg-blue-50 p-5">
+        <h2 className="font-semibold text-blue-950">Sobre esta demonstração</h2>
+        <p className="mt-2 text-sm leading-6 text-blue-900">Todos os nomes e registros são fictícios. As alterações ficam somente no LocalStorage deste navegador, separadas por empresa. Integrações externas e respostas do Kairos são simuladas e identificadas. Para recomeçar, use Restaurar dados originais em Configurações.</p>
+      </SurfaceCard> : null}
       <SurfaceCard className="p-5">
         <h2 className="text-xl font-semibold text-(--text-primary)">Está começando? Siga este caminho</h2>
         <p className="mt-2 text-sm text-(--text-secondary)">Você não precisa aprender tudo de uma vez. Comece com estas quatro ações.</p>

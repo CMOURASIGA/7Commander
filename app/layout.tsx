@@ -9,6 +9,8 @@ import { ToastProvider } from "@/components/ui/toast";
 import { ConfirmProvider } from "@/components/ui/confirm-dialog";
 import { isAuthRequired } from "@/lib/env";
 import { BRAND_DESCRIPTION, BRAND_NAME } from "@/lib/brand";
+import { DemoBootstrap } from "@/components/demo/demo-bootstrap";
+import { DEMO_MODE } from "@/lib/demo/config";
 
 export const metadata: Metadata = {
   title: BRAND_NAME,
@@ -29,8 +31,9 @@ export default function RootLayout({
   const authRequired = process.env.VERCEL_ENV === "preview" ? true : isAuthRequired();
 
   return (
-    <html lang="pt-BR">
+    <html lang="pt-BR" data-commander-demo={DEMO_MODE ? "true" : undefined}>
       <body>
+        <DemoBootstrap>
         <ToastProvider>
           <ConfirmProvider>
             <KairosAuthProvider required={authRequired}>
@@ -43,6 +46,7 @@ export default function RootLayout({
             </KairosAuthProvider>
           </ConfirmProvider>
         </ToastProvider>
+        </DemoBootstrap>
       </body>
     </html>
   );

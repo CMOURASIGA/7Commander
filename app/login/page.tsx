@@ -10,13 +10,18 @@ export default function LoginPage() {
   const [error,setError]=useState("");const [busy,setBusy]=useState(false);
   const [nextPath,setNextPath]=useState("/");
   useEffect(()=>{const value=new URLSearchParams(window.location.search).get("next")||"/";setNextPath(value.startsWith("/")&&!value.startsWith("//")?value:"/")},[]);
+  useEffect(()=>{
+    if(process.env.NEXT_PUBLIC_COMMANDER_DEMO_MODE!=="true")return;
+    setEmail("apresentacao@example.invalid");
+    setPassword("demo");
+  },[]);
   async function submit(e:React.FormEvent) {
     e.preventDefault();
     setError("");
     setBusy(true);
     try {
-      if ((process.env.NEXT_PUBLIC_COMMANDER_LOCAL_AUTH_ENABLED==="true" || process.env.NEXT_PUBLIC_COMMANDER_LOCAL_READ_ONLY==="true")
-          && ["localhost","127.0.0.1"].includes(window.location.hostname)) {
+      if (process.env.NEXT_PUBLIC_COMMANDER_DEMO_MODE==="true" || ((process.env.NEXT_PUBLIC_COMMANDER_LOCAL_AUTH_ENABLED==="true" || process.env.NEXT_PUBLIC_COMMANDER_LOCAL_READ_ONLY==="true")
+          && ["localhost","127.0.0.1"].includes(window.location.hostname))) {
         // Internal operator only; API and middleware validate identity and
         // active membership independently through Supabase RLS.
         await auth.signInWithPassword(email,password);
@@ -86,6 +91,7 @@ export default function LoginPage() {
       <img src="/product-icons/commander-approved.svg" alt="Ícone do Commander" width={64} height={64} className="rounded-xl" />
     </div>
     <div className="mt-6 text-center"><h1 className="text-2xl font-semibold">Entrar no Commander</h1><p className="mt-3 text-sm">Use suas credenciais autorizadas. A empresa será selecionada dentro do sistema.</p></div>
+    {process.env.NEXT_PUBLIC_COMMANDER_DEMO_MODE==="true"?<div className="mt-5 rounded-xl border border-blue-200 bg-blue-50 p-4 text-sm text-blue-950"><strong>Ambiente demonstrativo</strong><p className="mt-1">Dados fictícios e persistência exclusiva neste navegador. Use o acesso preenchido abaixo.</p></div>:null}
     <form onSubmit={submit} className="mt-6 grid gap-4 rounded-xl border p-5">
       <label className="grid gap-1 text-sm">E-mail<input type="email" autoComplete="username" required className="rounded border p-3" value={email} onChange={e=>setEmail(e.target.value)}/></label>
       <label className="grid gap-1 text-sm">Senha<input type="password" autoComplete="current-password" required className="rounded border p-3" value={password} onChange={e=>setPassword(e.target.value)}/></label>

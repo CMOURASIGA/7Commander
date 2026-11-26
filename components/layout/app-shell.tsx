@@ -8,6 +8,7 @@ import { useKairosAuth } from "@/components/auth/kairos-auth-provider";
 import { KairosLauncher } from "@/components/kairos/kairos-launcher";
 import { KairosPanel } from "@/components/kairos/kairos-panel";
 import { TaskAlerts } from "@/components/notifications/task-alerts";
+import { DEMO_MODE } from "@/lib/demo/config";
 
 type AppShellProps = {
   children: React.ReactNode;
@@ -124,6 +125,7 @@ export function AppShell({ children }: AppShellProps) {
     <div className="min-h-screen bg-(--bg-page) md:flex md:items-stretch">
       <Sidebar isMobileOpen={mobileNavOpen} onCloseMobile={() => setMobileNavOpen(false)} expanded={sidebarExpanded} onToggleExpanded={toggleSidebar} />
       <div className="flex min-h-screen min-w-0 flex-1 flex-col">
+        {DEMO_MODE ? <div className="border-b border-blue-200 bg-blue-50 px-4 py-1.5 text-center text-[11px] font-semibold uppercase tracking-wider text-blue-900">Ambiente demonstrativo, dados fictícios salvos neste navegador</div> : null}
         <Header onToggleMobileNav={() => setMobileNavOpen((prev) => !prev)} mobileNavOpen={mobileNavOpen} />
         <main onPointerDown={()=>{if(sidebarExpanded)setSidebarExpanded(false)}} className="min-w-0 flex-1 overflow-x-hidden p-4 md:p-5">{pathname === "/" && <TaskAlerts center />}{children}</main>
       </div>
