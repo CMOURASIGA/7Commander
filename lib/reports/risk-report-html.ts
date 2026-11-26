@@ -1,3 +1,4 @@
+import {teamOwnerLabel} from "./team-owner-label";
 import type {ReportAudience,ReportRiskAssessment} from "@/lib/scrum/report-data";
 
 function escapeHtml(value:unknown):string{
@@ -30,7 +31,7 @@ export function riskMitigationAnnexHtml(risks:ReportRiskAssessment[]){
  const esc=escapeHtml;
  const plans=sortedRisks(risks).filter(r=>clean(r.mitigation));
  if(!plans.length)return "";
- return '<section class="panel risk-annex"><h3>Anexo opcional</h3><h2>Planos de mitigação completos</h2>'+plans.map(r=>'<article class="risk-plan"><h4>'+esc(r.code)+' · '+esc(r.title)+'</h4><p class="muted">Criticidade: '+esc(r.severity)+' · Responsável: '+esc(r.owner||"Não definido")+' · Status: '+esc(r.status.replaceAll("_"," "))+'</p><p style="white-space:pre-wrap">'+esc(r.mitigation)+'</p></article>').join("")+'</section>';
+ return '<section class="panel risk-annex"><h3>Anexo opcional</h3><h2>Planos de mitigação completos</h2>'+plans.map(r=>'<article class="risk-plan"><h4>'+esc(r.code)+' · '+esc(r.title)+'</h4><p class="muted">Criticidade: '+esc(r.severity)+' · Responsável: '+esc(teamOwnerLabel(r.owner,"Não definido"))+' · Status: '+esc(r.status.replaceAll("_"," "))+'</p><p style="white-space:pre-wrap">'+esc(r.mitigation)+'</p></article>').join("")+'</section>';
 }
 export function riskReportHtml(risks:ReportRiskAssessment[],audience:ReportAudience,options:{includeMitigationAnnex?:boolean}={}){
  const esc=escapeHtml;
@@ -62,7 +63,7 @@ export function riskReportHtml(risks:ReportRiskAssessment[],audience:ReportAudie
   const action=shortAction(r.mitigation);
   const label=r.code;
   const detail=clean(r.mitigation);
-  return '<tr id="risk-'+esc(r.id)+'"><td>'+esc(label)+'</td><td>'+esc(compact(r.title,110))+'</td><td><strong>'+esc(r.severity)+'</strong></td><td>'+esc(r.owner||"Não definido")+'</td><td>'+esc(r.status.replaceAll("_"," "))+'</td><td>'+esc(action||"Sem ação registrada")+'</td></tr>'+
+  return '<tr id="risk-'+esc(r.id)+'"><td>'+esc(label)+'</td><td>'+esc(compact(r.title,110))+'</td><td><strong>'+esc(r.severity)+'</strong></td><td>'+esc(teamOwnerLabel(r.owner,"Não definido"))+'</td><td>'+esc(r.status.replaceAll("_"," "))+'</td><td>'+esc(action||"Sem ação registrada")+'</td></tr>'+
    (detail?'<tr class="risk-detail-row pdf-hide"><td colspan="6"><details><summary>Ver plano completo · '+esc(label)+'</summary><p>'+esc(detail)+'</p></details></td></tr>':"");
  }).join("");
  const cells=[3,2,1].map(p=>'<tr><th scope="row">P '+p+'</th>'+[1,2,3].map(i=>{

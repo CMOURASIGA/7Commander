@@ -47,6 +47,11 @@ export async function loadReportData(db:DB,org:string,projectId:string,audience:
  for(const person of (profileQuery?.data||[])){
   if(person.nome?.trim()){if(person.email)emailNames.set(person.email.trim().toLowerCase(),person.nome.trim());if(person.user_id)emailNames.set(person.user_id.toLowerCase(),person.nome.trim());}
  }
+ if(audience==="internal"){
+  const projectMembers=await db.from("project_members").select("member_email,status").eq("project_id",projectId).eq("organization_id",org);
+  const emails=[...new Set((projectMembers.data||[]).filter(m=>["active","accepted","ativo"].includes(String(m.status||"").toLowerCase())).map(m=>String(m.member_email||"").trim().toLowerCase()).filter(v=>v.includes("@")))];
+  if(emails.length){const [profiles,internal]=await Promise.all([db.from("profiles").select("email,nome").in("email",emails),db.from("internal_user_access").select("email,nome").in("email",emails)]);for(const p of [...(internal.data||[]),...(profiles.data||[])]){const key=String(p.email||"").trim().toLowerCase(),name=String(p.nome||"").trim();if(key&&name&&emails.includes(key))emailNames.set(key,name);}}
+ }
  const displayOwner=(value:string|null)=>value&&emailNames.has(value.trim().toLowerCase())?emailNames.get(value.trim().toLowerCase())!:value;
  const codeRows=await db.from("project_risk_display_codes").select("risk_id,code_number")
   .eq("project_id",projectId).eq("organization_id",org).limit(1000);

@@ -12,6 +12,7 @@ const escByte=(value:string):number[]=>{
  const map:Record<number,number>={0x2013:150,0x2014:151,0x2018:145,0x2019:146,0x201c:147,0x201d:148,0x2022:149,0x2026:133,0x20ac:128};
  const bytes:number[]=[];
  for(const c of value.replaceAll("→",">").replaceAll("✓","OK")){
+  if(c==="\u200b")continue;
   const n=c.codePointAt(0)||32;
   bytes.push(n<256?n:map[n]||63);
  }
@@ -86,7 +87,7 @@ class DocumentComposer{
  private rule(top:number){this.rect(LEFT,top,WIDTH,0.8,"dce6ef");}
  paragraph(value:string,options:{size?:number;bold?:boolean;color?:string;indent?:number;space?:number}={}){
   const {size=9.4,bold=false,color="344a61",indent=0,space=7}=options;
-  const lines=this.wrap(value,WIDTH-indent,size,bold);const lineH=size*1.52;
+  const lines=this.wrap(value,WIDTH-indent,size,bold);const lineH=size*(this.team&&size<=8.8?1.36:1.52);
   if(lines.length===1&&lines[0]==="")return;
   if(this.team&&lines.length*lineH+space< PAGE_H-TOP-BOTTOM-55)this.reserve(lines.length*lineH+space);
   for(const line of lines){this.reserve(lineH+3);this.text(LEFT+indent,this.y,line,size,bold,color);this.y+=lineH;}
@@ -122,7 +123,7 @@ class DocumentComposer{
   const headers=Array.from(rawRows[0].querySelectorAll("th,td")).map(cellText);
   if(!headers.length)return;
   const columns=headers.length;
-  const widths=this.team&&(table.classList.contains("meeting-action-table")||table.classList.contains("team-action-table"))?[.55,.26,.19]:table.classList.contains("sprint-summary-table")?(this.team?[.27,.22,.15,.15,.10,.11]:[.28,.24,.15,.15,.09,.09]):table.classList.contains("team-stories-table")?[.29,.17,.10,.11,.14,.19]:columns===6?[.12,.25,.12,.15,.11,.25]:columns===4?[.19,.27,.28,.26]:Array(columns).fill(1/columns);
+  const widths=this.team&&(table.classList.contains("meeting-action-table")||table.classList.contains("team-action-table"))?[.55,.26,.19]:table.classList.contains("sprint-summary-table")?(this.team?[.27,.22,.15,.15,.10,.11]:[.28,.24,.15,.15,.09,.09]):table.classList.contains("team-stories-table")?[.28,.17,.12,.11,.15,.17]:columns===6?[.12,.25,.12,.15,.11,.25]:columns===4?[.19,.27,.28,.26]:Array(columns).fill(1/columns);
   const isMatrix=table.classList.contains("risk-matrix");
   const drawRow=(values:string[],header=false,rowIndex=0)=>{
    const size=header?7.7:8.2,pad=6,lineHeight=size*1.4;
@@ -148,7 +149,7 @@ class DocumentComposer{
    if(!values.length)continue;
    // Page breaks repeat the table heading, never split a compact risk row.
    const est=Math.max(26,...values.map((v,i)=>this.wrap(v,(WIDTH*widths[i])-12,8.2).length*11.5+12));
-   if(this.y+est>PAGE_H-BOTTOM-2){this.newPage();drawRow(headers,true);}
+   if(this.y+est>PAGE_H-BOTTOM-2){this.newPage();if(this.team){const label=table.classList.contains("team-action-table")?"Próximos passos":table.classList.contains("meeting-action-table")?"Encaminhamentos da reunião":table.classList.contains("team-stories-table")?"User Stories":table.classList.contains("sprint-summary-table")?"Panorama de sprints":table.classList.contains("operational-risk-table")?"Riscos e planos de mitigação":"Tabela";this.paragraph(label+" · continuação",{size:8,bold:true,color:"617a91",space:5});}drawRow(headers,true);}
    drawRow(values,false,rowIndex);
   }
   this.y+=10;
@@ -188,7 +189,7 @@ class DocumentComposer{
   if(this.team&&element.classList.contains("quality-row")){const pct=Math.max(0,Math.min(100,Number(element.getAttribute("data-percent"))||0));this.reserve(35);this.paragraph(element.querySelector(".quality-label")?.textContent||"",{size:9,bold:true,space:3});this.rect(LEFT,this.y,WIDTH,6,"edf2f7");if(pct)this.rect(LEFT,this.y,WIDTH*pct/100,6,pct===100?"16876d":pct<50?"b94a48":"ce861a");this.y+=13;return;}
   if(this.team&&element.classList.contains("item")){const title=element.querySelector(":scope > div")?.textContent?.trim()||Array.from(element.childNodes).filter(n=>n.nodeType===3).map(n=>n.textContent).join(" ").trim();const note=element.querySelector(":scope > span")?.textContent?.trim()||"";if(title||note){this.paragraph([title,note].filter(Boolean).join(" · "),{space:5});return;}}
   if(this.team&&element.classList.contains("team-meeting"))this.reserve(180);
-  if(this.team&&element.classList.contains("risk-plan")){this.reserve(120);this.rule(this.y);this.y+=8;}
+  if(this.team&&element.classList.contains("risk-plan")){const title=element.querySelector("h4")?.textContent?.trim()||"";const paragraphs=Array.from(element.querySelectorAll(":scope > p")).map(p=>p.textContent?.trim()||"");const height=14+this.wrap(title,WIDTH,9.2,true).length*9.2*1.52+paragraphs.reduce((sum,p,i)=>sum+this.wrap(p,WIDTH,i===0?8:8.7).length*(i===0?8:8.7)*1.36+4,0);if(height< PAGE_H-TOP-BOTTOM-50)this.reserve(height+6);this.rule(this.y);this.y+=5;this.paragraph(title,{size:9.2,bold:true,space:3});for(const [i,p] of paragraphs.entries())this.paragraph(p,{size:i===0?8:8.7,color:i===0?"617a91":"344a61",space:4});this.y+=3;return;}
   if(this.team&&element.classList.contains("risk-annex")&&this.y>TOP+100)this.newPage();
   if(tag==="img")return;
   if(element.classList.contains("sprint-points-chart")){this.sprintChart(element);return;}
