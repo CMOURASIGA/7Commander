@@ -39,6 +39,46 @@ const projectView = (p: Row) => ({ ...p, userId: "d0000000-0000-4000-8000-000000
 const clientView = (c: Row) => ({ ...c, contactInfo: c.contact ?? "", createdAt: c.createdAt ?? now() });
 const taskView = (t: Row): Row => ({ ...t, status: t.columnKey === "done" ? "concluida" : t.columnKey === "doing" ? "em_andamento" : "aberta" });
 
+function demoReport(store: Store, org: string, projectId: string, audience: "client" | "internal") {
+  const scoped = (key: string) => rows(store, key).filter(r => r.organization_id === org || !r.organization_id);
+  const project = scoped("projects").find(p => p.id === projectId);
+  const sprints = scoped("scrum_sprints").filter(s => s.project_id === projectId);
+  const stories = scoped("scrum_user_stories").filter(s => s.project_id === projectId);
+  const scrumTasks = scoped("scrum_backlog_items").filter(t => t.project_id === projectId && t.item_type === "task");
+  const cards = scoped("tasks").filter(t => t.project_id === projectId).map(taskView);
+  const risks = scoped("risks").filter(r => r.project_id === projectId);
+  const decisions = scoped("decisions").filter(d => d.project_id === projectId);
+  const today = new Date().toISOString().slice(0, 10);
+  const sprintMetrics = sprints.map(sprint => {
+    const assigned = stories.filter(story => story.sprint_id === sprint.id);
+    const closed = assigned.filter(story => story.workflow_stage === "closed");
+    const delivered = assigned.filter(story => Boolean(story.actual_end_date));
+    const planned = assigned.filter(story => Boolean(story.due_date));
+    return {
+      id:String(sprint.id), name:String(sprint.name || "Sprint"), goal:String(sprint.goal || ""), status:String(sprint.status || "planned"),
+      start_date:String(sprint.start_date || today), end_date:String(sprint.end_date || today), stories:assigned.length,
+      closed:closed.length, resolved:assigned.filter(story => story.workflow_stage === "resolved").length,
+      active:assigned.filter(story => story.workflow_stage === "active").length,
+      blocked:assigned.filter(story => Boolean(story.blocked)).length,
+      overdue:assigned.filter(story => story.workflow_stage !== "closed" && story.due_date && String(story.due_date) < today).length,
+      points_planned:assigned.reduce((sum, story) => sum + Number(story.story_points || 0), 0),
+      points_done:closed.reduce((sum, story) => sum + Number(story.story_points || 0), 0),
+      delivery_planned:planned.length, delivery_actual:delivered.length,
+      delivery_on_time:delivered.filter(story => story.due_date && String(story.actual_end_date) <= String(story.due_date)).length,
+      delivery_late:delivered.filter(story => story.due_date && String(story.actual_end_date) > String(story.due_date)).length,
+    };
+  });
+  const report = {
+    project:{id:projectId,name:String(project?.name || "Projeto demonstrativo")}, generated_at:now(), scope:"current_snapshot" as const,
+    publicFacts:[], publicFactsAvailable:true, riskAssessments:[],
+    kanban:{total:cards.length,todo:cards.filter(t=>t.status==="aberta").length,doing:cards.filter(t=>t.status==="em_andamento").length,done:cards.filter(t=>t.status==="concluida").length,overdue:cards.filter(t=>t.dueDate&&String(t.dueDate)<today&&t.status!=="concluida").length,completed_titles:cards.filter(t=>t.status==="concluida").map(t=>String(t.title)).slice(0,12),...(audience==="internal"?{items:cards.map(t=>({id:String(t.id),title:String(t.title),status:String(t.status),dueDate:t.dueDate?String(t.dueDate):null}))}:{})},
+    governance:{risks_open:risks.filter(r=>["aberto","em_mitigacao"].includes(String(r.status))).length,decisions_pending:decisions.filter(d=>["aberta","em_andamento"].includes(String(d.status))).length,client_risks:audience==="internal"?risks.map(r=>({title:String(r.title),status:String(r.status)})):[],client_decisions:audience==="internal"?decisions.map(d=>({title:String(d.title),status:String(d.status)})):[]},
+    scrum:{enabled:sprintMetrics.length>0,sprints:audience==="internal"?sprintMetrics:[],backlog_stories:stories.filter(story=>!story.sprint_id).length,stories_total:stories.length,tasks_total:scrumTasks.length,tasks_done:scrumTasks.filter(task=>task.state==="done").length},
+    ...(audience==="internal"?{internal:{stories:stories.map(story=>({id:String(story.id),sprint_id:story.sprint_id?String(story.sprint_id):null,title:String(story.title),description:String(story.description||""),workflow_stage:String(story.workflow_stage||"new"),story_points:story.story_points==null?null:Number(story.story_points),due_date:story.due_date?String(story.due_date):null,actual_end_date:story.actual_end_date?String(story.actual_end_date):null,blocked:Boolean(story.blocked),blocker_reason:String(story.blocker_reason||""),responsible:story.responsible?String(story.responsible):null})),tasks:scrumTasks.map(task=>({id:String(task.id),story_id:task.story_id?String(task.story_id):null,title:String(task.title),state:String(task.state||"todo"),responsible:task.responsible?String(task.responsible):null})),meetingLines:[],meetingSource:"local" as const}}:{})
+  };
+  return {report,project,sprints:sprintMetrics,stories,cards,risks,decisions};
+}
+
 async function handle(input: RequestInfo | URL, init?: RequestInit): Promise<Response | null> {
   const raw = typeof input === "string" ? input : input instanceof URL ? input.toString() : input.url;
   const url = new URL(raw, location.origin);
@@ -111,7 +151,24 @@ async function handle(input: RequestInfo | URL, init?: RequestInit): Promise<Res
   if(url.pathname==="/api/admin/users")return json({data:scoped("organization_members").map(m=>({...m,user:store.users.find(u=>u.id===m.user_id)}))});
   if(url.pathname==="/api/platform/companies")return json({data:store.organizations});
   if(url.pathname==="/api/platform/companies/members")return json({data:scoped("organization_members")});
-  if(url.pathname.startsWith("/api/status-report/"))return json({data:{project:scoped("projects").find(p=>p.id===projectId)||null,sprints:scoped("scrum_sprints").filter(s=>s.project_id===projectId),stories:scoped("scrum_user_stories").filter(s=>s.project_id===projectId),tasks:scoped("tasks").filter(s=>s.project_id===projectId),risks:scoped("risks").filter(s=>s.project_id===projectId),decisions:scoped("decisions").filter(s=>s.project_id===projectId),simulated:true}});
+  if(url.pathname==="/api/status-report/history")return json({data:[]});
+  if(url.pathname==="/api/status-report/scrum"){
+    const audience=url.searchParams.get("audience")==="client"?"client":"internal";
+    return json({data:demoReport(store,org,projectId,audience).report,simulated:true});
+  }
+  if(url.pathname==="/api/status-report/client-candidates"){
+    const data=demoReport(store,org,projectId,"internal");
+    const classify=(value:unknown)=>["closed","done","concluida","resolved"].includes(String(value))?"confirmed":["active","doing","em_andamento"].includes(String(value))?"in_progress":"hypothesis";
+    const candidates:Row[]=[];
+    if(data.project?.objective)candidates.push({id:"project:"+projectId,kind:"objective",title:String(data.project.objective),description:"Objetivo cadastrado no projeto demonstrativo.",classification:"in_progress",due_date:null,source_reference:"project:"+projectId});
+    for(const card of data.cards)candidates.push({id:"task:"+card.id,kind:"deliverable",title:String(card.title),description:"Atividade do Kanban do Projeto.",classification:classify(card.status),due_date:card.dueDate||null,source_reference:"task:"+card.id});
+    for(const sprint of data.sprints)candidates.push({id:"sprint:"+sprint.id,kind:"milestone",title:sprint.name,description:`Sprint · ${sprint.status} · ${sprint.start_date} a ${sprint.end_date}`,classification:classify(sprint.status),due_date:sprint.end_date,source_reference:"sprint:"+sprint.id});
+    for(const risk of data.risks)candidates.push({id:"risk:"+risk.id,kind:"risk",title:String(risk.title),description:"Ponto de atenção cadastrado no projeto demonstrativo.",classification:classify(risk.status),due_date:null,source_reference:"risk:"+risk.id});
+    for(const decision of data.decisions)candidates.push({id:"decision:"+decision.id,kind:"next_step",title:String(decision.title),description:"Decisão registrada no projeto demonstrativo.",classification:classify(decision.status),due_date:null,source_reference:"decision:"+decision.id});
+    return json({data:candidates,simulated:true});
+  }
+  if(url.pathname==="/api/status-report/analysis")return json({data:{analysis:null,periodEvents:null,periodMetrics:null,source:"rules"},warning:"Análise simulada localmente com os dados fictícios da demonstração.",simulated:true});
+  if(url.pathname.startsWith("/api/status-report/"))return json({data:null,simulated:true});
   if(url.pathname.startsWith("/api/integrations/"))return json({data:[],simulated:true,message:"Integração simulada no ambiente demonstrativo."});
   if(url.pathname==="/api/local-diagnostics"||url.pathname.startsWith("/api/health/"))return json({ok:true,mode:"demo-localstorage",productionIsolated:true});
   if(url.pathname==="/api/chat"||url.pathname==="/api/voice")return json({data:{message:"Resposta simulada pelo Kairos Demo com base nos dados locais.",simulated:true}});
