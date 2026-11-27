@@ -44,13 +44,15 @@ class DocumentComposer{
  sheets:Sheet[]=[{commands:[]}];y=TOP;
  private canvas=document.createElement("canvas").getContext("2d");
  private logo:Logo|null;
- constructor(logo:Logo|null,private team=false){this.logo=logo;}
+ private sprintContext="";
+ constructor(logo:Logo|null,private team=false,private sprintReport=false){this.logo=logo;}
  private get sheet(){return this.sheets[this.sheets.length-1];}
  private emit(value:string){this.sheet.commands.push(value);}
  private newPage(){
   this.sheets.push({commands:[]});this.y=TOP;
-  this.text(LEFT,this.y,"COMMANDER  /  STATUS REPORT",8,true,"526e85");
+  this.text(LEFT,this.y,this.sprintReport?"COMMANDER  /  RELATÓRIO DE SPRINTS":"COMMANDER  /  STATUS REPORT",8,true,"526e85");
   this.rule(this.y+16);this.y+=35;
+  if(this.sprintReport&&this.sprintContext)this.paragraph(this.sprintContext+" · continuação",{size:8.5,bold:true,color:"526e85",space:8});
  }
  private reserve(height:number){if(this.y+height>PAGE_H-BOTTOM)this.newPage();}
  private measure(value:string,size:number,bold=false){
@@ -102,7 +104,8 @@ class DocumentComposer{
  metrics(root:Element){
   const items=Array.from(root.querySelectorAll(":scope > .metric"));
   if(!items.length){this.paragraph(root.textContent||"");return;}
-  const cols=Math.min(items.length,4),gap=7,w=(WIDTH-gap*(cols-1))/cols,h=this.team?51:65;
+  const cols=Math.min(items.length,this.sprintReport?3:4),gap=7,w=(WIDTH-gap*(cols-1))/cols,h=this.team?51:65;
+  if(this.sprintReport){const height=Math.ceil(items.length/cols)*(h+7)+16;if(height<PAGE_H-TOP-BOTTOM-100)this.reserve(height);}
   for(let start=0;start<items.length;start+=cols){
    this.reserve(h+16);
    for(const [offset,item] of items.slice(start,start+cols).entries()){
@@ -183,9 +186,36 @@ class DocumentComposer{
   this.emit("q "+w.toFixed(2)+" 0 0 "+h.toFixed(2)+" "+LEFT+" "+(PAGE_H-this.y-h).toFixed(2)+" cm /Logo Do Q\n");
   this.y+=h+7;
  }
+ private keepBlock(element:Element){
+  const page=this.sheets.length,commands=this.sheet.commands.length,y=this.y;
+  this.renderNode(element);
+  if(this.sheets.length>page&&y>TOP+75){
+   const oldSheets=this.sheets.slice(page),oldCommands=this.sheets[page-1].commands.slice(commands),oldY=this.y;
+   this.sheets.length=page;this.sheet.commands.length=commands;this.y=y;
+   this.newPage();const fresh=this.sheets.length;this.renderNode(element);
+   if(this.sheets.length>fresh){this.sheets.length=page;this.sheet.commands.length=commands;this.sheet.commands.push(...oldCommands);this.sheets.push(...oldSheets);this.y=oldY;}
+  }
+ }
  node(element:Element){
+  if(this.sprintReport&&element.classList.contains("sprint")){
+   this.sprintContext="";if(this.y>TOP+40)this.newPage();
+   this.sprintContext=element.querySelector(".sprint-body > h2")?.textContent?.trim()||"";
+   this.renderNode(element);this.sprintContext="";return;
+  }
+  if(this.sprintReport&&(element.matches(".story,.sprint-intro,.charts > div")||(element.classList.contains("panel")&&!element.classList.contains("sprint")))){this.keepBlock(element);return;}
+  this.renderNode(element);
+ }
+ private renderNode(element:Element){
   if(element.matches(".actions,.pdf-hide,.foot,script,style,noscript"))return;
   const tag=element.tagName.toLowerCase();
+  if(this.sprintReport&&element.classList.contains("chart-row")){
+   const label=element.firstElementChild?.textContent?.trim()||"",value=element.lastElementChild?.textContent?.trim()||"";
+   const pct=Math.max(0,Math.min(100,Number(element.getAttribute("data-percent"))||0));
+   const lines=this.wrap(label,WIDTH*.45,8.5);const height=Math.max(22,lines.length*12+8);this.reserve(height+5);
+   lines.forEach((line,i)=>this.text(LEFT,this.y+4+i*12,line,8.5,false,"344a61"));
+   const x=LEFT+WIDTH*.48,w=WIDTH*.34;this.rect(x,this.y+5,w,10,"edf2f7");if(pct)this.rect(x,this.y+5,w*pct/100,10,"17649a");this.text(LEFT+WIDTH*.85,this.y+4,value,8.5,true);this.y+=height;return;
+  }
+  if(this.sprintReport&&element.matches(".epic,.feature"))this.reserve(110);
   if(this.team&&element.classList.contains("quality-row")){const pct=Math.max(0,Math.min(100,Number(element.getAttribute("data-percent"))||0));this.reserve(35);this.paragraph(element.querySelector(".quality-label")?.textContent||"",{size:9,bold:true,space:3});this.rect(LEFT,this.y,WIDTH,6,"edf2f7");if(pct)this.rect(LEFT,this.y,WIDTH*pct/100,6,pct===100?"16876d":pct<50?"b94a48":"ce861a");this.y+=13;return;}
   if(this.team&&element.classList.contains("item")){const title=element.querySelector(":scope > div")?.textContent?.trim()||Array.from(element.childNodes).filter(n=>n.nodeType===3).map(n=>n.textContent).join(" ").trim();const note=element.querySelector(":scope > span")?.textContent?.trim()||"";if(title||note){this.paragraph([title,note].filter(Boolean).join(" · "),{space:5});return;}}
   if(this.team&&element.classList.contains("team-meeting"))this.reserve(180);
@@ -272,7 +302,7 @@ export async function downloadReportDocumentPdf(html:string,filename:string):Pro
  const doc=new DOMParser().parseFromString(html,"text/html");
  const root=doc.querySelector("main.wrap");
  if(!root)throw new Error("Relatório não encontrado para gerar o documento.");
- const composer=new DocumentComposer(await loadLogo(doc),root.classList.contains("team-report")||doc.title.includes("Equipe"));
+ const composer=new DocumentComposer(await loadLogo(doc),root.classList.contains("team-report")||doc.title.includes("Equipe"),root.classList.contains("sprint-report"));
  for(const child of Array.from(root.children))composer.node(child);
  const pdf=composer.toPdf(),url=URL.createObjectURL(pdf);
  try{

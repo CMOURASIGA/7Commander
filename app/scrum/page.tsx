@@ -2,6 +2,7 @@
 import { AgileWorkspaceNav } from "@/components/scrum/agile-workspace-nav";
 import {ScrumKairosActions} from "@/components/scrum/scrum-kairos-actions";
 import Link from "next/link";
+import SprintReport from "@/components/scrum/sprint-report";
 import {useState} from "react";
 import {useConfirm} from "@/components/ui/confirm-dialog";
 import {PageIntro,SurfaceCard} from "@/components/ui/workspace-primitives";
@@ -35,6 +36,7 @@ export default function ScrumPage(){
  return <section className="space-y-4">
       <AgileWorkspaceNav context={data.projects.find(p=>p.id===data.projectId)?.name}/>
    <PageIntro eyebrow="Gestão de projetos" title="Scrum e Sprints" description="Painel gerencial de Sprints, histórias e impedimentos. As User Stories são independentes do Kanban de atividades." aside={<button className="workspace-button-primary rounded-lg px-4 py-2 text-sm" onClick={()=>{setEditingSprintId("");setForm({name:"",goal:"",startDate:today(),endDate:addDays(today(),14)});setDrawer(true)}}>+ Criar Sprint</button>}/>
+   <div className="flex justify-end"><SprintReport key={data.projectId} projectId={data.projectId} projectName={data.projects.find(p=>p.id===data.projectId)?.name||""} sprintId={data.sprintId} disabled={!data.projectId||data.loading||!!data.error}/></div>
    <SurfaceCard>
      <ScrumSelectors projects={data.projects} projectId={data.projectId} onProject={data.setProjectId}
        sprints={data.sprints} sprintId={data.sprintId} onSprint={data.setSprintId}/>
